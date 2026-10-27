@@ -98,7 +98,7 @@ Custom element: `<keybinds-cheatsheet>`
 | `open` | boolean | When present, cheatsheet is visible |
 | `auto-trigger` | boolean | Open while a modifier is held on its own |
 | `trigger-key` | string | The modifier: `$mod` (default; Meta on Mac, Control elsewhere), `Control`, `Alt`, `Shift` or `Meta` |
-| `trigger-delay` | number | How long it's held before opening, in ms (default 200) |
+| `trigger-delay` | number | How long it's held before opening, in ms (default 1000) |
 
 ### Events
 

@@ -9,7 +9,7 @@ export type Input = import('../core.js').InputUI;
  *   open         - Show/hide the cheatsheet
  *   auto-trigger  - Open while a modifier is held on its own; tapping it twice keeps it open
  *   trigger-key   - The modifier to hold: $mod (default: Meta on Mac, Control elsewhere), Control, Alt, Shift or Meta
- *   trigger-delay - How long to hold it before opening, in ms (default 200)
+ *   trigger-delay - How long to hold it before opening, in ms (default 1000)
  *
  * Properties:
  *   commands: Command[]     - Array of command definitions

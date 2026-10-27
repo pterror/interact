@@ -13,7 +13,7 @@ import { keysUI } from '../keys-ui.js'
  *   open         - Show/hide the cheatsheet
  *   auto-trigger  - Open while a modifier is held on its own; tapping it twice keeps it open
  *   trigger-key   - The modifier to hold: $mod (default: Meta on Mac, Control elsewhere), Control, Alt, Shift or Meta
- *   trigger-delay - How long to hold it before opening, in ms (default 200)
+ *   trigger-delay - How long to hold it before opening, in ms (default 1000)
  *
  * Properties:
  *   commands: Command[]     - Array of command definitions
@@ -153,13 +153,14 @@ export class KeybindCheatsheet extends HTMLElement {
     // Which modifier to hold: "$mod" (the default) is Meta on Mac and Control elsewhere, like in bindings
     const key = this.getAttribute('trigger-key') || '$mod'
     const modifier = key.toLowerCase() === '$mod' ? (isMac ? 'Meta' : 'Control') : key
-    const delay = Number(this.getAttribute('trigger-delay') ?? 200)
+    // Long enough that pausing with it down to find the rest of a shortcut doesn't open it
+    const delay = Number(this.getAttribute('trigger-delay') ?? 1000)
     // Holding shows it until the key is let go; tapping twice keeps it open (and tapping twice again,
     // Escape or a click outside closes it).
     let pinned = false
     const unhold = onModifierHold(modifier, (held) => {
       if (!pinned) this.open = held
-    }, { delay: Number.isFinite(delay) ? delay : 200 })
+    }, { delay: Number.isFinite(delay) ? delay : 1000 })
     const untap = onModifierTaps(modifier, 2, () => {
       pinned = !this.open
       this.open = pinned

@@ -56,7 +56,7 @@ npm link keybinds
 That's it. You get:
 - `$mod+S` / `$mod+O` keybinds working
 - `$mod+K` opens command palette with search
-- Hold `Control` for 200ms shows cheatsheet
+- Hold `Control` for a second shows cheatsheet
 - Right-click shows context menu (for commands with `menu` tag)
 
 Four web components are available via `registerComponents()`:

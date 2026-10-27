@@ -94,7 +94,7 @@ Grouped display of available bindings.
 | `open` | When present, cheatsheet is visible |
 | `auto-trigger` | Open while a modifier is held on its own; tapping it twice keeps it open until it's tapped twice again, Escape or a click outside |
 | `trigger-key` | Which modifier: `$mod` (default; Meta on Mac, Control elsewhere), `Control`, `Alt`, `Shift` or `Meta` |
-| `trigger-delay` | How long it's held before opening, in ms (default 200) |
+| `trigger-delay` | How long it's held before opening, in ms (default 1000) |
 
 ### Events
 
