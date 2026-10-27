@@ -93,6 +93,7 @@ export declare class ContextMenu extends HTMLElement {
     _buildItems(): void;
     _updatePosition(): void;
     _render(): void;
+    _markActive(): void;
     /** @param {KeyboardEvent} e */
     _handleKey(e: KeyboardEvent): void;
     /** @param {number} index */

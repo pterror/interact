@@ -409,7 +409,7 @@ export class ContextMenu extends HTMLElement {
       li.addEventListener('mouseenter', () => {
         if (this._inputMode !== 'pointer') return
         this._activeIndex = i
-        this._render()
+        this._markActive()
       })
 
       this._list.appendChild(li)
@@ -433,6 +433,18 @@ export class ContextMenu extends HTMLElement {
       moreRow.addEventListener('focus', expand)
 
       this._list.appendChild(moreRow)
+    }
+  }
+
+  // Shows which item is active on the items already there. Building them again would replace the one
+  // under the pointer, and a press that began on it would never become a click.
+  _markActive() {
+    for (const li of Array.from(/** @type {NodeListOf<HTMLElement>} */ (this._list.querySelectorAll('[data-index]')))) {
+      const i = Number(li.dataset['index'])
+      const on = i === this._activeIndex
+      const off = !(/** @type {Command & { active: boolean }} */ (this._visibleItems[i])).active
+      li.classList.toggle('context-menu__item--active', on)
+      li.setAttribute('part', `item${on ? ' item-active' : ''}${off ? ' item-disabled' : ''}`)
     }
   }
 

@@ -221,3 +221,29 @@ describe('BasicContextMenu', () => {
     el.remove()
   })
 })
+
+describe('pointing at an item', () => {
+  // Building the items again would replace the one under the pointer, and a press that began on it
+  // would never become a click.
+  for (const [tag, Menu] of /** @type {const} */ ([['keybinds-context-menu', ContextMenu], ['keybinds-basic-context-menu', BasicContextMenu]])) {
+    test(`${tag} marks it active on the item that's there, which a click then runs`, () => {
+      if (!customElements.get(tag)) customElements.define(tag, Menu)
+      const run = mock(() => {})
+      const el = /** @type {ContextMenu | BasicContextMenu} */ (document.createElement(tag))
+      el.commands = [{ id: 'one', label: 'One', execute: () => {} }, { id: 'two', label: 'Two', execute: run }]
+      document.body.appendChild(el)
+      el.open = true
+      const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
+      const list = /** @type {HTMLElement} */ (shadow.querySelector('[role=menu], ul'))
+      const before = /** @type {HTMLElement} */ (shadow.querySelectorAll('.context-menu__item')[1])
+      list.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }))
+      before.dispatchEvent(new MouseEvent('mouseenter'))
+      const after = /** @type {HTMLElement} */ (shadow.querySelectorAll('.context-menu__item')[1])
+      expect(after).toBe(before)
+      expect(after.className).toContain('context-menu__item--active')
+      after.click()
+      expect(run).toHaveBeenCalledTimes(1)
+      el.remove()
+    })
+  }
+})

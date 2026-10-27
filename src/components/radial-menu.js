@@ -37,6 +37,13 @@ import { markKind, isActive } from '../core.js'
  *   indicator       - The dot/circle for each slot
  *   label           - The text label for each slot
  */
+// Colors from CSS custom properties, with fallbacks
+const ACTIVE_COLOR = 'var(--radial-menu-active-color, #4f8ef7)'
+const INACTIVE_COLOR = 'var(--radial-menu-inactive-color, #888)'
+const DISABLED_COLOR = 'var(--radial-menu-disabled-color, #555)'
+const TEXT_COLOR = 'var(--radial-menu-text-color, currentColor)'
+const SPOKE_COLOR = 'var(--radial-menu-spoke-color, currentColor)'
+
 export class RadialMenu extends HTMLElement {
   static kind = 'radial-menu'
 
@@ -242,12 +249,6 @@ export class RadialMenu extends HTMLElement {
     const indR = this._indicatorR
     const gap = this._labelGap
 
-    // Indicator fill from CSS custom property or fallback
-    const activeColor = 'var(--radial-menu-active-color, #4f8ef7)'
-    const inactiveColor = 'var(--radial-menu-inactive-color, #888)'
-    const disabledColor = 'var(--radial-menu-disabled-color, #555)'
-    const textColor = 'var(--radial-menu-text-color, currentColor)'
-    const spokeColor = 'var(--radial-menu-spoke-color, currentColor)'
 
     for (let slot = 0; slot < total; slot++) {
       // Distribute evenly, starting at top (−π/2), clockwise
@@ -264,19 +265,17 @@ export class RadialMenu extends HTMLElement {
       spokeLine.setAttribute('y1', '0')
       spokeLine.setAttribute('x2', String(cx))
       spokeLine.setAttribute('y2', String(cy))
-      spokeLine.setAttribute('stroke', cmd ? spokeColor : disabledColor)
+      spokeLine.setAttribute('stroke', cmd ? SPOKE_COLOR : DISABLED_COLOR)
       spokeLine.setAttribute('part', 'spoke')
       this._spokesGroup.appendChild(spokeLine)
 
       if (!cmd) continue
 
       const isActive_ = cmd.active
-      const isHighlighted = slot === this._activeIndex
 
-      // Slot group
+      // Slot group (how it shows being active is _paint's)
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-      g.setAttribute('class', `radial-menu__slot${!isActive_ ? ' radial-menu__slot--disabled' : ''}${isHighlighted ? ' radial-menu__slot--active' : ''}`)
-      g.setAttribute('part', `slot${isHighlighted ? ' slot-active' : ''}${!isActive_ ? ' slot-disabled' : ''}`)
+      g.dataset['slot'] = String(slot)
       g.setAttribute('role', 'menuitem')
       g.setAttribute('aria-label', cmd.label)
       if (!isActive_) g.setAttribute('aria-disabled', 'true')
@@ -295,8 +294,6 @@ export class RadialMenu extends HTMLElement {
       dot.setAttribute('part', 'indicator')
       dot.setAttribute('cx', String(cx))
       dot.setAttribute('cy', String(cy))
-      dot.setAttribute('r', isHighlighted ? String(indR + 2) : String(indR))
-      dot.setAttribute('fill', !isActive_ ? disabledColor : isHighlighted ? activeColor : inactiveColor)
       g.appendChild(dot)
 
       // Label — bilateral layout:
@@ -306,7 +303,6 @@ export class RadialMenu extends HTMLElement {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
       text.setAttribute('class', 'radial-menu__label')
       text.setAttribute('part', 'label')
-      text.setAttribute('fill', !isActive_ ? disabledColor : isHighlighted ? activeColor : textColor)
 
       const onRight = Math.cos(angle) >= 0
       const lx = onRight ? cx + indR + gap : cx - indR - gap
@@ -323,18 +319,42 @@ export class RadialMenu extends HTMLElement {
       g.addEventListener('mouseenter', () => {
         if (this._inputMode !== 'pointer') return
         this._activeIndex = slot
-        this._render()
+        this._markActive()
       })
       g.addEventListener('mouseleave', () => {
         if (this._inputMode !== 'pointer') return
         if (this._activeIndex === slot) {
           this._activeIndex = -1
-          this._render()
+          this._markActive()
         }
       })
 
+      this._paint(g)
       this._slotsGroup.appendChild(g)
     }
+  }
+
+  /**
+   * How a slot shows whether it's the active one, and whether it can be used.
+   * @param {SVGGElement} g
+   */
+  _paint(g) {
+    const slot = Number(g.dataset['slot'])
+    const enabled = /** @type {Command & { active: boolean }} */ (this._items[slot]).active
+    const on = slot === this._activeIndex
+    g.setAttribute('class', `radial-menu__slot${!enabled ? ' radial-menu__slot--disabled' : ''}${on ? ' radial-menu__slot--active' : ''}`)
+    g.setAttribute('part', `slot${on ? ' slot-active' : ''}${!enabled ? ' slot-disabled' : ''}`)
+    const dot = /** @type {SVGCircleElement} */ (g.querySelector('.radial-menu__indicator'))
+    dot.setAttribute('r', String(on ? this._indicatorR + 2 : this._indicatorR))
+    dot.setAttribute('fill', !enabled ? DISABLED_COLOR : on ? ACTIVE_COLOR : INACTIVE_COLOR)
+    const text = /** @type {SVGTextElement} */ (g.querySelector('.radial-menu__label'))
+    text.setAttribute('fill', !enabled ? DISABLED_COLOR : on ? ACTIVE_COLOR : TEXT_COLOR)
+  }
+
+  // Shows which slot is active on the slots already there. Drawing them again would replace the one
+  // under the pointer, and a press that began on it would never become a click.
+  _markActive() {
+    for (const g of Array.from(/** @type {NodeListOf<SVGGElement>} */ (this._slotsGroup.querySelectorAll('[data-slot]')))) this._paint(g)
   }
 
   /** @param {KeyboardEvent} e */
