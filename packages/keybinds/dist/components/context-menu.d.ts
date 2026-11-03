@@ -58,8 +58,8 @@ export type ScoredCommand = import('../command.js').Command & {
 export declare class ContextMenu extends HTMLElement {
     /** How bindings are shown: an item shows its first. @type {Input[]} */
     inputs: Input[];
-    /** @type {Command[]} */
-    _commands: Command[];
+    /** @type {readonly Command[]} */
+    _commands: readonly Command[];
     /** @type {Record<string, unknown>} */
     _context: Record<string, unknown>;
     /** @type {string} */
@@ -103,8 +103,8 @@ export declare class ContextMenu extends HTMLElement {
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get commands(): Readonly<import("../command.js").CommandFields>[];
-    set commands(val: Readonly<import("../command.js").CommandFields>[]);
+    get commands(): readonly Readonly<import("../command.js").CommandFields>[];
+    set commands(val: readonly Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get menu(): string;

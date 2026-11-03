@@ -137,4 +137,13 @@ function windowOf(target) {
   return target instanceof Node ? (target.ownerDocument?.defaultView ?? target) : target
 }
 
-export { inInput, windowOf }
+/**
+ * Whether an input can also be shown and recorded: it has its UI half's label and format
+ * @param {Input} input - The input
+ * @returns {input is InputUI} Whether it has
+ */
+function isInputUI(input) {
+  return 'format' in input && typeof input.format === 'function' && 'label' in input && typeof input.label === 'string'
+}
+
+export { inInput, isInputUI, windowOf }

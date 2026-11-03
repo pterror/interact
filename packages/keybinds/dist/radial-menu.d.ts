@@ -1,4 +1,4 @@
-export type Command = import('../command.js').Command;
+export type Command = import('./command.js').Command;
 export declare class RadialMenu extends HTMLElement {
     /** @type {Command[]} */
     _commands: Command[];
@@ -33,8 +33,8 @@ export declare class RadialMenu extends HTMLElement {
     static get observedAttributes(): string[];
     constructor();
     connectedCallback(): void;
-    get commands(): Readonly<import("../command.js").CommandFields>[];
-    set commands(val: Readonly<import("../command.js").CommandFields>[]);
+    get commands(): Readonly<import("./command.js").CommandFields>[];
+    set commands(val: Readonly<import("./command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get open(): boolean;

@@ -1,484 +1,300 @@
 /**
- * CommandHub: every command on the page, from every source, with one store of people's rebindings.
- */
-
-import { formatBinding } from './binding-format.js'
-import { isActive } from './command.js'
-import { createComponent } from './components/create.js'
-import { keybinds, validateCommands } from './core.js'
-import { BindingsStore, localStorageBindings } from './store.js'
-
-/** @typedef {import('./command.js').Command} Command */
-/** @typedef {import('./command.js').AxisDef} AxisDef */
-/** @typedef {import('./command.js').AxisValue} AxisValue */
-/** @typedef {import('./input.js').Input} Input */
-/** @typedef {import('./command.js').Schema} Schema */
-/** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
-/** @typedef {import('./store.js').BindingsStorage} BindingsStorage */
-/** @typedef {import('./components/palette.js').CommandPalette} CommandPalette */
-/** @typedef {import('./components/cheatsheet.js').KeybindCheatsheet} KeybindCheatsheet */
-/** @typedef {import('./components/settings.js').KeybindSettings} KeybindSettings */
-/** @typedef {import('./components/context-menu.js').ContextMenu} ContextMenu */
-
-/**
- * @typedef {Object} CommandHubOptions
- * @property {Input[]} [inputs] - What to listen to: e.g. [keys(), mouse()]. With components, their UI
- *   halves, which can also be shown and recorded: [keysUI(), mouseUI()]
- * @property {(CustomElementConstructor & { kind: string })[]} [components] - Components to make
- *   inside `host`: any of CommandPalette, KeybindCheatsheet, KeybindSettings, ContextMenu
- * @property {HTMLElement} [host] - Where the components go
- * @property {string} [storageKey] - localStorage key for people's rebindings (default "keybinds"); the scope is appended
- * @property {(scope: string) => BindingsStorage} [storage] - Keep rebindings somewhere other than
- *   localStorage, separately per scope. Takes the place of `storageKey`
- * @property {import('./core.js').Phase} [releases] - From releases(), for release bindings ("k:up")
- * @property {import('./core.js').Phase} [holds] - From holds(), for "k:hold" and "k:tap"
- * @property {import('./sequences.js').Sequences} [sequences] - From sequences(), for bindings of several steps ("g i")
- * @property {import('./any-modifiers.js').AnyModifiers} [anyModifiers] - From anyModifiers(), for commands with `anyModifiers`
- * @property {Omit<KeybindsOptions, 'inputs' | 'axes' | 'releases' | 'holds' | 'sequences' | 'anyModifiers'>} [listen] - Passed on to keybinds(): target, capture, onExecute
+ * CommandHub. Sources are re-read on refresh(); the hub lays people's overrides over their commands, listens, and keeps
+ * its components and buttons in step. What fails is left out and reported as an `error` event, or to reportError().
  */
 
 /**
- * Every command on the page, from every source, with one store of people's rebindings.
- *
- * Sources are functions, re-read on refresh(), so commands can come and go with the page's
- * state. The hub derives the bindings schema from the commands themselves, lays each person's
- * overrides over it, listens through its inputs, and keeps its components and any command
- * buttons in step.
- *
+ * @import { KeybindCheatsheet } from './cheatsheet.js'
+ * @import { AxisDef, AxisValue, Command, Context } from './command.js'
+ * @import { ContextMenu } from './components/context-menu.js'
+ * @import { KeybindSettings } from './components/settings.js'
+ * @import { CommandDefinition, Source } from './hub-commands.js'
+ * @import { HubComponents } from './hub-components.js'
+ * @import { CommandHubOptions } from './hub-options.js'
+ * @import { Input } from './input.js'
+ * @import { CommandPalette } from './palette.js'
+ * @import { BindingsStore } from './store.js'
+ */
+
+import { HubBindings } from './hub-bindings.js'
+import { CommandButtons } from './hub-buttons.js'
+import { commandOf } from './hub-commands.js'
+import { componentsOf, listenOptions, reporterFor, storageOf } from './hub-options.js'
+
+/**
+ * Every command on the page, from every source, with one store of people's rebindings
+ * @template {CommandDefinition} [D=Command] - What its sources give: commands, or definitions `adapt` turns into them
+ * @template {Context} [C=Context] - The context `when` conditions see
  * @example
- * const hub = new CommandHub({
- *   inputs: [keys(), mouse()],
- *   components: [CommandPalette, KeybindSettings],
- *   host: document.body,
- *   storageKey: 'myapp:keys',
- * })
- * hub.setSource('editor', () => editorCommands)
- * hub.addContext(() => ({ editing: !!editor.focused }))
- * hub.refresh()
- * hub.bindButtons(toolbar) // <button data-command="save">Save</button>
- *
- * @template {{ id: string, label: string, category?: string | undefined, description?: string | undefined, keys?: readonly string[] | undefined, mouse?: readonly string[] | undefined, gamepad?: readonly string[] | undefined, hidden?: boolean | undefined }} [D=Command]
- * @template {object} [C=Record<string, unknown>] - The context `when` conditions see
+ *   const hub = new CommandHub({ context: () => ({ editing: editor.focused }), inputs: [keysUI()] })
+ *   hub.setSource('editor', () => editorCommands)
  */
-export class CommandHub extends EventTarget {
-  // Declared as fields so they appear in the generated type declarations
-  /** @type {CommandPalette | null} */
-  palette = null
-  /** @type {KeybindCheatsheet | null} */
-  cheatsheet = null
-  /** @type {KeybindSettings | null} */
-  settings = null
-  /** @type {ContextMenu | null} */
-  menu = null
+class CommandHub extends EventTarget {
+  /**
+   * @readonly
+   * @type {HubBindings<D>}
+   */
+  #bindings
+  /**
+   * @readonly
+   * @type {() => C}
+   */
+  #base
+  /**
+   * @readonly
+   * @type {HubComponents | undefined}
+   */
+  #components
+  /** @type {readonly Source<D>[]} */
+  #sources = []
+  /** @type {readonly Source<AxisDef>[]} */
+  #axisSources = []
+  /** @type {readonly (() => Partial<C>)[]} */
+  #contexts = []
+  #scope = 'global'
+  /** @readonly */
+  #buttons = new CommandButtons({
+    applies: (id) => this.#bindings.applying(id, this.context()) !== undefined,
+    run: (id, event) => this.run(id, event),
+  })
 
   /**
-   * @param {CommandHubOptions & { adapt?: (def: D) => Command }} [options] - `adapt` turns the
-   *   sources' definitions into commands, when they aren't commands already
+   * Makes the hub, and its components inside `host`
+   * @param {CommandHubOptions<D, C>} options - Its context, inputs, storage and components
+   * @throws {TypeError} If there are components but no host, or inputs they can't show
    */
-  constructor(options = {}) {
+  constructor(options) {
     super()
-    /** @type {Input[]} */
-    this.inputs = options.inputs ?? []
-    const key = options.storageKey ?? 'keybinds'
-    /** @type {(scope: string) => BindingsStorage} */
-    this._storage = options.storage ?? ((scope) => localStorageBindings(`${key}:${scope}`))
-    /** What keybinds() is given besides the commands and axes */
-    /** @type {KeybindsOptions} */
-    this._options = { ...options.listen, inputs: this.inputs }
-    for (const k of /** @type {const} */ (['releases', 'holds', 'sequences', 'anyModifiers'])) {
-      if (options[k]) Object.assign(this._options, { [k]: options[k] })
-    }
-    /** @type {(def: D) => Command} */
-    this._adapt = options.adapt ?? ((def) => /** @type {Command} */ (/** @type {unknown} */ (def)))
-    /** @type {{ owner: string, get: () => D[] }[]} */
-    this._sources = []
-    /** @type {{ owner: string, get: () => AxisDef[] }[]} */
-    this._axisSources = []
-    /** @type {Map<string, AxisDef>} */
-    this._axes = new Map()
-    /** @type {(() => Partial<C>)[]} */
-    this._contexts = []
-    /** @type {Map<string, D>} */
-    this._defs = new Map()
-    /** @type {Map<string, Command>} */
-    this._live = new Map()
-    /** @type {BindingsStore | null} */
-    this._store = null
-    this._storeListener = () => this.refresh()
-    /** @type {ReturnType<typeof keybinds> | null} */
-    this._unbind = null
-    this._scope = 'global'
-    /** @type {Set<Element>} */
-    this._buttonRoots = new Set()
+    this.#base = options.context
+    this.#bindings = new HubBindings({
+      adapt: options.adapt ?? commandOf,
+      changed: this.refresh.bind(this),
+      options: listenOptions(options),
+      report: reporterFor(this),
+      storage: storageOf(options),
+    })
+    this.#components = componentsOf(options, this.syncContext.bind(this))
+  }
 
-    const components = options.components ?? []
-    if (components.length > 0 && !options.host) throw new Error('CommandHub: components need a host to go in')
-    // Components show and record bindings, which is each input's UI half
-    const bare = components.length > 0 && this.inputs.find((i) => !('format' in i))
-    if (bare)
-      throw new Error(
-        `CommandHub: components need inputs that can be shown; use ${bare.field}UI() from keybinds/${bare.field}-ui`,
-      )
-    if (!options.host) return
-    for (const cls of components) {
-      const el = /** @type {HTMLElement & { inputs?: Input[] }} */ (createComponent(cls))
-      el.inputs = this.inputs
-      options.host.append(el)
-      if (cls.kind === 'command-palette') this.palette = /** @type {CommandPalette} */ (/** @type {unknown} */ (el))
-      else if (cls.kind === 'cheatsheet')
-        this.cheatsheet = /** @type {KeybindCheatsheet} */ (/** @type {unknown} */ (el))
-      else if (cls.kind === 'settings') this.settings = /** @type {KeybindSettings} */ (/** @type {unknown} */ (el))
-      else if (cls.kind === 'context-menu') this.menu = /** @type {ContextMenu} */ (/** @type {unknown} */ (el))
-      else throw new Error(`CommandHub: no place for a ${cls.kind} component`)
-    }
-    // However the cheatsheet opens (a command, holding a key), it shows what applies right now.
-    this.cheatsheet?.addEventListener('open', () => this.syncContext())
-    // Closing the palette, settings or a menu gives focus back to where it was (the text being
-    // edited, say), before the chosen command runs; the command can still move it elsewhere.
-    /** @type {HTMLElement | null} */
-    this._lastFocus = null
-    /** @param {FocusEvent} e */
-    this._onFocusIn = (e) => {
-      const el = /** @type {HTMLElement} */ (e.target)
-      // Focus inside a component (even in its shadow DOM) isn't somewhere to come back to
-      for (let n = /** @type {Element | undefined} */ (el); n; n = /** @type {ShadowRoot} */ (n.getRootNode()).host) {
-        if (n.closest?.('[data-keybinds]')) return
-      }
-      this._lastFocus = el
-    }
-    document.addEventListener('focusin', this._onFocusIn, true)
-    for (const overlay of [this.palette, this.settings, this.menu]) {
-      overlay?.addEventListener('close', () => {
-        const now = document.activeElement
-        const lost =
-          !now ||
-          now === document.body ||
-          now === overlay ||
-          overlay.contains(now) ||
-          now.getRootNode() === overlay.shadowRoot
-        if (lost && this._lastFocus?.isConnected) this._lastFocus.focus({ preventScroll: true })
-      })
-    }
+  /** @returns {readonly Input[]} What it listens to */
+  get inputs() {
+    return this.#bindings.inputs
+  }
+
+  /** @returns {CommandPalette | undefined} The palette it made */
+  get palette() {
+    return this.#components?.palette
+  }
+
+  /** @returns {KeybindCheatsheet | undefined} The cheatsheet it made */
+  get cheatsheet() {
+    return this.#components?.cheatsheet
+  }
+
+  /** @returns {KeybindSettings | undefined} The settings panel it made */
+  get settings() {
+    return this.#components?.settings
+  }
+
+  /** @returns {ContextMenu | undefined} The context menu it made */
+  get menu() {
+    return this.#components?.menu
+  }
+
+  /** @returns {BindingsStore | undefined} The store of people's rebindings, as the settings panel edits it */
+  get store() {
+    return this.#bindings.store
   }
 
   /**
-   * Replace the commands owned by `owner` (null removes them). Takes effect on refresh().
-   * Earlier sources win when two define the same id.
-   * @param {string} owner
-   * @param {(() => D[]) | null} get
+   * Replaces the commands owned by `owner` (undefined removes them), from refresh() on. Earlier sources win an id
+   * @param {string} owner - Which part of the app they're from
+   * @param {(() => readonly D[]) | undefined} get - Gives the commands, or their definitions
+   * @returns {void}
    */
   setSource(owner, get) {
-    this._sources = this._sources.filter((s) => s.owner !== owner)
-    if (get) this._sources.push({ owner, get })
+    this.#sources = [...this.#sources.filter((source) => source.owner !== owner), ...(get ? [{ get, owner }] : [])]
   }
 
   /**
-   * Replace the axes owned by `owner` (null removes them). Takes effect on refresh(). Axes are
-   * rebindable in the settings panel like commands, and read with axis(id).
-   * @param {string} owner
-   * @param {(() => AxisDef[]) | null} get
+   * Replaces the axes owned by `owner` (undefined removes them), from refresh() on. Axes are rebindable in the
+   * settings panel like commands, and read with axis(id)
+   * @param {string} owner - Which part of the app they're from
+   * @param {(() => readonly AxisDef[]) | undefined} get - Gives the axes
+   * @returns {void}
    */
   setAxes(owner, get) {
-    this._axisSources = this._axisSources.filter((s) => s.owner !== owner)
-    if (get) this._axisSources.push({ owner, get })
+    const others = this.#axisSources.filter((source) => source.owner !== owner)
+    this.#axisSources = [...others, ...(get ? [{ get, owner }] : [])]
   }
 
   /**
-   * Add to the context that `when` conditions see. Returns a function that removes it again.
-   * @param {() => Partial<C>} get
-   * @returns {() => void}
+   * Adds a part laid over the context `when` conditions see
+   * @param {() => Partial<C>} get - Gives part of the context
+   * @returns {() => void} A function that removes it again
    */
   addContext(get) {
-    this._contexts.push(get)
+    this.#contexts = [...this.#contexts, get]
     return () => {
-      this._contexts = this._contexts.filter((g) => g !== get)
+      this.#contexts = this.#contexts.filter((each) => each !== get)
     }
   }
 
-  /** @returns {C} */
+  /** @returns {C} The context now: the app's, with every part added laid over it, later ones over earlier */
   context() {
-    return Object.assign({}, ...this._contexts.map((g) => g()))
+    const context = { ...this.#base() }
+    for (const get of this.#contexts) {
+      Object.assign(context, get())
+    }
+    return context
   }
 
   /**
-   * Keep rebindings separately per scope (a document type, a game), so a key can mean different
-   * things in each. Takes effect on refresh().
-   * @param {string} scope
+   * Keeps rebindings separately per scope (a document type, a game), so a key can mean different things in each,
+   * from refresh() on
+   * @param {string} scope - The scope
+   * @returns {void}
    */
   setScope(scope) {
-    this._scope = scope
-  }
-
-  /** The store of people's rebindings, as the settings panel edits it. */
-  get store() {
-    return this._store
+    this.#scope = scope
   }
 
   /**
-   * Whether a command is held right now: its press fired and that key or button hasn't come up.
-   * @param {string} id
+   * @param {string} id - A command
+   * @returns {boolean} Whether it's held right now: its press fired and that key or button hasn't come up
    */
   held(id) {
-    return this._unbind?.held(id) ?? false
+    return this.#bindings.held(id)
   }
 
   /**
-   * An axis's value right now; reading it takes the mouse movement since its last read.
-   * @param {string} id
-   * @returns {AxisValue}
+   * @param {string} id - An axis
+   * @returns {AxisValue} Its value right now; reading it takes the mouse movement since its last read
    */
   axis(id) {
-    return this._unbind?.axis(id) ?? { position: 0, delta: 0 }
+    return this.#bindings.axis(id)
   }
 
-  /** @returns {D[]} */
+  /** @returns {D[]} Every command or definition, as its source gave it */
   all() {
-    return [...this._defs.values()]
+    return [...this.#bindings.commands.values()]
   }
 
   /**
-   * @param {string} id
-   * @returns {D | undefined}
+   * @param {string} id - A command's id
+   * @returns {D | undefined} The command or definition, as its source gave it
    */
   get(id) {
-    return this._defs.get(id)
+    return this.#bindings.commands.get(id)
   }
 
   /**
-   * Run a command if it's available now. Returns whether it ran.
-   * @param {string} id
-   * @param {Event} [event]
-   * @returns {boolean}
+   * Runs a command if it applies now
+   * @param {string} id - The command
+   * @param {Event} [event] - What made it run
+   * @returns {boolean} Whether it ran
    */
   run(id, event) {
-    const cmd = this._live.get(id)
-    if (!cmd) return false
-    const ctx = /** @type {Record<string, unknown>} */ (this.context())
-    if (!isActive(cmd, ctx)) return false
-    cmd.execute(ctx, event)
+    const context = this.context()
+    const command = this.#bindings.applying(id, context)
+    if (command === undefined) {
+      return false
+    }
+    command.execute(context, event)
     return true
   }
 
-  /** Re-read the sources, rebuild bindings and listeners, and update every component. */
+  /**
+   * Re-reads the sources, rebuilds bindings and listeners, and updates every component
+   * @returns {void}
+   */
   refresh() {
-    this._defs.clear()
-    for (const src of this._sources) {
-      /** @type {D[]} */
-      let list = []
-      try {
-        list = src.get()
-      } catch (e) {
-        console.error(`keybinds: command source "${src.owner}" threw`, e)
-      }
-      for (const d of list) if (!this._defs.has(d.id)) this._defs.set(d.id, d)
-    }
-
-    const fields = this.inputs.filter((i) => !i.axis).map((i) => i.field)
-    /** @type {Record<string, import('./command.js').BindingSchema>} */
-    const schema = {}
-    for (const d of this._defs.values()) {
-      const def = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (d))
-      schema[d.id] = {
-        label: d.label,
-        category: d.category,
-        description: d.description,
-        hidden: d.hidden,
-        keys: d.keys ?? [],
-      }
-      for (const f of fields)
-        if (def[f] !== undefined) /** @type {Record<string, unknown>} */ (schema[d.id])[f] = def[f]
-    }
-    this._axes.clear()
-    for (const src of this._axisSources) {
-      /** @type {AxisDef[]} */
-      let list = []
-      try {
-        list = src.get()
-      } catch (e) {
-        console.error(`keybinds: axis source "${src.owner}" threw`, e)
-      }
-      for (const a of list) {
-        if (this._axes.has(a.id) || this._defs.has(a.id)) continue
-        this._axes.set(a.id, a)
-        schema[a.id] = {
-          label: a.label,
-          category: a.category,
-          description: a.description,
-          axes: a.axes,
-          hidden: a.hidden,
-        }
-      }
-    }
-    this._store?.removeEventListener('change', this._storeListener)
-    this._store?.dispose()
-    this._store = new BindingsStore(schema, this._storage(this._scope))
-    this._store.addEventListener('change', this._storeListener)
-    const bound = /** @type {Record<string, Record<string, string[] | undefined>>} */ (
-      /** @type {unknown} */ (this._store.get())
-    )
-
-    this._live.clear()
-    for (const d of this._defs.values()) {
-      /** @type {Record<string, unknown>} */
-      const cmd = { ...this._adapt(d) }
-      for (const f of fields) cmd[f] = bound[d.id]?.[f]
-      try {
-        validateCommands([/** @type {Command} */ (cmd)], this._options)
-      } catch (e) {
-        // One unreadable binding mustn't take every other key down with it
-        console.error(`keybinds: dropping the bindings of "${d.id}"`, e)
-        for (const f of fields) cmd[f] = []
-      }
-      this._live.set(d.id, /** @type {Command} */ (cmd))
-    }
-
-    this._unbind?.()
-    const live = [...this._live.values()]
-    /** @type {AxisDef[]} */
-    const axes = []
-    const axisInput = this.inputs.find((i) => i.axis)
-    for (const a of this._axes.values()) {
-      const def = { ...a, axes: bound[a.id]?.['axes'] ?? a.axes }
-      try {
-        if (axisInput) def.axes.forEach((b) => axisInput.parse(b, ''))
-      } catch (e) {
-        console.error(`keybinds: dropping the sources of axis "${a.id}"`, e)
-        def.axes = []
-      }
-      axes.push(def)
-    }
-    const hasBindings = (/** @type {Command} */ c) =>
-      fields.some((f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (c)[f])?.length)
-    this._unbind = keybinds(live.filter(hasBindings), () => /** @type {Record<string, unknown>} */ (this.context()), {
-      ...this._options,
-      axes,
+    this.#bindings.rebuild({
+      axisSources: this.#axisSources,
+      context: () => this.context(),
+      scope: this.#scope,
+      sources: this.#sources,
     })
-    const visible = live.filter((c) => !c.hidden)
-    if (this.palette) this.palette.commands = visible
-    if (this.cheatsheet) this.cheatsheet.commands = visible
-    if (this.menu) this.menu.commands = live
-    if (this.settings) {
-      this.settings.releases = !!this._options.releases
-      this.settings.holds = !!this._options.holds
-      this.settings.sequences = !!this._options.sequences
-      this.settings.store = this._store
-    }
+    this.#components?.show(this.#bindings)
     this.syncContext()
     this.dispatchEvent(new Event('refresh'))
   }
 
-  /** Push the current context into the components and command buttons, so unavailable commands gray out. */
+  /**
+   * Pushes the context now into the components and command buttons, so commands that don't apply gray out
+   * @returns {void}
+   */
   syncContext() {
-    const ctx = /** @type {Record<string, unknown>} */ (this.context())
-    // The palette and menus take focus when they open, which changes the context (nothing is being
-    // edited any more); while open, they keep acting on where they were opened from.
-    if (this.palette && !this.palette.open) this.palette.context = ctx
-    if (this.cheatsheet) this.cheatsheet.context = ctx
-    if (this.menu && !this.menu.open) this.menu.context = ctx
-    for (const root of this._buttonRoots) this._paintButtons(root, ctx)
-  }
-
-  openPalette() {
-    if (!this.palette) return
-    this.refresh()
-    this.palette.open = true
+    this.#components?.sync(this.context())
+    this.#buttons.paint()
   }
 
   /**
-   * Open the context menu with the commands tagged `tag`, at a point on screen.
-   * @param {string} tag
-   * @param {number} x
-   * @param {number} y
+   * Opens the palette, with the commands as they are now
+   * @returns {void}
+   */
+  openPalette() {
+    if (this.palette !== undefined) {
+      this.refresh()
+      this.palette.open = true
+    }
+  }
+
+  /**
+   * Opens the context menu with the commands tagged `tag`, at a point on screen
+   * @param {string} tag - The menu's tag
+   * @param {number} x - Where, in pixels from the viewport's left
+   * @param {number} y - Where, in pixels from the viewport's top
+   * @returns {void}
    */
   openMenu(tag, x, y) {
-    if (!this.menu) return
-    this.syncContext()
-    this.menu.menu = tag
-    this.menu.position = { x, y }
-    this.menu.open = true
+    if (this.menu !== undefined) {
+      this.syncContext()
+      this.#components?.openMenu(tag, { x, y })
+    }
   }
 
   /**
-   * A command's or axis's bindings through one input right now, as shown to people (e.g.
-   * "Ctrl+Z" for keys, "Mouse ↔" for axes).
-   * @param {string} id
+   * A command's or axis's bindings through one input right now, as shown to people ("Ctrl+Z" for keys, "Mouse ↔" for
+   * axes)
+   * @param {string} id - The command or axis
    * @param {string} field - The input's field: "keys", "mouse", "gamepad", "axes"
-   * @returns {string[]}
+   * @returns {string[]} The bindings
    */
   bindingsFor(id, field) {
-    const input = this.inputs.find((i) => i.field === field)
-    if (!input) return []
-    // A command's are what it's listening with (an unreadable binding was dropped); an axis's are in the store
-    const source = input.axis ? this._store?.get()[id] : this._live.get(id)
-    const list = /** @type {string[] | undefined} */ (
-      /** @type {Record<string, unknown> | undefined} */ (source)?.[field]
-    )
-    const ui = 'format' in input ? /** @type {import('./input.js').InputUI} */ (input) : null
-    return (list ?? []).map((b) =>
-      ui
-        ? formatBinding(ui, b)
-            .join(input.axis ? ' ' : '+')
-            .replaceAll('+then+', ' then ')
-        : b,
-    )
+    return this.#bindings.bindingsFor(id, field)
   }
 
   /**
-   * Whether an event is one of a command's press bindings, for code that handles the press
-   * itself, like a drag that should start on a rebindable mouse button.
-   * @param {string} id
-   * @param {Event} event
-   * @returns {boolean}
+   * Whether an event is one of a command's press bindings, for code that handles the press itself, like a drag that
+   * should start on a rebindable mouse button
+   * @param {string} id - The command
+   * @param {Event} event - The event
+   * @returns {boolean} Whether it is
    */
   matches(id, event) {
-    const cmd = this._live.get(id)
-    if (!cmd) return false
-    return this.inputs.some((i) => i.matches?.(cmd, event))
+    return this.#bindings.matches(id, event)
   }
 
   /**
-   * Make every element with `data-command="<id>"` under `root` run that command when clicked and
-   * be disabled while it isn't available. Returns a function that stops.
-   * @param {Element} root
-   * @returns {() => void}
+   * Makes every element with `data-command="<id>"` under `root` run that command when clicked, and be disabled while
+   * the command doesn't apply
+   * @param {Element} root - Where the buttons are
+   * @returns {() => void} A function that stops
    */
   bindButtons(root) {
-    /** @param {Event} e */
-    const onClick = (e) => {
-      const el = /** @type {HTMLElement | null} */ (/** @type {Element} */ (e.target).closest?.('[data-command]'))
-      if (!el || !root.contains(el)) return
-      const id = el.dataset['command']
-      if (id && this.run(id, e)) e.preventDefault()
-    }
-    root.addEventListener('click', onClick)
-    this._buttonRoots.add(root)
-    this._paintButtons(root, /** @type {Record<string, unknown>} */ (this.context()))
-    return () => {
-      root.removeEventListener('click', onClick)
-      this._buttonRoots.delete(root)
-    }
+    return this.#buttons.bind(root)
   }
 
   /**
-   * @param {Element} root
-   * @param {Record<string, unknown>} ctx
+   * Stops listening, and detaches from the store
+   * @returns {void}
    */
-  _paintButtons(root, ctx) {
-    for (const el of Array.from(/** @type {NodeListOf<HTMLElement>} */ (root.querySelectorAll('[data-command]')))) {
-      const cmd = this._live.get(el.dataset['command'] ?? '')
-      const off = !cmd || !isActive(cmd, ctx)
-      if ('disabled' in el) /** @type {HTMLButtonElement} */ (el).disabled = off
-      else el.toggleAttribute('aria-disabled', off)
-    }
-  }
-
-  /** Stop listening, and detach from the store. */
   destroy() {
-    this._unbind?.()
-    this._unbind = null
-    this._store?.removeEventListener('change', this._storeListener)
-    this._store?.dispose()
-    this._buttonRoots.clear()
-    if (this._onFocusIn) document.removeEventListener('focusin', this._onFocusIn, true)
+    this.#bindings.stop()
+    this.#buttons.stop()
+    this.#components?.stop()
   }
 }
+
+export { CommandHub }

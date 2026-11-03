@@ -323,22 +323,25 @@ if (conflict) {
 
 ## CommandHub
 
-`new CommandHub({ inputs?, releases?, holds?, sequences?, anyModifiers?, components?, host?, storageKey?, storage?, listen?, adapt? })`.
-`inputs` are what it listens to and what its components show and record (with components, their UI halves); `releases`,
-`holds`, `sequences` and `anyModifiers` are as for `keybinds()`, and with `releases` the settings panel offers release
-bindings; `components` are the classes to make inside `host` (any of `CommandPalette`, `KeybindCheatsheet`,
-`KeybindSettings`, `ContextMenu`). `storage` is `(scope) => BindingsStorage`, for keeping rebindings somewhere other
-than localStorage. See [Commands From Many Places](../guide/commands.md#commands-from-many-places-commandhub).
+`new CommandHub({ context, adapt?, inputs?, releases?, holds?, sequences?, anyModifiers?, components?, host?, storageKey?, storage?, listen? })`.
+`context` gives the app's state, which `when` conditions see and parts added with `addContext` are laid over; `adapt`
+turns the sources' definitions into commands when they aren't commands already. `inputs` are what it listens to and what
+its components show and record (with components, their UI halves); `releases`, `holds`, `sequences` and `anyModifiers`
+are as for `keybinds()`, and with `releases` the settings panel offers release bindings; `components` are the classes to
+make inside `host`, by slot:
+`{ palette?: CommandPalette, cheatsheet?: KeybindCheatsheet, settings?: KeybindSettings, menu?: ContextMenu }` (or
+subclasses). `storage` is `(scope) => BindingsStorage`, for keeping rebindings somewhere other than localStorage. See
+[Commands From Many Places](../guide/commands.md#commands-from-many-places-commandhub).
 
 | Method                                 | Description                                                                                        |
 | -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `setSource(owner, get \| null)`        | Set or remove the commands owned by `owner`                                                        |
-| `addContext(get)`                      | Add to the context `when` sees; returns a remover                                                  |
+| `setSource(owner, get \| undefined)`   | Set or remove the commands owned by `owner`                                                        |
+| `addContext(get)`                      | Lay a part over the context `when` sees; returns a remover                                         |
 | `setScope(scope)`                      | Keep rebindings separately per scope                                                               |
 | `refresh()`                            | Re-read sources, rebuild bindings, update components (fires `refresh`)                             |
 | `syncContext()`                        | Push the current context to components and buttons                                                 |
 | `run(id, event?)`                      | Run a command if it's available; returns whether it ran                                            |
-| `get(id)`, `all()`                     | The definitions as given                                                                           |
+| `get(id)`, `all()`                     | The definitions as the sources gave them                                                           |
 | `bindingsFor(id, field)`               | Current bindings through one input (`'keys'`, `'mouse'`, `'gamepad'`, `'axes'`) as shown to people |
 | `held(id)`                             | Whether a command is held down right now                                                           |
 | `setAxes(owner, get)`                  | Add axes, rebindable like commands                                                                 |
@@ -348,7 +351,10 @@ than localStorage. See [Commands From Many Places](../guide/commands.md#commands
 | `openPalette()`, `openMenu(tag, x, y)` | Open the components                                                                                |
 | `destroy()`                            | Stop listening                                                                                     |
 
-Properties: `palette`, `cheatsheet`, `settings`, `menu` (when made with `host`), `store`.
+Properties: `palette`, `cheatsheet`, `settings`, `menu` (when made with `host`; otherwise undefined), `store`, `inputs`.
+
+Events: `refresh` after each refresh; `error` (an `ErrorEvent`) when a source throws or a binding can't be read and is
+left out. An `error` nobody prevents goes to `reportError()`.
 
 ---
 

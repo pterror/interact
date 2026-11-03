@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
 
-import { KeybindCheatsheet } from '../components/cheatsheet.js'
+import { KeybindCheatsheet } from './cheatsheet.js'
 
 describe('cheatsheet hold trigger', () => {
   beforeEach(() => {

@@ -36,19 +36,13 @@
     // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
     // list for the rule tests, so it is the one place a file leaves the fence.
     "packages/keybinds/src/components/basic-context-menu.js",
-    "packages/keybinds/src/components/cheatsheet.js",
-    "packages/keybinds/src/components/cheatsheet.test.js",
+    "packages/keybinds/src/cheatsheet.js",
+    "packages/keybinds/src/cheatsheet.test.js",
     "packages/keybinds/src/components/context-menu.js",
     "packages/keybinds/src/components/context-menu.test.js",
-    "packages/keybinds/src/components/create.js",
-    "packages/keybinds/src/components/create.test.js",
-    "packages/keybinds/src/components/palette.js",
-    "packages/keybinds/src/components/palette.test.js",
-    "packages/keybinds/src/components/radial-menu.js",
+    "packages/keybinds/src/radial-menu.js",
     "packages/keybinds/src/components/settings.js",
     "packages/keybinds/src/components/settings.test.js",
-    "packages/keybinds/src/hub.js",
-    "packages/keybinds/src/hub.test.js",
     "packages/keybinds/styles/palette.css"
   ],
   "rules": {
@@ -96,6 +90,9 @@
     // eslint/prefer-object-spread. Only a for loop making the same copies passes.
     "oxc/no-map-spread": "off",
     "eslint/func-style": ["error", "declaration"],
+    // x and y are a point's coordinates as the platform names them (DOMPoint, DOMRect, MouseEvent), and the menus'
+    // documented `position` follows it; every other short name is still flagged.
+    "eslint/id-length": ["error", { "exceptions": ["x", "y"] }],
     // The browser's CSSStyleSheet.replaceSync styles a constructed sheet before the first paint; replace() resolves
     // later. Node's sync methods stay flagged.
     "node/no-sync": ["error", { "ignores": ["replaceSync"] }],
@@ -129,6 +126,10 @@
               "EventTarget",
               "FocusEvent",
               "HTMLElement",
+              "HTMLDivElement",
+              "HTMLInputElement",
+              "HTMLLIElement",
+              "HTMLUListElement",
               "KeyboardEvent",
               "KeyboardEventInit",
               "MouseEvent",

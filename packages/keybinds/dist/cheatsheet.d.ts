@@ -1,7 +1,7 @@
-export type Command = import('../command.js').Command;
-export type Input = import('../input.js').InputUI;
-/** @typedef {import('../command.js').Command} Command */
-/** @typedef {import('../input.js').InputUI} Input */
+export type Command = import('./command.js').Command;
+export type Input = import('./input.js').InputUI;
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./input.js').InputUI} Input */
 /**
  * <keybinds-cheatsheet> - Grouped display of available bindings
  *
@@ -54,11 +54,11 @@ export declare class KeybindCheatsheet extends HTMLElement {
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get inputs(): import("../input.js").InputUI[];
-    set inputs(val: import("../input.js").InputUI[]);
+    get inputs(): import("./input.js").InputUI[];
+    set inputs(val: import("./input.js").InputUI[]);
     _watchInputs(): void;
-    get commands(): Readonly<import("../command.js").CommandFields>[];
-    set commands(val: Readonly<import("../command.js").CommandFields>[]);
+    get commands(): Readonly<import("./command.js").CommandFields>[];
+    set commands(val: Readonly<import("./command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get open(): boolean;

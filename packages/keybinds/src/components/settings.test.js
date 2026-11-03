@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
-import { createComponent } from '../components/create.js'
 import { KeybindSettings } from '../components/settings.js'
+import { createComponent } from '../create-component.js'
 import { BindingsStore } from '../store.js'
 import { kbd, keybinds } from '../test-helpers.js'
 import { ALL } from '../test-inputs.js'

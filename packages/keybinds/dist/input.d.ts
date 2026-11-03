@@ -251,4 +251,10 @@ declare function inInput(target: EventTarget | null): boolean;
  * @returns {EventTarget} Its window
  */
 declare function windowOf(target: EventTarget): EventTarget;
-export { inInput, windowOf };
+/**
+ * Whether an input can also be shown and recorded: it has its UI half's label and format
+ * @param {Input} input - The input
+ * @returns {input is InputUI} Whether it has
+ */
+declare function isInputUI(input: Input): input is InputUI;
+export { inInput, isInputUI, windowOf };

@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
 import { BasicContextMenu } from '../components/basic-context-menu.js'
 import { ContextMenu } from '../components/context-menu.js'
-import { createComponent } from '../components/create.js'
+import { createComponent } from '../create-component.js'
 import { keybinds } from '../test-helpers.js'
 
 // --- ContextMenu (new scored/searchable component) tests ---

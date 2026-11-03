@@ -65,7 +65,7 @@ export class ContextMenu extends HTMLElement {
     super()
     /** How bindings are shown: an item shows its first. @type {Input[]} */
     this.inputs = [keysUI()]
-    /** @type {Command[]} */
+    /** @type {readonly Command[]} */
     this._commands = []
     /** @type {Record<string, unknown>} */
     this._context = {}

@@ -397,9 +397,10 @@ import {
 import 'keybinds/styles/palette.css'
 
 const hub = new CommandHub({
+  context: () => ({ editing: editor.hasFocus() }), // the app's state, which `when` conditions see
   inputs: [keysUI(), mouseUI()], // what it listens to; the UI halves, since its components show and record them
   releases: releases(), // and anyModifiers: anyModifiers(), as for keybinds()
-  components: [CommandPalette, KeybindCheatsheet, KeybindSettings, ContextMenu],
+  components: { palette: CommandPalette, cheatsheet: KeybindCheatsheet, settings: KeybindSettings, menu: ContextMenu },
   host: document.body, // where the components go
   storageKey: 'myapp:keys', // rebindings are kept under "myapp:keys:<scope>"; or pass
   // storage: (scope) => ({ load, save }) to keep them elsewhere
@@ -408,7 +409,7 @@ const hub = new CommandHub({
 
 hub.setSource('editor', () => editor.commands())
 hub.setSource('file', () => fileCommands)
-hub.addContext(() => ({ editing: editor.hasFocus() }))
+hub.addContext(() => ({ selection: editor.selection() })) // parts laid over the context, from elsewhere in the app
 hub.refresh() // call again whenever the sources' commands change
 
 hub.palette.open = true // or hub.openPalette()
@@ -439,10 +440,24 @@ hub.bindButtons(document.getElementById('toolbar'))
 If your sources describe commands in their own shape, `adapt` turns each one into a command:
 
 ```js
-const hub = new CommandHub({ adapt: (def) => ({ ...def, execute: def.run }) })
+const hub = new CommandHub({ adapt: (def) => ({ ...def, execute: def.run }), context: () => ({}) })
 ```
 
-`hub.get(id)` and `hub.all()` return the definitions as the sources gave them.
+`hub.get(id)` and `hub.all()` return the definitions as the sources gave them. Without `adapt`, a definition with no
+`execute` function is left out and reported.
+
+### When a Source or Binding Fails
+
+A source that throws, or a command binding that can't be read, is left out so the rest keep working, and the hub reports
+it as an `error` event (an `ErrorEvent`, its `error` saying what failed). One nobody prevents goes to `reportError()`,
+which the browser logs:
+
+```js
+hub.addEventListener('error', (event) => {
+  event.preventDefault()
+  showProblem(event.error)
+})
+```
 
 ### Components From Another Copy of the Library
 
