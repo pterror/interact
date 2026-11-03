@@ -15,6 +15,8 @@
   "endOfLine": "lf",
   "insertFinalNewline": true,
   "proseWrap": "always",
+  // Templates in html`` are formatted too; any other setting adds whitespace text to the markup they render.
+  "htmlWhitespaceSensitivity": "strict",
   "sortImports": true,
   "sortPackageJson": true,
   // oxfmt 0.76.0 rewrites JSDoc types wrongly: `Array<A & { id: string }>` became `A & { id: string }[]`.

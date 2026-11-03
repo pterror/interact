@@ -68,10 +68,13 @@
     // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
     "eslint/require-await": "off",
     "eslint/func-style": ["error", "declaration"],
+    // Functions that call each other (rendering a template renders its children, which render templates) put one call
+    // before the other's declaration whatever the order. Declarations are hoisted; variables and classes stay checked.
+    "eslint/no-use-before-define": ["error", { "functions": false }],
     // oxfmt's sortImports orders declarations by source, which this rule's declaration order rejects.
     "eslint/sort-imports": ["error", { "ignoreDeclarationSort": true }],
-    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule. ReadonlySet and
-    // ReadonlyMap are readonly, yet oxlint 1.90.0 flags them while it passes `readonly T[]`.
+    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule. ReadonlySet,
+    // ReadonlyMap and TemplateStringsArray are readonly, yet oxlint 1.90.0 flags them while it passes `readonly T[]`.
     // Behaviors are classes with methods, which the rule otherwise counts as mutable properties; their fields are
     // still checked.
     "typescript/prefer-readonly-parameter-types": [
@@ -83,6 +86,8 @@
             "from": "lib",
             "name": [
               "CSSStyleSheet",
+              "ChildNode",
+              "Comment",
               "CustomElementRegistry",
               "CustomEvent",
               "Document",
@@ -94,13 +99,17 @@
               "HTMLElement",
               "KeyboardEvent",
               "MouseEvent",
+              "MutationRecord",
               "Node",
               "PointerEvent",
               "Promise",
               "ReadonlyMap",
               "ReadonlySet",
               "RegExp",
+              "RegExpExecArray",
               "ShadowRoot",
+              "TemplateStringsArray",
+              "Text",
               "WheelEvent",
               "Window"
             ]
