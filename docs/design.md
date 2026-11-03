@@ -107,12 +107,18 @@ A component is its behavior, written once as a plain API, plus a default view an
   Space selects from the anchor through the active item, Ctrl+Shift+Home/End select from the active item to the first or
   last and go there, and Ctrl+A selects everything. The anchor is the item last chosen (the APG's "most recently
   selected"); moving doesn't move it, and a Shift move before any choice starts from where the move started.
-- **Typeahead (Derived):** a character goes to the next item whose text starts with it, characters typed within 500ms
-  (the APG example's wait) to the next whose text starts with all of them, the same character again on through the items
-  starting with it (zag.js's handling; the APG doesn't specify it), going round to the start. A space continues what is
-  being typed. Text is compared by `startsWithTyped` (`packages/core/src/text.js`): from its start, ignoring case and
-  accents. `typeahead.js` keeps what was typed; `Items.findPrefix` asks the source's `findPrefix` when it has one, and
-  otherwise looks among the items read.
+- **Focus entering (Derived, the APG listbox pattern):** the active item stays and is shown. With nothing active, focus
+  goes to the first selected item and shows it, when the source can place items (`findsSelected`, below); the answer is
+  dropped if a key made something active first, or the source changed. Without that capability, or with nothing
+  selected, it goes to the item last chosen, or the top item (`listbox-focus.js`; tested in all three browsers in both
+  DOM modes, with the first selected item five billion down).
+- **Typeahead (Derived, settled with the owner):** a character goes to the next item whose text starts with it, and
+  characters typed within 500ms (the APG example's wait) to the next whose text starts with all of them, going round to
+  the start. The whole of what was typed is always looked for first, so "aa" reaches "Aaron"; only when nothing starts
+  with it, and it is one character typed again and again, does it move on to the next item starting with that character
+  (`typeahead.js`). A space continues what is being typed. Text is compared by `startsWithTyped`
+  (`packages/core/src/text.js`): from its start, ignoring case and accents. `typeahead.js` keeps what was typed;
+  `Items.findPrefix` asks the source's `findPrefix` when it has one, and otherwise looks among the items read.
 - **Accessibility (Derived):** axe-core 4.14.0 finds nothing in the listbox as the server renders it, or live, focused
   with items chosen, with the theme and without, in both DOM modes in Chrome 156, Firefox 157 and WebKit 27.2
   (`listbox-view.test.js`). It first found the no-theme selected colors: `Highlight` on `HighlightText` is about 3:1 in
@@ -182,6 +188,15 @@ trees all take the same kind of data source.
   item's text starts with `text`, compared as `startsWithTyped` compares, at once or later. Typing in a list asks it,
   since only the source knows every item; without it, a list searches the items it has read (`BlockCache.findHere`,
   which looks at no more than the cache's blocks).
+- A source that can place items has `positionOf(key)`, where an item is now, and `firstMatching(filter, except)`, the
+  first position a filter matches whose key isn't in `except`. With them, `firstSelected(selection, source)`
+  (`selection.js`) finds where a selection starts: the filter's first item whose key wasn't removed, or an added key's
+  item, whichever comes first. The source excludes the removed keys in its own query (a server's `NOT IN`), so nothing
+  is read, except one item for a key both added and removed, which is selected only while the filter misses it.
+  Composing them in core keeps what "selected" means in one place, `isSelected`'s; a source answering for a whole
+  selection would hold a second copy. `findsSelected` says whether a source has what a selection needs: `firstMatching`
+  for a filter, `positionOf` for added keys. `MemorySource` has both, each step of `firstMatching` passing over one
+  excepted key.
 - `MemorySource` (`packages/core/src/memory-source.js`) holds the items in an array, and searches them by `textOf`
   (default `plainText`: a string or number as itself). Its filters are spans between two keys, so a span keeps meaning
   the same items as others are inserted around it. Its key-to-position index is the only thing it keeps per item besides
