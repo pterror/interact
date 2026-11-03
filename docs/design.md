@@ -93,14 +93,25 @@ A component is its behavior, written once as a plain API, plus a default view an
   `CommandSystem` of `list(context)`, `run(id, context)` and optional `subscribe(listener)`; a listed command has its
   id, label, `enabled`, and optionally a shortcut, category and description. `refresh()` is the app's "look again".
   `showCommands(menu, bridge, context)` fills a menu (disabled where a command can't run; listed when it opens, and
-  again on every change while open, in place, so the active item stays) and runs the command chosen;
-  `bindCommandButtons(root, bridge, context)` does the same for `data-command` buttons. keybinds' side is
-  `hub.commandSystem()` (`packages/keybinds/src/command-system.js`): a context is a menu's tag, or undefined for every
-  command; hidden commands are never listed; it is live through a `context` event the hub sends whenever its context is
-  synced, which refreshing does too. Neither package imports the other: the shapes match, and a root test joins them
-  (`test/command-bridge.test.js`). The adapter is a hub method rather than a function taking the hub because a
-  `CommandHub` can't be a readonly parameter (its getters expose element classes); the method hands closures over its
-  own operations to `systemOf`.
+  again on every change while open, in place, so the active item stays) and runs the command chosen, in the context it
+  was chosen in, once the menu has gone and focus is back where it was (`Layer.afterHidden`, see Overlays), so the
+  command acts on what the person was on; `bindCommandButtons(root, bridge, context)` does the same for `data-command`
+  buttons. keybinds' side is `hub.commandSystem()` (`packages/keybinds/src/command-system.js`): a context is a menu's
+  tag, or undefined for every command; hidden commands are never listed; it is live through a `context` event the hub
+  sends whenever its context is synced, which refreshing does too. Neither package imports the other: the shapes match,
+  and a root test joins them (`test/command-bridge.test.js`). The adapter is a hub method rather than a function taking
+  the hub because a `CommandHub` can't be a readonly parameter (its getters expose element classes); the method hands
+  closures over its own operations to `systemOf`.
+- **Searching commands (Derived, built).** A palette finds commands by what is typed. A command system may have a fourth
+  operation, `search(query, context)`, answering at once or later with the commands found, best first, each with the
+  `positions` in its label the query matched (UTF-16 code units) for marking them. Ranking stays with the system that
+  knows how to rank (keybinds' scorer and history, or a server); the components never rank its commands for it. Without
+  `search`, `bridge.search` finds commands among those `list` gives, by label (`matchCommands`, `command-match.js`):
+  ignoring case and accents with the comparison typeahead uses, labels starting with the query first, then a word in
+  them starting with it, then any other match, each tier in the order listed. One source of truth either way: the
+  system's list or the system's search. A search answers with every command it found, so memory is per command found,
+  never per command the system has; a system with very many matches keeps its answer short itself. The palette numbers
+  its searches and drops an answer to any but the last.
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
@@ -188,10 +199,47 @@ A component is its behavior, written once as a plain API, plus a default view an
   on a checkbox item; submenus from the keyboard and the pointer, including crossing other entries diagonally on the way
   and straying; a context menu at its point, focus going back to where it came from; server markup adopted with its
   button kept; and axe-core finding nothing with a submenu open.
-- **Unverified:** focus leaving the document with Tab (no element after the menu) closes nothing, since the overlay
-  layer closes on focus moving outside and none arrives; screen readers (only axe); touch; a context menu asked for from
-  the keyboard (its event's point); `aria-setsize`/`aria-posinset` are not set on menu items, so a long, virtualized
-  menu's size is the rendered window's to assistive technology.
+- **Keyboard-opened context menus:** the Context Menu key and Shift+F10 open the menu at the start of the focused
+  element's bottom edge (the inline end in right-to-left text), not at the point the engine reports: Chrome reports the
+  element's centre with `button` -1; an engine giving no point would have put it at 0,0. A request is taken as from the
+  keyboard by `button` -1, or by no point and no press count (`menu-element.js`). Headless Firefox and WebKit fire no
+  `contextmenu` for those keys at all, so the keys are tested in Chrome and a keyboard-style request in all three.
+- **A long menu's size:** when only some rows are rendered, each item says its place and the menu's size
+  (`aria-posinset`, `aria-setsize`), as ARIA asks for a partial set. Both count separators, since which entries before
+  an item are separators isn't known without reading them. A menu rendered whole leaves the counting to the browser,
+  which gets separators right. The listbox numbers its options always; it has no separators, so its numbers are exact.
+- **Unverified:** screen readers (only axe); touch; a long menu's numbers when it has separators (they count them).
+
+### The command palette (Derived, built)
+
+- **Pattern (the APG combobox and modal dialog pages, fetched):** a modal dialog holding an editable combobox (the
+  search field, `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded="true"` since its list always shows,
+  `aria-controls` the results) whose popup is a listbox of the commands found: list autocomplete with automatic
+  selection. DOM focus stays in the field, which names the active command as its `aria-activedescendant`; the active
+  command is the one `aria-selected`. That is the APG's combobox exactly, inside the APG's modal dialog: focus moves
+  into the dialog on open (to its field), Tab stays inside it (the field is its only stop), Escape closes it, and focus
+  goes back to the opener. A dialog with a separate focusable listbox would make every key cross from the field to the
+  list and back.
+- **Behavior:** `Palette` (`palette.js`): `layer` (modal), `query` (a `Controllable`), `list` (a `Listbox` that selects
+  nothing and passes over commands that can't run), `open()`, `close()`, `type(text)`, `key(key)`, `run(position)`,
+  `subscribe`, `dispose`. Options: `bridge`, `context` (read as it opens; its commands are found and run in that
+  context), `id`, `label` (the dialog's name), `searchLabel` (the field's), `rows`, and `inactive`: `'show'` (greyed,
+  `aria-disabled`, passed over) or `'hide'`. Opening finds every command; the first that can run is active. The arrows
+  and page keys move the active command; Enter runs it; Home, End and the rest edit the query. What shows stays until a
+  new search answers. A command runs once the palette has gone and focus is back on the opener.
+- **View:** `paletteView()`, `paletteElement(create)`, `paletteStyles`. The results are the virtualized viewport with
+  `focusable: false` (no Tab stop, no active descendant of its own: the field has it). What the query matched is a
+  `<mark part="match">`; a command's description, group and shortcut show beside its label. The dialog shows `rows` rows
+  whatever is found, and a `role="status"` region lying over the results says when nothing is, so nothing shifts as the
+  query changes. Its secondary text is the text's own color at 0.75 opacity: system GrayText on the fill failed axe's
+  contrast check (about 3.9:1 on white), as it does for a command that can't run only because disabled text is exempt.
+- **Proven** (`palette-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM): opening with focus in
+  the field, every command found and the first active as the combobox says; typing finding commands and marking what
+  matched; the arrows passing a command that can't run; Enter and the pointer running a command once focus is back on
+  the opener; Escape closing and running nothing; Tab staying in the field; the same height with nothing found, and the
+  status saying so; axe-core finding nothing open; server markup adopted with its field kept, then opening.
+- **Unverified:** screen readers (only axe); a remote `search` under load (only a slow in-page one, whose late answer is
+  dropped); input methods composing in the field (Enter while composing is left to the input method, untested).
 
 ### What moves out of keybinds (Derived)
 
@@ -371,7 +419,10 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
 - **`Layer`** (`layer.js`): something shown over the rest. Its open state is a `Controllable`, so an app that owns it
   hears every dismissal as a request it can refuse: that is the veto, with no mechanism of its own. A dismissal is first
   an event with its reason (`onDismiss`: `escape`, `outside`, `focus-outside`, `beneath`), then `open.request(false)`.
-  Each layer says whether it is modal and which ways out close it (`closesOn`).
+  Each layer says whether it is modal and which ways out close it (`closesOn`). `shown` is whether a view is showing it,
+  which only the view knows and sets: true once it is on screen, false once it has gone and focus is back.
+  `afterHidden(run)` runs at once when nothing shows the layer, else once its view says it has gone. A command chosen in
+  a modal palette needs it: run before the dialog closes, the page is still inert and focus still in the dialog.
 - **`LayerStack`** (`layer-stack.js`): the open layers in the order they opened (`track(layer)` follows one). A press or
   focus outside dismisses the layers above the highest one it was inside, from the top down, never those beneath the top
   modal layer, which can't be reached; focus moving outside never dismisses a modal layer; Escape dismisses only the top
@@ -435,9 +486,15 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
   since hidden (a closed parent menu's item) passes to that overlay's own return target. A modal layer keeps Tab inside
   it, going round both ways (each engine's own `showModal` trap differed: Chrome and WebKit let Tab reach the page body,
   Firefox stuck on the last element). Tab out of a non-modal overlay closes it and leaves focus where Tab put it (the
-  APG menu pattern). A press that dismisses waits for the pointer to come up before giving focus back, so a press on
-  something focusable keeps focus there, and only a press on nothing loses it to the overlay's opener (a backdrop press
-  on a modal returns to its button).
+  APG menu pattern). Tab out of the page (nothing after the overlay) closes it too: Chrome and WebKit then send a
+  focusout with no related target and no focusin, which `document-layers.js` takes as focus moving outside every layer
+  when a Tab caused it; focus then goes back to the opener, where the person finds it on coming back to the page. Focus
+  leaving because the window did (another window or tab) is no Tab and closes nothing. Headless Firefox moves focus
+  nowhere on a Tab past the page's last element, so its overlay stays open with focus in it, which is right there.
+  Giving focus back is `focus-return.js`, and the binding sets the layer's `shown` once it is done. A press that
+  dismisses waits for the pointer to come up before giving focus back, so a press on something focusable keeps focus
+  there, and only a press on nothing loses it to the overlay's opener (a backdrop press on a modal returns to its
+  button).
 - **Proven in Chrome 156, Firefox 157 and WebKit 27.2, in shadow and light DOM** (`overlay.test.js` and the module tests
   beside it): opening below its button in the top layer with focus inside; Escape closing it and returning focus; a
   press outside closing it, and a press on its own button closing it without reopening; Tab out closing it; nested
@@ -649,8 +706,9 @@ with the row cap set from the smallest measured limit; the listbox checked again
 and a11y code and axe-core; typeahead with a source capability; behaviors readonly to their views. What it settled is
 under Collections, Focus scopes, DOM and Styling. The listbox's API is in Components. Then the overlay layer: layers,
 their stack and placement in core, their binding in dom (see Overlays). Then the menu with submenus, and the command
-bridge (see The menu, and Commands under Components). Next: the palette, the combobox, then keybinds' menus and palette
-moved onto them.
+bridge (see The menu, and Commands under Components). Then the command palette, with the bridge's search, and three gaps
+the menu left: Tab out of the page, a long menu's size, and a context menu asked for from the keyboard (see The command
+palette, The menu and Overlays). Next: the combobox, then keybinds' menus and palette moved onto them.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
