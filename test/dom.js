@@ -11,6 +11,7 @@ Object.assign(globalThis, {
   CSSStyleSheet: window.CSSStyleSheet,
   Comment: window.Comment,
   CustomEvent: window.CustomEvent,
+  Document: window.Document,
   DocumentFragment: window.DocumentFragment,
   Element: window.Element,
   Event: window.Event,

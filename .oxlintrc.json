@@ -68,6 +68,9 @@
     // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
     "eslint/require-await": "off",
     "eslint/func-style": ["error", "declaration"],
+    // The browser's CSSStyleSheet.replaceSync styles a constructed sheet before the first paint; replace() resolves
+    // later. Node's sync methods stay flagged.
+    "node/no-sync": ["error", { "ignores": ["replaceSync"] }],
     // Functions that call each other (rendering a template renders its children, which render templates) put one call
     // before the other's declaration whatever the order. Declarations are hoisted; variables and classes stay checked.
     "eslint/no-use-before-define": ["error", { "functions": false }],
@@ -93,6 +96,7 @@
               "Document",
               "DocumentFragment",
               "Element",
+              "Error",
               "Event",
               "EventTarget",
               "FocusEvent",
@@ -106,6 +110,7 @@
               "ReadonlyMap",
               "ReadonlySet",
               "RegExp",
+              "Request",
               "RegExpExecArray",
               "ShadowRoot",
               "TemplateStringsArray",
@@ -122,6 +127,12 @@
     {
       "files": ["test/**"],
       "globals": { "Bun": "readonly" }
+    },
+    {
+      // A package's tests use the repo's one browser harness (test/browser.js), which only a parent path reaches; a
+      // copy per package would be a second source. Package code is still checked.
+      "files": ["packages/*/src/**/*.test.js"],
+      "rules": { "import/no-relative-parent-imports": "off" }
     },
     {
       // A preload runs before test files import code that reads globals as it loads (keybinds' core.js reads

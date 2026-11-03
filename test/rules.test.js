@@ -6,11 +6,9 @@ import {
   manifests,
   outsideDependencies,
   sideEffectsBeyondStylesheets,
-  styleRules,
-  stylesheetViolations,
   typeEscapes,
-  zeroSpecificity,
 } from './repo.js'
+import { cssTemplates, styleRules, stylesheetViolations, zeroSpecificity } from './stylesheets.js'
 
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo', async () => {
@@ -36,6 +34,11 @@ describe('importing every module', () => {
 describe('stylesheets', () => {
   test('give every selector zero specificity, inside a cascade layer', async () => {
     expect(await stylesheetViolations()).toEqual([])
+  })
+
+  test("are read from modules' css`` templates too", () => {
+    const sheets = cssTemplates('const a = css`@layer x { :where(p) {} }`\nconst b = css`q {}`')
+    expect(sheets).toEqual(['@layer x { :where(p) {} }', 'q {}'])
   })
 
   test('are checked for exactly that', () => {

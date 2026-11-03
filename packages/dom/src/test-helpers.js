@@ -1,12 +1,118 @@
 /**
+ * @import { ComponentClass } from './component.js'
  * @import { Range } from './collect.js'
  * @import { Part } from './instance.js'
  * @import { TemplateResult } from './template.js'
  */
 
 import { ChildPart } from './child-part.js'
+import { component } from './component.js'
+import { css } from './css.js'
 import { CLOSE, OPEN, isMarker } from './markers.js'
 import { renderToString } from './render-string.js'
+import { html } from './template.js'
+
+const STEP = 1
+
+/**
+ * A behavior to test components with: a count, and a way to add one.
+ */
+class Counter {
+  #count = STEP - STEP
+  /**
+   * @readonly
+   * @type {Set<() => void>}
+   */
+  #listeners = new Set()
+
+  /**
+   * How many times it was added to.
+   * @returns {number} The count
+   */
+  get count() {
+    return this.#count
+  }
+
+  /**
+   * Adds one.
+   * @returns {void}
+   */
+  increment() {
+    this.#count += STEP
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  /**
+   * Calls `listener` whenever the count changes.
+   * @param {() => void} listener - What to call
+   * @returns {() => void} Stops calling it
+   */
+  subscribe(listener) {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+}
+
+/** A counter's view: its host red, its count blue, and a click adds one. */
+const counterView = {
+  kind: 'counter',
+  /**
+   * The button showing the count.
+   * @param {Counter} counter - The counter
+   * @returns {TemplateResult} The view
+   */
+  render: (counter) =>
+    html`<button
+      part="count"
+      @click=${() => {
+        counter.increment()
+      }}
+      >${counter.count}</button
+    >`,
+  styles: css`
+    @layer test {
+      :where(:scope) {
+        display: block;
+        color: rgb(255, 0, 0);
+      }
+      :where([part~='count']) {
+        color: rgb(0, 0, 255);
+      }
+    }
+  `,
+}
+
+/** A badge's view: a count part of its own, which the counter's styles must not reach. */
+const badgeView = {
+  kind: 'badge',
+  /**
+   * The badge.
+   * @returns {TemplateResult} The view
+   */
+  render: () => html`<span part="count">badge</span>`,
+  styles: css`
+    @layer test {
+      :where(:scope) {
+        display: inline;
+      }
+    }
+  `,
+}
+
+/**
+ * The counter and badge element classes, made when asked for, since they need `HTMLElement`.
+ * @returns {Readonly<{ CounterElement: ComponentClass<Counter>, BadgeElement: ComponentClass<Counter> }>} The classes
+ */
+function testElements() {
+  return {
+    BadgeElement: component(badgeView, () => new Counter()),
+    CounterElement: component(counterView, () => new Counter()),
+  }
+}
 
 /**
  * A container holding a template's server markup.
@@ -121,4 +227,18 @@ function watchChildren(container) {
   }
 }
 
-export { watchChildren, childParts, emptyHole, find, firstOpen, lastNode, noChildren, outerRange, serverMarkup }
+export {
+  Counter,
+  badgeView,
+  counterView,
+  testElements,
+  watchChildren,
+  childParts,
+  emptyHole,
+  find,
+  firstOpen,
+  lastNode,
+  noChildren,
+  outerRange,
+  serverMarkup,
+}
