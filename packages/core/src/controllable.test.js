@@ -45,10 +45,10 @@ describe('Controllable', () => {
 
   test('can be handed to the app or back', () => {
     const { state } = followed(false)
-    state.controlled = true
+    state.control(true)
     state.request('b')
     expect(state.get()).toBe('a')
-    state.controlled = false
+    state.control(false)
     state.request('b')
     expect(state.get()).toBe('b')
   })

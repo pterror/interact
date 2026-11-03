@@ -55,8 +55,12 @@ class Items {
     return this.#source
   }
 
-  /** @param {Source<T, F> | undefined} source - Where the items come from, dropping what was read from the last */
-  set source(source) {
+  /**
+   * Takes items from a source, dropping what was read from the last.
+   * @param {Source<T, F> | undefined} source - Where the items come from
+   * @returns {void}
+   */
+  use(source) {
     this.#unfollow?.()
     this.#cache?.dispose()
     this.#source = source

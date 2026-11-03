@@ -13,14 +13,14 @@ const JUMPS = 50
 describe('Items', () => {
   test('reads a range through the cache, the items there before read returns', () => {
     const items = new Items(BLOCK, LIMIT)
-    items.source = numbers(TEN_BILLION).source
+    items.use(numbers(TEN_BILLION).source)
     items.read(FAR, FAR + ONE)
     expect([items.count, items.item(FAR)]).toEqual([TEN_BILLION, { id: FAR }])
   })
 
   test('holds no more blocks than its limit', () => {
     const items = new Items(BLOCK, LIMIT)
-    items.source = numbers(TEN_BILLION).source
+    items.use(numbers(TEN_BILLION).source)
     for (let jump = START; jump < JUMPS; jump += ONE) {
       items.read(jump * BLOCK * BLOCK, jump * BLOCK * BLOCK + ONE)
     }
@@ -30,13 +30,13 @@ describe('Items', () => {
   test('reports a failed read instead of throwing', async () => {
     const items = new Items(BLOCK, LIMIT)
     const { source } = numbers(TEN_BILLION)
-    items.source = {
+    items.use({
       ...source,
       read: async () => {
         await Promise.resolve()
         throw new Error('offline')
       },
-    }
+    })
     /** @type {unknown[]} */
     const problems = []
     items.onError((problem) => {
@@ -57,13 +57,13 @@ describe('Items', () => {
 describe('Items searching', () => {
   test('reports a failed search, which finds nothing', async () => {
     const items = new Items(BLOCK, LIMIT)
-    items.source = {
+    items.use({
       ...numbers(TEN_BILLION).source,
       findPrefix: async () => {
         await Promise.resolve()
         throw new Error('offline')
       },
-    }
+    })
     /** @type {unknown[]} */
     const problems = []
     items.onError((problem) => {

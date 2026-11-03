@@ -136,7 +136,7 @@ describe('selection', () => {
 
   test('waits for the app when controlled, which hears what was asked', async () => {
     const listbox = tenBillion('multiple')
-    listbox.selection.controlled = true
+    listbox.selection.control(true)
     /** @type {number[]} */
     const asked = []
     listbox.selection.onRequest(() => {
@@ -177,5 +177,21 @@ describe('following the source', () => {
     listbox.scroll.scrollTo(ONE)
     await Bun.sleep(ONE)
     expect(errors.length).toBeGreaterThan(START)
+  })
+})
+
+describe('the source', () => {
+  test('is state like the rest: a new one starts over, the top kept as far as the new items reach', async () => {
+    const listbox = tenBillion('multiple')
+    listbox.scroll.scrollTo(FIVE_BILLION)
+    listbox.goTo(FIVE_BILLION + ONE)
+    listbox.key(' ', PLAIN)
+    listbox.source.set(numbers(ROWS * TWO).source)
+    expect([listbox.items.count, listbox.active.get(), await listbox.choose.count()]).toEqual([
+      ROWS * TWO,
+      undefined,
+      START,
+    ])
+    expect(listbox.scroll.top.get()).toBe(ROWS)
   })
 })

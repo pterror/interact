@@ -44,8 +44,13 @@ class Controllable {
     return this.#controlled
   }
 
-  /** @param {boolean} controlled - Whether the app owns the value */
-  set controlled(controlled) {
+  /**
+   * Hands the value to the app, or back to the component, as when an element learns after it was made that the app
+   * owns a piece of its state.
+   * @param {boolean} controlled - Whether the app owns the value
+   * @returns {void}
+   */
+  control(controlled) {
     this.#controlled = controlled
   }
 

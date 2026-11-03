@@ -40,13 +40,8 @@ const DEFAULT_ROWS = 10
 const NONE = 0
 const ONE = 1
 
-/**
- * No position, typed as the position it could have been.
- * @returns {number | undefined} Undefined
- */
-function nowhere() {
-  return undefined
-}
+/** @type {number | undefined} */
+const NO_POSITION = undefined
 
 /**
  * A listbox's behavior, with no DOM, ten items or ten billion at the same cost. Its parts: `items` (the source, read
@@ -60,7 +55,7 @@ class Listbox {
    * @readonly
    * @type {Controllable<number | undefined>}
    */
-  active = new Controllable(nowhere(), false)
+  active = new Controllable(NO_POSITION, false)
   /**
    * What is selected.
    * @readonly
@@ -73,6 +68,13 @@ class Listbox {
    * @type {Items<T, F>}
    */
   items = new Items(BLOCK_SIZE, BLOCKS)
+  /**
+   * Where the items come from. A new source starts over: nothing is active or selected, and the top stays where it
+   * was as far as the new items reach.
+   * @readonly
+   * @type {Controllable<Source<T, F> | undefined>}
+   */
+  source
   /**
    * @readonly
    * @type {Listeners<undefined>}
@@ -122,22 +124,18 @@ class Listbox {
       },
       options.mode ?? 'single',
     )
+    this.source = new Controllable(options.source, false)
     this.#followState()
-    this.source = options.source
+    this.#use(options.source)
   }
 
   /**
-   * Where the items come from. Setting it starts over: nothing is active or selected, and the top stays where it was
-   * as far as the new items reach.
-   * @returns {Source<T, F> | undefined} The source
+   * Starts over with a source: nothing active or selected, and the top where it was as far as the new items reach.
+   * @param {Source<T, F> | undefined} source - Where the items come from
+   * @returns {void}
    */
-  get source() {
-    return this.items.source
-  }
-
-  /** @param {Source<T, F> | undefined} source - Where the items come from */
-  set source(source) {
-    this.items.source = source
+  #use(source) {
+    this.items.use(source)
     this.choose.reset()
     this.active.set(undefined)
     this.selection.set(nothing())
@@ -259,6 +257,9 @@ class Listbox {
     }
     this.selection.subscribe(() => {
       this.#changes.emit(undefined)
+    })
+    this.source.subscribe((source) => {
+      this.#use(source)
     })
     this.items.subscribe((change) => {
       this.#follow(change)
