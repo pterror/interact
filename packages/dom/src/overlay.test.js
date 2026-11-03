@@ -47,13 +47,14 @@ afterAll(closeBrowser)
  * Opens a page in a browser with a button after whatever markup it is given, registers the fixtures unless it is to
  * adopt server markup first, and drives it.
  * @template R
- * @param {Readonly<{ engine: Engine, body?: string, options?: LayerOptions, registered?: boolean }>} where - The
- *   browser, the page's markup before the button, how the fixtures' layers are made, and whether to register them
+ * @param {Readonly<{ engine: Engine, body?: string, options?: LayerOptions, registered?: boolean, after?: boolean }>}
+ *   where - The browser, the page's markup before the button, how the fixtures' layers are made, whether to register
+ *   them, and whether the button after them is there
  * @param {(page: Page) => Promise<R>} drive - What to do
  * @returns {Promise<R>} What it returned
  */
-async function driven({ body = '', engine, options = {}, registered = true }, drive) {
-  const markup = `${body}<button id="after">After</button>`
+async function driven({ after = true, body = '', engine, options = {}, registered = true }, drive) {
+  const markup = after ? `${body}<button id="after">After</button>` : body
   return withPage({ body: markup, engine, moduleUrl: import.meta.url }, async (page) => {
     if (registered) {
       await page.evaluate(async (layerOptions) => {
@@ -121,6 +122,27 @@ describe.each(CASES)('a popup in %s DOM, in %s', (mode, engine) => {
       return { stillOpen: await openNow(page, ['a']), stops }
     })
     expect(seen).toEqual({ stillOpen: [false], stops: ['a second', 'button'] })
+  })
+})
+
+/*
+ * Headless Firefox moves focus nowhere on a Tab past the page's last element (no blur, no focusout), so there focus
+ * never leaves the popup. Chrome and WebKit move it out of the document, and closing gives it back to the button, where
+ * the person finds it when they come back to the page.
+ */
+describe.each(CASES)('a popup last in the page in %s DOM, in %s', (mode, engine) => {
+  const expected =
+    engine === 'firefox' ? { stillOpen: true, stop: 'a second' } : { stillOpen: false, stop: 'a trigger' }
+
+  test('closes when Tab takes focus out of the page, and only then', async () => {
+    const seen = await driven({ after: false, engine }, async (page) => {
+      await put(page, { at: AT, id: 'a', kind: 'popup', mode })
+      await open(page, 'a')
+      const [, stop] = await focusAfter(page, ['Tab', 'Tab'])
+      const [stillOpen] = await openNow(page, ['a'])
+      return { stillOpen, stop }
+    })
+    expect(seen).toEqual(expected)
   })
 })
 

@@ -28,4 +28,11 @@ describe.each(BROWSERS)("a document's layers, in %s", (engine) => {
     })
     expect(seen).toEqual({ dismissed: true, endedAfterUp: true, endedBeforeUp: false })
   })
+  test('focus leaving the page dismisses only when a Tab took it, not when the window lost it', async () => {
+    const seen = await inBrowser({ engine, moduleUrl: import.meta.url }, async () => {
+      const { focusLeavesPage } = await import('./test-layers.js')
+      return focusLeavesPage()
+    })
+    expect(seen).toEqual({ tabbedOut: false, windowLeft: true })
+  })
 })

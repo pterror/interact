@@ -11,7 +11,9 @@ import { tabWraps, tabbables } from './tabbable.js'
 
 const FIRST = 0
 const LAST = -1
-const EVENTS = ['pointerdown', 'pointerup', 'pointercancel', 'click', 'focusin', 'keydown']
+/** A timer's delay that runs it in the next task. */
+const NEXT_TASK = 0
+const EVENTS = ['pointerdown', 'pointerup', 'pointercancel', 'click', 'focusin', 'focusout', 'keydown']
 
 /**
  * One document's layers: the stack, what each layer is in the page, and the listeners that turn the person's presses,
@@ -34,6 +36,8 @@ class DocumentLayers {
    */
   #press = undefined
   #touchPending = false
+  /** Whether a Tab is moving focus now: set by its keydown, cleared once the task it moves focus in is over. */
+  #tabbing = false
 
   /**
    * Starts listening to a document.
@@ -98,13 +102,23 @@ class DocumentLayers {
       this.#press = undefined
       return
     }
-    if (this.stack.top() === undefined) {
-      return
+    if (this.stack.top() !== undefined) {
+      this.#heard(event)
     }
+  }
+
+  /**
+   * What the person did while a layer is open, passed to what handles it.
+   * @param {Event} event - What happened
+   * @returns {void}
+   */
+  #heard(event) {
     if (event.type === 'keydown') {
       this.#key(event)
     } else if (event.type === 'focusin') {
       this.#focused(event)
+    } else if (event.type === 'focusout') {
+      this.#blurred(event)
     } else {
       this.#pointer(event)
     }
@@ -152,6 +166,30 @@ class DocumentLayers {
   }
 
   /**
+   * Focus leaving the page: a Tab that takes focus out of the document, past its last element, moves it nowhere in it,
+   * so no focusin follows. That is focus moving outside every layer. Focus leaving because the window does (another
+   * window or tab taking it) is not, so only a Tab counts.
+   * @param {Event} event - The focusout
+   * @returns {void}
+   */
+  #blurred(event) {
+    if (this.#tabbing && this.#press === undefined && event instanceof FocusEvent && event.relatedTarget === null) {
+      this.stack.focusedOutside(undefined)
+    }
+  }
+
+  /**
+   * Notes that a Tab is moving focus, until the task it does that in is over.
+   * @returns {void}
+   */
+  #tabbed() {
+    this.#tabbing = true
+    setTimeout(() => {
+      this.#tabbing = false
+    }, NEXT_TASK)
+  }
+
+  /**
    * Escape dismisses the top layer, taking the key from the page; Tab stays inside the top modal layer. A key typed to
    * compose text (an input method) is the input method's.
    * @param {Event} event - The keydown
@@ -165,6 +203,7 @@ class DocumentLayers {
       event.preventDefault()
       event.stopPropagation()
     } else if (event.key === 'Tab') {
+      this.#tabbed()
       this.#trap(event)
     }
   }

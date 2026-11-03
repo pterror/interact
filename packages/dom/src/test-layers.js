@@ -9,14 +9,15 @@ import { layersOf } from './document-layers.js'
 
 /**
  * An open layer whose element is a box in the page, followed by the document's layers.
- * @returns {Readonly<{ layer: Layer, stop: () => void }>} The layer, and how to stop following it
+ * @returns {Readonly<{ element: HTMLElement, layer: Layer, stop: () => void }>} The layer, its element, and how to stop
+ *   following it
  */
 function openLayer() {
   const element = document.createElement('div')
   document.body.append(element)
   const layer = new Layer({ open: true })
   const stop = layersOf(document).add(layer, { anchor: () => undefined, element })
-  return { layer, stop }
+  return { element, layer, stop }
 }
 
 /**
@@ -80,4 +81,20 @@ async function pressThenUp() {
   return { dismissed: !layer.open.get(), endedAfterUp: press.ended, endedBeforeUp }
 }
 
-export { escapeWhileComposing, pressThenUp, touchThenClick }
+/**
+ * Focus leaving the page from inside the layer: first as the window losing focus does it, then as a Tab past the
+ * page's last element does it, each a focusout going nowhere.
+ * @returns {Readonly<{ windowLeft: boolean, tabbedOut: boolean }>} Whether the layer was open after each
+ */
+function focusLeavesPage() {
+  const { element, layer, stop } = openLayer()
+  element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, composed: true }))
+  const windowLeft = layer.open.get()
+  element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Tab' }))
+  element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, composed: true }))
+  const tabbedOut = layer.open.get()
+  stop()
+  return { tabbedOut, windowLeft }
+}
+
+export { escapeWhileComposing, focusLeavesPage, pressThenUp, touchThenClick }
