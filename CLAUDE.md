@@ -26,7 +26,8 @@ pointing down:
 nix develop          # Enter dev shell
 bun install
 bun test             # Every package's tests, from the repo root (bunfig.toml preloads test/dom.js)
-                     # Browser tests drive Chrome through test/browser.js: $CHROME, or google-chrome/chromium on PATH
+                     # Browser tests run in Chrome ($CHROME, or google-chrome/chromium on PATH), Firefox and WebKit
+                     # (playwright's, from $PLAYWRIGHT_BROWSERS_PATH, which the dev shell sets) through test/browser.js
 bun run check        # oxfmt --check, oxlint (type-aware), tsgo on every tsconfig
 bunx oxfmt           # Format
 ```

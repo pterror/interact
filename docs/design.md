@@ -75,8 +75,14 @@ A component is its behavior, written once as a plain API, plus a default view an
   `@interact/core` has one primitive for this, `Controllable` (`packages/core/src/controllable.js`), so every component
   handles control the same way. The component calls `request(next)`. Every request is heard (`onRequest`). Left to the
   component, the value changes at once; controlled, it changes only when the app calls `set`. `subscribe` hears actual
-  changes, and `controlled` can be switched either way after construction, which a custom element created by the browser
-  needs.
+  changes, and `control(controlled)` hands the value to the app or back after construction, which a custom element
+  created by the browser needs.
+- **Behaviors are readonly to their views (Derived).** A behavior's state is held in `Controllable`s in readonly fields,
+  and it changes only through methods; nothing on a behavior is assignable. oxlint's `prefer-readonly-parameter-types`
+  enforces this for every function a behavior is handed to, with no exemption per component: its `allow` takes exact
+  names only (probed in oxlint 1.90.0: a glob path or a regex name clears nothing), so the readonly type is what makes
+  every future component pass. `Controllable.control()` and the listbox's `source` as a `Controllable` replaced the two
+  setters that broke it (commit 3a0ee7a).
 - **Commands.** Components know nothing about commands. A bridge needs only two operations: "list the commands available
   in a context" and "run one by id". With those it keeps buttons, menus and the palette in step with any command system,
   and keybinds is one such system. It also accepts an optional third, "tell me when the list changes" (**Settled**):
@@ -93,8 +99,33 @@ A component is its behavior, written once as a plain API, plus a default view an
   - `scroll` (`scroll-rows.js`): `top` and `rows`, both `Controllable`, with `window()`, `scrollTo()` and `reveal()`.
   - `choose` (`chooser.js`): single or multiple mode; `press()`; `all()`, which selects everything as one filter;
     `isSelected()`; and `count()`, which counts without reading.
-- Also on `Listbox`: `key()` takes keys as DOM-free actions (`listbox-keys.js`); `focus()`; `activate()` and
-  `onActivate()`; `positions()`; and `subscribe()`.
+- Also on `Listbox`: `source`, a `Controllable` (a new source starts over); `key()`, which takes keys as DOM-free
+  actions (`listbox-keys.js`, acted on in `listbox-act.js`); `goTo(position, extend)`; `type(character)`; `focus()`;
+  `activate()` and `onActivate()`; `positions()`; and `subscribe()`.
+- **Keyboard (Derived, checked against the WAI-ARIA APG listbox pattern and its example code):** arrows, Home, End and
+  the page keys move the active item; Space toggles it; Enter activates it. In multiple mode, Shift with a move or with
+  Space selects from the anchor through the active item, Ctrl+Shift+Home/End select from the active item to the first or
+  last and go there, and Ctrl+A selects everything. The anchor is the item last chosen (the APG's "most recently
+  selected"); moving doesn't move it, and a Shift move before any choice starts from where the move started.
+- **Typeahead (Derived):** a character goes to the next item whose text starts with it, characters typed within 500ms
+  (the APG example's wait) to the next whose text starts with all of them, the same character again on through the items
+  starting with it (zag.js's handling; the APG doesn't specify it), going round to the start. A space continues what is
+  being typed. Text is compared by `startsWithTyped` (`packages/core/src/text.js`): from its start, ignoring case and
+  accents. `typeahead.js` keeps what was typed; `Items.findPrefix` asks the source's `findPrefix` when it has one, and
+  otherwise looks among the items read.
+- **Accessibility (Derived):** axe-core 4.14.0 finds nothing in the listbox as the server renders it, or live, focused
+  with items chosen, with the theme and without, in both DOM modes in Chrome 156, Firefox 157 and WebKit 27.2
+  (`listbox-view.test.js`). It first found the no-theme selected colors: `Highlight` on `HighlightText` is about 3:1 in
+  Firefox and 4:1 in WebKit, so the fallback is Canvas tinted with Highlight under CanvasText. In forced colors a
+  selected option takes the person's own `Highlight` and `HighlightText` (tested in Chrome and Firefox, which emulate
+  forced colors; WebKit only matches the media query). The active option's outline takes the selected text color on a
+  selected option, where the theme's focus color matched the fill.
+- **From Vaadin Grid's keyboard and a11y mixins (Derived, read):** `aria-activedescendant` names only an option that has
+  arrived, as Vaadin holds a cell's focus event while its row loads (`__pendingBodyCellFocus`); focus entering brings
+  the active item into view. Vaadin's guards for a focused element going stale as rows are reused
+  (`__updateItemsFocusable`) have no counterpart to need: the active item is a position that moves with the source's
+  changes, and options are keyed by position. Its page keys (the active row ends at the edge it moved toward) are what
+  `reveal` already does.
 - Selecting by position reads nothing, because the source makes a filter for the positions. Selecting all ten billion
   then deselecting one counted 9,999,999,999, with 100 items read in all.
 - `listboxView()` is the default web view, and `listboxElement(create)` is the element class. The app registers the
@@ -147,9 +178,14 @@ trees all take the same kind of data source.
   `span(start, end)` makes a filter for the items now at those positions, `matches(filter, item)` tests one, and
   `countMatching(filter)` counts one, at once or later. `shiftPosition(position, change)` says where a position is after
   a change.
-- `MemorySource` (`packages/core/src/memory-source.js`) holds the items in an array. Its filters are spans between two
-  keys, so a span keeps meaning the same items as others are inserted around it. Its key-to-position index is the only
-  thing it keeps per item besides the items themselves, rebuilt lazily after a change.
+- A source that can search its items' text has `findPrefix(text, from)`: the first position at or after `from` whose
+  item's text starts with `text`, compared as `startsWithTyped` compares, at once or later. Typing in a list asks it,
+  since only the source knows every item; without it, a list searches the items it has read (`BlockCache.findHere`,
+  which looks at no more than the cache's blocks).
+- `MemorySource` (`packages/core/src/memory-source.js`) holds the items in an array, and searches them by `textOf`
+  (default `plainText`: a string or number as itself). Its filters are spans between two keys, so a span keeps meaning
+  the same items as others are inserted around it. Its key-to-position index is the only thing it keeps per item besides
+  the items themselves, rebuilt lazily after a change.
 
 ### Virtualization
 
@@ -179,25 +215,32 @@ The view keeps only a window of items, plus a bounded cache of fetched blocks. T
 - **Scroll position.** Native scrolling over a capped height is one of the inputs to the virtual window, not the source
   of truth. The source of truth is the position of the item at the top of the view, which keeps keyboard navigation,
   `scrollTo(position)` and restoring a view exact.
-- **Derived (built, measured in Chrome 156):**
+- **Derived (built; measured in Chrome 156, Firefox 157 and WebKit 27.2):**
   - The top position is a `Controllable` in `ScrollRows` (`packages/components/src/scroll-rows.js`), DOM-free, with the
     rows showing beside it. The web view turns it into pixels after each render and back from each scroll event
     (`listbox-view.js`, `sync` and `scrolled`), and leaves the scroll position alone when it already shows the top.
-  - At most 100,000 rows are scrollable (`virtual-rows.js`). The offset (the position of the first scrollable row) moves
-    only when the top comes within a quarter of the scrollable rows of an end that isn't a real end, and then centres
-    the top. Moving it under the person keeps how far into the row they had scrolled.
-  - Jumps land exactly: `scrollTo(5e9)` showed 5,000,000,000 through 5,000,000,009 fully visible, and the last jump
-    showed 9,999,999,990 through 9,999,999,999, in both DOM modes (`listbox-view.test.js`).
-  - The cache stayed at or under its 16 blocks over 60 jumps spread across 10^10 items; at most 21 options were in the
-    DOM at once (20 in the window and the active one).
-  - The mouse wheel across an offset move, 20 turns of 100px over 32px rows: the top moved 3 or 4 rows per turn, never
-    back or skipping, while the scroll position fell from 2,399,688 to 1,599,852 px as the offset moved. The wheel stops
-    at the last item (9,999,999,990 at the top, 9,999,999,999 at the bottom).
-  - Rows have one fixed height (a token); variable heights are not supported.
-- **Unverified:** smooth and momentum scrolling across an offset move (headless Chrome delivered each wheel turn as one
-  instant 100px step, so whether setting the scroll position cuts a fling short wasn't seen); other browsers' limits on
-  element height (100,000 rows of 300px is 30,000,000px, under the 32,000,048px AG Grid's probe found Chrome allows, in
-  the evaluation); variable row heights.
+  - The tallest scrollable area: Chrome and WebKit 33,554,428px, clamping anything taller; Firefox 17,895,696px,
+    collapsing anything taller to nothing. Device pixel ratio doesn't change these; CSS `zoom` divides them in CSS
+    pixels (Firefox at zoom 2: 8,947,848). So the cap is in pixels on screen: one row fewer than 17,895,696px holds at
+    the rows' pitch times the element's zoom (`virtual-rows.js`, `rowCap`; zoom from `currentCSSZoom`, or the product of
+    computed `zoom` where WebKit lacks it, `row-measure.js`). Until a row is measured, and on the server, the cap is
+    10,000 rows, under the limit for rows up to 1,789px on screen.
+  - The pitch is measured from a row once and handed back to CSS (`--interact-listbox-pitch`), which lays out the spacer
+    and every row from it, so script and layout multiply the same number. Chrome snaps a 27.3px row to 27.296875px;
+    multiplying the unsnapped value drifted about 2,000px over the cap. Rows are placed with `inset-block-start`, not a
+    transform: with transforms, Firefox showed the last row out of place near the cap.
+  - The offset (the position of the first scrollable row) moves only when the top comes within a quarter of the
+    scrollable rows of an end that isn't a real end, and then centres the top. Moving it under the person keeps how far
+    into the row they had scrolled.
+  - In all three browsers and both DOM modes (`listbox-view.test.js`): `scrollTo(5e9)` shows 5,000,000,000 through
+    5,000,000,009 fully visible; the last jump shows 9,999,999,990 through 9,999,999,999; the same with rows 27.3px
+    tall, and with 600px rows at zoom 2 (cap 14,912 rows, the area under the limit). The cache stays at or under its 16
+    blocks over 60 jumps, with at most 21 options in the DOM. The wheel across an offset move goes forward 3 or 4 rows
+    per turn, never back or skipping, and stops at the last item.
+  - Rows have one fixed height (a token); variable heights wait.
+- **Unverified:** smooth and momentum scrolling across an offset move (headless browsers delivered each wheel turn as
+  one instant step); Safari itself (WebKit 27.2 is playwright's Linux build) and mobile browsers; browser zoom from its
+  own controls (only CSS `zoom` was measured); variable row heights.
 
 ### Selection (Settled model)
 
@@ -238,8 +281,7 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:13
   `aria-activedescendant` (`listbox-view.js`). The active option is always among the positions rendered
   (`ScrollRows.positions`), hidden but present when it is outside the window. With the active item scrolled 2,000 rows
   away, focus and the active descendant were still there, and the next ArrowDown brought it back into view, in both DOM
-  modes. Vaadin's keyboard and accessibility mixins were not read; the keys follow the WAI-ARIA listbox pattern
-  (`listbox-keys.js`).
+  modes and all three browsers. The keys follow the WAI-ARIA listbox pattern (see The listbox).
 - What the listbox needs is built (`packages/core/src/focus.js`):
   - `entry(left, count)`: where focus enters a collection. It goes back to where it left, while that's still inside,
     otherwise to the first item, and nowhere when the collection is empty.
@@ -258,12 +300,19 @@ stylesheets in shadow DOM, and `@scope` in light DOM.
 **Derived:** a view's template and stylesheet are the same in both modes, and the mode decides only where the stylesheet
 goes.
 
-**Derived (measured in Chrome 156):** one stylesheet selects correctly in both modes when the component writes its host
-as `:scope` and `@interact/dom` wraps the text when it adopts it (`packages/dom/src/css.js`, `scopedText`):
+**Derived (measured in Chrome 156, Firefox 157 and WebKit 27.2):** one stylesheet selects correctly in both modes when
+the component writes its host as `:scope` and `@interact/dom` wraps the text when it adopts it
+(`packages/dom/src/css.js`, `scopedText`):
 
-- in shadow DOM, `@scope (:host) to ([data-interact]) { … }`, adopted by the shadow root;
 - in light DOM, `@scope ([data-interact="<kind>"]) to ([data-interact]) { … }`, adopted once by the document or shadow
-  root the instance is in.
+  root the instance is in;
+- in shadow DOM, two scopes: `@scope (:host) to ([data-interact-view]) { … }` for the host alone, and
+  `@scope (:host > [data-interact-view]) to ([data-interact]) { … }` for everything below it, with `:scope` written as
+  `:host` there. The view is rendered inside that one element of dom's own (`data-interact-view`, `display: contents`,
+  in the declarative shadow root too). Firefox 157 drops every element below the host from `@scope (:host) to (…)`
+  whatever the limit ([Mozilla bug 2023867](https://bugzilla.mozilla.org/show_bug.cgi?id=2023867)), and in every engine
+  a scope root matches only selectors naming `:scope`, so the elements at the top of a shadow root need a root above
+  them that isn't the host.
 
 The `to ([data-interact])` bound stops either scope at any component inside, so a component never styles another's
 insides. `@layer` inside `@scope` works in both modes, so a component's own layers survive the wrapping. Shown by
@@ -427,14 +476,16 @@ be a dependency. Each serves as a reference for specific parts.
 Not verified:
 
 - Web Awesome's hydration in a browser, and its gzipped size.
-- The contents of Vaadin's keyboard and accessibility mixins (only located by name).
+- Vaadin's keyboard and accessibility mixins were read after the slice (see The listbox).
 - Whether AG Grid's select-all is meant to follow the active filter.
 - Native scrolling in either grid.
 
 ## Build order
 
-**Done:** the listbox slice, as below. What it settled is under Collections, Focus scopes, DOM and Styling. The
-listbox's API is in Components.
+**Done:** the listbox slice, as below, then its gaps: every browser proof point in Firefox and WebKit as well as Chrome,
+with the row cap set from the smallest measured limit; the listbox checked against the APG pattern, Vaadin's keyboard
+and a11y code and axe-core; typeahead with a source capability; behaviors readonly to their views. What it settled is
+under Collections, Focus scopes, DOM and Styling. The listbox's API is in Components.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
@@ -468,5 +519,9 @@ and deleted.
 2. **Package boundaries.** The five packages stay, and each is usable on its own.
 3. **Wrappers.** Typed declarations for every mainstream framework, and wrappers where its own custom element handling
    falls short of idiomatic (see Generated wrappers and types).
-4. **Order.** The listbox slice comes first. Bringing keybinds under the repo's rules (its 5,369 lint diagnostics and
+4. **The slice's gaps** (closed): Firefox and WebKit with the row cap from the smallest real limit; the APG pattern,
+   Vaadin's keyboard and a11y code and an accessibility checker; typeahead as an optional source capability, searching
+   what's loaded otherwise; no readonly-parameter exemption per component (oxlint has no pattern form, so behaviors are
+   readonly types instead). Variable row heights wait.
+5. **Order.** The listbox slice comes first. Bringing keybinds under the repo's rules (its 5,369 lint diagnostics and
    206 casts) is its own task after that.
