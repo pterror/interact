@@ -1,0 +1,332 @@
+# Components
+
+keybinds provides four web components for discoverability and customization:
+
+- **`<keybinds-command-palette>`** - Search-driven command execution (like VS Code's Ctrl+Shift+P)
+- **`<keybinds-cheatsheet>`** - Glanceable reference (like ChatGPT's hold-Ctrl overlay)
+- **`<keybinds-settings>`** - Rebindable keyboard shortcuts panel
+- **`<keybinds-basic-context-menu>`** - Right-click context menus driven by commands
+
+## Setup
+
+```js
+import { registerComponents } from 'keybinds'
+
+registerComponents()  // Defines all custom elements
+```
+
+Then use in HTML:
+
+```html
+<keybinds-command-palette></keybinds-command-palette>
+<keybinds-cheatsheet></keybinds-cheatsheet>
+<keybinds-settings></keybinds-settings>
+<keybinds-basic-context-menu></keybinds-basic-context-menu>
+```
+
+## Command Palette
+
+Search and execute commands by name.
+
+```html
+<keybinds-command-palette auto-trigger></keybinds-command-palette>
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `commands` | `Command[]` | Array of command definitions |
+| `context` | `object` | Context for `when` checks |
+| `open` | `boolean` | Show/hide the palette |
+
+### Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `open` | When present, palette is visible |
+| `auto-trigger` | Enable default `$mod+K` trigger |
+| `placeholder` | Input placeholder text (default: "Type a command...") |
+
+### Events
+
+| Event | Detail | Description |
+|-------|--------|-------------|
+| `execute` | `{ command }` | Fired when a command is executed |
+| `close` | - | Fired when palette is dismissed |
+
+### Usage
+
+```js
+const palette = document.querySelector('keybinds-command-palette')
+palette.commands = commands
+palette.context = { hasSelection: true }
+
+// Manual trigger
+button.onclick = () => palette.open = true
+
+// Listen for execution
+palette.addEventListener('execute', (e) => {
+  console.log('Executed:', e.detail.command.id)
+})
+```
+
+## Keybind Cheatsheet
+
+Grouped display of available bindings.
+
+```html
+<keybinds-cheatsheet auto-trigger></keybinds-cheatsheet>
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `commands` | `Command[]` | Array of command definitions |
+| `context` | `object` | Context for `when` checks (inactive commands grayed) |
+| `open` | `boolean` | Show/hide the cheatsheet |
+
+### Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `open` | When present, cheatsheet is visible |
+| `auto-trigger` | Open while a modifier is held on its own; tapping it twice keeps it open until it's tapped twice again, Escape or a click outside |
+| `trigger-key` | Which modifier: `$mod` (default; Meta on Mac, Control elsewhere), `Control`, `Alt`, `Shift` or `Meta` |
+| `trigger-delay` | How long it's held before opening, in ms (default 1000) |
+
+### Events
+
+| Event | Description |
+|-------|-------------|
+| `close` | Fired when cheatsheet is dismissed |
+
+### Usage
+
+```js
+const cheatsheet = document.querySelector('keybinds-cheatsheet')
+cheatsheet.commands = commands
+cheatsheet.context = getContext()
+
+// Manual trigger
+helpButton.onclick = () => cheatsheet.open = true
+```
+
+## Keybind Settings
+
+Rebindable keyboard shortcuts panel with conflict detection.
+
+```html
+<keybinds-settings></keybinds-settings>
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `store` | `BindingsStore` | Reactive bindings store instance |
+| `inputs` | `InputUI[]` | Which bindings are shown and can be recorded (default: keys only) |
+| `releases`, `holds`, `sequences` | `boolean` | Offer recording release bindings (`k:up`), holds and taps (`k:hold`, `k:tap`), and steps (`g i`); the hub sets them from its options (default: false) |
+| `open` | `boolean` | Show/hide the settings panel |
+
+### Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `open` | When present, settings panel is visible |
+
+### Events
+
+| Event | Detail | Description |
+|-------|--------|-------------|
+| `close` | - | Fired when settings panel is dismissed |
+| `change` | `{ commandId, bindings }` | Fired when a binding is changed; `bindings` has a list per input's field |
+| `reset` | `{ commandId? }` | Fired when bindings are reset |
+
+### Usage
+
+```js
+import { BindingsStore, defineSchema, registerComponents, keysUI, mouseUI } from 'keybinds'
+
+const schema = defineSchema({
+  save: { label: 'Save', category: 'File', keys: ['$mod+s'] },
+  open: { label: 'Open', category: 'File', keys: ['$mod+o'] },
+})
+
+const store = new BindingsStore(schema, 'myapp:keybinds')
+registerComponents()
+
+const settings = document.querySelector('keybinds-settings')
+settings.inputs = [keysUI(), mouseUI()]
+settings.store = store
+
+// Open settings
+settingsButton.onclick = () => settings.open = true
+
+// Listen for changes
+settings.addEventListener('change', (e) => {
+  console.log('Changed:', e.detail.commandId)
+})
+```
+
+### Behavior
+
+- Groups commands by category
+- Click a binding to re-record it
+- Click "+ Key" or "+ Mouse" to add a new binding
+- Conflicts are detected and shown inline with Replace/Cancel options
+- Per-command and global reset buttons
+- Escape cancels recording or closes the panel
+
+## Context Menu
+
+Right-click context menus populated from your commands.
+
+```html
+<keybinds-basic-context-menu auto-trigger></keybinds-basic-context-menu>
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `commands` | `Command[]` | Array of command definitions |
+| `context` | `object` | Context for `when` checks |
+| `menu` | `string` | Filter commands by `menu` tag |
+| `position` | `{ x: number, y: number }` | Menu position in viewport coordinates |
+| `open` | `boolean` | Show/hide the menu |
+
+### Attributes
+
+| Attribute | Description |
+|-----------|-------------|
+| `open` | When present, menu is visible |
+| `auto-trigger` | Listen for `contextmenu` events on the parent (or `target`) |
+| `menu` | Filter commands to those with a matching `menu` tag |
+| `target` | CSS selector for the element to listen on (defaults to parent element) |
+
+### Events
+
+| Event | Detail | Description |
+|-------|--------|-------------|
+| `execute` | `{ command }` | Fired when a command is executed |
+| `close` | - | Fired when the menu is dismissed |
+
+### Usage
+
+Commands opt into context menus via the `menu` property:
+
+```js
+const commands = [
+  {
+    id: 'cut',
+    label: 'Cut',
+    category: 'Edit',
+    keys: ['$mod+x'],
+    menu: 'editor',
+    execute: () => cut(),
+  },
+  {
+    id: 'paste',
+    label: 'Paste',
+    category: 'Edit',
+    keys: ['$mod+v'],
+    menu: ['editor', 'sidebar'],  // Appears in multiple menus
+    execute: () => paste(),
+  },
+]
+```
+
+Basic right-click menu on the parent element:
+
+```html
+<div class="editor">
+  <keybinds-basic-context-menu auto-trigger></keybinds-basic-context-menu>
+</div>
+```
+
+```js
+const menu = document.querySelector('keybinds-basic-context-menu')
+menu.commands = commands
+menu.menu = 'editor'  // Only show commands tagged with 'editor'
+```
+
+Target a specific element instead of the parent:
+
+```html
+<keybinds-basic-context-menu auto-trigger target="#canvas" menu="canvas"></keybinds-basic-context-menu>
+```
+
+Manual positioning:
+
+```js
+const menu = document.querySelector('keybinds-basic-context-menu')
+menu.commands = commands
+menu.position = { x: event.clientX, y: event.clientY }
+menu.open = true
+```
+
+### Behavior
+
+- Items are grouped by category with separators between groups
+- Inactive commands (failing `when`) are shown but disabled
+- Hidden commands are excluded
+- The menu auto-clamps to viewport edges
+- Keyboard navigation with Arrow keys (wrap-around), Home/End, Enter to execute, Escape to close
+- Clicking the backdrop or right-clicking outside closes the menu
+
+## onModifierHold Utility
+
+For custom hold-to-show behavior:
+
+```js
+import { onModifierHold } from 'keybinds'
+
+const cleanup = onModifierHold('Control', (held) => {
+  cheatsheet.open = held
+}, { delay: 200 })
+
+// Later: cleanup()
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `delay` | `number` | `200` | Milliseconds before triggering |
+| `target` | `EventTarget` | `window` | Element to listen on |
+
+### Multiple modifiers
+
+```js
+onModifierHold(['Control', 'Meta'], callback)  // Either modifier
+```
+
+A hold only counts while the modifier is down by itself: another key, a click or scrolling ends it (a shortcut like Ctrl+B never shows the cheatsheet, however long Ctrl stays down), and the key's auto-repeat doesn't start it again.
+
+## onModifierTaps Utility
+
+For double-tapping a modifier (pressing and releasing it by itself), as in double-tapping Shift:
+
+```js
+import { onModifierTaps } from 'keybinds'
+
+const cleanup = onModifierTaps('Control', 2, () => {
+  cheatsheet.open = !cheatsheet.open
+}, { within: 400 })
+```
+
+`within` is the most milliseconds from one tap's press to the next tap's release (default 400).
+
+### Recording releases
+
+While recording, the prompt has a **Release** toggle. With it on, the next key or button is recorded as a release (`k:up`, `back:up`): press it, and the binding is stored when it comes up, with the modifiers held at press time. Each binding also has a **Release** switch that flips it between its press and release form. Scroll bindings have no release.
+
+## Your Own Dialogs
+
+While the palette, settings panel or a menu is open, bindings don't fire inside it: they carry `data-keybinds-modal`, and an element with that attribute and `open` takes the keyboard. A page's own dialog can do the same:
+
+```html
+<dialog data-keybinds-modal open>...</dialog>
+```
