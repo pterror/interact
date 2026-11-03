@@ -208,14 +208,16 @@ function fromBindings(
 ): Command[]
 ```
 
+Throws if a handler has no bindings, since it would never run.
+
 ---
 
 ## listBindings(schema)
 
-Get all bindings as flat list for settings UI.
+Every binding not hidden, with its id, for a settings UI.
 
 ```ts
-function listBindings(schema: Schema): Array<BindingSchema & { id: string }>
+function listBindings(schema: Schema): { binding: BindingSchema; id: string }[]
 ```
 
 ---
@@ -225,9 +227,10 @@ function listBindings(schema: Schema): Array<BindingSchema & { id: string }>
 Reactive store of people's overrides, kept in localStorage or anywhere else.
 
 ```ts
-class BindingsStore<T extends Schema> extends EventTarget {
-  constructor(schema: T, storage: string | BindingsStorage)
-  get(): T
+class BindingsStore extends EventTarget {
+  constructor(schema: Schema, storage: string | BindingsStorage)
+  readonly schema: Schema
+  get(): Schema
   getOverrides(): BindingOverrides
   save(overrides: BindingOverrides): void
   dispose(): void
@@ -242,9 +245,10 @@ type BindingsStorage = {
 function localStorageBindings(key: string): BindingsStorage
 ```
 
-A string is a localStorage key (the same as `localStorageBindings(key)`). Any other storage only needs `load` and
-`save`. If it can change from elsewhere (another tab, an undo, sync), give it `subscribe` too and the store follows it;
-`dispose()` stops following.
+A string is a localStorage key (the same as `localStorageBindings(key)`), whose overrides are read back field by field:
+anything stored that isn't a list of bindings is left out. Any other storage only needs `load` and `save`. If it can
+change from elsewhere (another tab, an undo, sync), give it `subscribe` too and the store follows it; `dispose()` stops
+following.
 
 Dispatches `'change'` event when bindings are saved, or when the storage changes.
 

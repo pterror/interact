@@ -5,7 +5,7 @@ import { markKind } from '../modal.js'
 
 /** @typedef {import('../input.js').InputUI} Input */
 /** @typedef {import('../command.js').BindingSchema} BindingSchema */
-/** @typedef {import('../store.js').BindingsStore<any>} AnyStore */
+/** @typedef {import('../store.js').BindingsStore} AnyStore */
 
 /**
  * <keybinds-settings> - Keybinding settings panel

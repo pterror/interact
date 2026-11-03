@@ -49,8 +49,6 @@
     "packages/keybinds/src/components/settings.test.js",
     "packages/keybinds/src/hub.js",
     "packages/keybinds/src/hub.test.js",
-    "packages/keybinds/src/store.js",
-    "packages/keybinds/src/store.test.js",
     "packages/keybinds/styles/palette.css"
   ],
   "rules": {
@@ -92,6 +90,11 @@
     // typescript/no-floating-promises accepts only `void` or `.catch()`, promise/prefer-await-to-then forbids `.catch()`,
     // and an async listener fails typescript/no-misused-promises. So `void` is allowed as a statement, nowhere else.
     "eslint/no-void": ["error", { "allowAsStatement": true }],
+    // Fires on a map over an array the function didn't receive (Object.entries(), a copy, a call's result), whose
+    // objects are still the caller's. Its fix is Object.assign onto the element, which mutates the caller's readonly
+    // objects (TypeScript can't see it: Object.assign's target is generic); Object.assign({}, ...) instead fails
+    // eslint/prefer-object-spread. Only a for loop making the same copies passes.
+    "oxc/no-map-spread": "off",
     "eslint/func-style": ["error", "declaration"],
     // The browser's CSSStyleSheet.replaceSync styles a constructed sheet before the first paint; replace() resolves
     // later. Node's sync methods stay flagged.

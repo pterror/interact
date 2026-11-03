@@ -82,13 +82,13 @@
 
 /**
  * Every rebindable command and axis, by id
- * @typedef {Record<string, BindingSchema>} Schema
+ * @typedef {Readonly<Record<string, BindingSchema>>} Schema
  */
 
 /**
  * A person's rebindings, by id: only the fields they changed
- * @typedef {Record<string, Readonly<{ axes?: readonly string[], gamepad?: readonly string[],
- *   keys?: readonly string[], mouse?: readonly string[] }>>} BindingOverrides
+ * @typedef {Readonly<Record<string, Readonly<{ axes?: readonly string[], gamepad?: readonly string[],
+ *   keys?: readonly string[], mouse?: readonly string[] }>>>} BindingOverrides
  */
 
 /**

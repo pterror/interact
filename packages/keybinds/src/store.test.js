@@ -1,231 +1,190 @@
-import { describe, test, expect, beforeEach, mock } from 'bun:test'
+/**
+ * @import { BindingOverrides } from './command.js'
+ * @import { BindingsStorage } from './store.js'
+ */
 
-import { mergeBindings, listBindings, fromBindings, BindingsStore } from './store.js'
+import { beforeEach, describe, expect, test } from 'bun:test'
+
+import { BindingsStore, fromBindings, listBindings, localStorageBindings, mergeBindings } from './store.js'
+
+const KEY = 'test:bindings'
+const EMPTY = 0
+const TWICE = 2
+const FIRST = 0
+const NOT_A_STRING = 1
+
+const SCHEMA = {
+  open: { keys: ['$mod+o'], label: 'Open', mouse: ['$mod+Click'] },
+  save: { keys: ['$mod+s'], label: 'Save' },
+}
+
+beforeEach(() => {
+  localStorage.clear()
+})
+
+/**
+ * Overrides kept in memory, which can also change from elsewhere
+ * @param {BindingOverrides} [initial] - The overrides to start with
+ * @returns {Readonly<{ change: (overrides: BindingOverrides) => void, storage: BindingsStorage }>} The storage, and
+ *   how to change it from elsewhere
+ */
+function memoryStorage(initial = {}) {
+  let held = initial
+  /** @type {Set<(overrides: BindingOverrides) => void>} */
+  const listeners = new Set()
+  /**
+   * Keeps overrides, and tells whoever follows
+   * @param {BindingOverrides} overrides - The overrides
+   * @returns {void}
+   */
+  function change(overrides) {
+    held = overrides
+    for (const listener of listeners) {
+      listener(overrides)
+    }
+  }
+  return {
+    change,
+    storage: {
+      load: () => held,
+      save: change,
+      subscribe: (onChange) => {
+        listeners.add(onChange)
+        return () => {
+          listeners.delete(onChange)
+        }
+      },
+    },
+  }
+}
+
+/**
+ * What each 'change' a store dispatches carries
+ * @param {BindingsStore} store - The store
+ * @returns {unknown[]} Each change's detail, as it comes
+ */
+function changes(store) {
+  /** @type {unknown[]} */
+  const details = []
+  store.addEventListener('change', (event) => {
+    details.push(event instanceof CustomEvent ? event.detail : undefined)
+  })
+  return details
+}
 
 describe('mergeBindings', () => {
-  const schema = {
-    save: { label: 'Save', keys: ['$mod+s'] },
-    open: { label: 'Open', keys: ['$mod+o'], mouse: ['$mod+Click'] },
-  }
-
-  test('empty overrides returns schema unchanged', () => {
-    const result = mergeBindings(schema, {})
-    expect(result['save']?.keys).toEqual(['$mod+s'])
-    expect(result['open']?.keys).toEqual(['$mod+o'])
+  test('lays each field an override sets over the schema, leaving the rest', () => {
+    const merged = mergeBindings(SCHEMA, { open: { keys: ['$mod+p'] } })
+    expect(merged['open']).toEqual({ keys: ['$mod+p'], label: 'Open', mouse: ['$mod+Click'] })
+    expect(mergeBindings(SCHEMA, {})['save']?.keys).toEqual(['$mod+s'])
   })
 
-  test('overrides keys', () => {
-    const result = mergeBindings(schema, { save: { keys: ['$mod+shift+s'] } })
-    expect(result['save']?.keys).toEqual(['$mod+shift+s'])
-  })
-
-  test('overrides mouse', () => {
-    const result = mergeBindings(schema, { open: { mouse: ['RightClick'] } })
-    expect(result['open']?.mouse).toEqual(['RightClick'])
-  })
-
-  test('nullish coalescing preserves original when override field is undefined', () => {
-    const result = mergeBindings(schema, { open: { keys: ['$mod+p'] } })
-    expect(result['open']?.mouse).toEqual(['$mod+Click'])
-    expect(result['open']?.keys).toEqual(['$mod+p'])
-  })
-
-  test('unknown override IDs are ignored', () => {
-    const result = mergeBindings(schema, { nonexistent: { keys: ['a'] } })
-    expect(Object.keys(result)).toEqual(['save', 'open'])
+  test('leaves out overrides for ids the schema does not have', () => {
+    expect(Object.keys(mergeBindings(SCHEMA, { nonexistent: { keys: ['a'] } }))).toEqual(['open', 'save'])
   })
 })
 
 describe('listBindings', () => {
-  test('returns flat array with IDs', () => {
-    const schema = {
-      save: { label: 'Save', keys: ['$mod+s'] },
-      open: { label: 'Open', keys: ['$mod+o'] },
-    }
-    const list = listBindings(schema)
-    expect(list).toHaveLength(2)
-    expect(list[0]?.id).toBe('save')
-    const first = /** @type {NonNullable<typeof list[0]>} */ (list[0])
-    expect(first).toEqual({ id: 'save', label: 'Save', keys: ['$mod+s'] })
-  })
-
-  test('filters hidden bindings', () => {
-    const schema = {
-      save: { label: 'Save', keys: ['$mod+s'] },
-      internal: { label: 'Internal', keys: ['x'], hidden: true },
-    }
-    const list = listBindings(schema)
-    expect(list).toHaveLength(1)
-    expect(list[0]?.id).toBe('save')
+  test('lists every binding not hidden, with its id', () => {
+    const schema = { ...SCHEMA, internal: { hidden: true, keys: ['x'], label: 'Internal' } }
+    expect(listBindings(schema)).toEqual([
+      { binding: SCHEMA.open, id: 'open' },
+      { binding: SCHEMA.save, id: 'save' },
+    ])
   })
 })
 
+/**
+ * A `when` that always holds
+ * @returns {boolean} True
+ */
+function always() {
+  return true
+}
+
 describe('fromBindings', () => {
-  const bindings = {
-    save: { label: 'Save', category: 'File', keys: ['$mod+s'] },
-    open: { label: 'Open', category: 'File', keys: ['$mod+o'] },
-  }
-
-  test('constructs commands from bindings and handlers', () => {
-    const commands = fromBindings(bindings, { save: () => 'saved' })
-    expect(commands).toHaveLength(1)
-    expect(commands[0]?.id).toBe('save')
-    expect(commands[0]?.label).toBe('Save')
-    expect(commands[0]?.category).toBe('File')
-    expect(commands[0]?.keys).toEqual(['$mod+s'])
+  test('makes a command for each handler, with its bindings and options', () => {
+    const commands = fromBindings(SCHEMA, { save: () => 'saved' }, { save: { captureInput: true, when: always } })
+    expect(commands.map(({ id, keys, label }) => ({ id, keys, label }))).toEqual([
+      { id: 'save', keys: ['$mod+s'], label: 'Save' },
+    ])
+    expect([commands[FIRST]?.when, commands[FIRST]?.captureInput]).toEqual([always, true])
   })
 
-  test('warns on orphan handler', () => {
-    const warn = mock(() => {})
-    const origWarn = console.warn
-    console.warn = warn
-    fromBindings(bindings, { nonexistent: () => {} })
-    console.warn = origWarn
-    expect(warn).toHaveBeenCalledWith('keybinds: handler "nonexistent" has no matching binding')
-  })
-
-  test('applies per-command options', () => {
-    const whenFn = () => true
-    const commands = fromBindings(
-      bindings,
-      { save: () => {} },
-      {
-        save: { when: whenFn, captureInput: true },
-      },
+  test('refuses a handler with no bindings, which would never run', () => {
+    expect(() => fromBindings(SCHEMA, { nonexistent: () => undefined })).toThrow(
+      'keybinds: handler "nonexistent" has no matching binding',
     )
-    expect(commands[0]?.when).toBe(whenFn)
-    expect(commands[0]?.captureInput).toBe(true)
+  })
+})
+
+describe('localStorageBindings', () => {
+  test('keeps overrides under its key', () => {
+    localStorageBindings(KEY).save({ save: { keys: ['$mod+shift+s'] } })
+    expect(localStorage.getItem(KEY)).toBe(JSON.stringify({ save: { keys: ['$mod+shift+s'] } }))
+    expect(localStorageBindings(KEY).load()).toEqual({ save: { keys: ['$mod+shift+s'] } })
+  })
+
+  test('reads what is not JSON as no overrides, and leaves out what is not a list of bindings', () => {
+    localStorage.setItem(KEY, 'not json')
+    expect(localStorageBindings(KEY).load()).toEqual({})
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ open: 'x', save: { keys: ['k', NOT_A_STRING], mouse: ['click'], other: ['y'] } }),
+    )
+    expect(localStorageBindings(KEY).load()).toEqual({ open: {}, save: { mouse: ['click'] } })
   })
 })
 
 describe('BindingsStore', () => {
-  beforeEach(() => {
-    localStorage.clear()
+  test('lays the overrides kept so far over the schema', () => {
+    expect(new BindingsStore(SCHEMA, KEY).get()['save']?.keys).toEqual(['$mod+s'])
+    localStorage.setItem(KEY, JSON.stringify({ save: { keys: ['ctrl+s'] } }))
+    expect(new BindingsStore(SCHEMA, KEY).get()['save']?.keys).toEqual(['ctrl+s'])
   })
 
-  const schema = {
-    save: { label: 'Save', keys: ['$mod+s'] },
-    open: { label: 'Open', keys: ['$mod+o'] },
-  }
-
-  test('loads with schema defaults', () => {
-    const store = new BindingsStore(schema, 'test:bindings')
-    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
-  })
-
-  test('saves overrides to localStorage', () => {
-    const store = new BindingsStore(schema, 'test:bindings')
-    store.save({ save: { keys: ['$mod+shift+s'] } })
-
-    const stored = JSON.parse(/** @type {string} */ (localStorage.getItem('test:bindings')))
-    expect(stored.save.keys).toEqual(['$mod+shift+s'])
-  })
-
-  test('merges overrides into bindings', () => {
-    const store = new BindingsStore(schema, 'test:bindings')
-    store.save({ save: { keys: ['$mod+shift+s'] } })
-    expect(store.get()['save']?.keys).toEqual(['$mod+shift+s'])
-    expect(store.get()['open']?.keys).toEqual(['$mod+o'])
-  })
-
-  test('loads persisted overrides on construction', () => {
-    localStorage.setItem('test:bindings', JSON.stringify({ save: { keys: ['ctrl+s'] } }))
-    const store = new BindingsStore(schema, 'test:bindings')
-    expect(store.get()['save']?.keys).toEqual(['ctrl+s'])
-  })
-
-  test('handles corrupt JSON gracefully', () => {
-    localStorage.setItem('test:bindings', 'not json')
-    const store = new BindingsStore(schema, 'test:bindings')
-    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
-  })
-
-  test('dispatches change event on save', () => {
-    const store = new BindingsStore(schema, 'test:bindings')
-    const handler = mock(() => {})
-    store.addEventListener('change', handler)
-
+  test('keeps a save, and says what changed', () => {
+    const store = new BindingsStore(SCHEMA, KEY)
+    const details = changes(store)
     store.save({ save: { keys: ['ctrl+s'] } })
-
-    expect(handler).toHaveBeenCalledTimes(1)
-    const call = /** @type {any[]} */ (handler.mock.calls[0])
-    const detail = call[0].detail
-    expect(detail.bindings.save.keys).toEqual(['ctrl+s'])
-    expect(detail.overrides).toEqual({ save: { keys: ['ctrl+s'] } })
+    expect([store.get()['save']?.keys, store.get()['open']?.keys]).toEqual([['ctrl+s'], ['$mod+o']])
+    expect(store.getOverrides()).toEqual({ save: { keys: ['ctrl+s'] } })
+    expect(details).toEqual([{ bindings: store.get(), overrides: { save: { keys: ['ctrl+s'] } } }])
+    expect(new BindingsStore(SCHEMA, KEY).get()['save']?.keys).toEqual(['ctrl+s'])
   })
 
-  test('getOverrides returns current overrides', () => {
-    const store = new BindingsStore(schema, 'test:bindings')
-    store.save({ open: { keys: ['ctrl+o'] } })
-    expect(store.getOverrides()).toEqual({ open: { keys: ['ctrl+o'] } })
-  })
-
-  /** storage held in a variable, which can also be changed from "elsewhere" */
-  const memoryStorage = (/** @type {import('./index.js').BindingOverrides} */ initial = {}) => {
-    let held = initial
-    /** @type {Set<(o: import('./index.js').BindingOverrides) => void>} */
-    const listeners = new Set()
-    const set = (/** @type {import('./index.js').BindingOverrides} */ o) => {
-      held = o
-      for (const l of listeners) l(o)
-    }
-    return {
-      set,
-      storage: {
-        load: () => held,
-        save: set,
-        subscribe: (/** @type {(o: import('./index.js').BindingOverrides) => void} */ fn) => {
-          listeners.add(fn)
-          return () => listeners.delete(fn)
-        },
-      },
-    }
-  }
-
-  test('loads from and saves to custom storage, without touching localStorage', () => {
-    const { storage } = memoryStorage({ save: { keys: ['ctrl+s'] } })
-    const store = new BindingsStore(schema, storage)
-    expect(store.get()['save']?.keys).toEqual(['ctrl+s'])
-    store.save({ open: { keys: ['ctrl+o'] } })
-    expect(storage.load()).toEqual({ open: { keys: ['ctrl+o'] } })
-    expect(localStorage.length).toBe(0)
-  })
-
-  test('follows custom storage changed from elsewhere', () => {
-    const { storage, set } = memoryStorage()
-    const store = new BindingsStore(schema, storage)
-    const handler = mock(() => {})
-    store.addEventListener('change', handler)
-    set({ save: { keys: ['ctrl+shift+s'] } })
-    expect(store.get()['save']?.keys).toEqual(['ctrl+shift+s'])
-    expect(handler).toHaveBeenCalledTimes(1)
-  })
-
-  test('a save that the storage echoes back fires one change', () => {
-    const { storage } = memoryStorage()
-    const store = new BindingsStore(schema, storage)
-    const handler = mock(() => {})
-    store.addEventListener('change', handler)
-    store.save({ save: { keys: ['ctrl+s'] } })
-    expect(handler).toHaveBeenCalledTimes(1)
-  })
-
-  test('dispose stops following the storage', () => {
-    const { storage, set } = memoryStorage()
-    const store = new BindingsStore(schema, storage)
-    store.dispose()
-    set({ save: { keys: ['ctrl+shift+s'] } })
-    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
+  test('keeps release bindings as written', () => {
+    const schema = { close: { label: 'Close', mouse: ['middle:up'] }, open: { label: 'Open', mouse: ['middle'] } }
+    new BindingsStore(schema, KEY).save({ close: { mouse: ['back:up'] } })
+    const reloaded = new BindingsStore(schema, KEY)
+    expect([reloaded.get()['close']?.mouse, reloaded.get()['open']?.mouse]).toEqual([['back:up'], ['middle']])
   })
 })
 
-describe('release bindings in the store', () => {
-  test('settings store round-trips release bindings', () => {
-    const schema = { close: { label: 'Close', mouse: ['middle:up'] }, open: { label: 'Open', mouse: ['middle'] } }
-    const store = new BindingsStore(schema, 'test:release-bindings')
-    store.save({ close: { mouse: ['back:up'] } })
-    const reloaded = new BindingsStore(schema, 'test:release-bindings')
-    expect(reloaded.get().close?.mouse).toEqual(['back:up'])
-    expect(reloaded.get().open?.mouse).toEqual(['middle'])
+describe('BindingsStore over storage of its own', () => {
+  test('loads from and saves to it, not localStorage', () => {
+    const { storage } = memoryStorage({ save: { keys: ['ctrl+s'] } })
+    const store = new BindingsStore(SCHEMA, storage)
+    expect(store.get()['save']?.keys).toEqual(['ctrl+s'])
+    store.save({ open: { keys: ['ctrl+o'] } })
+    expect([storage.load(), localStorage.length]).toEqual([{ open: { keys: ['ctrl+o'] } }, EMPTY])
+  })
+
+  test('follows it changing from elsewhere, once per change, even when it echoes a save back', () => {
+    const { change, storage } = memoryStorage()
+    const store = new BindingsStore(SCHEMA, storage)
+    const details = changes(store)
+    change({ save: { keys: ['ctrl+shift+s'] } })
+    expect(store.get()['save']?.keys).toEqual(['ctrl+shift+s'])
+    store.save({ open: { keys: ['ctrl+o'] } })
+    expect(details).toHaveLength(TWICE)
+  })
+
+  test('stops following it once disposed', () => {
+    const { change, storage } = memoryStorage()
+    const store = new BindingsStore(SCHEMA, storage)
+    store.dispose()
+    change({ save: { keys: ['ctrl+shift+s'] } })
+    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
   })
 })

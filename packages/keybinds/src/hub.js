@@ -102,7 +102,7 @@ export class CommandHub extends EventTarget {
     this._defs = new Map()
     /** @type {Map<string, Command>} */
     this._live = new Map()
-    /** @type {BindingsStore<Schema> | null} */
+    /** @type {BindingsStore | null} */
     this._store = null
     this._storeListener = () => this.refresh()
     /** @type {ReturnType<typeof keybinds> | null} */
@@ -274,7 +274,7 @@ export class CommandHub extends EventTarget {
     }
 
     const fields = this.inputs.filter((i) => !i.axis).map((i) => i.field)
-    /** @type {Schema} */
+    /** @type {Record<string, import('./command.js').BindingSchema>} */
     const schema = {}
     for (const d of this._defs.values()) {
       const def = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (d))
