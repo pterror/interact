@@ -30,7 +30,8 @@ import { virtualRows } from './virtual-rows.js'
  * what names it), whether it selects several items, what each row renders, and what a key or focus entering it does.
  * `focusable` is false for a list whose focus stays elsewhere (a combobox's input, which then names the active row as
  * its own active descendant): the viewport is no Tab stop and names no active descendant, and so hears no keys and no
- * focus, which a focusable one needs `keydown` and `focus` for.
+ * focus, which a focusable one needs `keydown` and `focus` for. It is no Tab stop by saying so (`tabindex="-1"`):
+ * browsers make a scrolling element a Tab stop of its own otherwise.
  * @typedef {Readonly<{
  *   role: 'listbox' | 'menu',
  *   focusable?: boolean,
@@ -118,7 +119,7 @@ function rowsViewport(listbox, viewport) {
     part="viewport"
     role=${viewport.role}
     id=${viewport.id}
-    tabindex=${focusable ? '0' : undefined}
+    tabindex=${focusable ? '0' : '-1'}
     aria-labelledby=${viewport.labelledby}
     aria-label=${viewport.label === undefined || viewport.label === '' ? undefined : viewport.label}
     aria-multiselectable=${viewport.multiselectable ? 'true' : undefined}
