@@ -4,7 +4,7 @@ import { closeBrowser, inBrowser } from '../../../test/browser.js'
 import { component } from './component.js'
 import { register } from './register.js'
 import { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
-import { Counter, connectingView, counterView } from './test-helpers.js'
+import { Counter, counterView, renderingView } from './test-helpers.js'
 
 const RED = 'rgb(255, 0, 0)'
 const BLUE = 'rgb(0, 0, 255)'
@@ -14,20 +14,21 @@ const NONE = 0
 afterAll(closeBrowser)
 
 describe('component', () => {
-  test('makes each behavior from its element, and connects the view once it has rendered', () => {
+  test('makes each behavior from its element, and tells the view each time it has rendered', async () => {
     /** @type {HTMLElement[]} */
     const hosts = []
-    const seen = connectingView()
-    const Connecting = component(seen.view, (host) => {
+    const counter = new Counter()
+    const seen = renderingView()
+    const Rendering = component(seen.view, (host) => {
       hosts.push(host)
-      return new Counter()
+      return counter
     })
-    register([Connecting], { prefix: 'connect' })
-    const element = document.createElement('connect-connecting')
+    register([Rendering], { prefix: 'seen' })
+    const element = document.createElement('seen-rendering')
     document.body.append(element)
-    element.remove()
-    expect(hosts).toEqual([element])
-    expect(seen.log).toEqual(['connected after rendering 0', 'disconnected'])
+    counter.increment()
+    await Promise.resolve()
+    expect([hosts, seen.log]).toEqual([[element], ['rendered 0', 'rendered 1']])
   })
 })
 

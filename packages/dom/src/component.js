@@ -14,15 +14,14 @@ import { hasServerMarkup, hydrate, render } from './render.js'
 
 /**
  * A component's default web view: its kind, its stylesheet, and what it renders for its behavior's state now. A view
- * that has to read layout or drive the page (a scroll position, say) also has `connect`, called with the root its view
- * is in once the first render or adoption is done; what it returns is called when the element leaves the page. Its own
- * subscriptions to the behavior hear each change after the view has rendered it.
+ * that has to read layout or drive the page (a scroll position, say) also has `rendered`, called with the root its view
+ * is in after the first render or adoption and after every render since.
  * @template {Behavior} B
  * @typedef {Readonly<{
  *   kind: string,
  *   styles: Stylesheet,
  *   render: (behavior: B) => TemplateResult,
- *   connect?: (behavior: B, root: HTMLElement | ShadowRoot) => () => void,
+ *   rendered?: (behavior: B, root: HTMLElement | ShadowRoot) => void,
  * }>} View
  */
 
@@ -37,8 +36,6 @@ import { hasServerMarkup, hydrate, render } from './render.js'
  * @template {Behavior} B
  * @typedef {{ new (): ComponentElement<B>, readonly kind: string, readonly view: View<B> }} ComponentClass
  */
-
-const FIRST = 0
 
 /** The attribute that chooses an instance's DOM mode: `shadow` or `light`. */
 const MODE_ATTRIBUTE = 'dom-mode'
@@ -112,6 +109,7 @@ function show(root, view, instance) {
   } else {
     render(view.render(instance.behavior), root)
   }
+  view.rendered?.(instance.behavior, root)
 }
 
 /**
@@ -132,28 +130,9 @@ function follow(root, view, behavior) {
     queueMicrotask(() => {
       pending = false
       render(view.render(behavior), root)
+      view.rendered?.(behavior, root)
     })
   })
-}
-
-/**
- * Marks an element with its kind, styles it, renders its view or adopts the server's, and follows its behavior.
- * @template {Behavior} B
- * @param {HTMLElement} element - The element
- * @param {View<B>} view - Its view
- * @param {B} behavior - Its behavior
- * @returns {(() => void)[]} What stops following, and disconnects the view
- */
-function start(element, view, behavior) {
-  element.setAttribute(KIND_ATTRIBUTE, view.kind)
-  const mode = elementMode(element)
-  const root = viewRoot(element, mode)
-  show(root, view, { behavior, mode })
-  const stops = [follow(root, view, behavior)]
-  if (view.connect) {
-    stops.push(view.connect(behavior, root))
-  }
-  return stops
 }
 
 /**
@@ -174,8 +153,8 @@ function component(view, create) {
     static view = view
     /** @readonly */
     #behavior = create(this)
-    /** @type {(() => void)[]} */
-    #stops = []
+    /** @type {(() => void) | undefined} */
+    #stop = undefined
 
     /**
      * The instance's behavior: its methods, state and events.
@@ -199,17 +178,19 @@ function component(view, create) {
      * @returns {void}
      */
     connectedCallback() {
-      this.#stops = start(this, view, this.#behavior)
+      this.setAttribute(KIND_ATTRIBUTE, view.kind)
+      const { mode } = this
+      const root = viewRoot(this, mode)
+      show(root, view, { behavior: this.#behavior, mode })
+      this.#stop = follow(root, view, this.#behavior)
     }
 
     /**
-     * Stops following the behavior, and disconnects the view.
+     * Stops following the behavior.
      * @returns {void}
      */
     disconnectedCallback() {
-      for (const stop of this.#stops.splice(FIRST)) {
-        stop()
-      }
+      this.#stop?.()
     }
   }
 }

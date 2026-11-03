@@ -104,23 +104,20 @@ const badgeView = {
 }
 
 /**
- * A view that notes when it is connected, with what its root then shows, and when it is disconnected.
+ * A view that notes what its root shows each time it has rendered.
  * @returns {Readonly<{ view: import('./component.js').View<Counter>, log: string[] }>} The view, and what it noted
  */
-function connectingView() {
+function renderingView() {
   /** @type {string[]} */
   const log = []
   return {
     log,
     view: {
-      connect: (_counter, root) => {
-        log.push(`connected after rendering ${root.textContent}`)
-        return () => {
-          log.push('disconnected')
-        }
-      },
-      kind: 'connecting',
+      kind: 'rendering',
       render: (counter) => html`<span>${counter.count}</span>`,
+      rendered: (_counter, root) => {
+        log.push(`rendered ${root.textContent}`)
+      },
       styles: css`
         @layer test {
           :where(:scope) {
@@ -258,7 +255,7 @@ function watchChildren(container) {
 
 export {
   Counter,
-  connectingView,
+  renderingView,
   badgeView,
   counterView,
   testElements,
