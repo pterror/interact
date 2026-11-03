@@ -96,15 +96,21 @@ sequences do their part. `lookups(suffix, mods)` gives the event's lookups. See 
 
 ---
 
-## searchCommands(commands, query, context?)
+## searchCommands(commands, query, options?)
 
 Search commands for palette display.
 
 ```ts
-function searchCommands(commands: Command[], query: string, context?: Record<string, unknown>): ScoredCommand[]
+function searchCommands(
+  commands: Command[],
+  query: string,
+  options?: { context?: Record<string, unknown>; matcher?: Matcher; scorer?: Scorer },
+): ScoredCommand[]
 ```
 
-Returns commands matching query, sorted by relevance. Each result includes `active` (boolean) and `score` (number).
+Returns the commands matching `query`, most relevant first: those that apply, then by `rank`, then by score. Labels and
+ids match by `matcher` (default `fuzzyMatcher`), descriptions and categories by the words as typed; a `scorer` adds its
+ranking to each score. Each result wraps its command: `{ command, active, score, positions? }`.
 
 ---
 
@@ -116,8 +122,11 @@ Group commands by category for cheatsheet display.
 function groupByCategory(
   commands: Command[],
   context?: Record<string, unknown>,
-): Record<string, (Command & { active: boolean })[]>
+  fields?: ('keys' | 'mouse' | 'gamepad')[],
+): Record<string, { command: Command; active: boolean }[]>
 ```
+
+Commands with no bindings in `fields` (default all three) are left out, as are hidden ones.
 
 ---
 
@@ -365,9 +374,11 @@ interface Command {
   menu?: string | string[]
 }
 
-interface ScoredCommand extends Command {
-  active: boolean
+interface ScoredCommand {
+  command: Command
+  active: boolean // whether its `when` holds
   score: number
+  positions?: number[] // where the query matched its label, for highlighting
 }
 
 interface BindingSchema {

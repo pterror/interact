@@ -1,404 +1,188 @@
-import { describe, test, expect } from 'bun:test'
+/**
+ * @import { Command, Context } from './command.js'
+ * @import { Matcher } from './search.js'
+ */
 
-import { CommandPalette } from './components/palette.js'
-import {
-  fuzzyMatcher,
-  simpleMatcher,
-  matchCommands,
-  searchCommands,
-  groupByCategory,
-  filterByMenu,
-  defaultScorer,
-} from './search.js'
+import { describe, expect, test } from 'bun:test'
 
-describe('fuzzyMatcher', () => {
-  test('returns null on no match', () => {
-    expect(fuzzyMatcher('xyz', 'hello')).toBeNull()
-  })
+import { simpleMatcher } from './matchers.js'
+import { filterByMenu, groupByCategory, searchCommands } from './search.js'
 
-  test('returns positions for matching characters', () => {
-    const result = fuzzyMatcher('hlo', 'hello')
-    expect(result).not.toBeNull()
-    expect(result?.positions).toEqual([0, 2, 4])
-  })
+const CUSTOM = 10
+const FIRST = 0
 
-  test('awards consecutive match bonus', () => {
-    const consecutive = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('he', 'hello'))
-    const nonConsecutive = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('ho', 'hello'))
-    expect(consecutive.score).toBeGreaterThan(nonConsecutive.score)
-  })
+/**
+ * A command that does nothing
+ * @param {Omit<Command, 'execute'>} fields - Everything but what it does
+ * @returns {Command} The command
+ */
+function commandWith(fields) {
+  return { ...fields, execute: () => undefined }
+}
 
-  test('awards word-start bonus', () => {
-    const result = fuzzyMatcher('d', 'save document')
-    expect(result).not.toBeNull()
-    // 'd' at index 5 is after a space → word-start bonus
-    expect(result?.positions).toEqual([5])
-  })
+/**
+ * A `when` reading whether the context is ready
+ * @param {Context} context - The app's state
+ * @returns {boolean} Whether `ready` is true
+ */
+function whenReady(context) {
+  return context['ready'] === true
+}
 
-  test('awards exact case bonus', () => {
-    const exact = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('S', 'Save'))
-    const noExact = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('s', 'Save'))
-    expect(exact.score).toBeGreaterThan(noExact.score)
-  })
+/**
+ * The ids of the commands in some results, in order
+ * @param {readonly Readonly<{ command: Command }>[]} [results] - The results, none if missing
+ * @returns {string[]} Their ids
+ */
+function ids(results = []) {
+  return results.map(({ command }) => command.id)
+}
 
-  test('includes ratio in score', () => {
-    const short = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('ab', 'ab'))
-    const long = /** @type {NonNullable<ReturnType<typeof fuzzyMatcher>>} */ (fuzzyMatcher('ab', 'a_________b'))
-    expect(short.score).toBeGreaterThan(long.score)
-  })
-})
+/**
+ * The labels of the commands in some results, in order
+ * @param {readonly Readonly<{ command: Command }>[]} [results] - The results, none if missing
+ * @returns {string[]} Their labels
+ */
+function labels(results = []) {
+  return results.map(({ command }) => command.label)
+}
 
-describe('simpleMatcher', () => {
-  test('returns score 2 for startsWith', () => {
-    expect(simpleMatcher('hel', 'Hello')).toEqual({ score: 2 })
-  })
+/**
+ * A matcher that matches only text with "Save" in it, whatever was typed
+ * @type {Matcher}
+ */
+function savesOnly(_query, text) {
+  return text.includes('Save') ? { positions: [FIRST], score: CUSTOM } : undefined
+}
 
-  test('returns score 1 for includes', () => {
-    expect(simpleMatcher('llo', 'Hello')).toEqual({ score: 1 })
-  })
-
-  test('returns null on miss', () => {
-    expect(simpleMatcher('xyz', 'Hello')).toBeNull()
-  })
-
-  test('is case-insensitive', () => {
-    expect(simpleMatcher('HEL', 'hello')).toEqual({ score: 2 })
-  })
-})
+const FILES = [
+  commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save document' }),
+  commandWith({ category: 'File', id: 'open', keys: ['$mod+o'], label: 'Open file' }),
+  commandWith({ category: 'Edit', id: 'delete', keys: ['Backspace'], label: 'Delete', when: () => false }),
+]
 
 describe('searchCommands', () => {
-  const commands = [
-    { id: 'save', label: 'Save document', category: 'File', keys: ['$mod+s'], execute: () => {} },
-    { id: 'open', label: 'Open file', category: 'File', keys: ['$mod+o'], execute: () => {} },
-    { id: 'delete', label: 'Delete', category: 'Edit', keys: ['Backspace'], when: () => false, execute: () => {} },
-  ]
-
-  test('matches by label', () => {
-    const results = searchCommands(commands, 'Save')
-    expect(results.length).toBeGreaterThan(0)
-    expect(results[0]?.id).toBe('save')
+  test('finds commands by label, id and category', () => {
+    expect(searchCommands(FILES, 'Save')[FIRST]?.command.id).toBe('save')
+    expect(ids(searchCommands(FILES, 'open'))).toContain('open')
+    expect(ids(searchCommands(FILES, 'File'))).toEqual(['open', 'save'])
   })
 
-  test('matches by id', () => {
-    const results = searchCommands(commands, 'open')
-    expect(results.some((r) => r.id === 'open')).toBe(true)
-  })
-
-  test('matches by category', () => {
-    const results = searchCommands(commands, 'File')
-    expect(results.length).toBe(2)
-  })
-
-  test('excludes hidden commands', () => {
-    const cmds = [...commands, { id: 'hidden', label: 'Hidden cmd', keys: ['h'], hidden: true, execute: () => {} }]
-    expect(searchCommands(cmds, 'Hidden')).toHaveLength(0)
-  })
-
-  test('includes unbound commands', () => {
-    const cmds = [...commands, { id: 'unbound', label: 'Unbound cmd', execute: () => {} }]
-    expect(searchCommands(cmds, 'Unbound')).toHaveLength(1)
-    expect(searchCommands(cmds, 'Unbound')[0]?.id).toBe('unbound')
-  })
-
-  test('deduplicates by id (last wins)', () => {
-    const cmds = [
-      { id: 'save', label: 'Save v1', keys: ['$mod+s'], execute: () => {} },
-      { id: 'save', label: 'Save v2', keys: ['$mod+s'], execute: () => {} },
+  test('leaves out hidden commands, and keeps unbound ones', () => {
+    const more = [
+      ...FILES,
+      commandWith({ hidden: true, id: 'hidden', keys: ['h'], label: 'Hidden cmd' }),
+      commandWith({ id: 'unbound', label: 'Unbound cmd' }),
     ]
-    const results = searchCommands(cmds, 'Save')
-    expect(results).toHaveLength(1)
-    expect(results[0]?.label).toBe('Save v2')
+    expect(searchCommands(more, 'Hidden')).toEqual([])
+    expect(ids(searchCommands(more, 'Unbound'))).toEqual(['unbound'])
   })
 
-  test('sorts active before inactive, then by score', () => {
-    const results = searchCommands(commands, 'e')
-    const deleteIdx = results.findIndex((r) => r.id === 'delete')
-    const activeResults = results.filter((r) => r.active)
-    if (deleteIdx >= 0 && activeResults.length > 0) {
-      expect(deleteIdx).toBeGreaterThanOrEqual(activeResults.length)
-    }
+  test('takes the last command registered under an id', () => {
+    const twice = [commandWith({ id: 'save', label: 'Save v1' }), commandWith({ id: 'save', label: 'Save v2' })]
+    expect(labels(searchCommands(twice, 'Save'))).toEqual(['Save v2'])
   })
 
-  test('uses custom matcher', () => {
-    /** @type {import('./index.js').Matcher} */
-    const matcher = (_q, t) => (t.includes('Save') ? { score: 10, positions: [0] } : null)
-    const results = searchCommands(commands, 'anything', {}, { matcher })
-    expect(results).toHaveLength(1)
-    expect(results[0]?.id).toBe('save')
+  test('lists commands that apply before ones that do not', () => {
+    expect(searchCommands(FILES, 'e').map(({ active }) => active)).toEqual([true, true, false])
   })
 
-  test('defaults to fuzzy matching', () => {
-    const results = searchCommands(commands, 'svd')
-    expect(results.some((r) => r.id === 'save')).toBe(true)
-    expect(results[0]?.positions).toBeDefined()
-  })
-})
-
-describe('matchCommands', () => {
-  const commands = [
-    { id: 'save', label: 'Save document', keys: ['$mod+s'], execute: () => {} },
-    { id: 'open', label: 'Open file', keys: ['$mod+o'], execute: () => {} },
-  ]
-
-  test('uses provided matcher', () => {
-    const results = matchCommands(commands, 'Save', {}, simpleMatcher)
-    expect(results).toHaveLength(1)
-    expect(results[0]?.id).toBe('save')
+  test('matches fuzzily, with positions, unless given a matcher', () => {
+    expect(ids(searchCommands(FILES, 'anything', { matcher: savesOnly }))).toEqual(['save'])
+    expect(searchCommands(FILES, 'svd')[FIRST]?.positions).toBeDefined()
   })
 
-  test('does not match when matcher rejects', () => {
-    const results = matchCommands(commands, 'svd', {}, simpleMatcher)
-    expect(results).toHaveLength(0)
-  })
-})
-
-describe('groupByCategory', () => {
-  const commands = [
-    { id: 'save', label: 'Save', category: 'File', keys: ['$mod+s'], execute: () => {} },
-    { id: 'open', label: 'Open', category: 'File', keys: ['$mod+o'], execute: () => {} },
-    { id: 'delete', label: 'Delete', category: 'Edit', keys: ['Backspace'], execute: () => {} },
-    { id: 'misc', label: 'Misc', keys: ['m'], execute: () => {} },
-  ]
-
-  test('groups by category', () => {
-    const groups = groupByCategory(commands)
-    expect(groups['File']).toHaveLength(2)
-    expect(groups['Edit']).toHaveLength(1)
-  })
-
-  test('defaults to "Other" when no category', () => {
-    const groups = groupByCategory(commands)
-    expect(groups['Other']).toBeDefined()
-    expect(groups['Other']?.[0]?.id).toBe('misc')
-  })
-
-  test('excludes hidden commands', () => {
-    const cmds = [...commands, { id: 'h', label: 'H', keys: ['h'], hidden: true, execute: () => {} }]
-    const allIds = Object.values(groupByCategory(cmds))
-      .flat()
-      .map((c) => c.id)
-    expect(allIds).not.toContain('h')
-  })
-
-  test('excludes unbound commands', () => {
-    const cmds = [...commands, { id: 'u', label: 'U', execute: () => {} }]
-    const allIds = Object.values(groupByCategory(cmds))
-      .flat()
-      .map((c) => c.id)
-    expect(allIds).not.toContain('u')
-  })
-
-  test('reflects active state from context', () => {
-    const cmds = [
-      {
-        id: 'a',
-        label: 'A',
-        keys: ['a'],
-        when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']),
-        execute: () => {},
-      },
+  test('finds a description by the words as typed, not letters scattered through it', () => {
+    const more = [
+      commandWith({ description: 'What can be done with the link or words at the cursor', id: 'more', label: 'More…' }),
     ]
-    const groups = groupByCategory(cmds, { ready: false })
-    expect(groups['Other']?.[0]?.active).toBe(false)
-  })
-
-  test('deduplicates by id', () => {
-    const cmds = [
-      { id: 'save', label: 'Save v1', category: 'File', keys: ['$mod+s'], execute: () => {} },
-      { id: 'save', label: 'Save v2', category: 'File', keys: ['$mod+s'], execute: () => {} },
-    ]
-    const groups = groupByCategory(cmds)
-    expect(groups['File']).toHaveLength(1)
-    expect(groups['File']?.[0]?.label).toBe('Save v2')
-  })
-})
-
-describe('filterByMenu', () => {
-  test('filters by string menu field', () => {
-    const cmds = [
-      { id: 'a', label: 'A', menu: 'node', execute: () => {} },
-      { id: 'b', label: 'B', menu: 'edge', execute: () => {} },
-    ]
-    const results = filterByMenu(cmds, 'node')
-    expect(results).toHaveLength(1)
-    expect(results[0]?.id).toBe('a')
-  })
-
-  test('filters by array menu field', () => {
-    const cmds = [
-      { id: 'a', label: 'A', menu: ['node', 'edge'], execute: () => {} },
-      { id: 'b', label: 'B', menu: 'edge', execute: () => {} },
-    ]
-    const results = filterByMenu(cmds, 'node')
-    expect(results).toHaveLength(1)
-    expect(results[0]?.id).toBe('a')
-  })
-
-  test('excludes hidden commands', () => {
-    const cmds = [{ id: 'a', label: 'A', menu: 'node', hidden: true, execute: () => {} }]
-    expect(filterByMenu(cmds, 'node')).toHaveLength(0)
-  })
-
-  test('deduplicates by id', () => {
-    const cmds = [
-      { id: 'a', label: 'A v1', menu: 'node', execute: () => {} },
-      { id: 'a', label: 'A v2', menu: 'node', execute: () => {} },
-    ]
-    const results = filterByMenu(cmds, 'node')
-    expect(results).toHaveLength(1)
-    expect(results[0]?.label).toBe('A v2')
-  })
-
-  test('returns active state from context', () => {
-    const cmds = [
-      {
-        id: 'a',
-        label: 'A',
-        menu: 'node',
-        when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']),
-        execute: () => {},
-      },
-    ]
-    const active = filterByMenu(cmds, 'node', { ready: true })
-    expect(active[0]?.active).toBe(true)
-    const inactive = filterByMenu(cmds, 'node', { ready: false })
-    expect(inactive[0]?.active).toBe(false)
-  })
-
-  test('returns empty when no match', () => {
-    const cmds = [{ id: 'a', label: 'A', menu: 'node', execute: () => {} }]
-    expect(filterByMenu(cmds, 'nonexistent')).toHaveLength(0)
-  })
-})
-
-// --- defaultScorer tests ---
-
-describe('defaultScorer', () => {
-  const cmdWithWhen = { id: 'a', label: 'A', when: () => true, execute: () => {} }
-  const cmdWithWhenFalse = { id: 'b', label: 'B', when: () => false, execute: () => {} }
-  const cmdNoWhen = { id: 'c', label: 'C', execute: () => {} }
-
-  test('command with no when scores 1', () => {
-    const scorer = defaultScorer()
-    expect(scorer(cmdNoWhen, {})).toBe(1)
-  })
-
-  test('command with when=true scores 2', () => {
-    const scorer = defaultScorer()
-    expect(scorer(cmdWithWhen, {})).toBe(2)
-  })
-
-  test('command with when=false scores 0 (excluded)', () => {
-    const scorer = defaultScorer()
-    expect(scorer(cmdWithWhenFalse, {})).toBe(0)
-  })
-
-  test('command with when scores higher than command without when', () => {
-    const scorer = defaultScorer()
-    expect(scorer(cmdWithWhen, {})).toBeGreaterThan(scorer(cmdNoWhen, {}))
-  })
-
-  test('frecency: within last 60s adds +3', () => {
-    const now = Date.now()
-    const history = [{ id: 'c', timestamp: now - 10_000 }]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1 + 3)
-  })
-
-  test('frecency: within last 5min (but not 60s) adds +2', () => {
-    const now = Date.now()
-    const history = [{ id: 'c', timestamp: now - 120_000 }]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1 + 2)
-  })
-
-  test('frecency: within last 30min (but not 5min) adds +1', () => {
-    const now = Date.now()
-    const history = [{ id: 'c', timestamp: now - 600_000 }]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1 + 1)
-  })
-
-  test('frecency: older than 30min adds 0', () => {
-    const now = Date.now()
-    const history = [{ id: 'c', timestamp: now - 4_000_000 }]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1)
-  })
-
-  test('frecency: uses best matching history entry', () => {
-    const now = Date.now()
-    const history = [
-      { id: 'c', timestamp: now - 600_000 }, // 10min → +1
-      { id: 'c', timestamp: now - 30_000 }, // 30s → +3
-    ]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1 + 3)
-  })
-
-  test('frecency: does not apply to other command ids', () => {
-    const now = Date.now()
-    const history = [{ id: 'different', timestamp: now - 1_000 }]
-    const scorer = defaultScorer(history)
-    expect(scorer(cmdNoWhen, {})).toBe(1)
+    expect(searchCommands(more, 'door')).toEqual([])
+    expect(ids(searchCommands(more, 'the cursor'))).toEqual(['more'])
   })
 })
 
 describe('ranking matches', () => {
   test('the query typed whole counts for more than its letters scattered', () => {
     const found = searchCommands(
-      [
-        { id: 'dl', label: 'Download this story', execute: () => {} },
-        { id: 'door', label: 'The red door', execute: () => {} },
-      ],
+      [commandWith({ id: 'dl', label: 'Download this story' }), commandWith({ id: 'door', label: 'The red door' })],
       'door',
     )
-    expect(found.map((c) => c.id)).toEqual(['door', 'dl'])
+    expect(ids(found)).toEqual(['door', 'dl'])
   })
 
   test('rank comes before relevance, and after whether it applies', () => {
     const found = searchCommands(
       [
-        { id: 'new', label: 'New page “cave”', rank: -1, execute: () => {} },
-        { id: 'off', label: 'Cave', when: () => false, execute: () => {} },
-        { id: 'page', label: 'The caves below', execute: () => {} },
+        commandWith({ id: 'new', label: 'New page “cave”', rank: -1 }),
+        commandWith({ id: 'off', label: 'Cave', when: () => false }),
+        commandWith({ id: 'page', label: 'The caves below' }),
       ],
       'cave',
     )
-    expect(found.map((c) => c.id)).toEqual(['page', 'new', 'off'])
-  })
-
-  test('a palette told to hide inactive commands lists only those that apply', () => {
-    if (!customElements.get('keybinds-command-palette'))
-      customElements.define('keybinds-command-palette', CommandPalette)
-    const el = /** @type {CommandPalette} */ (document.createElement('keybinds-command-palette'))
-    el.setAttribute('hide-inactive', '')
-    document.body.appendChild(el)
-    el.commands = [
-      { id: 'a', label: 'Delete this page', when: () => false, execute: () => {} },
-      { id: 'b', label: 'Delete this story', execute: () => {} },
-    ]
-    el.open = true
-    const input = /** @type {HTMLInputElement} */ (/** @type {ShadowRoot} */ (el.shadowRoot).querySelector('input'))
-    input.value = 'delete'
-    input.dispatchEvent(new /** @type {any} */ (input.ownerDocument.defaultView).Event('input'))
-    const labels = Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.palette__item-label')).map(
-      (l) => l.textContent,
-    )
-    expect(labels).toEqual(['Delete this story'])
-    el.remove()
+    expect(ids(found)).toEqual(['page', 'new', 'off'])
   })
 })
 
-test('a description is found by the words as typed, not letters scattered through it', () => {
-  const cmds = [
-    {
-      id: 'more',
-      label: 'More…',
-      description: 'What can be done with the link or words at the cursor',
-      execute: () => {},
-    },
-  ]
-  expect(searchCommands(cmds, 'door').length).toBe(0)
-  expect(searchCommands(cmds, 'the cursor').length).toBe(1)
+describe('searchCommands with a matcher', () => {
+  test('matches with the matcher given, and nothing it rejects', () => {
+    expect(ids(searchCommands(FILES, 'Save', { matcher: simpleMatcher }))).toEqual(['save'])
+    expect(searchCommands(FILES, 'svd', { matcher: simpleMatcher })).toEqual([])
+  })
+})
+
+describe('groupByCategory', () => {
+  const GROUPED = [...FILES, commandWith({ id: 'misc', keys: ['m'], label: 'Misc' })]
+
+  test('groups by category, "Other" for none', () => {
+    const groups = groupByCategory(GROUPED)
+    expect(Object.keys(groups).toSorted()).toEqual(['Edit', 'File', 'Other'])
+    expect(ids(groups['Other'])).toEqual(['misc'])
+  })
+
+  test('leaves out hidden and unbound commands, and takes the last under an id', () => {
+    const more = [
+      ...GROUPED,
+      commandWith({ hidden: true, id: 'h', keys: ['h'], label: 'H' }),
+      commandWith({ id: 'u', label: 'U' }),
+      commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save v2' }),
+    ]
+    const groups = groupByCategory(more)
+    expect(ids(Object.values(groups).flat())).not.toContain('h')
+    expect(ids(Object.values(groups).flat())).not.toContain('u')
+    expect(labels(groups['File'])).toEqual(['Save v2', 'Open file'])
+  })
+
+  test('says whether each command applies', () => {
+    const groups = groupByCategory([commandWith({ id: 'a', keys: ['a'], label: 'A', when: whenReady })], {
+      ready: false,
+    })
+    expect(groups['Other']?.[FIRST]?.active).toBe(false)
+  })
+})
+
+describe('filterByMenu', () => {
+  test('finds commands tagged with the menu, by one tag or among several', () => {
+    const tagged = [
+      commandWith({ id: 'a', label: 'A', menu: ['node', 'edge'] }),
+      commandWith({ id: 'b', label: 'B', menu: 'edge' }),
+      commandWith({ id: 'c', label: 'C', menu: 'node' }),
+    ]
+    expect(ids(filterByMenu(tagged, 'node'))).toEqual(['a', 'c'])
+    expect(filterByMenu(tagged, 'nonexistent')).toEqual([])
+  })
+
+  test('leaves out hidden commands, and takes the last under an id', () => {
+    const tagged = [
+      commandWith({ hidden: true, id: 'h', label: 'H', menu: 'node' }),
+      commandWith({ id: 'a', label: 'A v1', menu: 'node' }),
+      commandWith({ id: 'a', label: 'A v2', menu: 'node' }),
+    ]
+    expect(labels(filterByMenu(tagged, 'node'))).toEqual(['A v2'])
+  })
+
+  test('says whether each command applies', () => {
+    const tagged = [commandWith({ id: 'a', label: 'A', menu: 'node', when: whenReady })]
+    expect(filterByMenu(tagged, 'node', { ready: true })[FIRST]?.active).toBe(true)
+    expect(filterByMenu(tagged, 'node', { ready: false })[FIRST]?.active).toBe(false)
+  })
 })

@@ -221,7 +221,8 @@ export class KeybindCheatsheet extends HTMLElement {
     )
     this._dialog.replaceChildren()
 
-    for (const [category, cmds] of Object.entries(groups)) {
+    for (const [category, entries] of Object.entries(groups)) {
+      const cmds = entries.map(({ command, active }) => ({ ...command, active }))
       const group = document.createElement('div')
       group.className = 'cheatsheet__group'
       group.setAttribute('part', 'group')

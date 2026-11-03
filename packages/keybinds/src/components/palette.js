@@ -5,7 +5,7 @@ import { searchCommands } from '../search.js'
 
 /** @typedef {import('../command.js').Command} Command */
 /** @typedef {import('../search.js').Matcher} Matcher */
-/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../command.js').Command & { active: boolean, score: number, positions?: readonly number[] }} ScoredCommand */
 /** @typedef {import('../input.js').InputUI} Input */
 
 /**
@@ -251,7 +251,12 @@ export class CommandPalette extends HTMLElement {
     if (ask) this._ask(query)
     const ids = new Set(this._commands.map((c) => c.id))
     const all = query ? [...this._commands, ...this._sourced.filter((c) => !ids.has(c.id))] : this._commands
-    const found = query ? searchCommands(all, query, this._context, { matcher: this._matcher }) : this._getAllVisible()
+    const found = query
+      ? searchCommands(all, query, { context: this._context, matcher: this._matcher }).map(({ command, ...rest }) => ({
+          ...command,
+          ...rest,
+        }))
+      : this._getAllVisible()
     this._results = this.hasAttribute('hide-inactive') ? found.filter((cmd) => cmd.active) : found
     this._activeIndex = 0
     this._render()

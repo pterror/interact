@@ -346,11 +346,11 @@ function filterByMenu(
   commands: Command[],
   menu: string,
   context?: Record<string, unknown>,
-): (Command & { active: boolean })[]
+): { command: Command; active: boolean }[]
 ```
 
-Returns commands whose `menu` property matches (string match or array includes). Each result includes an `active`
-boolean from `when` evaluation. Hidden commands are excluded.
+Returns commands whose `menu` property matches (string match or array includes), each wrapped with `active` from its
+`when`. Hidden commands are excluded.
 
 ```js
 const items = filterByMenu(commands, 'editor', { hasSelection: true })

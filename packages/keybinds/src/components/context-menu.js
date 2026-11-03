@@ -2,13 +2,14 @@ import { bindingParts } from '../binding-format.js'
 import { isActive } from '../command.js'
 import { keysUI } from '../keys-ui.js'
 import { markKind } from '../modal.js'
-import { filterByMenu, searchCommands, defaultScorer } from '../search.js'
+import { defaultScorer } from '../scorer.js'
+import { filterByMenu, searchCommands } from '../search.js'
 
 /** @typedef {import('../command.js').Command} Command */
 /** @typedef {import('../input.js').InputUI} Input */
 /** @typedef {import('../search.js').Scorer} Scorer */
 /** @typedef {import('../search.js').HistoryEntry} HistoryEntry */
-/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../command.js').Command & { active: boolean, score: number, positions?: readonly number[] }} ScoredCommand */
 
 /**
  * <keybinds-context-menu> - Scored, searchable context menu driven by commands
@@ -313,12 +314,17 @@ export class ContextMenu extends HTMLElement {
 
     if (query) {
       // Search mode: fuzzy match + scorer
-      const scored = searchCommands(this._commands, query, this._context, { scorer })
+      const scored = searchCommands(this._commands, query, { context: this._context, scorer }).map(
+        ({ command, ...rest }) => ({
+          ...command,
+          ...rest,
+        }),
+      )
       this._allItems = scored.map((cmd) => ({ ...cmd, active: cmd.active }))
     } else {
       // No query: apply scorer to rank all relevant commands
       let base = this._menu
-        ? filterByMenu(this._commands, this._menu, this._context)
+        ? filterByMenu(this._commands, this._menu, this._context).map(({ command, active }) => ({ ...command, active }))
         : this._commands.filter((cmd) => !cmd.hidden).map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
 
       // Score and sort: active first, then by score, preserving original order for ties

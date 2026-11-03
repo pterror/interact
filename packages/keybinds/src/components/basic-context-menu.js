@@ -222,7 +222,7 @@ export class BasicContextMenu extends HTMLElement {
 
   _buildItems() {
     this._items = this._menu
-      ? filterByMenu(this._commands, this._menu, this._context)
+      ? filterByMenu(this._commands, this._menu, this._context).map(({ command, active }) => ({ ...command, active }))
       : this._commands.filter((cmd) => !cmd.hidden).map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
     this._render()
   }

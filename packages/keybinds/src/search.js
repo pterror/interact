@@ -1,282 +1,178 @@
 /**
- * Searching, ranking and grouping commands, for the palette, cheatsheet and menus.
+ * Searching, ranking and grouping commands, for the palette, cheatsheet and menus. Results wrap each command with
+ * whether it applies now (and, from a search, how well it matched), leaving the command itself as given.
  */
 
-import { isActive } from './command.js'
+/** @import { BindingField, Command, Context } from './command.js' */
 
-/** @typedef {import('./command.js').Command} Command */
+import { bindingsOf, isActive } from './command.js'
+import { fuzzyMatcher, simpleMatcher } from './matchers.js'
 
 /**
  * How well a query matches some text, and where
- * @typedef {{ score: number, positions?: number[] }} MatchResult
+ * @typedef {Readonly<{ positions?: readonly number[], score: number }>} MatchResult
  */
 
 /**
- * Matches a query against some text: a result, or null for no match
- * @typedef {(query: string, text: string) => MatchResult | null} Matcher
+ * Matches a query against some text: a result, or undefined for no match
+ * @typedef {(query: string, text: string) => MatchResult | undefined} Matcher
  */
 
 /**
  * When a command was last run, for ranking by frecency
- * @typedef {{ id: string, timestamp: number }} HistoryEntry
+ * @typedef {Readonly<{ id: string, timestamp: number }>} HistoryEntry
  */
 
 /**
  * Ranks a command before relevance: higher first
- * @typedef {(command: Command, context: unknown) => number} Scorer
+ * @typedef {(command: Command, context: Context) => number} Scorer
  */
 
 /**
- * How to search: a matcher and a scorer
- * @typedef {{ matcher?: Matcher | undefined, scorer?: Scorer | undefined }} SearchOptions
+ * How to search: the app's state (for which commands apply), how labels and ids match (fuzzily, unless given), and a
+ * ranking added to how well each matched
+ * @typedef {Readonly<{ context?: Context | undefined, matcher?: Matcher | undefined, scorer?: Scorer | undefined }>}
+ *   SearchOptions
+ */
+
+/**
+ * A command and whether it applies now
+ * @typedef {Readonly<{ active: boolean, command: Command }>} ActiveCommand
  */
 
 /**
  * A command found by a search: whether it applies now, its score, and where the query matched its label
- * @typedef {Command & { active: boolean, score: number, positions?: number[] }} ScoredCommand
+ * @typedef {Readonly<{ active: boolean, command: Command, positions?: readonly number[], score: number }>}
+ *   ScoredCommand
  */
 
+const ABOVE = -1
+const BELOW = 1
+const EVEN = 0
+const UNRANKED = 0
+const NOTHING = 0
+const OTHER = 'Other'
+
+/** @type {readonly BindingField[]} */
+const BINDING_FIELDS = ['keys', 'mouse', 'gamepad']
+
 /**
- * Dedupe commands by ID (last wins - for registration order / inner scope)
- * @param {Command[]} commands
- * @returns {Command[]}
+ * Each command once, the last of any that share an id: the latest registered, or an inner scope's over an outer one
+ * @param {readonly Command[]} commands - The commands
+ * @returns {Command[]} Them, deduplicated
  */
 function dedupeCommands(commands) {
-  /** @type {Map<string, Command>} */
-  const seen = new Map()
-  for (const cmd of commands) {
-    seen.set(cmd.id, cmd) // last one wins
-  }
-  return Array.from(seen.values())
+  return [...new Map(commands.map((command) => [command.id, command])).values()]
 }
 
 /**
- * Search commands with a given matcher
- *
- * - Dedupes by ID (last registration wins - inner scope shadows outer)
- *
- * @param {Command[]} commands - Array of command definitions
- * @param {string} query - Search query
- * @param {Record<string, unknown>} context - Current context
- * @param {Matcher} matcher - Matcher function to score results
- * @returns {ScoredCommand[]} Matching commands sorted by relevance (active first, then by score)
+ * Active first, then by rank, then by score
+ * @param {ScoredCommand} first - One command
+ * @param {ScoredCommand} second - Another
+ * @returns {number} Below zero if the first comes first
  */
-export function matchCommands(commands, query, context, matcher) {
+function byRelevance(first, second) {
+  if (first.active !== second.active) {
+    return first.active ? ABOVE : BELOW
+  }
+  const rank = (second.command.rank ?? UNRANKED) - (first.command.rank ?? UNRANKED)
+  return rank === EVEN ? second.score - first.score : rank
+}
+
+/**
+ * How a query matches a command: its label or id by the matcher; its description or category by the words as typed,
+ * since letters scattered through a sentence match almost anything
+ * @param {Command} command - The command
+ * @param {string} query - The query
+ * @param {Matcher} matcher - How labels and ids match
+ * @returns {MatchResult | undefined} The match, if any
+ */
+function matchOf(command, query, matcher) {
+  return (
+    matcher(query, command.label) ??
+    matcher(query, command.id) ??
+    (command.description === undefined ? undefined : simpleMatcher(query, command.description)) ??
+    (command.category === undefined ? undefined : simpleMatcher(query, command.category))
+  )
+}
+
+/**
+ * A command found, scored
+ * @param {Command} command - The command
+ * @param {MatchResult} match - How it matched
+ * @param {Readonly<{ active: boolean, ranked: number }>} found - Whether it applies, and what a scorer adds
+ * @returns {ScoredCommand} The result
+ */
+function scored(command, match, { active, ranked }) {
+  const score = match.score + ranked
+  return match.positions === undefined
+    ? { active, command, score }
+    : { active, command, positions: match.positions, score }
+}
+
+/**
+ * Searches commands, each id once (the last registered): fuzzy matching unless told otherwise, with a scorer's
+ * ranking added on
+ * @param {readonly Command[]} commands - The commands
+ * @param {string} query - What was typed
+ * @param {SearchOptions} [options] - The app's state, a matcher, and a scorer
+ * @returns {ScoredCommand[]} Matches, most relevant first: active ones, then by rank, then by score
+ */
+function searchCommands(commands, query, options = {}) {
+  const { context = {}, matcher = fuzzyMatcher, scorer } = options
   /** @type {ScoredCommand[]} */
   const results = []
-
-  for (const cmd of dedupeCommands(commands)) {
-    if (cmd.hidden) continue
-
-    // A description or category is found by the words as typed: letters scattered through a
-    // sentence match almost anything.
-    const match =
-      matcher(query, cmd.label) ??
-      matcher(query, cmd.id) ??
-      (cmd.description ? simpleMatcher(query, cmd.description) : null) ??
-      (cmd.category ? simpleMatcher(query, cmd.category) : null)
-
-    if (!match) continue
-
-    /** @type {ScoredCommand} */
-    const scored = { ...cmd, active: isActive(cmd, context), score: match.score }
-    if (match.positions) scored.positions = match.positions
-    results.push(scored)
-  }
-
-  return results.sort(byRelevance)
-}
-
-/**
- * Active first, then by rank, then by score.
- * @param {ScoredCommand} a
- * @param {ScoredCommand} b
- */
-function byRelevance(a, b) {
-  if (a.active !== b.active) return (b.active ? 1 : 0) - (a.active ? 1 : 0)
-  if ((a.rank ?? 0) !== (b.rank ?? 0)) return (b.rank ?? 0) - (a.rank ?? 0)
-  return b.score - a.score
-}
-
-/**
- * Search commands for command palette (defaults to fuzzy matching)
- *
- * @param {Command[]} commands - Array of command definitions
- * @param {string} query - Search query
- * @param {Record<string, unknown>} [context] - Current context
- * @param {SearchOptions} [options] - Search options (e.g., custom matcher, scorer)
- * @returns {ScoredCommand[]} Matching commands sorted by relevance (active first, then by score)
- */
-export function searchCommands(commands, query, context = {}, options = {}) {
-  const results = matchCommands(commands, query, context, options.matcher ?? fuzzyMatcher)
-  if (!options.scorer) return results
-  const scorer = options.scorer
-  for (const cmd of results) {
-    cmd.score += scorer(cmd, context)
-  }
-  return results.sort(byRelevance)
-}
-
-/**
- * Default scorer — combines specificity and frecency.
- *
- * Specificity: commands with a `when` condition score higher (score 2 if
- * `when(ctx)` is true, score 1 for commands with no condition).
- *
- * Frecency: if history entries are supplied, recently-executed commands
- * receive an additive boost:
- *   - within last 60 s  → +3
- *   - within last 5 min → +2
- *   - within last 30 min → +1
- *
- * @param {HistoryEntry[]} [history]
- * @returns {Scorer}
- */
-export function defaultScorer(history) {
-  return (command, context) => {
-    // Specificity
-    let score = command.when ? (command.when(/** @type {Record<string, unknown>} */ (context)) ? 2 : 0) : 1
-
-    if (score === 0) return 0 // when present but false — exclude
-
-    // Frecency
-    if (history && history.length > 0) {
-      const now = Date.now()
-      let best = 0
-      for (const entry of history) {
-        if (entry.id !== command.id) continue
-        const age = now - entry.timestamp
-        if (age <= 60_000 && best < 3) best = 3
-        else if (age <= 300_000 && best < 2) best = 2
-        else if (age <= 1_800_000 && best < 1) best = 1
-      }
-      score += best
+  for (const command of dedupeCommands(commands)) {
+    const match = command.hidden === true ? undefined : matchOf(command, query, matcher)
+    if (match !== undefined) {
+      const ranked = scorer?.(command, context) ?? NOTHING
+      results.push(scored(command, match, { active: isActive(command, context), ranked }))
     }
-
-    return score
   }
+  return results.toSorted(byRelevance)
 }
 
 /**
- * Group commands by category
- *
- * - Dedupes by ID (last registration wins)
- * - Excludes commands with no bindings
- *
- * @param {Command[]} commands - Array of command definitions
- * @param {Record<string, unknown>} [context] - Current context (for active state)
- * @param {string[]} [fields] - The command fields that hold bindings
- * @returns {Record<string, (Command & { active: boolean })[]>} Commands grouped by category
+ * Commands grouped by category, each id once (the last registered), leaving out hidden ones and ones with no bindings
+ * @param {readonly Command[]} commands - The commands
+ * @param {Context} [context] - The app's state, for which apply
+ * @param {readonly BindingField[]} [fields] - The command fields that hold bindings
+ * @returns {Record<string, ActiveCommand[]>} The commands, by category ("Other" for none)
  */
-export function groupByCategory(commands, context = {}, fields = ['keys', 'mouse', 'gamepad']) {
-  /** @type {Record<string, (Command & { active: boolean })[]>} */
+function groupByCategory(commands, context = {}, fields = BINDING_FIELDS) {
+  /** @type {Record<string, ActiveCommand[]>} */
   const groups = {}
-
-  for (const cmd of dedupeCommands(commands)) {
-    if (cmd.hidden) continue
-    if (
-      !fields.some(
-        (f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[f])?.length,
-      )
-    )
-      continue
-    const cat = cmd.category || 'Other'
-    if (!groups[cat]) groups[cat] = []
-    groups[cat].push({
-      ...cmd,
-      active: isActive(cmd, context),
-    })
+  for (const command of dedupeCommands(commands)) {
+    const bound = fields.some((field) => bindingsOf(command, field).length > NOTHING)
+    if (command.hidden !== true && bound) {
+      const category = command.category === undefined || command.category === '' ? OTHER : command.category
+      groups[category] = [...(groups[category] ?? []), { active: isActive(command, context), command }]
+    }
   }
-
   return groups
 }
 
 /**
- * Filter commands by menu tag
- *
- * - Dedupes by ID (last registration wins)
- *
- * @param {Command[]} commands - Array of command definitions
- * @param {string} menu - Menu tag to filter by
- * @param {Record<string, unknown>} [context] - Current context (for active state)
- * @returns {(Command & { active: boolean })[]} Matching commands
+ * Whether a command is in a menu
+ * @param {Command} command - The command
+ * @param {string} menu - The menu's tag
+ * @returns {boolean} Whether its menu tags include it
  */
-export function filterByMenu(commands, menu, context = {}) {
-  const results = []
-  for (const cmd of dedupeCommands(commands)) {
-    if (cmd.hidden) continue
-    const menus = cmd.menu
-    if (!menus) continue
-    const matches = Array.isArray(menus) ? menus.includes(menu) : menus === menu
-    if (!matches) continue
-    results.push({ ...cmd, active: isActive(cmd, context) })
-  }
-  return results
-}
-
-// ========================================
-// Matchers
-// ========================================
-
-/**
- * Simple substring matcher (case-insensitive)
- *
- * Scores by position: startsWith > includes
- *
- * @type {Matcher}
- */
-export function simpleMatcher(query, text) {
-  const q = query.toLowerCase()
-  const t = text.toLowerCase()
-
-  if (t.startsWith(q)) return { score: 2 }
-  if (t.includes(q)) return { score: 1 }
-  return null
+function inMenu(command, menu) {
+  return typeof command.menu === 'string' ? command.menu === menu : (command.menu ?? []).includes(menu)
 }
 
 /**
- * Fuzzy sequential character matcher
- *
- * Matches if all query chars appear in order in text.
- * Scores based on consecutive matches and word-start bonuses.
- * Returns positions for highlighting.
- *
- * @type {Matcher}
+ * The commands in a menu, each id once (the last registered), leaving out hidden ones
+ * @param {readonly Command[]} commands - The commands
+ * @param {string} menu - The menu's tag
+ * @param {Context} [context] - The app's state, for which apply
+ * @returns {ActiveCommand[]} The menu's commands
  */
-export function fuzzyMatcher(query, text) {
-  const q = query.toLowerCase()
-  const t = text.toLowerCase()
-
-  let qi = 0
-  let ti = 0
-  let score = 0
-  let lastMatch = -1
-  /** @type {number[]} */
-  const positions = []
-
-  while (qi < q.length && ti < t.length) {
-    if (q[qi] === t[ti]) {
-      positions.push(ti)
-      // Consecutive match bonus
-      if (ti === lastMatch + 1) score += 2
-      // Word start bonus (after space/hyphen/underscore or at beginning)
-      if (ti === 0 || ' -_'.includes(/** @type {string} */ (t[ti - 1]))) score += 3
-      // Exact case match bonus
-      if (query[qi] === text[ti]) score += 1
-      lastMatch = ti
-      qi++
-    }
-    ti++
-  }
-
-  // All query chars must be found
-  if (qi < q.length) return null
-
-  // Base score from match ratio
-  score += Math.round((positions.length / t.length) * 10)
-  // The query as typed, whole, counts for more than its letters scattered: at a word's start most.
-  const whole = t.indexOf(q)
-  if (whole >= 0) score += whole === 0 || ' -_'.includes(/** @type {string} */ (t[whole - 1])) ? 20 : 10
-
-  return { score, positions }
+function filterByMenu(commands, menu, context = {}) {
+  return dedupeCommands(commands)
+    .filter((command) => command.hidden !== true && inMenu(command, menu))
+    .map((command) => ({ active: isActive(command, context), command }))
 }
+
+export { filterByMenu, groupByCategory, searchCommands }

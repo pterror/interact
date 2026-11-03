@@ -148,3 +148,26 @@ describe('an open palette holds keys back', () => {
     target.remove()
   })
 })
+
+describe('palette hiding inactive commands', () => {
+  test('a palette told to hide inactive commands lists only those that apply', () => {
+    if (!customElements.get('keybinds-command-palette'))
+      customElements.define('keybinds-command-palette', CommandPalette)
+    const el = /** @type {CommandPalette} */ (document.createElement('keybinds-command-palette'))
+    el.setAttribute('hide-inactive', '')
+    document.body.appendChild(el)
+    el.commands = [
+      { id: 'a', label: 'Delete this page', when: () => false, execute: () => {} },
+      { id: 'b', label: 'Delete this story', execute: () => {} },
+    ]
+    el.open = true
+    const input = /** @type {HTMLInputElement} */ (/** @type {ShadowRoot} */ (el.shadowRoot).querySelector('input'))
+    input.value = 'delete'
+    input.dispatchEvent(new /** @type {any} */ (input.ownerDocument.defaultView).Event('input'))
+    const labels = Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.palette__item-label')).map(
+      (l) => l.textContent,
+    )
+    expect(labels).toEqual(['Delete this story'])
+    el.remove()
+  })
+})

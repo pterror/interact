@@ -41,15 +41,9 @@ export { onModifierHold, onModifierTaps } from './modifiers.js'
 export { mouse, mouseMatches } from './mouse.js'
 export { eventToMouseBindingString, formatMouseParts } from './mouse-ui.js'
 export { releases } from './releases.js'
-export {
-  defaultScorer,
-  filterByMenu,
-  fuzzyMatcher,
-  groupByCategory,
-  matchCommands,
-  searchCommands,
-  simpleMatcher,
-} from './search.js'
+export { fuzzyMatcher, simpleMatcher } from './matchers.js'
+export { defaultScorer } from './scorer.js'
+export { filterByMenu, groupByCategory, searchCommands } from './search.js'
 export { sequences } from './sequences.js'
 export {
   BindingsStore,
