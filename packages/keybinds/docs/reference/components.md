@@ -271,10 +271,11 @@ on Mac, Ctrl elsewhere).
 Convert a MouseEvent to a canonical binding string.
 
 ```ts
-function eventToMouseBindingString(event: MouseEvent): string | null
+function eventToMouseBindingString(event: MouseEvent): string | undefined
 ```
 
-Maps button numbers to canonical names (0=click, 1=middle, 2=right).
+Maps button numbers to canonical names (0=click, 1=middle, 2=right, 3=back, 4=forward). Other buttons, and a wheel event
+that doesn't scroll, give `undefined`.
 
 ---
 

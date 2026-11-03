@@ -271,7 +271,7 @@ const binding = eventToBindingString(event) // e.g. "$mod+shift+k"
 Convert a MouseEvent or WheelEvent to a canonical binding string.
 
 ```ts
-function eventToMouseBindingString(event: MouseEvent): string | null
+function eventToMouseBindingString(event: MouseEvent): string | undefined
 ```
 
 ```js

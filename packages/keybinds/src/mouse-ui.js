@@ -2,117 +2,97 @@
  * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus.
  */
 
+/**
+ * @import { InputUI } from './input.js'
+ * @import { WheelOptions } from './mouse-listener.js'
+ */
+
 import { formatWithRelease } from './binding-format.js'
 import { eventModParts, formatModPart } from './binding-mods.js'
 import { RELEASE_SUFFIX, splitRelease } from './binding.js'
-import { mouse, pointerButtonName, wheelDirection } from './mouse.js'
-
-/** @typedef {import('./input.js').InputUI} InputUI */
+import { pointerButtonName } from './mouse-listener.js'
+import { MouseRecorder } from './mouse-recorder.js'
+import { wheelDirection } from './mouse-wheel.js'
+import { mouse } from './mouse.js'
 
 /**
- * Format a single mouse binding part for display
- * @param {string} part
- * @returns {string}
+ * How each button name a binding can use is shown
+ * @type {ReadonlyMap<string, string>}
+ */
+const SHOWN = new Map([
+  ['back', 'Back'],
+  ['backclick', 'Back'],
+  ['click', 'Click'],
+  ['forward', 'Forward'],
+  ['forwardclick', 'Forward'],
+  ['left', 'Click'],
+  ['leftclick', 'Click'],
+  ['middle', 'Middle'],
+  ['middleclick', 'Middle'],
+  ['right', 'Right'],
+  ['rightclick', 'Right'],
+  ['scrolldown', 'Scroll ↓'],
+  ['scrollleft', 'Scroll ←'],
+  ['scrollright', 'Scroll →'],
+  ['scrollup', 'Scroll ↑'],
+])
+
+const SCROLL = /(?:^|\+)scroll(?:up|down|left|right)$/u
+
+/**
+ * One part of a mouse binding as shown
+ * @param {string} part - The part
+ * @returns {string} Its symbol or name
  */
 function formatMousePart(part) {
-  const p = part.trim().toLowerCase()
-  const mod = formatModPart(p)
-  if (mod) return mod
-  if (p === 'click' || p === 'leftclick' || p === 'left') return 'Click'
-  if (p === 'middleclick' || p === 'middle') return 'Middle'
-  if (p === 'rightclick' || p === 'right') return 'Right'
-  if (p === 'backclick' || p === 'back') return 'Back'
-  if (p === 'forwardclick' || p === 'forward') return 'Forward'
-  if (p === 'scrollup') return 'Scroll ↑'
-  if (p === 'scrolldown') return 'Scroll ↓'
-  if (p === 'scrollleft') return 'Scroll ←'
-  if (p === 'scrollright') return 'Scroll →'
-  return part
+  const name = part.trim().toLowerCase()
+  return formatModPart(name) ?? SHOWN.get(name) ?? part
 }
 
 /**
- * Format mouse binding into array of display parts
- * @param {string} binding
- * @returns {string[]}
+ * A mouse binding as display parts ("$mod+click" is ["⌘", "Click"] on a Mac)
+ * @param {string} binding - The binding
+ * @returns {string[]} The parts as shown
  */
-export function formatMouseParts(binding) {
+function formatMouseParts(binding) {
   return formatWithRelease(binding, formatMousePart)
 }
 
 /**
- * Convert a MouseEvent or WheelEvent to a canonical binding string (e.g. "$mod+click", "$mod+scrollup")
- *
- * @param {MouseEvent} event
- * @returns {string | null}
+ * A mouse or wheel event as a binding ("$mod+click", "$mod+scrollup", "middle:up" for a mouseup)
+ * @param {MouseEvent} event - The event
+ * @returns {string | undefined} The binding, or undefined for a button no binding names, or a wheel event that
+ *   doesn't scroll
  */
-export function eventToMouseBindingString(event) {
-  let buttonName
-  if ('deltaY' in event && 'deltaX' in event) {
-    buttonName = wheelDirection(/** @type {WheelEvent} */ (event))
-    if (!buttonName) return null
-  } else {
-    const name = pointerButtonName(event.button)
-    if (!name) return null
-    buttonName = name
-    if (event.type === 'mouseup') buttonName += RELEASE_SUFFIX
+function eventToMouseBindingString(event) {
+  const scroll = event instanceof WheelEvent
+  const name = scroll ? wheelDirection(event) : pointerButtonName(event.button)
+  if (name === undefined) {
+    return undefined
   }
-  return [...eventModParts(event), buttonName].join('+')
+  const suffix = !scroll && event.type === 'mouseup' ? RELEASE_SUFFIX : ''
+  return `${[...eventModParts(event), name].join('+')}${suffix}`
 }
 
 /**
  * The mouse, shown and recorded as well as listened to
- * @param {{ wheel?: { step?: number, idle?: number } }} [options] - As for mouse()
- * @returns {InputUI}
+ * @param {Readonly<{ wheel?: WheelOptions }>} [options] - As for mouse()
+ * @returns {InputUI} The mouse, as an input that can be shown and recorded
  */
-export function mouseUI(options = {}) {
+function mouseUI(options = {}) {
   return {
     ...mouse(options),
-    label: 'Mouse',
     format: formatMouseParts,
-    release: (binding) => !/(^|\+)scroll(up|down|left|right)$/i.test(splitRelease(binding.toLowerCase()).body),
+    label: 'Mouse',
     prompt: (release) => (release ? 'Press and release a button...' : 'Click or scroll...'),
-
-    record({ release, ignore }, done) {
-      /** @type {{ button: number, binding: string } | null} */
-      let held = null
-      /** @param {Event} e */
-      const down = (e) => {
-        const event = /** @type {MouseEvent} */ (e)
-        if (ignore(event)) return
-        const binding = eventToMouseBindingString(event)
-        if (!binding) return
-        event.preventDefault()
-        event.stopPropagation()
-        if (!release) return done(binding)
-        held = { button: event.button, binding }
-      }
-      /** @param {Event} e */
-      const up = (e) => {
-        const event = /** @type {MouseEvent} */ (e)
-        if (ignore(event) || !held || held.button !== event.button) return
-        event.preventDefault()
-        event.stopPropagation()
-        const binding = held.binding
-        held = null
-        done(binding + RELEASE_SUFFIX)
-      }
-      /** @param {Event} e */
-      const wheel = (e) => {
-        if (release) return // scroll has no release
-        const binding = eventToMouseBindingString(/** @type {WheelEvent} */ (e))
-        if (!binding) return
-        e.preventDefault()
-        e.stopPropagation()
-        done(binding)
-      }
-      window.addEventListener('mousedown', down, true)
-      window.addEventListener('mouseup', up, true)
-      window.addEventListener('wheel', wheel, { capture: true })
+    record: (recordOptions, done) => {
+      const recorder = new MouseRecorder(recordOptions, { done, toBinding: eventToMouseBindingString })
       return () => {
-        window.removeEventListener('mousedown', down, true)
-        window.removeEventListener('mouseup', up, true)
-        window.removeEventListener('wheel', wheel, true)
+        recorder.stop()
       }
     },
+    release: (binding) => !SCROLL.test(splitRelease(binding.toLowerCase()).body),
   }
 }
+
+export { eventToMouseBindingString, formatMouseParts, mouseUI }
