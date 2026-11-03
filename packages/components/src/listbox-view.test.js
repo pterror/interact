@@ -10,6 +10,7 @@ import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact
 import { BROWSERS, closeBrowser, withPage } from '../../../test/browser.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
+import { MAX_SCROLL_PIXELS, rowCap } from './virtual-rows.js'
 
 const FIVE_BILLION = 5_000_000_000
 const START = 0
@@ -21,6 +22,8 @@ const OVERSCAN = 5
 const PRESSED = 3
 const WHEEL = 100
 const WHEELS = 20
+const ZOOM = 2
+const TALL_ROW = 600
 const WHITE = 'rgb(255, 255, 255)'
 const CLEAR = 'rgba(0, 0, 0, 0)'
 const BRAND = 'rgb(47, 95, 208)'
@@ -164,6 +167,28 @@ describe.each(CASES)('the listbox in %s DOM, in %s', (mode, engine) => {
     expect(seen.away.top).toBeGreaterThan(ROWS * ROWS)
     expect([seen.back.focused, seen.back.activeThere, seen.back.active]).toEqual([true, true, PRESSED + ONE])
     expect(seen.back.top).toBe(PRESSED + ONE)
+  })
+})
+
+describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mode, engine) => {
+  test("stay under every browser's limit for tall rows at 200% zoom, and still land exactly", async () => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
+      const { zoomedTallRows } = await import('./test-pages.js')
+      return zoomedTallRows(dom)
+    })
+    expect(seen.scrollable).toBe(rowCap(TALL_ROW * ZOOM))
+    expect(seen.scrollHeight).toBeGreaterThan(START)
+    expect(seen.scrollHeight * ZOOM).toBeLessThanOrEqual(MAX_SCROLL_PIXELS)
+    expect(seen.top).toBe(FIVE_BILLION)
+  })
+
+  test('land exactly with rows a fraction of a pixel tall, near the limit', async () => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
+      const { fractionalRows } = await import('./test-pages.js')
+      return fractionalRows(dom)
+    })
+    expect([seen.last.top, seen.last.bottom]).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
+    expect([seen.fiveBillion.top, seen.fiveBillion.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
   })
 })
 

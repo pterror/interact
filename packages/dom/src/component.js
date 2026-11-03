@@ -15,13 +15,14 @@ import { hasServerMarkup, hydrate, render } from './render.js'
 /**
  * A component's default web view: its kind, its stylesheet, and what it renders for its behavior's state now. A view
  * that has to read layout or drive the page (a scroll position, say) also has `rendered`, called with the root its view
- * is in after the first render or adoption and after every render since.
+ * is in after the first render or adoption and after every render since, and with `again`, which asks for one more
+ * render, as when what it read changes what to render.
  * @template {Behavior} B
  * @typedef {Readonly<{
  *   kind: string,
  *   styles: Stylesheet,
  *   render: (behavior: B) => TemplateResult,
- *   rendered?: (behavior: B, root: HTMLElement) => void,
+ *   rendered?: (behavior: B, root: HTMLElement, again: () => void) => void,
  * }>} View
  */
 
@@ -114,7 +115,8 @@ function shadowView(shadow) {
  * @template {Behavior} B
  * @param {HTMLElement} root - Where its view goes
  * @param {View<B>} view - The view
- * @param {Readonly<{ behavior: B, mode: DomMode }>} instance - Its behavior, and where it lives
+ * @param {Readonly<{ behavior: B, mode: DomMode, again: () => void }>} instance - Its behavior, where it lives, and how
+ *   to render it again
  * @returns {void}
  */
 function show(root, view, instance) {
@@ -127,20 +129,21 @@ function show(root, view, instance) {
   } else {
     render(view.render(instance.behavior), root)
   }
-  view.rendered?.(instance.behavior, root)
+  view.rendered?.(instance.behavior, root, instance.again)
 }
 
 /**
- * Renders a view again whenever its behavior's state changes, once per task however many changes there were.
+ * A way to render a view again, once per task however many times it is asked.
  * @template {Behavior} B
  * @param {HTMLElement} root - Where the view is
  * @param {View<B>} view - The view
  * @param {B} behavior - The behavior
- * @returns {() => void} Stops
+ * @returns {() => void} Asks for a render
  */
-function follow(root, view, behavior) {
+function scheduler(root, view, behavior) {
   let pending = false
-  return behavior.subscribe(() => {
+  /** @returns {void} */
+  function again() {
     if (pending) {
       return
     }
@@ -148,9 +151,10 @@ function follow(root, view, behavior) {
     queueMicrotask(() => {
       pending = false
       render(view.render(behavior), root)
-      view.rendered?.(behavior, root)
+      view.rendered?.(behavior, root, again)
     })
-  })
+  }
+  return again
 }
 
 /**
@@ -199,8 +203,9 @@ function component(view, create) {
       this.setAttribute(KIND_ATTRIBUTE, view.kind)
       const { mode } = this
       const root = viewRoot(this, mode)
-      show(root, view, { behavior: this.#behavior, mode })
-      this.#stop = follow(root, view, this.#behavior)
+      const again = scheduler(root, view, this.#behavior)
+      show(root, view, { again, behavior: this.#behavior, mode })
+      this.#stop = this.#behavior.subscribe(again)
     }
 
     /**

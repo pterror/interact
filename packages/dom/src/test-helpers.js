@@ -13,6 +13,7 @@ import { renderToString } from './render-string.js'
 import { html } from './template.js'
 
 const STEP = 1
+const ONCE = 1
 
 /**
  * A behavior to test components with: a count, and a way to add one.
@@ -104,7 +105,7 @@ const badgeView = {
 }
 
 /**
- * A view that notes what its root shows each time it has rendered.
+ * A view that notes what its root shows each time it has rendered, asking to render once more after the first time.
  * @returns {Readonly<{ view: import('./component.js').View<Counter>, log: string[] }>} The view, and what it noted
  */
 function renderingView() {
@@ -115,8 +116,11 @@ function renderingView() {
     view: {
       kind: 'rendering',
       render: (counter) => html`<span>${counter.count}</span>`,
-      rendered: (_counter, root) => {
+      rendered: (_counter, root, again) => {
         log.push(`rendered ${root.textContent}`)
+        if (log.length === ONCE) {
+          again()
+        }
       },
       styles: css`
         @layer test {

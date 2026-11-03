@@ -33,6 +33,8 @@ const listboxStyles = css`
     }
 
     :where([part~='viewport']) {
+      --_pitch: var(--interact-listbox-pitch, var(--_row-height));
+
       position: relative;
       box-sizing: content-box;
       block-size: calc(var(--interact-listbox-visible-rows) * var(--_row-height));
@@ -52,13 +54,13 @@ const listboxStyles = css`
 
     :where([part~='spacer']) {
       position: relative;
-      block-size: calc(var(--interact-listbox-virtual-rows) * var(--_row-height));
+      block-size: calc(var(--interact-listbox-virtual-rows) * var(--_pitch));
       overflow: clip;
     }
 
     :where([part~='option']) {
       position: absolute;
-      inset-block-start: 0;
+      inset-block-start: calc(var(--interact-listbox-row) * var(--_pitch));
       inset-inline: 0;
       box-sizing: border-box;
       block-size: var(--_row-height);
@@ -71,7 +73,6 @@ const listboxStyles = css`
       color: var(--_option-color);
       cursor: default;
       user-select: none;
-      transform: translateY(calc(var(--interact-listbox-row) * var(--_row-height)));
     }
 
     :where([part~='option']:hover) {

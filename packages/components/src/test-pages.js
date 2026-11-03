@@ -7,9 +7,9 @@
  * @import { Numbered, Range } from './test-helpers.js'
  */
 
+import { pixels } from './row-measure.js'
 import { TEN_BILLION } from './test-helpers.js'
 import { latest, middle, parts, press, reads, registerListbox, seen, settle } from './test-page-listbox.js'
-import { VIRTUAL_ROWS } from './virtual-rows.js'
 
 const FIVE_BILLION = 5_000_000_000
 const JUMPS = 60
@@ -20,6 +20,9 @@ const PRESSED = 3
 const QUARTER = 4
 const ROWS = 10
 const ROWS_SHORT = 6
+const ZOOM = 2
+const TALL_ROW = 600
+const FRACTIONAL_ROW = 27.3
 
 /**
  * Adopts the server's listbox: notes its options, registers the element, and reports whether the same nodes stayed
@@ -140,6 +143,54 @@ async function focusAway(mode) {
 }
 
 /**
+ * How the view lays its rows out: a row's height in its own CSS pixels, and how many rows are scrollable.
+ * @param {HTMLElement} viewport - The scrolling element
+ * @returns {Readonly<{ height: number, scrollable: number }>} The layout
+ */
+function rowsOf(viewport) {
+  const option = viewport.querySelector('[role="option"]')
+  const spacer = viewport.querySelector('[part~="spacer"]')
+  return {
+    height: option ? pixels(getComputedStyle(option).height) : Number.NaN,
+    scrollable:
+      spacer instanceof HTMLElement ? Number(spacer.style.getPropertyValue('--interact-listbox-virtual-rows')) : NONE,
+  }
+}
+
+/**
+ * Zooms the page, makes rows tall enough that the default cap would pass every browser's limit on screen, and jumps
+ * to five billion: what showed, how many rows are scrollable, and how tall the scrollable area is.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Seen & Readonly<{ scrollable: number, scrollHeight: number }>>} What showed
+ */
+async function zoomedTallRows(mode) {
+  document.documentElement.style.zoom = String(ZOOM)
+  document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(TALL_ROW)}px`)
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(FIVE_BILLION)
+  await settle()
+  const { viewport } = parts()
+  return { ...seen(), scrollHeight: viewport.scrollHeight, scrollable: rowsOf(viewport).scrollable }
+}
+
+/**
+ * Gives rows a height that isn't a whole number of pixels and jumps to the last item and to five billion, where the
+ * scrollable rows' pixels are near every browser's limit and rounding would show.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ last: Seen, fiveBillion: Seen }>>} What showed
+ */
+async function fractionalRows(mode) {
+  document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(FRACTIONAL_ROW)}px`)
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(TEN_BILLION)
+  await settle()
+  const last = seen()
+  listbox.scroll.scrollTo(FIVE_BILLION)
+  await settle()
+  return { fiveBillion: seen(), last }
+}
+
+/**
  * A new listbox jumped to five billion, then scrolled natively to a few rows before the point where the next rows
  * down move the offset.
  * @param {DomMode} mode - Where the listbox lives
@@ -150,8 +201,8 @@ async function beforeRecentring(mode) {
   listbox.scroll.scrollTo(FIVE_BILLION)
   await settle()
   const { viewport } = parts()
-  const height = viewport.querySelector('[role="option"]')?.getBoundingClientRect().height ?? NONE
-  const lastKept = VIRTUAL_ROWS - ROWS - VIRTUAL_ROWS / QUARTER
+  const { height, scrollable } = rowsOf(viewport)
+  const lastKept = scrollable - ROWS - scrollable / QUARTER
   viewport.scrollTop = (lastKept - ROWS_SHORT) * height
   await settle()
   return middle()
@@ -224,7 +275,9 @@ export {
   beforeRecentring,
   beforeTheEnd,
   focusAway,
+  fractionalRows,
   jump,
   selectAllButOne,
   tokenLevels,
+  zoomedTallRows,
 }

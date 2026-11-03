@@ -13,8 +13,20 @@ const NONE = 0
 
 afterAll(closeBrowser)
 
+/**
+ * Puts a new element in the page and lets what it asks for after its first render happen.
+ * @param {string} name - Its tag name
+ * @returns {Promise<HTMLElement>} The element
+ */
+async function connected(name) {
+  const element = document.createElement(name)
+  document.body.append(element)
+  await Promise.resolve()
+  return element
+}
+
 describe('component', () => {
-  test('makes each behavior from its element, and tells the view each time it has rendered', async () => {
+  test('makes each behavior from its element, tells the view each time it has rendered, and renders when it asks', async () => {
     /** @type {HTMLElement[]} */
     const hosts = []
     const counter = new Counter()
@@ -24,11 +36,10 @@ describe('component', () => {
       return counter
     })
     register([Rendering], { prefix: 'seen' })
-    const element = document.createElement('seen-rendering')
-    document.body.append(element)
+    const element = await connected('seen-rendering')
     counter.increment()
     await Promise.resolve()
-    expect([hosts, seen.log]).toEqual([[element], ['rendered 0', 'rendered 1']])
+    expect([hosts, seen.log]).toEqual([[element], ['rendered 0', 'rendered 0', 'rendered 1']])
   })
 })
 

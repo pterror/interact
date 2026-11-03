@@ -30,6 +30,7 @@ Object.assign(globalThis, {
   cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
   customElements: window.customElements,
   document: window.document,
+  getComputedStyle: window.getComputedStyle.bind(window),
   localStorage: window.localStorage,
   navigator: window.navigator,
   requestAnimationFrame: window.requestAnimationFrame.bind(window),
