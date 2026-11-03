@@ -5,13 +5,14 @@
 import { html } from '@interact/dom'
 
 /**
- * What an editable combobox's text field is (the WAI-ARIA APG combobox pattern): its part, its accessible name, how it
- * autocompletes, whether its list shows, the id of that list and of the option active in it, the text in it, and what
- * typing and keys in it do. `input` hears the new text and whether it was deleting; `key` hears a key and says whether
+ * What an editable combobox's text field is (the WAI-ARIA APG combobox pattern): its part, its accessible name, text
+ * shown while it is empty (if the app gives any), how it autocompletes, whether its list shows, the id of that list and
+ * of the option active in it, the text in it, and what typing and keys in it do. `input` hears the new text and whether it was deleting; `key` hears a key and says whether
  * it used it. A key typed to compose text (an input method) is the input method's, so `key` never hears it.
  * @typedef {Readonly<{
  *   part: string,
  *   label: string,
+ *   placeholder?: string | undefined,
  *   autocomplete: 'none' | 'list' | 'both',
  *   expanded: boolean,
  *   controls: string,
@@ -44,6 +45,7 @@ function comboboxInput(field) {
     autocomplete="off"
     spellcheck="false"
     aria-label=${field.label}
+    placeholder=${field.placeholder}
     aria-autocomplete=${field.autocomplete}
     aria-expanded=${field.expanded ? 'true' : 'false'}
     aria-controls=${field.controls}

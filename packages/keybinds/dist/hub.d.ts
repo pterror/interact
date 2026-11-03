@@ -1,30 +1,27 @@
 /**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { AxisDef, AxisValue, Command, Context, Schema } from './command.js'
- * @import { CommandSystem } from './command-system.js'
- * @import { ContextMenu } from './context-menu.js'
+ * @import { CommandSystem, CommandSystemOptions } from './command-system.js'
  * @import { KeybindSettings } from './settings.js'
  * @import { CommandDefinition, Source } from './hub-commands.js'
  * @import { HubComponents } from './hub-components.js'
  * @import { CommandHubOptions } from './hub-options.js'
  * @import { Input } from './input.js'
- * @import { CommandPalette } from './palette.js'
  * @import { BindingsStore } from './store.js'
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
 import type { AxisDef, AxisValue, Command, Context, Schema } from './command.js';
-import type { CommandSystem } from './command-system.js';
-import type { ContextMenu } from './context-menu.js';
+import type { CommandSystem, CommandSystemOptions } from './command-system.js';
 import type { KeybindSettings } from './settings.js';
 import type { CommandDefinition } from './hub-commands.js';
 import type { CommandHubOptions } from './hub-options.js';
 import type { Input } from './input.js';
-import type { CommandPalette } from './palette.js';
 import type { BindingsStore } from './store.js';
 /**
  * Every command on the page, from every source, with one store of people's rebindings. Sources are re-read on
- * refresh(); the hub lays people's overrides over their commands, listens, and keeps its components and buttons in
- * step. What fails is left out and reported as an `error` event, or to reportError()
+ * refresh(); the hub lays people's overrides over their commands, listens, and keeps its components in step. Menus, a
+ * palette and command buttons follow it as a command system (`commandSystem()`). What fails is left out and reported
+ * as an `error` event, or to reportError()
  * @template {CommandDefinition} [D=Command] - What its sources give: commands, or definitions `adapt` turns into them
  * @template {Context} [C=Context] - The context `when` conditions see
  * @example
@@ -41,14 +38,10 @@ declare class CommandHub<D extends CommandDefinition = Command, C extends Contex
     constructor(options: CommandHubOptions<D, C>);
     /** @returns {readonly Input[]} What it listens to */
     get inputs(): readonly Input[];
-    /** @returns {CommandPalette | undefined} The palette it made */
-    get palette(): CommandPalette | undefined;
     /** @returns {KeybindCheatsheet | undefined} The cheatsheet it made */
     get cheatsheet(): KeybindCheatsheet | undefined;
     /** @returns {KeybindSettings | undefined} The settings panel it made */
     get settings(): KeybindSettings | undefined;
-    /** @returns {ContextMenu | undefined} The context menu it made */
-    get menu(): ContextMenu | undefined;
     /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings, as the settings panel edits it */
     get store(): BindingsStore<Schema> | undefined;
     /**
@@ -96,8 +89,13 @@ declare class CommandHub<D extends CommandDefinition = Command, C extends Contex
      * @returns {D | undefined} The command or definition, as its source gave it
      */
     get(id: string): D | undefined;
-    /** @returns {CommandSystem} This hub as a command system, for a bridge to menus, a palette and buttons */
-    commandSystem(): CommandSystem;
+    /**
+     * This hub as a command system, for a bridge to menus, a palette and buttons
+     * @param {CommandSystemOptions} [options] - How it searches and ranks: a matcher, a scorer, a source of further
+     *   commands
+     * @returns {CommandSystem} The command system
+     */
+    commandSystem(options?: CommandSystemOptions): CommandSystem;
     /**
      * Runs a command if it applies now
      * @param {string} id - The command
@@ -111,24 +109,11 @@ declare class CommandHub<D extends CommandDefinition = Command, C extends Contex
      */
     refresh(): void;
     /**
-     * Pushes the context now into the components and command buttons, so commands that don't apply gray out, and tells
-     * whoever listens for `context` events that which commands apply may have changed
+     * Pushes the context now into the cheatsheet, and tells whoever listens for `context` events (a command system's
+     * bridge, so its menus, palette and buttons) that which commands apply may have changed
      * @returns {void}
      */
     syncContext(): void;
-    /**
-     * Opens the palette, with the commands as they are now
-     * @returns {void}
-     */
-    openPalette(): void;
-    /**
-     * Opens the context menu with the commands tagged `tag`, at a point on screen
-     * @param {string} tag - The menu's tag
-     * @param {number} x - Where, in pixels from the viewport's left
-     * @param {number} y - Where, in pixels from the viewport's top
-     * @returns {void}
-     */
-    openMenu(tag: string, x: number, y: number): void;
     /**
      * A command's or axis's bindings through one input now, as shown to people ("Ctrl+Z" for keys, "Mouse ↔" for axes)
      * @param {string} id - The command or axis
@@ -144,12 +129,6 @@ declare class CommandHub<D extends CommandDefinition = Command, C extends Contex
      * @returns {boolean} Whether it is
      */
     matches(id: string, event: Event): boolean;
-    /**
-     * Makes every `data-command="<id>"` element under `root` run that command when clicked, disabled while it can't
-     * @param {Element} root - Where the buttons are
-     * @returns {() => void} A function that stops
-     */
-    bindButtons(root: Element): () => void;
     /**
      * Stops listening, and detaches from the store
      * @returns {void}

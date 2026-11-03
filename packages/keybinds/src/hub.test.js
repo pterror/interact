@@ -8,19 +8,12 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test'
 
 import { KeybindCheatsheet } from './cheatsheet.js'
-import { ContextMenu } from './context-menu.js'
 import { CommandHub } from './hub.js'
-import { CommandPalette } from './palette.js'
 import { KeybindSettings } from './settings.js'
 import { kbd } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
 
-const COMPONENTS = {
-  cheatsheet: KeybindCheatsheet,
-  menu: ContextMenu,
-  palette: CommandPalette,
-  settings: KeybindSettings,
-}
+const COMPONENTS = { cheatsheet: KeybindCheatsheet, settings: KeybindSettings }
 const ONCE = 1
 const TWICE = 2
 const FIRST = 0
@@ -230,40 +223,22 @@ describe('a hub with a host', () => {
     const hub = withComponents()
     hub.setSource('a', () => [save(), save({ hidden: true, id: 'secret', label: 'Secret' })])
     hub.refresh()
-    expect(hub.palette?.commands.map(({ id }) => id)).toEqual(['save'])
+    expect(hub.cheatsheet?.commands.map(({ id }) => id)).toEqual(['save'])
     expect(hub.settings?.store).toBe(hub.store)
     expect(document.querySelectorAll('[data-keybinds]')).toHaveLength(Object.keys(COMPONENTS).length)
   })
 })
 
 describe('the context a hub gives its components', () => {
-  test('keeps an open menu or palette in the context it was opened in', () => {
-    const hub = withComponents()
-    let editing = true
-    hub.addContext(() => ({ editing }))
-    hub.setSource('a', () => [save({ menu: 'text' })])
-    hub.refresh()
-    hub.openMenu('text', FIRST, FIRST)
-    hub.openPalette()
-    editing = false
-    hub.syncContext()
-    expect([hub.menu?.context, hub.palette?.context, hub.cheatsheet?.context]).toEqual([
-      { editing: true },
-      { editing: true },
-      { editing: false },
-    ])
-  })
-
-  test('gives a menu the context again once it closes', () => {
+  test('gives the cheatsheet the context each time it syncs', () => {
     const hub = withComponents()
     let editing = true
     hub.addContext(() => ({ editing }))
     hub.refresh()
-    hub.openMenu('text', FIRST, FIRST)
+    const before = hub.cheatsheet?.context
     editing = false
-    hub.menu?.removeAttribute('open')
     hub.syncContext()
-    expect(hub.menu?.context).toEqual({ editing: false })
+    expect([before, hub.cheatsheet?.context]).toEqual([{ editing: true }, { editing: false }])
   })
 })
 

@@ -1,10 +1,14 @@
 /**
  * A CommandHub as a command system (`hub.commandSystem()`), for a bridge that keeps menus, a palette and buttons in
  * step with it, such as `@interact/components`' CommandBridge: it has the shape such a bridge asks for, and imports
- * nothing of it.
- * @import { CommandDefinition } from './hub-commands.js'
+ * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds'.
+ * @import { Command, Context } from './command.js'
+ * @import { CommandSource } from './command-search.js'
+ * @import { Matcher, Scorer } from './search.js'
  */
-import type { CommandDefinition } from './hub-commands.js';
+import type { Command, Context } from './command.js';
+import type { CommandSource } from './command-search.js';
+import type { Matcher, Scorer } from './search.js';
 export type SystemCommand = Readonly<{
     id: string;
     label: string;
@@ -13,27 +17,42 @@ export type SystemCommand = Readonly<{
     category?: string;
     description?: string;
 }>;
+export type FoundSystemCommand = SystemCommand & Readonly<{
+    positions?: readonly number[];
+}>;
 export type CommandSystem = Readonly<{
     list: (tag: string | undefined) => readonly SystemCommand[];
+    search: (query: string, tag: string | undefined) => readonly FoundSystemCommand[] | Promise<readonly FoundSystemCommand[]>;
     run: (id: string) => boolean;
     subscribe: (listener: () => void) => () => void;
 }>;
-export type HubOperations<D extends CommandDefinition> = Readonly<{
-    all: () => readonly D[];
-    applies: (id: string) => boolean;
-    keys: (id: string) => readonly string[];
+export type CommandSystemOptions = Readonly<{
+    matcher?: Matcher;
+    scorer?: Scorer;
+    source?: CommandSource;
+    sourceDelay?: number;
+}>;
+export type HubOperations = Readonly<{
+    commands: () => readonly Command[];
+    context: () => Context;
+    shortcut: (id: string) => string | undefined;
     listen: (listener: () => void) => () => void;
     run: (id: string) => boolean;
 }>;
+export type Scored = Readonly<{
+    command: Command;
+    enabled: boolean;
+    score: number;
+}>;
 /**
- * A hub as a command system. Hidden commands are never listed; each command is enabled while it applies; it says its
- * list may have changed whenever the hub's context is synced, which refreshing does too, so a bridge following it is
- * live.
- * @template {CommandDefinition} D
- * @param {HubOperations<D>} hub - What the hub gives
+ * A hub as a command system. Hidden commands are never listed or found; each command is enabled while it applies; it
+ * says its list may have changed whenever the hub's context is synced, which refreshing does too, so a bridge
+ * following it is live.
+ * @param {HubOperations} hub - What the hub gives
+ * @param {CommandSystemOptions} [options] - How it searches and ranks
  * @returns {CommandSystem} The command system
  */
-declare function systemOf<D extends CommandDefinition>(hub: HubOperations<D>): CommandSystem;
+declare function systemOf(hub: HubOperations, options?: CommandSystemOptions): CommandSystem;
 /**
  * Calls `listener` on each event of a type, until stopped.
  * @param {EventTarget} target - What the events happen on

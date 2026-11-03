@@ -32,7 +32,7 @@ function placedElement(tag) {
  */
 function overlayWithField() {
   const overlay = placedElement('div')
-  overlay.dataset['keybinds'] = 'command-palette'
+  overlay.dataset['keybinds'] = 'settings'
   const field = document.createElement('input')
   overlay.append(field)
   return { field, overlay }

@@ -1,15 +1,14 @@
 /**
- * A CommandHub's components: made inside its host from the classes given, kept in step with its commands, store and
- * context, and giving focus back when an overlay closes.
+ * A CommandHub's components: the cheatsheet and the settings panel, made inside its host from the classes given, kept
+ * in step with its commands, store and context, and the panel giving focus back when it closes. Menus, a palette and
+ * command buttons follow the hub as a command system instead (`hub.commandSystem()`).
  */
 
 /**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { Command, Context, Schema } from './command.js'
- * @import { ContextMenu } from './context-menu.js'
  * @import { KeybindSettings } from './settings.js'
  * @import { Input, InputUI } from './input.js'
- * @import { CommandPalette } from './palette.js'
  * @import { BindingsStore } from './store.js'
  */
 
@@ -25,8 +24,8 @@ import { isInputUI } from './input.js'
 
 /**
  * The components a hub makes inside its host and keeps in step, each as the class to make it from
- * @typedef {Readonly<{ cheatsheet?: ComponentClass<KeybindCheatsheet>, menu?: ComponentClass<ContextMenu>,
- *   palette?: ComponentClass<CommandPalette>, settings?: ComponentClass<KeybindSettings> }>} ComponentClasses
+ * @typedef {Readonly<{ cheatsheet?: ComponentClass<KeybindCheatsheet>, settings?: ComponentClass<KeybindSettings> }>}
+ *   ComponentClasses
  */
 
 /**
@@ -82,11 +81,6 @@ function present(elements) {
 class HubComponents {
   /**
    * @readonly
-   * @type {CommandPalette | undefined}
-   */
-  palette
-  /**
-   * @readonly
    * @type {KeybindCheatsheet | undefined}
    */
   cheatsheet
@@ -95,11 +89,6 @@ class HubComponents {
    * @type {KeybindSettings | undefined}
    */
   settings
-  /**
-   * @readonly
-   * @type {ContextMenu | undefined}
-   */
-  menu
   /**
    * @readonly
    * @type {FocusReturn}
@@ -115,12 +104,10 @@ class HubComponents {
    */
   constructor(classes, { host, inputs, opened }) {
     const where = { host, shown: shownInputs(inputs) }
-    this.palette = made(classes.palette, where)
     this.cheatsheet = made(classes.cheatsheet, where)
     this.settings = made(classes.settings, where)
-    this.menu = made(classes.menu, where)
     this.cheatsheet?.addEventListener('open', opened)
-    this.#focus = new FocusReturn(present([this.palette, this.settings, this.menu]))
+    this.#focus = new FocusReturn(present([this.settings]))
   }
 
   /**
@@ -144,52 +131,24 @@ class HubComponents {
   }
 
   /**
-   * Gives the palette and cheatsheet the commands that aren't hidden, and the menu all of them
+   * Gives the cheatsheet the commands that aren't hidden
    * @param {readonly Command[]} commands - The commands as they listen
    * @returns {void}
    */
   #give(commands) {
-    const visible = commands.filter((command) => command.hidden !== true)
-    if (this.palette !== undefined) {
-      this.palette.commands = visible
-    }
     if (this.cheatsheet !== undefined) {
-      this.cheatsheet.commands = visible
-    }
-    if (this.menu !== undefined) {
-      this.menu.commands = commands
+      this.cheatsheet.commands = commands.filter((command) => command.hidden !== true)
     }
   }
 
   /**
-   * Opens the context menu with the commands tagged `tag`, at a point on screen
-   * @param {string} tag - The menu's tag
-   * @param {Readonly<{ x: number, y: number }>} position - Where, in viewport pixels
-   * @returns {void}
-   */
-  openMenu(tag, position) {
-    if (this.menu !== undefined) {
-      this.menu.menu = tag
-      this.menu.position = position
-      this.menu.open = true
-    }
-  }
-
-  /**
-   * Gives the components the context now. An open palette or menu keeps acting on where it was opened from, though
-   * taking focus changed the context
+   * Gives the cheatsheet the context now
    * @param {Context} context - The context
    * @returns {void}
    */
   sync(context) {
-    if (this.palette !== undefined && !this.palette.open) {
-      this.palette.context = context
-    }
     if (this.cheatsheet !== undefined) {
       this.cheatsheet.context = context
-    }
-    if (this.menu !== undefined && !this.menu.open) {
-      this.menu.context = context
     }
   }
 

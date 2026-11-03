@@ -1,6 +1,5 @@
 /**
- * keybinds - styles for every component: command palette, cheatsheet, settings (rebinding),
- * context menus and the radial menu.
+ * keybinds - styles for every component: cheatsheet, settings (rebinding) and the radial menu.
  *
  * Usage:
  *   import 'keybinds/styles/palette.css'
@@ -25,7 +24,7 @@
  *   --keybinds-font, --keybinds-mono
  *
  * The defaults follow the page's color-scheme (light or dark) by themselves. Each part can also be
- * restyled directly: [data-keybinds="command-palette"]::part(input) { ... }
+ * restyled directly: [data-keybinds="settings"]::part(dialog) { ... }
  *
  * Every rule is in the cascade layer keybinds.theme with no specificity, so a page's own unlayered rules win over it
  * whatever their selectors.
@@ -52,7 +51,6 @@
      Shared: overlays, dialogs, key caps
      ======================================== */
 
-  :where([data-keybinds='command-palette']),
   :where([data-keybinds='cheatsheet']),
   :where([data-keybinds='settings']) {
     position: fixed;
@@ -60,7 +58,6 @@
     z-index: 9999;
   }
 
-  :where([data-keybinds='command-palette'])::part(backdrop),
   :where([data-keybinds='cheatsheet'])::part(backdrop),
   :where([data-keybinds='settings'])::part(backdrop) {
     position: fixed;
@@ -68,7 +65,6 @@
     background: var(--kb-backdrop);
   }
 
-  :where([data-keybinds='command-palette'])::part(dialog),
   :where([data-keybinds='cheatsheet'])::part(dialog),
   :where([data-keybinds='settings'])::part(dialog) {
     position: fixed;
@@ -83,16 +79,12 @@
   }
 
   /* Opening: the backdrop fades in and the dialog rises into place. */
-  :where([data-keybinds='command-palette'])::part(backdrop),
   :where([data-keybinds='cheatsheet'])::part(backdrop),
   :where([data-keybinds='settings'])::part(backdrop) {
     animation: keybinds-fade 140ms ease-out;
   }
-  :where([data-keybinds='command-palette'])::part(dialog),
   :where([data-keybinds='cheatsheet'])::part(dialog),
-  :where([data-keybinds='settings'])::part(dialog),
-  :where([data-keybinds='basic-context-menu'])::part(list),
-  :where([data-keybinds='context-menu'])::part(context-menu) {
+  :where([data-keybinds='settings'])::part(dialog) {
     animation: keybinds-rise 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
   }
   @keyframes keybinds-fade {
@@ -110,9 +102,7 @@
   @media (prefers-reduced-motion: reduce) {
     :where([data-keybinds]),
     :where([data-keybinds])::part(backdrop),
-    :where([data-keybinds])::part(dialog),
-    :where([data-keybinds='basic-context-menu'])::part(list),
-    :where([data-keybinds='context-menu'])::part(context-menu) {
+    :where([data-keybinds])::part(dialog) {
       animation: none;
     }
   }
@@ -132,81 +122,6 @@
 
   :where([data-keybinds])::part(item-disabled) {
     opacity: 0.4;
-  }
-
-  /* ========================================
-     Command palette
-     ======================================== */
-
-  :where([data-keybinds='command-palette'])::part(dialog) {
-    top: 14vh;
-    width: min(560px, calc(100vw - 24px));
-    max-height: 70vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  :where([data-keybinds='command-palette'])::part(input) {
-    width: 100%;
-    padding: 14px 16px;
-    border: none;
-    border-bottom: 1px solid var(--kb-border);
-    background: transparent;
-    color: var(--kb-fg);
-    font: inherit;
-    font-size: 15px;
-    outline: none;
-  }
-
-  :where([data-keybinds='command-palette'])::part(list) {
-    list-style: none;
-    margin: 0;
-    padding: 6px 0;
-    overflow-y: auto;
-  }
-
-  :where([data-keybinds='command-palette'])::part(item) {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 16px;
-    cursor: pointer;
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-active) {
-    background: var(--kb-accent-soft);
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-category) {
-    min-width: 6em;
-    font-size: 12px;
-    color: var(--kb-muted);
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-label) {
-    flex: 1;
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-label-match) {
-    color: var(--kb-accent);
-    background: none;
-    font-weight: 600;
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-description) {
-    font-size: 12px;
-    color: var(--kb-muted);
-  }
-
-  :where([data-keybinds='command-palette'])::part(item-keys) {
-    display: flex;
-    gap: 4px;
-  }
-
-  :where([data-keybinds='command-palette'])::part(empty) {
-    padding: 14px 16px;
-    color: var(--kb-muted);
   }
 
   /* ========================================
@@ -384,93 +299,6 @@
   }
 
   /* ========================================
-     Context menus (basic and scored)
-     ======================================== */
-
-  :where([data-keybinds='basic-context-menu']),
-  :where([data-keybinds='context-menu']) {
-    position: fixed;
-    z-index: 10000;
-  }
-
-  :where([data-keybinds='basic-context-menu'])::part(backdrop),
-  :where([data-keybinds='context-menu'])::part(backdrop) {
-    position: fixed;
-    inset: 0;
-  }
-
-  /* The basic menu's list is the box; the scored menu's box holds a search field and the list */
-  :where([data-keybinds='basic-context-menu'])::part(list),
-  :where([data-keybinds='context-menu'])::part(context-menu) {
-    min-width: 200px;
-    max-width: 320px;
-    margin: 0;
-    padding: 4px;
-    list-style: none;
-    background: var(--kb-bg);
-    color: var(--kb-fg);
-    border: 1px solid var(--kb-border);
-    border-radius: 8px;
-    box-shadow: var(--kb-shadow);
-    font: 14px/1.4 var(--kb-font);
-    outline: none;
-  }
-
-  :where([data-keybinds='context-menu'])::part(list) {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    outline: none;
-  }
-
-  :where([data-keybinds='context-menu'])::part(search) {
-    width: 100%;
-    margin-bottom: 4px;
-    padding: 6px 8px;
-    font: inherit;
-    color: var(--kb-fg);
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--kb-border);
-    outline: none;
-  }
-
-  :where([data-keybinds='basic-context-menu'])::part(separator),
-  :where([data-keybinds='context-menu'])::part(separator) {
-    height: 1px;
-    margin: 4px 0;
-    background: var(--kb-border);
-  }
-
-  :where([data-keybinds='basic-context-menu'])::part(item),
-  :where([data-keybinds='context-menu'])::part(item) {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 6px 10px;
-    border-radius: 5px;
-    cursor: pointer;
-  }
-
-  :where([data-keybinds='basic-context-menu'])::part(item-active),
-  :where([data-keybinds='context-menu'])::part(item-active) {
-    background: var(--kb-accent-soft);
-  }
-
-  :where([data-keybinds='basic-context-menu'])::part(item-keys),
-  :where([data-keybinds='context-menu'])::part(item-keys) {
-    display: flex;
-    gap: 4px;
-  }
-
-  :where([data-keybinds='context-menu'])::part(more-row) {
-    padding: 4px 10px;
-    font-size: 12px;
-    color: var(--kb-muted);
-  }
-
-  /* ========================================
      Radial menu
      ======================================== */
 
@@ -484,19 +312,5 @@
 
   :where([data-keybinds='radial-menu'])::part(spoke) {
     stroke: var(--kb-fg);
-  }
-
-  /* ========================================
-     Touch: rows big enough to tap
-     ======================================== */
-
-  @media (pointer: coarse) {
-    :where([data-keybinds='command-palette'])::part(item),
-    :where([data-keybinds='basic-context-menu'])::part(item),
-    :where([data-keybinds='context-menu'])::part(item) {
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-    }
   }
 }

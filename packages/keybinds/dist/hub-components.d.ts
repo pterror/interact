@@ -1,31 +1,23 @@
 /**
- * A CommandHub's components: made inside its host from the classes given, kept in step with its commands, store and
- * context, and giving focus back when an overlay closes.
+ * A CommandHub's components: the cheatsheet and the settings panel, made inside its host from the classes given, kept
+ * in step with its commands, store and context, and the panel giving focus back when it closes. Menus, a palette and
+ * command buttons follow the hub as a command system instead (`hub.commandSystem()`).
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
 import type { Command, Context, Schema } from './command.js';
-import type { ContextMenu } from './context-menu.js';
 import type { KeybindSettings } from './settings.js';
 import type { Input } from './input.js';
-import type { CommandPalette } from './palette.js';
 import type { BindingsStore } from './store.js';
 export type ComponentClass<E extends HTMLElement> = (new () => E) & Readonly<{
     kind: string;
 }>;
 export type ComponentClasses = Readonly<{
     cheatsheet?: ComponentClass<KeybindCheatsheet>;
-    menu?: ComponentClass<ContextMenu>;
-    palette?: ComponentClass<CommandPalette>;
     settings?: ComponentClass<KeybindSettings>;
 }>;
 /** The components a hub keeps in step */
 declare class HubComponents {
     #private;
-    /**
-     * @readonly
-     * @type {CommandPalette | undefined}
-     */
-    readonly palette: CommandPalette | undefined;
     /**
      * @readonly
      * @type {KeybindCheatsheet | undefined}
@@ -36,11 +28,6 @@ declare class HubComponents {
      * @type {KeybindSettings | undefined}
      */
     readonly settings: KeybindSettings | undefined;
-    /**
-     * @readonly
-     * @type {ContextMenu | undefined}
-     */
-    readonly menu: ContextMenu | undefined;
     /**
      * Makes the components inside the host
      * @param {ComponentClasses} classes - The components to make
@@ -70,18 +57,7 @@ declare class HubComponents {
         }>;
     }>): void;
     /**
-     * Opens the context menu with the commands tagged `tag`, at a point on screen
-     * @param {string} tag - The menu's tag
-     * @param {Readonly<{ x: number, y: number }>} position - Where, in viewport pixels
-     * @returns {void}
-     */
-    openMenu(tag: string, position: Readonly<{
-        x: number;
-        y: number;
-    }>): void;
-    /**
-     * Gives the components the context now. An open palette or menu keeps acting on where it was opened from, though
-     * taking focus changed the context
+     * Gives the cheatsheet the context now
      * @param {Context} context - The context
      * @returns {void}
      */

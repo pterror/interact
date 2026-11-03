@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 
+import { KeybindCheatsheet } from './cheatsheet.js'
 import { createComponent } from './create-component.js'
-import { CommandPalette } from './palette.js'
 import { RadialMenu } from './radial-menu.js'
 import { defineOnce } from './test-components.js'
 
 describe('createComponent', () => {
   test('uses the usual name', () => {
-    expect(createComponent(CommandPalette).tagName.toLowerCase()).toBe('keybinds-command-palette')
+    expect(createComponent(KeybindCheatsheet).tagName.toLowerCase()).toBe('keybinds-cheatsheet')
   })
 
   test('uses a name of its own when another copy of the library took the usual one', () => {

@@ -1,5 +1,5 @@
 /**
- * Searching, ranking and grouping commands, for the palette, cheatsheet and menus. Results wrap each command with
+ * Searching, ranking and grouping commands, for the command system and the cheatsheet. Results wrap each command with
  * whether it applies now (and, from a search, how well it matched), leaving the command itself as given.
  */
 import type { BindingField, Command, Context } from './command.js';
@@ -46,11 +46,10 @@ declare function searchCommands(commands: readonly Command[], query: string, opt
  */
 declare function groupByCategory(commands: readonly Command[], context?: Context, fields?: readonly BindingField[]): Record<string, ActiveCommand[]>;
 /**
- * The commands in a menu, each id once (the last registered), leaving out hidden ones
- * @param {readonly Command[]} commands - The commands
- * @param {string} menu - The menu's tag
- * @param {Context} [context] - The app's state, for which apply
- * @returns {ActiveCommand[]} The menu's commands
+ * Whether a command is in a menu: with no tag, every command is; with one, those whose `menu` is or includes it
+ * @param {Command} command - The command
+ * @param {string | undefined} menu - The menu's tag, if any
+ * @returns {boolean} Whether its menu tags include it
  */
-declare function filterByMenu(commands: readonly Command[], menu: string, context?: Context): ActiveCommand[];
-export { filterByMenu, groupByCategory, searchCommands };
+declare function inMenu(command: Command, menu: string | undefined): boolean;
+export { groupByCategory, inMenu, searchCommands };

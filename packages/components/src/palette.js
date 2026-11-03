@@ -13,8 +13,9 @@ import { Listbox } from './listbox.js'
 
 /**
  * How a palette starts: the bridge to its command system, the context its commands are found and run in (read as it
- * opens), its id (unique in the page for light DOM), its name and its search field's, how many results show at once,
- * and whether commands that can't run now are shown (greyed out, passed over) or left out.
+ * opens), its id (unique in the page for light DOM), its name and its search field's, text shown in the field while it
+ * is empty (none unless given), how many results show at once, and whether commands that can't run now are shown
+ * (greyed out, passed over) or left out.
  * @template C
  * @typedef {Readonly<{
  *   bridge: CommandBridge<C>,
@@ -22,6 +23,7 @@ import { Listbox } from './listbox.js'
  *   id?: string,
  *   label?: string,
  *   searchLabel?: string,
+ *   placeholder?: string,
  *   rows?: number,
  *   inactive?: 'show' | 'hide',
  * }>} PaletteOptions
@@ -90,8 +92,9 @@ class Palette {
    */
   #options
   /**
-   * The context it opened in, which its commands are found and run in.
-   * @type {C | undefined}
+   * The context it opened in, which its commands are found and run in: held in an object, since the context itself may
+   * be undefined (every command, for some systems).
+   * @type {Readonly<{ context: C }> | undefined}
    */
   #at = undefined
   /**
@@ -115,6 +118,8 @@ class Palette {
     this.label = options.label ?? 'Commands'
     /** @readonly */
     this.searchLabel = options.searchLabel ?? 'Search commands'
+    /** @readonly */
+    this.placeholder = options.placeholder
     this.list = new Listbox({
       id: `${this.id}-result`,
       label: this.label,
@@ -144,7 +149,7 @@ class Palette {
    * @returns {void}
    */
   open() {
-    this.#at = this.#options.context()
+    this.#at = { context: this.#options.context() }
     this.query.set('')
     this.layer.open.request(true)
     void this.#search()
@@ -198,7 +203,7 @@ class Palette {
     }
     this.close()
     this.layer.afterHidden(() => {
-      this.#options.bridge.run(command.id, at)
+      this.#options.bridge.run(command.id, at.context)
     })
     return true
   }
@@ -224,7 +229,7 @@ class Palette {
       return
     }
     const query = this.query.get()
-    const found = await this.#searches.ask(async () => this.#options.bridge.search(query, at))
+    const found = await this.#searches.ask(async () => this.#options.bridge.search(query, at.context))
     if (found !== undefined && this.layer.open.get()) {
       this.#show(found.answer)
     }

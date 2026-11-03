@@ -126,6 +126,7 @@ function render(palette) {
       key: (event) => palette.key(event.key),
       label: palette.searchLabel,
       part: 'search',
+      placeholder: palette.placeholder,
       value: palette.query.get(),
     })}<div part="results"
       >${rowsViewport(palette.list, {

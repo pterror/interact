@@ -1,5 +1,5 @@
 /**
- * Giving focus back: closing the palette, settings or a menu returns focus to where it was (the text being edited,
+ * Giving focus back: closing the settings panel returns focus to where it was (the text being edited,
  * say), before the chosen command runs; the command can still move it elsewhere.
  */
 
@@ -59,7 +59,7 @@ class FocusReturn {
 
   /**
    * Starts following focus, and the overlays closing
-   * @param {readonly HTMLElement[]} overlays - The palette, settings and menu there are
+   * @param {readonly HTMLElement[]} overlays - The settings panel, if there is one
    */
   constructor(overlays) {
     this.#overlays = overlays

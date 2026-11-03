@@ -6,8 +6,10 @@
 import { describe, expect, test } from 'bun:test'
 
 import { Listeners } from '@interact/core'
+import { renderComponent } from '@interact/dom'
 
 import { CommandBridge } from './command-bridge.js'
+import { paletteView } from './palette-view.js'
 import { Palette } from './palette.js'
 
 const SETTLED = 0
@@ -79,7 +81,8 @@ async function settle() {
 
 /**
  * What the palette shows: each command's label, the active one marked.
- * @param {Palette<string>} shown - The palette
+ * @template C
+ * @param {Palette<C>} shown - The palette
  * @returns {string[]} The labels
  */
 function results(shown) {
@@ -113,6 +116,28 @@ describe('a command palette', () => {
       [true, true, true, false],
       ['Undo', '[Open file]', 'Save', 'Reopen file'],
     ])
+  })
+})
+
+describe('a command palette over a context that is itself undefined', () => {
+  test('finds and runs commands in a context that is itself undefined, as a system listing every command takes it', async () => {
+    /** @type {string[]} */
+    const ran = []
+    /** @type {CommandSystem<string | undefined>} */
+    const everything = {
+      list: () => COMMANDS,
+      run: (id, context) => {
+        ran.push(`${id} in ${String(context)}`)
+        return true
+      },
+    }
+    const shown = new Palette({ bridge: new CommandBridge(everything), context: () => undefined })
+    shown.open()
+    await settle()
+    const opened = results(shown)
+    shown.key('Enter')
+    shown.layer.shown.set(false)
+    expect([opened, ran]).toEqual([['Undo', '[Open file]', 'Save', 'Reopen file'], ['open in undefined']])
   })
 })
 
@@ -171,5 +196,22 @@ describe("a command palette over a system's own search", () => {
     asked.get('')?.resolve(COMMANDS)
     await settle()
     expect([...asked.keys(), ...results(shown)]).toEqual(['', 's', '[Save]'])
+  })
+})
+
+describe("a command palette's search field", () => {
+  test('shows the text the app gives while it is empty, and none unless given', () => {
+    /** @type {CommandSystem<string>} */
+    const listing = { list: () => COMMANDS, run: () => true }
+    const bridge = new CommandBridge(listing)
+    const given = new Palette({ bridge, context: () => 'editor', placeholder: 'Type a command' })
+    const plain = new Palette({ bridge, context: () => 'editor' })
+    const [withText, without] = [given, plain].map((each) =>
+      renderComponent(paletteView(), each, { mode: 'light', prefix: 'p', styles: 'inline' }),
+    )
+    expect([withText?.includes('placeholder="Type a command"'), without?.includes('placeholder=')]).toEqual([
+      true,
+      false,
+    ])
   })
 })

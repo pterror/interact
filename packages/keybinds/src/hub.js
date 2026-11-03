@@ -1,28 +1,26 @@
 /**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { AxisDef, AxisValue, Command, Context, Schema } from './command.js'
- * @import { CommandSystem } from './command-system.js'
- * @import { ContextMenu } from './context-menu.js'
+ * @import { CommandSystem, CommandSystemOptions } from './command-system.js'
  * @import { KeybindSettings } from './settings.js'
  * @import { CommandDefinition, Source } from './hub-commands.js'
  * @import { HubComponents } from './hub-components.js'
  * @import { CommandHubOptions } from './hub-options.js'
  * @import { Input } from './input.js'
- * @import { CommandPalette } from './palette.js'
  * @import { BindingsStore } from './store.js'
  */
 
 import { listenFor, systemOf } from './command-system.js'
 import { commandOf } from './definition.js'
 import { HubBindings } from './hub-bindings.js'
-import { CommandButtons } from './hub-buttons.js'
 import { HubContext } from './hub-context.js'
 import { componentsOf, listenOptions, reporterFor, storageOf } from './hub-options.js'
 
 /**
  * Every command on the page, from every source, with one store of people's rebindings. Sources are re-read on
- * refresh(); the hub lays people's overrides over their commands, listens, and keeps its components and buttons in
- * step. What fails is left out and reported as an `error` event, or to reportError()
+ * refresh(); the hub lays people's overrides over their commands, listens, and keeps its components in step. Menus, a
+ * palette and command buttons follow it as a command system (`commandSystem()`). What fails is left out and reported
+ * as an `error` event, or to reportError()
  * @template {CommandDefinition} [D=Command] - What its sources give: commands, or definitions `adapt` turns into them
  * @template {Context} [C=Context] - The context `when` conditions see
  * @example
@@ -50,11 +48,6 @@ class CommandHub extends EventTarget {
   /** @type {readonly Source<AxisDef>[]} */
   #axisSources = []
   #scope = 'global'
-  /** @readonly */
-  #buttons = new CommandButtons({
-    applies: (id) => this.#bindings.applying(id, this.context()) !== undefined,
-    run: (id, event) => this.run(id, event),
-  })
 
   /**
    * Makes the hub, and its components inside `host`
@@ -79,11 +72,6 @@ class CommandHub extends EventTarget {
     return this.#bindings.inputs
   }
 
-  /** @returns {CommandPalette | undefined} The palette it made */
-  get palette() {
-    return this.#components?.palette
-  }
-
   /** @returns {KeybindCheatsheet | undefined} The cheatsheet it made */
   get cheatsheet() {
     return this.#components?.cheatsheet
@@ -92,11 +80,6 @@ class CommandHub extends EventTarget {
   /** @returns {KeybindSettings | undefined} The settings panel it made */
   get settings() {
     return this.#components?.settings
-  }
-
-  /** @returns {ContextMenu | undefined} The context menu it made */
-  get menu() {
-    return this.#components?.menu
   }
 
   /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings, as the settings panel edits it */
@@ -177,15 +160,38 @@ class CommandHub extends EventTarget {
     return this.#bindings.commands.get(id)
   }
 
-  /** @returns {CommandSystem} This hub as a command system, for a bridge to menus, a palette and buttons */
-  commandSystem() {
-    return systemOf({
-      all: () => this.all(),
-      applies: (id) => this.#bindings.applying(id, this.context()) !== undefined,
-      keys: (id) => this.bindingsFor(id, 'keys'),
-      listen: (listener) => listenFor(this, 'context', listener),
-      run: (id) => this.run(id),
-    })
+  /**
+   * This hub as a command system, for a bridge to menus, a palette and buttons
+   * @param {CommandSystemOptions} [options] - How it searches and ranks: a matcher, a scorer, a source of further
+   *   commands
+   * @returns {CommandSystem} The command system
+   */
+  commandSystem(options = {}) {
+    return systemOf(
+      {
+        commands: () => [...this.#bindings.live.values()],
+        context: () => this.context(),
+        listen: (listener) => listenFor(this, 'context', listener),
+        run: (id) => this.run(id),
+        shortcut: (id) => this.#firstBinding(id),
+      },
+      options,
+    )
+  }
+
+  /**
+   * A command's first binding as people read it, through the first input that has one
+   * @param {string} id - The command
+   * @returns {string | undefined} The binding, if it has any
+   */
+  #firstBinding(id) {
+    for (const input of this.inputs) {
+      const [first] = input.axis === true ? [] : this.bindingsFor(id, input.field)
+      if (first !== undefined) {
+        return first
+      }
+    }
+    return undefined
   }
 
   /**
@@ -221,39 +227,13 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * Pushes the context now into the components and command buttons, so commands that don't apply gray out, and tells
-   * whoever listens for `context` events that which commands apply may have changed
+   * Pushes the context now into the cheatsheet, and tells whoever listens for `context` events (a command system's
+   * bridge, so its menus, palette and buttons) that which commands apply may have changed
    * @returns {void}
    */
   syncContext() {
     this.#components?.sync(this.context())
-    this.#buttons.paint()
     this.dispatchEvent(new Event('context'))
-  }
-
-  /**
-   * Opens the palette, with the commands as they are now
-   * @returns {void}
-   */
-  openPalette() {
-    if (this.palette !== undefined) {
-      this.refresh()
-      this.palette.open = true
-    }
-  }
-
-  /**
-   * Opens the context menu with the commands tagged `tag`, at a point on screen
-   * @param {string} tag - The menu's tag
-   * @param {number} x - Where, in pixels from the viewport's left
-   * @param {number} y - Where, in pixels from the viewport's top
-   * @returns {void}
-   */
-  openMenu(tag, x, y) {
-    if (this.menu !== undefined) {
-      this.syncContext()
-      this.#components?.openMenu(tag, { x, y })
-    }
   }
 
   /**
@@ -278,21 +258,11 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * Makes every `data-command="<id>"` element under `root` run that command when clicked, disabled while it can't
-   * @param {Element} root - Where the buttons are
-   * @returns {() => void} A function that stops
-   */
-  bindButtons(root) {
-    return this.#buttons.bind(root)
-  }
-
-  /**
    * Stops listening, and detaches from the store
    * @returns {void}
    */
   destroy() {
     this.#bindings.stop()
-    this.#buttons.stop()
     this.#components?.stop()
   }
 }

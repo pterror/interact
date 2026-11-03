@@ -1,6 +1,6 @@
 /**
  * Declarative, contextual keybindings: everything, from one place. Each part is also its own module (keybinds/core,
- * keybinds/keys, keybinds/palette, ...) for pages that load them without a bundler.
+ * keybinds/keys, keybinds/settings, ...) for pages that load them without a bundler.
  */
 export type Command = import('./command.js').Command;
 export type AxisDef = import('./command.js').AxisDef;
@@ -59,16 +59,13 @@ export { eventToMouseBindingString, formatMouseParts } from './mouse-ui.js';
 export { releases } from './releases.js';
 export { fuzzyMatcher, simpleMatcher } from './matchers.js';
 export { defaultScorer } from './scorer.js';
-export { filterByMenu, groupByCategory, searchCommands } from './search.js';
+export { groupByCategory, inMenu, searchCommands } from './search.js';
 export { sequences } from './sequences.js';
 export { BindingsChangeEvent } from './bindings-change.js';
 export { localStorageBindings } from './bindings-storage.js';
 export { defineSchema, withOverride } from './schema.js';
 export { BindingsStore, entriesOf, fromBindings, listBindings } from './store.js';
-export { BasicContextMenu } from './basic-context-menu.js';
 export { KeybindCheatsheet } from './cheatsheet.js';
-export { ContextMenu } from './context-menu.js';
-export { CommandPalette } from './palette.js';
 export { RadialMenu } from './radial-menu.js';
 export { KeybindSettings } from './settings.js';
 export { registerComponents } from './register.js';

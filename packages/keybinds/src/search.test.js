@@ -6,7 +6,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { simpleMatcher } from './matchers.js'
-import { filterByMenu, groupByCategory, searchCommands } from './search.js'
+import { groupByCategory, inMenu, searchCommands } from './search.js'
 
 const CUSTOM = 10
 const FIRST = 0
@@ -160,29 +160,17 @@ describe('groupByCategory', () => {
   })
 })
 
-describe('filterByMenu', () => {
-  test('finds commands tagged with the menu, by one tag or among several', () => {
+describe('inMenu', () => {
+  test('finds commands tagged with the menu, by one tag or among several, and every command with no tag', () => {
     const tagged = [
       commandWith({ id: 'a', label: 'A', menu: ['node', 'edge'] }),
       commandWith({ id: 'b', label: 'B', menu: 'edge' }),
       commandWith({ id: 'c', label: 'C', menu: 'node' }),
     ]
-    expect(ids(filterByMenu(tagged, 'node'))).toEqual(['a', 'c'])
-    expect(filterByMenu(tagged, 'nonexistent')).toEqual([])
-  })
-
-  test('leaves out hidden commands, and takes the last under an id', () => {
-    const tagged = [
-      commandWith({ hidden: true, id: 'h', label: 'H', menu: 'node' }),
-      commandWith({ id: 'a', label: 'A v1', menu: 'node' }),
-      commandWith({ id: 'a', label: 'A v2', menu: 'node' }),
-    ]
-    expect(labels(filterByMenu(tagged, 'node'))).toEqual(['A v2'])
-  })
-
-  test('says whether each command applies', () => {
-    const tagged = [commandWith({ id: 'a', label: 'A', menu: 'node', when: whenReady })]
-    expect(filterByMenu(tagged, 'node', { ready: true })[FIRST]?.active).toBe(true)
-    expect(filterByMenu(tagged, 'node', { ready: false })[FIRST]?.active).toBe(false)
+    expect([
+      tagged.filter((command) => inMenu(command, 'node')).map(({ id }) => id),
+      tagged.filter((command) => inMenu(command, 'nonexistent')),
+      tagged.filter((command) => inMenu(command, undefined)).map(({ id }) => id),
+    ]).toEqual([['a', 'c'], [], ['a', 'b', 'c']])
   })
 })

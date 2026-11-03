@@ -1,5 +1,5 @@
 /**
- * Searching, ranking and grouping commands, for the palette, cheatsheet and menus. Results wrap each command with
+ * Searching, ranking and grouping commands, for the command system and the cheatsheet. Results wrap each command with
  * whether it applies now (and, from a search, how well it matched), leaving the command itself as given.
  */
 
@@ -153,26 +153,16 @@ function groupByCategory(commands, context = {}, fields = BINDING_FIELDS) {
 }
 
 /**
- * Whether a command is in a menu
+ * Whether a command is in a menu: with no tag, every command is; with one, those whose `menu` is or includes it
  * @param {Command} command - The command
- * @param {string} menu - The menu's tag
+ * @param {string | undefined} menu - The menu's tag, if any
  * @returns {boolean} Whether its menu tags include it
  */
 function inMenu(command, menu) {
+  if (menu === undefined) {
+    return true
+  }
   return typeof command.menu === 'string' ? command.menu === menu : (command.menu ?? []).includes(menu)
 }
 
-/**
- * The commands in a menu, each id once (the last registered), leaving out hidden ones
- * @param {readonly Command[]} commands - The commands
- * @param {string} menu - The menu's tag
- * @param {Context} [context] - The app's state, for which apply
- * @returns {ActiveCommand[]} The menu's commands
- */
-function filterByMenu(commands, menu, context = {}) {
-  return dedupeCommands(commands)
-    .filter((command) => command.hidden !== true && inMenu(command, menu))
-    .map((command) => ({ active: isActive(command, context), command }))
-}
-
-export { filterByMenu, groupByCategory, searchCommands }
+export { groupByCategory, inMenu, searchCommands }
