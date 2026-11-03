@@ -122,7 +122,12 @@
               "WheelEvent",
               "Window"
             ]
-          }
+          },
+          // A component's behavior is state with methods that change it, by design (docs/design.md, Components); its
+          // view is handed the behavior to read and act on, so the behavior's own type can't be readonly.
+          { "from": "file", "name": ["Listbox"], "path": "src/listbox.js" },
+          // The page a browser test drives is the browser itself.
+          { "from": "package", "name": ["Page"], "package": "playwright-core" }
         ]
       }
     ]

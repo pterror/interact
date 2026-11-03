@@ -1,0 +1,24 @@
+/*
+ * The default theme's global tokens, named by role: a color is a role (surface, brand, neutral, focus, border) and a
+ * kind (fill, on, the text on a fill), with an emphasis (quiet, loud) where a role has more than one. Components
+ * resolve their own tokens from these on each element, so overriding a global, a component's token or one instance's
+ * all work the same way. Light and dark follow the page's color-scheme.
+ */
+@layer interact.structure, interact.theme;
+
+@layer interact.theme {
+  :where(:root) {
+    color-scheme: light dark;
+
+    --interact-color-surface: light-dark(#fff, #16181d);
+    --interact-color-on-surface: light-dark(#1b1d22, #e6e8ee);
+    --interact-color-border: light-dark(#c9ced8, #3a3f4b);
+    --interact-color-neutral-fill-quiet: light-dark(#eef0f4, #232730);
+    --interact-color-brand-fill-loud: light-dark(#2f5fd0, #5b8bff);
+    --interact-color-brand-on-loud: light-dark(#fff, #0b1020);
+    --interact-color-focus: light-dark(#2f5fd0, #8fb0ff);
+
+    --interact-size-row: 2rem;
+    --interact-space-inline: 0.75rem;
+  }
+}

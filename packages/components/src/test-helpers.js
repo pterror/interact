@@ -2,6 +2,8 @@
 
 import { Listeners } from '@interact/core'
 
+import { Listbox } from './listbox.js'
+
 /** @typedef {Readonly<{ id: number }>} Numbered */
 /** @typedef {Readonly<{ start: number, end: number }>} Range */
 
@@ -61,4 +63,18 @@ function numberText(item) {
   return `Item ${String(item.id)}`
 }
 
-export { numberText, numbers }
+const TEN_BILLION = 10_000_000_000
+const ROWS = 10
+
+/**
+ * The listbox the browser tests use: ten billion numbered items, ten rows, multiple selection, starting at `top`. The
+ * server and the page each make one, so their markup matches.
+ * @param {Source<Numbered, Range>} source - Where the items come from
+ * @param {number} top - The position shown first
+ * @returns {Listbox<Numbered, Range>} The listbox
+ */
+function tenBillionListbox(source, top) {
+  return new Listbox({ id: 'list', label: 'Numbers', mode: 'multiple', rows: ROWS, source, text: numberText, top })
+}
+
+export { TEN_BILLION, numberText, numbers, tenBillionListbox }

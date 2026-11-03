@@ -1,0 +1,173 @@
+/** @import { DomMode } from '@interact/dom/css' */
+/** @import { Page } from 'playwright-core' */
+/** @import { Seen } from './test-page-listbox.js' */
+
+import { afterAll, describe, expect, test } from 'bun:test'
+
+import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
+
+import { closeBrowser, withPage } from '../../../test/browser.js'
+import { listboxView } from './listbox-view.js'
+import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
+
+const FIVE_BILLION = 5_000_000_000
+const START = 0
+const ONE = 1
+const ROWS = 10
+const LAST_ROW = ROWS - ONE
+const LIMIT = 16
+const OVERSCAN = 5
+const PRESSED = 3
+const WHEEL = 100
+const WHEELS = 20
+/** @type {DomMode[]} */
+const MODES = ['shadow', 'light']
+
+afterAll(closeBrowser)
+
+/**
+ * The listbox rendered on the server at `top`, as a page body: in shadow DOM with its stylesheet inline, in light DOM
+ * with the stylesheet once in the page.
+ * @param {DomMode} mode - Where it lives
+ * @param {number} top - The position at the top
+ * @returns {string} The markup
+ */
+function serverPage(mode, top) {
+  const view = listboxView()
+  const listbox = tenBillionListbox(numbers(TEN_BILLION).source, top)
+  const markup = renderComponent(view, listbox, { mode, prefix: 'x', styles: 'inline' })
+  const styles = `<style ${stylesheetAttributes(['listbox'])}>${stylesheetText(view, 'light')}</style>`
+  return mode === 'light' ? `${styles}${markup}` : markup
+}
+
+/**
+ * Turns the mouse wheel over the viewport `left` more times, noting what shows after each turn has settled.
+ * @param {Page} page - The page
+ * @param {number} left - Turns still to make
+ * @param {readonly Seen[]} noted - What showed after the turns so far
+ * @returns {Promise<readonly Seen[]>} What showed after each turn
+ */
+async function wheel(page, left, noted) {
+  if (left === START) {
+    return noted
+  }
+  await page.mouse.wheel(START, WHEEL)
+  const now = await page.evaluate(async () => {
+    const pages = await import('./test-pages.js')
+    await pages.settle()
+    return pages.seen()
+  })
+  return wheel(page, left - ONE, [...noted, now])
+}
+
+/**
+ * Puts a listbox in a page with a scenario that leaves it ready to scroll, then turns the wheel over it.
+ * @param {DomMode} mode - Where the listbox lives
+ * @param {(dom: DomMode) => Promise<Readonly<{ across: number, down: number }>>} scenario - What runs in the page,
+ *   giving where to put the mouse
+ * @returns {Promise<readonly Seen[]>} What showed after each turn
+ */
+async function wheeled(mode, scenario) {
+  return withPage(import.meta.url, '', async (page) => {
+    const point = await page.evaluate(scenario, mode)
+    await page.mouse.move(point.across, point.down)
+    return wheel(page, WHEELS, [])
+  })
+}
+
+/**
+ * What the wheel did: whether every turn moved the top forward by no more than the rows showing, how far it moved in
+ * all, whether the scroll position went back at some point (the offset moving), and where it ended.
+ * @param {readonly Seen[]} noted - What showed after each turn
+ * @returns {Readonly<{ steady: boolean, moved: number, wentBack: boolean, last: readonly number[] }>} The summary
+ */
+function summary(noted) {
+  const first = noted.at(START)
+  const last = noted.at(-ONE)
+  return {
+    last: [last?.top ?? Number.NaN, last?.bottom ?? Number.NaN],
+    moved: (last?.top ?? Number.NaN) - (first?.top ?? Number.NaN),
+    steady: noted
+      .slice(ONE)
+      .map((now, index) => now.top - (noted[index]?.top ?? Number.NaN))
+      .every((rows) => rows >= START && rows <= ROWS),
+    wentBack: noted.some((now, index) => now.scrollTop < (noted[index - ONE]?.scrollTop ?? Number.NEGATIVE_INFINITY)),
+  }
+}
+
+/**
+ * Runs a page scenario that takes the DOM mode.
+ * @template R
+ * @param {DomMode} mode - Where the listbox lives
+ * @param {string} body - The page's markup
+ * @param {(dom: DomMode) => Promise<R>} scenario - What runs in the page
+ * @returns {Promise<R>} What it reported
+ */
+async function inPage(mode, body, scenario) {
+  return withPage(import.meta.url, body, async (page) => page.evaluate(scenario, mode))
+}
+
+describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
+  test('adopts the server markup at five billion: the same nodes, its top item at the top', async () => {
+    const seen = await inPage(mode, serverPage(mode, FIVE_BILLION), async () => {
+      const pages = await import('./test-pages.js')
+      return pages.adoptServerListbox(pages.FIVE_BILLION)
+    })
+    expect([seen.same, seen.before]).toEqual([true, ROWS + OVERSCAN + OVERSCAN])
+    expect([seen.top, seen.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
+  })
+
+  test('lands exactly on five billion and on the last item, holding a bounded cache however far it jumps', async () => {
+    const seen = await inPage(mode, '', async (dom) => {
+      const { jump } = await import('./test-pages.js')
+      return jump(dom)
+    })
+    expect([seen.fiveBillion.top, seen.fiveBillion.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
+    expect([seen.last.top, seen.last.bottom]).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
+    expect(seen.mostBlocks).toBeLessThanOrEqual(LIMIT)
+    expect(seen.mostOptions).toBeLessThanOrEqual(ROWS + OVERSCAN + OVERSCAN + ONE)
+  })
+
+  test('selects all ten billion but one, reading only what shows', async () => {
+    const seen = await inPage(mode, '', async (dom) => {
+      const { selectAllButOne } = await import('./test-pages.js')
+      return selectAllButOne(dom)
+    })
+    expect(seen.count).toBe(TEN_BILLION - ONE)
+    expect(seen.read).toBeLessThanOrEqual(ROWS * ROWS)
+  })
+
+  test('keeps focus while the active item is scrolled far away, and brings it back on the next key', async () => {
+    const seen = await inPage(mode, '', async (dom) => {
+      const { focusAway } = await import('./test-pages.js')
+      return focusAway(dom)
+    })
+    expect([seen.away.focused, seen.away.activeThere, seen.away.active]).toEqual([true, true, PRESSED])
+    expect(seen.away.top).toBeGreaterThan(ROWS * ROWS)
+    expect([seen.back.focused, seen.back.activeThere, seen.back.active]).toEqual([true, true, PRESSED + ONE])
+    expect(seen.back.top).toBe(PRESSED + ONE)
+  })
+})
+
+describe.each(MODES)('native scrolling of the listbox in %s DOM, in Chrome', (mode) => {
+  test('crosses a move of the offset without skipping a row or going back', async () => {
+    const turns = summary(
+      await wheeled(mode, async (dom) => {
+        const { beforeRecentring } = await import('./test-pages.js')
+        return beforeRecentring(dom)
+      }),
+    )
+    expect([turns.steady, turns.wentBack]).toEqual([true, true])
+    expect(turns.moved).toBeGreaterThan(ROWS)
+  })
+
+  test('reaches the very last item and stops there', async () => {
+    const turns = summary(
+      await wheeled(mode, async (dom) => {
+        const { beforeTheEnd } = await import('./test-pages.js')
+        return beforeTheEnd(dom)
+      }),
+    )
+    expect(turns.last).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
+  })
+})

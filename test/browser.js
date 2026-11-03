@@ -133,6 +133,28 @@ async function inBrowser(moduleUrl, run, body = '') {
 }
 
 /**
+ * Opens a fresh Chrome page beside the test file and hands it to `drive`, for what a function run inside the page
+ * can't do: real input (the mouse wheel, keys) and waiting between steps. Errors in the page fail it.
+ * @template R
+ * @param {string} moduleUrl - The test file's `import.meta.url`
+ * @param {string} body - Markup for the page's body
+ * @param {(page: import('playwright-core').Page) => Promise<R>} drive - What to do with the page
+ * @returns {Promise<R>} What it returned
+ */
+async function withPage(moduleUrl, body, drive) {
+  const { errors, page } = await openPage(moduleUrl, body)
+  try {
+    const result = await drive(page)
+    if (errors.length > NONE) {
+      throw new AggregateError(errors, `The page had errors: ${errors.map((error) => error.message).join('; ')}`)
+    }
+    return result
+  } finally {
+    await page.close()
+  }
+}
+
+/**
  * Stops Chrome and the page server, if they started.
  * @returns {Promise<void>} When they have stopped
  */
@@ -146,4 +168,4 @@ async function closeBrowser() {
   await server.stop()
 }
 
-export { closeBrowser, inBrowser }
+export { closeBrowser, inBrowser, withPage }

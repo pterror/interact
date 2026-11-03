@@ -45,8 +45,9 @@ function centredOffset(top, count, rows) {
 }
 
 /**
- * Where a list is: the offset now, the position at the top, how many items there are, and how many rows show.
- * @typedef {Readonly<{ offset: number, top: number, count: number, rows: number }>} Placement
+ * Where a list is: the offset now (none before the first placement), the position at the top, how many items there
+ * are, and how many rows show.
+ * @typedef {Readonly<{ offset: number | undefined, top: number, count: number, rows: number }>} Placement
  */
 
 /**
@@ -56,6 +57,9 @@ function centredOffset(top, count, rows) {
  * @returns {number} The offset
  */
 function offsetFor({ count, offset, rows, top }) {
+  if (offset === undefined) {
+    return centredOffset(top, count, rows)
+  }
   const scrollable = virtualRows(count)
   const margin = Math.floor(scrollable / QUARTER)
   const row = top - offset
