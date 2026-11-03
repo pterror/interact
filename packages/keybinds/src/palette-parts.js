@@ -33,13 +33,25 @@ function dialogOf(input, list) {
 }
 
 /**
+ * The palette's search field, which takes what's typed as it is: no autocomplete or spellcheck
+ * @returns {HTMLInputElement} The field
+ */
+function searchField() {
+  const input = make('input', { className: 'palette__input', part: 'input' })
+  input.autocomplete = 'off'
+  input.placeholder = PLACEHOLDER
+  input.spellcheck = false
+  input.type = 'text'
+  return input
+}
+
+/**
  * The palette's markup: a backdrop, and a dialog holding the search field and the list of matches
  * @returns {Readonly<{ backdrop: HTMLDivElement, input: HTMLInputElement, list: HTMLUListElement, root: HTMLDivElement }>} The
  *   palette, and the parts it listens to
  */
 function paletteMarkup() {
-  const input = make('input', { className: 'palette__input', part: 'input' })
-  Object.assign(input, { autocomplete: 'off', placeholder: PLACEHOLDER, spellcheck: false, type: 'text' })
+  const input = searchField()
   const list = make('ul', { className: 'palette__list', part: 'list' })
   list.setAttribute('role', 'listbox')
   const dialog = dialogOf(input, list)

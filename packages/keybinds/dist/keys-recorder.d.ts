@@ -4,7 +4,7 @@
 export type RecordOptions = Readonly<{
     ignore: (event: Event) => boolean;
     release: boolean;
-    target?: EventTarget;
+    target?: Window;
 }>;
 export type RecordTo = Readonly<{
     done: (binding: string) => void;
@@ -13,7 +13,7 @@ export type RecordTo = Readonly<{
 /**
  * How recording goes: whether it records a release, what events to leave alone, and where to listen (the window
  * recording happens in; default the global one)
- * @typedef {Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: EventTarget }>} RecordOptions
+ * @typedef {Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: Window }>} RecordOptions
  */
 /**
  * What a recording gives its binding to, and how a key event is written as one (undefined if it can't be)

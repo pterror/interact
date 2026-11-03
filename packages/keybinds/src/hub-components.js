@@ -136,7 +136,10 @@ class HubComponents {
     }
     this.#give([...live.values()])
     if (this.settings !== undefined) {
-      Object.assign(this.settings, { ...syntax, store })
+      this.settings.holds = syntax.holds
+      this.settings.releases = syntax.releases
+      this.settings.sequences = syntax.sequences
+      this.settings.store = store
     }
   }
 
@@ -166,7 +169,8 @@ class HubComponents {
    */
   openMenu(tag, position) {
     if (this.menu !== undefined) {
-      Object.assign(this.menu, { menu: tag, position })
+      this.menu.menu = tag
+      this.menu.position = position
       this.menu.open = true
     }
   }

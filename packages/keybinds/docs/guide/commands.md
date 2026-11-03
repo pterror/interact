@@ -445,8 +445,9 @@ If your sources describe commands in their own shape, `adapt` turns each one int
 const hub = new CommandHub({ adapt: (def) => ({ ...def, execute: def.run }), context: () => ({}) })
 ```
 
-`hub.get(id)` and `hub.all()` return the definitions as the sources gave them. Without `adapt`, a definition with no
-`execute` function is left out and reported.
+`hub.get(id)` and `hub.all()` return the definitions as the sources gave them. Without `adapt`, a definition is taken as
+a command only if it is one: it needs an `execute` function, and any `when`, `rank`, `menu`, `captureInput` or
+`anyModifiers` it has must be of a command's type. One that isn't is left out and reported.
 
 ### When a Source or Binding Fails
 

@@ -149,12 +149,10 @@ function paintSlot(group, { enabled, on }) {
  */
 function placeFrame(frame, { x, y }) {
   const pad = RADIUS + LABEL_ROOM
-  Object.assign(frame.style, {
-    height: `${pad * HALF}px`,
-    left: `${x - pad}px`,
-    top: `${y - pad}px`,
-    width: `${pad * HALF}px`,
-  })
+  frame.style.height = `${pad * HALF}px`
+  frame.style.left = `${x - pad}px`
+  frame.style.top = `${y - pad}px`
+  frame.style.width = `${pad * HALF}px`
   frame.setAttribute('viewBox', `${-pad} ${-pad} ${pad * HALF} ${pad * HALF}`)
 }
 

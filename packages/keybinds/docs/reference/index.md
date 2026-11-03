@@ -79,13 +79,17 @@ interface Input {
 }
 
 interface InputUI extends Input {
+  ui: true // says it's a UI half; a bare input has no ui, or ui: false
   label: string // what one binding is called, for "+ Key"
   format(binding: string): string[]
   release?(binding: string): boolean // whether a binding can be its ":up" form
   invert?: boolean // bindings can be inverted with a leading "-"
   available?(): boolean // whether it can be recorded right now
   watch?(onChange: () => void): () => void
-  record?(options: { release: boolean; ignore(e: Event): boolean }, done: (binding: string) => void): () => void
+  record?(
+    options: { release: boolean; ignore(e: Event): boolean; target?: Window },
+    done: (binding: string) => void,
+  ): () => void
   prompt?(release: boolean): string
 }
 ```

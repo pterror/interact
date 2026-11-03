@@ -208,6 +208,7 @@ function keysUI(...syntax) {
       }
     },
     release: () => true,
+    ui: true,
   }
 }
 

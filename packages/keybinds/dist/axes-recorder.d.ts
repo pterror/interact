@@ -8,11 +8,11 @@ declare class AxesRecorder {
     #private;
     /**
      * Starts listening and reading pads
-     * @param {EventTarget} target - The window recording happens in
+     * @param {Window} target - The window recording happens in
      * @param {readonly KeySyntax[]} syntax - For key pairs, as for keys()
      * @param {(binding: string) => void} done - Gets the source
      */
-    constructor(target: EventTarget, syntax: readonly KeySyntax[], done: (binding: string) => void);
+    constructor(target: Window, syntax: readonly KeySyntax[], done: (binding: string) => void);
     /**
      * Hears the mouse moving and keys
      * @param {Event} event - A mousemove or keydown

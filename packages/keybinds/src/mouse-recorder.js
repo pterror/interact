@@ -39,7 +39,7 @@ class MouseRecorder {
   #to
   /**
    * @readonly
-   * @type {EventTarget}
+   * @type {Window}
    */
   #target
   /**
@@ -56,7 +56,7 @@ class MouseRecorder {
   constructor(options, to) {
     this.#options = options
     this.#to = to
-    this.#target = options.target ?? globalThis
+    this.#target = options.target ?? globalThis.window
     for (const type of TYPES) {
       this.#target.addEventListener(type, this, true)
     }

@@ -115,7 +115,7 @@ class LayoutFollower {
   /**
    * Loads the layout, and looks again when the window gets focus back and when a key types something other than the
    * layout says it should: browsers say nothing when someone switches layouts
-   * @param {EventTarget} view - The window to follow
+   * @param {Window} view - The window to follow
    */
   constructor(view) {
     void this.reload()
@@ -190,10 +190,10 @@ class LayoutFollower {
 /**
  * For keysUI(followLayout()): shows physical keys as the person's layout types them, following them switching
  * layouts. Components showing bindings update when it changes
- * @param {EventTarget} [view] - The window to follow (default: the global one)
+ * @param {Window} [view] - The window to follow (default: the global one)
  * @returns {KeySyntax} The layout, as a piece of key syntax that can change
  */
-function followLayout(view = globalThis) {
+function followLayout(view = globalThis.window) {
   const follower = new LayoutFollower(view)
   return {
     glyph: (name) => follower.glyph(name),

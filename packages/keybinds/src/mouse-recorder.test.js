@@ -8,15 +8,15 @@ const MIDDLE = 1
 const DOWN = 1
 
 /**
- * Records one mouse binding from what happens on a target of its own
+ * Records one mouse binding from what happens in the window
  * @param {boolean} release - Whether to record a release
- * @returns {Readonly<{ got: readonly string[], stop: () => void, target: HTMLElement }>} What was recorded, the
- *   target, and how to stop
+ * @returns {Readonly<{ got: readonly string[], stop: () => void, target: Window }>} What was recorded, the
+ *   window, and how to stop
  */
 function recordOn(release) {
   /** @type {string[]} */
   const got = []
-  const target = document.createElement('div')
+  const target = globalThis.window
   const { record } = mouseUI()
   const stop = record?.({ ignore: () => false, release, target }, (binding) => {
     got.push(binding)

@@ -94,14 +94,15 @@ function componentsOf({ components, host, inputs = [] }, opened) {
 }
 
 /**
- * Where a hub's failures go: an `error` event (an ErrorEvent) on the hub, and reportError() when nobody prevents it
- * @param {EventTarget} hub - The hub
+ * Where a hub's failures go: an `error` event (an ErrorEvent) the hub dispatches, and reportError() when nobody
+ * prevents it
+ * @param {(event: Event) => boolean} dispatch - Dispatches an event on the hub; false if it was prevented
  * @returns {(error: Error) => void} Reports a failure
  */
-function reporterFor(hub) {
+function reporterFor(dispatch) {
   return (error) => {
     const event = new ErrorEvent('error', { cancelable: true, error, message: error.message })
-    if (hub.dispatchEvent(event)) {
+    if (dispatch(event)) {
       reportError(error)
     }
   }

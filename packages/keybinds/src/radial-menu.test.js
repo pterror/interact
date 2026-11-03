@@ -1,5 +1,3 @@
-/** @import { Command } from './command.js' */
-
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { createComponent } from './create-component.js'
@@ -22,41 +20,44 @@ afterEach(() => {
 })
 
 /**
+ * A listener that keeps the detail of each event it hears, as a CustomEvent carries it
+ * @returns {Readonly<{ details: readonly unknown[], listener: (event: Event) => void }>} The listener, and the details
+ *   as they're heard
+ */
+function heardEvents() {
+  /** @type {unknown[]} */
+  const details = []
+  return {
+    details,
+    listener: (event) => {
+      details.push(event instanceof CustomEvent ? event.detail : undefined)
+    },
+  }
+}
+
+/**
  * An open radial menu in the page, with commands that note when they run
  * @param {readonly Readonly<{ id: string, when?: () => boolean }>[]} specs - The commands' ids, and when they apply
- * @returns {Readonly<{ menu: RadialMenu, ran: readonly string[] }>} The menu, and what ran
+ * @returns {Readonly<{ heard: Readonly<{ close: readonly unknown[], command: readonly unknown[] }>, menu: RadialMenu,
+ *   ran: readonly string[] }>} The menu, what ran, and the detail of each 'command' and 'close' it dispatched
  */
 function opened(specs) {
   /** @type {string[]} */
   const ran = []
   const menu = createComponent(RadialMenu)
+  const heard = { close: heardEvents(), command: heardEvents() }
+  menu.addEventListener('close', heard.close.listener)
+  menu.addEventListener('command', heard.command.listener)
   document.body.append(menu)
   placed.push(menu)
-  /** @type {Command[]} */
-  const commands = specs.map(({ id, when }) => ({
+  menu.commands = specs.map(({ id, when }) => ({
     execute: () => ran.push(id),
     id,
     label: id.toUpperCase(),
     ...(when === undefined ? {} : { when }),
   }))
-  menu.commands = commands
   menu.openAt({ x: 100, y: 100 })
-  return { menu, ran }
-}
-
-/**
- * What a menu's events of one type carry, as they're heard
- * @param {EventTarget} menu - The menu
- * @param {string} type - The event's type
- * @returns {readonly unknown[]} Each event's detail
- */
-function heardOn(menu, type) {
-  /** @type {unknown[]} */
-  const heard = []
-  menu.addEventListener(type, (event) => {
-    heard.push(event instanceof CustomEvent ? event.detail : undefined)
-  })
-  return heard
+  return { heard: { close: heard.close.details, command: heard.command.details }, menu, ran }
 }
 
 /**
@@ -76,12 +77,11 @@ describe('a radial menu', () => {
   })
 
   test('runs the slot an arrow chose on Enter, closing first, and says which', () => {
-    const { menu, ran } = opened([{ id: 'up' }, { id: 'next' }, { id: 'right' }])
-    const heard = heardOn(menu, 'command')
+    const { heard, menu, ran } = opened([{ id: 'up' }, { id: 'next' }, { id: 'right' }])
     press('ArrowRight')
     press('Enter')
     expect([ran, menu.open]).toEqual([['right'], false])
-    expect(heard).toEqual([{ command: menu.commands[RIGHT] }])
+    expect(heard.command).toEqual([{ command: menu.commands[RIGHT] }])
   })
 
   test('runs a slot clicked, but not one whose command does not apply', () => {
@@ -93,9 +93,8 @@ describe('a radial menu', () => {
   })
 
   test('closes on Escape, saying so', () => {
-    const { menu } = opened([{ id: 'one' }])
-    const heard = heardOn(menu, 'close')
+    const { heard, menu } = opened([{ id: 'one' }])
     press('Escape')
-    expect([menu.open, heard.length]).toEqual([false, ONCE])
+    expect([menu.open, heard.close.length]).toEqual([false, ONCE])
   })
 })

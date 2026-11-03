@@ -23,13 +23,13 @@ afterEach(() => {
 })
 
 /**
- * Records an axis source from what happens on a target of its own
- * @returns {Readonly<{ got: readonly string[], target: HTMLElement }>} What was recorded, and the target
+ * Records an axis source from what happens in the window
+ * @returns {Readonly<{ got: readonly string[], target: Window }>} What was recorded, and the window
  */
 function recordOn() {
   /** @type {string[]} */
   const got = []
-  const target = document.createElement('div')
+  const target = globalThis.window
   const recorder = new AxesRecorder(target, [], (binding) => {
     got.push(binding)
   })

@@ -8,7 +8,7 @@ import { keyId } from './keys-listener.js'
 /**
  * How recording goes: whether it records a release, what events to leave alone, and where to listen (the window
  * recording happens in; default the global one)
- * @typedef {Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: EventTarget }>} RecordOptions
+ * @typedef {Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: Window }>} RecordOptions
  */
 
 /**
@@ -31,7 +31,7 @@ class KeyRecorder {
   #to
   /**
    * @readonly
-   * @type {EventTarget}
+   * @type {Window}
    */
   #target
   /**
@@ -48,7 +48,7 @@ class KeyRecorder {
   constructor(options, to) {
     this.#options = options
     this.#to = to
-    this.#target = options.target ?? globalThis
+    this.#target = options.target ?? globalThis.window
     this.#target.addEventListener('keydown', this, true)
     this.#target.addEventListener('keyup', this, true)
   }

@@ -71,11 +71,12 @@ function axesUI(...syntax) {
     label: 'Axis',
     prompt: () => 'Move the mouse, tilt a stick, or press two keys...',
     record: ({ target }, done) => {
-      const recorder = new AxesRecorder(target ?? globalThis, syntax, done)
+      const recorder = new AxesRecorder(target ?? globalThis.window, syntax, done)
       return () => {
         recorder.stop()
       }
     },
+    ui: true,
   }
 }
 

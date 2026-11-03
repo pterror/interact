@@ -133,27 +133,6 @@ function rebound(command, bindings, fields) {
 }
 
 /**
- * A definition as a command, when it is one: it has a function to run. The default `adapt`
- * @param {CommandDefinition} definition - The definition
- * @returns {Command} The command, running the definition's `execute`
- * @throws {TypeError} If it has no `execute` function, so the hub needs an `adapt` for it
- */
-function commandOf(definition) {
-  if (!('execute' in definition) || typeof definition.execute !== 'function') {
-    throw new TypeError(`"${definition.id}" has no execute function; give the hub an adapt for its definitions`)
-  }
-  const run = definition.execute
-  return {
-    ...definition,
-    execute: (context, event) => {
-      /** @type {unknown} */
-      const result = Reflect.apply(run, definition, [context, event])
-      return result
-    },
-  }
-}
-
-/**
  * The commands as they listen: each adapted from its definition, with people's rebindings laid over it. One that
  * can't be adapted is left out; one whose bindings can't be read listens to none
  * @template {CommandDefinition} D
@@ -227,4 +206,4 @@ function hasBindings(command, fields) {
   return fields.some((field) => (command[field] ?? []).length > NONE)
 }
 
-export { commandOf, fromSources, hasBindings, liveAxes, liveCommands, schemaOf }
+export { fromSources, hasBindings, liveAxes, liveCommands, schemaOf }

@@ -86,6 +86,7 @@ function gamepadUI() {
       }
     },
     release: () => true,
+    ui: true,
     watch: watchPads,
   }
 }

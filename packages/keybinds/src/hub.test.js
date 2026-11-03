@@ -104,18 +104,20 @@ function keptIn(initial = {}) {
 }
 
 /**
- * The messages of the errors a hub reports, each prevented from going further
- * @param {EventTarget} hub - The hub
- * @returns {readonly string[]} The messages, as they're reported
+ * A listener for a hub's 'error' events that keeps their messages, each prevented from going further
+ * @returns {Readonly<{ listener: (event: Event) => void, reported: readonly string[] }>} The listener, and the messages
+ *   as they're reported
  */
-function reportsOf(hub) {
+function reports() {
   /** @type {string[]} */
   const reported = []
-  hub.addEventListener('error', (event) => {
-    event.preventDefault()
-    reported.push(event instanceof ErrorEvent ? event.message : '')
-  })
-  return reported
+  return {
+    listener: (event) => {
+      event.preventDefault()
+      reported.push(event instanceof ErrorEvent ? event.message : '')
+    },
+    reported,
+  }
 }
 
 describe('a hub', () => {
@@ -187,7 +189,8 @@ describe('definitions that are not commands', () => {
   test('without adapt, are left out and reported when they have nothing to run', () => {
     /** @type {CommandHub<CommandDefinition>} */
     const hub = new CommandHub({ ...ALL, context: () => ({}) })
-    const reported = reportsOf(hub)
+    const { listener, reported } = reports()
+    hub.addEventListener('error', listener)
     hub.setSource('a', () => [{ id: 'save', label: 'Save' }])
     hub.refresh()
     expect([hub.run('save'), reported]).toEqual([false, ['keybinds: leaving out "save"']])
@@ -198,7 +201,8 @@ describe('what a hub leaves out', () => {
   test('one unreadable binding: the others still work, and it is reported', () => {
     const { hub, target } = hubOn()
     const command = save()
-    const reported = reportsOf(hub)
+    const { listener, reported } = reports()
+    hub.addEventListener('error', listener)
     hub.setSource('a', () => [save({ id: 'broken', keys: ['ctrl+notakey'] }), command])
     hub.refresh()
     pressSave(target)

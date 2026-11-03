@@ -16,9 +16,9 @@
  * @import { BindingsStore } from './store.js'
  */
 
+import { commandOf } from './definition.js'
 import { HubBindings } from './hub-bindings.js'
 import { CommandButtons } from './hub-buttons.js'
-import { commandOf } from './hub-commands.js'
 import { componentsOf, listenOptions, reporterFor, storageOf } from './hub-options.js'
 
 /**
@@ -70,7 +70,7 @@ class CommandHub extends EventTarget {
       adapt: options.adapt ?? commandOf,
       changed: this.refresh.bind(this),
       options: listenOptions(options),
-      report: reporterFor(this),
+      report: reporterFor((event) => this.dispatchEvent(event)),
       storage: storageOf(options),
     })
     this.#components = componentsOf(options, this.syncContext.bind(this))

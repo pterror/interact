@@ -1,4 +1,4 @@
-/** @import { Command } from './command.js' */
+/** @import { Command, Context } from './command.js' */
 
 import { describe, expect, mock, test } from 'bun:test'
 
@@ -118,7 +118,7 @@ describe('keybinds, running and stopping', () => {
 
 describe('keybinds and the context', () => {
   test('gives `when` and the command the context', () => {
-    /** @type {unknown[]} */
+    /** @type {Context[]} */
     const seen = []
     const target = document.createElement('div')
     const ready = command({

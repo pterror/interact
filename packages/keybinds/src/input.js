@@ -87,12 +87,18 @@
  */
 
 /**
- * A kind of input, passed to keybinds() by whoever uses it
- * @typedef {AxisInput | CommandInput} Input
+ * An input that is only listened to: it has no UI half
+ * @typedef {(AxisInput | CommandInput) & Readonly<{ ui?: false }>} BareInput
+ */
+
+/**
+ * A kind of input, passed to keybinds() by whoever uses it: bare, or with its UI half (`ui: true`)
+ * @typedef {BareInput | InputUI} Input
  */
 
 /**
  * @typedef {object} InputUIFields
+ * @property {true} ui - It can be shown and recorded: only a UI half (keysUI(), ...) says so, having every field below
  * @property {string} label - What one binding is called ("Key", for "+ Key")
  * @property {(binding: string) => string[]} format - A binding's display parts
  * @property {(binding: string) => boolean} [release] - Whether a binding can be its release form (":up"); absent for
@@ -100,7 +106,7 @@
  * @property {boolean} [invert] - Bindings can be inverted with a leading "-"
  * @property {() => boolean} [available] - Whether it can be recorded now (a pad is connected)
  * @property {(onChange: () => void) => () => void} [watch] - Follows `available`, or how bindings are shown, changing
- * @property {(options: Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: EventTarget }>,
+ * @property {(options: Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: Window }>,
  *   done: (binding: string) => void) => () => void} [record] - Records a binding from what's done next, listening on
  *   `target` (the window recording happens in; default the global one); returns a function that stops
  * @property {(release: boolean) => string} [prompt] - What to do to record one
@@ -108,7 +114,7 @@
 
 /**
  * An input that can also be shown and recorded, for the settings panel, cheatsheet, palette and menus
- * @typedef {Input & Readonly<InputUIFields>} InputUI
+ * @typedef {(AxisInput | CommandInput) & Readonly<InputUIFields>} InputUI
  */
 
 /**
@@ -138,12 +144,12 @@ function windowOf(target) {
 }
 
 /**
- * Whether an input can also be shown and recorded: it has its UI half's label and format
+ * Whether an input can also be shown and recorded: it is a UI half
  * @param {Input} input - The input
  * @returns {input is InputUI} Whether it has
  */
 function isInputUI(input) {
-  return 'format' in input && typeof input.format === 'function' && 'label' in input && typeof input.label === 'string'
+  return input.ui === true
 }
 
 export { inInput, isInputUI, windowOf }

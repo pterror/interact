@@ -70,13 +70,6 @@ export type FieldBindings = Readonly<{
     [field in BindingField]?: readonly string[] | undefined;
 }>;
 /**
- * A definition as a command, when it is one: it has a function to run. The default `adapt`
- * @param {CommandDefinition} definition - The definition
- * @returns {Command} The command, running the definition's `execute`
- * @throws {TypeError} If it has no `execute` function, so the hub needs an `adapt` for it
- */
-declare function commandOf(definition: CommandDefinition): Command;
-/**
  * The commands as they listen: each adapted from its definition, with people's rebindings laid over it. One that
  * can't be adapted is left out; one whose bindings can't be read listens to none
  * @template {CommandDefinition} D
@@ -110,4 +103,4 @@ declare function liveAxes(axes: ReadonlyMap<string, AxisDef>, bound: BindingsSto
  * @returns {boolean} Whether it has bindings there
  */
 declare function hasBindings(command: Command, fields: readonly BindingField[]): boolean;
-export { commandOf, fromSources, hasBindings, liveAxes, liveCommands, schemaOf };
+export { fromSources, hasBindings, liveAxes, liveCommands, schemaOf };

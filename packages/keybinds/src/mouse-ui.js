@@ -92,6 +92,7 @@ function mouseUI(options = {}) {
       }
     },
     release: (binding) => !SCROLL.test(splitRelease(binding.toLowerCase()).body),
+    ui: true,
   }
 }
 

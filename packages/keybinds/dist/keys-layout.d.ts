@@ -23,8 +23,8 @@ declare function layout(map?: ReadonlyMap<string, string>): KeySyntax;
 /**
  * For keysUI(followLayout()): shows physical keys as the person's layout types them, following them switching
  * layouts. Components showing bindings update when it changes
- * @param {EventTarget} [view] - The window to follow (default: the global one)
+ * @param {Window} [view] - The window to follow (default: the global one)
  * @returns {KeySyntax} The layout, as a piece of key syntax that can change
  */
-declare function followLayout(view?: EventTarget): KeySyntax;
+declare function followLayout(view?: Window): KeySyntax;
 export { followLayout, layout, loadLayout };

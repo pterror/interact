@@ -265,7 +265,7 @@ export class KeybindSettings extends HTMLElement {
     if (!input?.record) return
     /** @param {Event} e */
     const ignore = (e) => this._toggles.some((t) => e.composedPath().includes(t))
-    const target = this.ownerDocument.defaultView ?? globalThis
+    const target = this.ownerDocument.defaultView ?? globalThis.window
     this._stopRecorder = input.record({ ignore, release: this._recordSuffix === RELEASE_SUFFIX, target }, (b) =>
       this._recorded(b),
     )

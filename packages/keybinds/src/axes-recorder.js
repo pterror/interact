@@ -24,7 +24,7 @@ const NOT_FOUND = -1
 class AxesRecorder {
   /**
    * @readonly
-   * @type {EventTarget}
+   * @type {Window}
    */
   #target
   /**
@@ -58,7 +58,7 @@ class AxesRecorder {
 
   /**
    * Starts listening and reading pads
-   * @param {EventTarget} target - The window recording happens in
+   * @param {Window} target - The window recording happens in
    * @param {readonly KeySyntax[]} syntax - For key pairs, as for keys()
    * @param {(binding: string) => void} done - Gets the source
    */

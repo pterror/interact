@@ -25,10 +25,10 @@ const US = new Map([
 
 /**
  * The window the page's document is in, which the tests' events reach
- * @returns {EventTarget} The window
+ * @returns {Window} The window
  */
 function view() {
-  return document.defaultView ?? globalThis
+  return document.defaultView ?? globalThis.window
 }
 
 /**

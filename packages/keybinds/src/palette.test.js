@@ -34,12 +34,12 @@ function place(element) {
 }
 
 /**
- * A palette's search field
- * @param {Element} element - The palette
- * @returns {HTMLInputElement} Its field
+ * A palette in the page until the test ends, and its search field
+ * @returns {Readonly<{ element: CommandPalette, field: HTMLInputElement }>} The palette, and its field
  */
-function fieldOf(element) {
-  return partOf(element, 'input', HTMLInputElement)
+function placedPalette() {
+  const element = place(createComponent(CommandPalette))
+  return { element, field: partOf(element, 'input', HTMLInputElement) }
 }
 
 /**
@@ -55,10 +55,11 @@ function command(id, label) {
 /**
  * An open palette whose source answers, noting what it was asked
  * @param {readonly Command[]} answer - What the source answers
- * @returns {Readonly<{ asked: readonly string[], element: CommandPalette }>} The palette, and what was asked
+ * @returns {Readonly<{ asked: readonly string[], element: CommandPalette, field: HTMLInputElement }>} The palette, its
+ *   field, and what was asked
  */
 function asking(answer) {
-  const element = place(createComponent(CommandPalette))
+  const { element, field } = placedPalette()
   /** @type {string[]} */
   const asked = []
   /**
@@ -73,41 +74,41 @@ function asking(answer) {
   element.sourceDelay = DELAY
   element.source = source
   element.open = true
-  return { asked, element }
+  return { asked, element, field }
 }
 
 /**
- * Types a query into an open palette, and waits for its source to be asked
- * @param {Element} element - The palette
+ * Types a query into an open palette's field, and waits for its source to be asked
+ * @param {HTMLInputElement} field - The palette's field
  * @param {string} query - What to type
  * @returns {Promise<void>} When it's been asked
  */
-async function search(element, query) {
-  typeInto(fieldOf(element), query)
+async function search(field, query) {
+  typeInto(field, query)
   await Bun.sleep(PAUSE)
 }
 
 /**
  * An open palette whose source answers only when the test says
- * @returns {Readonly<{ answer: PromiseWithResolvers<readonly Command[]>, element: CommandPalette }>} The palette, and
- *   its source's answer to give
+ * @returns {Readonly<{ answer: PromiseWithResolvers<readonly Command[]>, element: CommandPalette, field:
+ *   HTMLInputElement }>} The palette, its field, and its source's answer to give
  */
 function waiting() {
-  const element = place(createComponent(CommandPalette))
+  const { element, field } = placedPalette()
   /** @type {PromiseWithResolvers<readonly Command[]>} */
   const answer = Promise.withResolvers()
   element.sourceDelay = FIRST
   element.source = async () => answer.promise
   element.open = true
-  return { answer, element }
+  return { answer, element, field }
 }
 
 describe('a palette with a source', () => {
   test('merges what source answers for the typed query, after the delay', async () => {
-    const { asked, element } = asking([command('b', 'Alphabet'), command('a', 'Alpha dup')])
+    const { asked, element, field } = asking([command('b', 'Alphabet'), command('a', 'Alpha dup')])
     element.commands = [command('a', 'Alpha')]
-    typeInto(fieldOf(element), 'al')
-    typeInto(fieldOf(element), 'alp')
+    typeInto(field, 'al')
+    typeInto(field, 'alp')
     expect(textsOf(element, LABELS)).toEqual(['Alpha'])
     await Bun.sleep(PAUSE)
     expect(asked).toEqual(['alp'])
@@ -115,8 +116,8 @@ describe('a palette with a source', () => {
   })
 
   test('keeps the answer, without asking again, when its commands change', async () => {
-    const { asked, element } = asking([command('b', 'Alphabet')])
-    await search(element, 'alp')
+    const { asked, element, field } = asking([command('b', 'Alphabet')])
+    await search(field, 'alp')
     element.commands = [command('a', 'Alpha')]
     await Bun.sleep(PAUSE)
     expect(asked).toEqual(['alp'])
@@ -124,10 +125,10 @@ describe('a palette with a source', () => {
   })
 
   test('drops an answer for a query no longer typed', async () => {
-    const { answer, element } = waiting()
-    typeInto(fieldOf(element), 'x')
+    const { answer, element, field } = waiting()
+    typeInto(field, 'x')
     await Bun.sleep(DELAY)
-    fieldOf(element).value = 'y'
+    field.value = 'y'
     answer.resolve([command('x', 'Xylophone')])
     await Bun.sleep(DELAY)
     expect(textsOf(element, LABELS)).toEqual([])
@@ -136,12 +137,12 @@ describe('a palette with a source', () => {
   test('runs what source answers when it is chosen, by click or Enter', async () => {
     /** @type {string[]} */
     const ran = []
-    const { element } = asking([{ execute: () => ran.push('b'), id: 'b', label: 'Bravo' }])
-    await search(element, 'br')
+    const { element, field } = asking([{ execute: () => ran.push('b'), id: 'b', label: 'Bravo' }])
+    await search(field, 'br')
     partOf(element, '.palette__item', HTMLElement).click()
     element.open = true
-    await search(element, 'br')
-    fieldOf(element).dispatchEvent(kbd('keydown', { key: 'Enter' }))
+    await search(field, 'br')
+    field.dispatchEvent(kbd('keydown', { key: 'Enter' }))
     expect(ran).toEqual(['b', 'b'])
   })
 })
@@ -166,14 +167,14 @@ describe('an open palette', () => {
   })
 
   test('told to hide inactive commands, lists only those that apply', () => {
-    const element = place(createComponent(CommandPalette))
+    const { element, field } = placedPalette()
     element.toggleAttribute('hide-inactive', true)
     element.commands = [
       { execute: () => undefined, id: 'a', label: 'Delete this page', when: () => false },
       command('b', 'Delete this story'),
     ]
     element.open = true
-    typeInto(fieldOf(element), 'delete')
+    typeInto(field, 'delete')
     expect(textsOf(element, LABELS)).toEqual(['Delete this story'])
   })
 })

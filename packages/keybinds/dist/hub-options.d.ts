@@ -110,9 +110,10 @@ declare function storageOf({ storage, storageKey }: HubSettings): (scope: string
  */
 declare function componentsOf({ components, host, inputs }: HubSettings, opened: () => void): HubComponents | undefined;
 /**
- * Where a hub's failures go: an `error` event (an ErrorEvent) on the hub, and reportError() when nobody prevents it
- * @param {EventTarget} hub - The hub
+ * Where a hub's failures go: an `error` event (an ErrorEvent) the hub dispatches, and reportError() when nobody
+ * prevents it
+ * @param {(event: Event) => boolean} dispatch - Dispatches an event on the hub; false if it was prevented
  * @returns {(error: Error) => void} Reports a failure
  */
-declare function reporterFor(hub: EventTarget): (error: Error) => void;
+declare function reporterFor(dispatch: (event: Event) => boolean): (error: Error) => void;
 export { componentsOf, listenOptions, reporterFor, storageOf };
