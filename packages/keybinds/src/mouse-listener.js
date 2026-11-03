@@ -144,7 +144,7 @@ class MouseListener {
    */
   #down(event) {
     const name = pointerButtonName(event.button)
-    if (name === undefined || overlayOpen(event.target)) {
+    if (name === undefined || overlayOpen(event)) {
       return
     }
     this.#swallowAux.delete(name)
@@ -165,7 +165,7 @@ class MouseListener {
     if (name === undefined) {
       return
     }
-    const ended = this.#dispatch.up(name, event, { blocked: overlayOpen(event.target) })
+    const ended = this.#dispatch.up(name, event, { blocked: overlayOpen(event) })
     if (ended !== undefined && SIDE_BUTTONS.has(name) && (ended.consumed || ended.press.fired.size > NONE)) {
       event.preventDefault()
       this.#swallowAux.add(name)

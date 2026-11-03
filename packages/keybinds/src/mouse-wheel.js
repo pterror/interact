@@ -94,7 +94,7 @@ class WheelGestures {
    */
   #bound(event) {
     const direction = wheelDirection(event)
-    if (direction === undefined || overlayOpen(event.target)) {
+    if (direction === undefined || overlayOpen(event)) {
       return undefined
     }
     const mods = eventMods(event)

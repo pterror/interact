@@ -24,6 +24,41 @@ function page(execute) {
   }
 }
 
+/**
+ * Whether a key typed in an element happens inside an element that takes the keyboard, judged while the key goes
+ * through the page, as the listeners judge it
+ * @param {Element} element - Where it's typed
+ * @returns {boolean} Whether it does
+ */
+function keyInOverlay(element) {
+  let inside = false
+  /**
+   * @param {Event} event - The key, on its way
+   * @returns {void}
+   */
+  function judge(event) {
+    inside = overlayOpen(event)
+  }
+  document.addEventListener('keydown', judge, { once: true })
+  element.dispatchEvent(kbd('keydown', { code: 'KeyS', composed: true, key: 's' }))
+  return inside
+}
+
+/**
+ * A field in a dialog inside a shadow root, in the page
+ * @returns {Readonly<{ field: HTMLInputElement, host: HTMLElement, shadowDialog: HTMLDialogElement }>} The field, the
+ *   shadow root's host, and the dialog (closed)
+ */
+function shadowField() {
+  const host = document.createElement('div')
+  document.body.append(host)
+  const shadowDialog = document.createElement('dialog')
+  const field = document.createElement('input')
+  shadowDialog.append(field)
+  host.attachShadow({ mode: 'open' }).append(shadowDialog)
+  return { field, host, shadowDialog }
+}
+
 describe('modal elements', () => {
   test('keep keys typed inside them from firing bindings while they are open', () => {
     const execute = mock(() => undefined)
@@ -41,10 +76,23 @@ describe('modal elements', () => {
     const dialog = document.createElement('my-dialog')
     markKind(dialog, 'dialog', true)
     document.body.append(dialog)
-    expect(dialog.dataset['keybinds']).toBe('dialog')
-    expect([overlayOpen(dialog), anyOverlayOpen()]).toEqual([false, false])
+    const closed = [keyInOverlay(dialog), anyOverlayOpen()]
     dialog.setAttribute('open', '')
-    expect([overlayOpen(dialog), anyOverlayOpen()]).toEqual([true, true])
+    const open = [keyInOverlay(dialog), anyOverlayOpen()]
     dialog.remove()
+    expect([dialog.dataset['keybinds'], closed, open]).toEqual(['dialog', [false, false], [true, true]])
+  })
+
+  test('include an open dialog inside a shadow root, for keys typed in it and for focus in it', () => {
+    const { field, host, shadowDialog } = shadowField()
+    const closed = [keyInOverlay(field), anyOverlayOpen()]
+    shadowDialog.setAttribute('open', '')
+    field.focus()
+    const open = [keyInOverlay(field), anyOverlayOpen()]
+    host.remove()
+    expect([closed, open]).toEqual([
+      [false, false],
+      [true, true],
+    ])
   })
 })

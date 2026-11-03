@@ -113,7 +113,7 @@ class KeyListener {
    */
   #down(event) {
     // Nothing binds a modifier on its own, and pressing one (Shift, to type "G") mustn't break off a sequence
-    if (!(event instanceof KeyboardEvent) || overlayOpen(event.target) || MODIFIER_KEYS.has(event.key)) {
+    if (!(event instanceof KeyboardEvent) || overlayOpen(event) || MODIFIER_KEYS.has(event.key)) {
       return
     }
     const id = keyId(event)
@@ -150,7 +150,7 @@ class KeyListener {
     }
     const id = keyId(event)
     this.#held.delete(id)
-    this.#dispatch.up(id, event, { blocked: overlayOpen(event.target), inInput: inInput(event.target) })
+    this.#dispatch.up(id, event, { blocked: overlayOpen(event), inInput: inInput(event.target) })
   }
 
   /**
