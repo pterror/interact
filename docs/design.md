@@ -250,6 +250,13 @@ the page.
 **Derived (built):**
 
 - `component(view, create)` (`packages/dom/src/component.js`) makes a class and defines nothing.
+  - `create` is given the element, so an instance adopting server markup can start in the state the server rendered it
+    in. With no access to the element, a hydrating listbox would start without its source, render nothing, and lose the
+    server's nodes.
+  - A view that has to read layout or drive the page has `connect(behavior, root)`, called once the first render or
+    adoption is done, with its cleanup called when the element leaves. The listbox needs it to measure its rows and set
+    its scroll position. Menus will need it for anchor geometry. Its subscriptions hear each change after the view has
+    rendered it.
 - `register(classes, { prefix, mode })` (`register.js`) defines `<prefix>-<kind>` for each class. It defines a subclass
   of its own each time, so one class can be registered under two prefixes, which Web Awesome's classes can't.
 - Every instance carries `data-interact="<kind>"`.

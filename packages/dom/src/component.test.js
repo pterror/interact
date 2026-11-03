@@ -1,8 +1,10 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 
 import { closeBrowser, inBrowser } from '../../../test/browser.js'
+import { component } from './component.js'
+import { register } from './register.js'
 import { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
-import { Counter, counterView } from './test-helpers.js'
+import { Counter, connectingView, counterView } from './test-helpers.js'
 
 const RED = 'rgb(255, 0, 0)'
 const BLUE = 'rgb(0, 0, 255)'
@@ -10,6 +12,24 @@ const ONE = 1
 const NONE = 0
 
 afterAll(closeBrowser)
+
+describe('component', () => {
+  test('makes each behavior from its element, and connects the view once it has rendered', () => {
+    /** @type {HTMLElement[]} */
+    const hosts = []
+    const seen = connectingView()
+    const Connecting = component(seen.view, (host) => {
+      hosts.push(host)
+      return new Counter()
+    })
+    register([Connecting], { prefix: 'connect' })
+    const element = document.createElement('connect-connecting')
+    document.body.append(element)
+    element.remove()
+    expect(hosts).toEqual([element])
+    expect(seen.log).toEqual(['connected after rendering 0', 'disconnected'])
+  })
+})
 
 describe('component, in Chrome', () => {
   test('styles with one stylesheet in shadow and light DOM, stopping at a component inside', async () => {

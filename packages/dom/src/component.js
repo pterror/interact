@@ -13,9 +13,17 @@ import { hasServerMarkup, hydrate, render } from './render.js'
  */
 
 /**
- * A component's default web view: its kind, its stylesheet, and what it renders for its behavior's state now.
+ * A component's default web view: its kind, its stylesheet, and what it renders for its behavior's state now. A view
+ * that has to read layout or drive the page (a scroll position, say) also has `connect`, called with the root its view
+ * is in once the first render or adoption is done; what it returns is called when the element leaves the page. Its own
+ * subscriptions to the behavior hear each change after the view has rendered it.
  * @template {Behavior} B
- * @typedef {Readonly<{ kind: string, styles: Stylesheet, render: (behavior: B) => TemplateResult }>} View
+ * @typedef {Readonly<{
+ *   kind: string,
+ *   styles: Stylesheet,
+ *   render: (behavior: B) => TemplateResult,
+ *   connect?: (behavior: B, root: HTMLElement | ShadowRoot) => () => void,
+ * }>} View
  */
 
 /**
@@ -29,6 +37,8 @@ import { hasServerMarkup, hydrate, render } from './render.js'
  * @template {Behavior} B
  * @typedef {{ new (): ComponentElement<B>, readonly kind: string, readonly view: View<B> }} ComponentClass
  */
+
+const FIRST = 0
 
 /** The attribute that chooses an instance's DOM mode: `shadow` or `light`. */
 const MODE_ATTRIBUTE = 'dom-mode'
@@ -127,13 +137,34 @@ function follow(root, view, behavior) {
 }
 
 /**
+ * Marks an element with its kind, styles it, renders its view or adopts the server's, and follows its behavior.
+ * @template {Behavior} B
+ * @param {HTMLElement} element - The element
+ * @param {View<B>} view - Its view
+ * @param {B} behavior - Its behavior
+ * @returns {(() => void)[]} What stops following, and disconnects the view
+ */
+function start(element, view, behavior) {
+  element.setAttribute(KIND_ATTRIBUTE, view.kind)
+  const mode = elementMode(element)
+  const root = viewRoot(element, mode)
+  show(root, view, { behavior, mode })
+  const stops = [follow(root, view, behavior)]
+  if (view.connect) {
+    stops.push(view.connect(behavior, root))
+  }
+  return stops
+}
+
+/**
  * A custom element class joining a behavior to a web view. It defines no element: the app registers it, under a name
- * it chooses, with `register`. Each instance makes its own behavior, renders its view into its shadow root or into
- * itself, adopts server markup when there is some, and renders again whenever the behavior's state changes, once per
- * task however many changes there were.
+ * it chooses, with `register`. Each instance makes its own behavior, given the element, so an instance adopting server
+ * markup can start in the state the server rendered. It renders its view into its shadow root or into itself, adopts
+ * server markup when there is some, and renders again whenever the behavior's state changes, once per task however
+ * many changes there were.
  * @template {Behavior} B
  * @param {View<B>} view - The default view
- * @param {() => B} create - Makes an instance's behavior
+ * @param {(host: HTMLElement) => B} create - Makes an instance's behavior
  * @returns {ComponentClass<B>} The class
  */
 function component(view, create) {
@@ -142,9 +173,9 @@ function component(view, create) {
     static kind = view.kind
     static view = view
     /** @readonly */
-    #behavior = create()
-    /** @type {(() => void) | undefined} */
-    #stop
+    #behavior = create(this)
+    /** @type {(() => void)[]} */
+    #stops = []
 
     /**
      * The instance's behavior: its methods, state and events.
@@ -168,19 +199,17 @@ function component(view, create) {
      * @returns {void}
      */
     connectedCallback() {
-      this.setAttribute(KIND_ATTRIBUTE, view.kind)
-      const { mode } = this
-      const root = viewRoot(this, mode)
-      show(root, view, { behavior: this.#behavior, mode })
-      this.#stop = follow(root, view, this.#behavior)
+      this.#stops = start(this, view, this.#behavior)
     }
 
     /**
-     * Stops following the behavior.
+     * Stops following the behavior, and disconnects the view.
      * @returns {void}
      */
     disconnectedCallback() {
-      this.#stop?.()
+      for (const stop of this.#stops.splice(FIRST)) {
+        stop()
+      }
     }
   }
 }
