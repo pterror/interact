@@ -3,7 +3,6 @@
  */
 
 const ROOT = new URL('..', import.meta.url).pathname
-const FENCE_PREFIX = 'packages/keybinds/'
 
 /**
  * A package's manifest: its npm name, what it depends on at runtime, and its `sideEffects` field as written
@@ -18,44 +17,6 @@ const FENCE_PREFIX = 'packages/keybinds/'
 async function paths(pattern) {
   const found = await Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: ROOT }))
   return found
-}
-
-/**
- * Whether a value is a string
- * @param {unknown} value - Anything
- * @returns {value is string} Whether it is a string
- */
-function isString(value) {
-  return typeof value === 'string'
-}
-
-/**
- * The files not yet under the repo's rules: the keybinds entries in `.oxlintrc.json`'s ignorePatterns, its one list
- * @returns {Promise<ReadonlySet<string>>} Their paths, from the repo root
- */
-async function fence() {
-  /** @type {unknown} */
-  const config = Bun.JSONC.parse(await Bun.file(`${ROOT}.oxlintrc.json`).text())
-  if (typeof config !== 'object' || config === null || !('ignorePatterns' in config)) {
-    throw new TypeError('.oxlintrc.json has no ignorePatterns')
-  }
-  const { ignorePatterns } = config
-  if (!Array.isArray(ignorePatterns)) {
-    throw new TypeError('.oxlintrc.json ignorePatterns is not a list')
-  }
-  /** @type {unknown[]} */
-  const patterns = ignorePatterns
-  return new Set(patterns.filter((pattern) => isString(pattern)).filter((pattern) => pattern.startsWith(FENCE_PREFIX)))
-}
-
-/**
- * Leaves out what is still fenced
- * @param {readonly string[]} all - Paths from the repo root
- * @returns {Promise<string[]>} Those under the repo's rules
- */
-async function unfenced(all) {
-  const fenced = await fence()
-  return all.filter((path) => !fenced.has(path))
 }
 
 /**
@@ -156,7 +117,11 @@ async function importEveryModule() {
 const ESCAPES = [
   { pattern: /\/\*\*\s*@type\s*\{[^}]*\}\s*\*\/\s*\(/u, what: 'a JSDoc cast' },
   { pattern: /@ts-(?:ignore|expect-error|nocheck)\b/u, what: 'a @ts- directive' },
-  { pattern: /@(?:type|param|returns?|typedef|property|template|satisfies)\s*\{[^}]*(?:\bany\b|\*)/u, what: 'any' },
+  {
+    pattern:
+      /@(?:type|param|returns?|typedef|property|template|satisfies)\s*\{(?:[ \t]*\*[ \t]*\}|[^}]*?(?:\bany\b|[<,|(][ \t]*\*[ \t]*[>,|)]))/u,
+    what: 'any',
+  },
 ]
 
 /**
@@ -179,23 +144,32 @@ async function escapesIn(path) {
 }
 
 /**
+ * Every JavaScript file the rules check: the packages' sources and the repo's tests. One glob each, as Bun's globs
+ * match nothing for a brace around a path with `**` after it
+ * @returns {Promise<string[]>} Their paths, from the repo root
+ */
+async function javascriptFiles() {
+  const [sources, tests] = await Promise.all([paths('packages/*/src/**/*.js'), paths('test/**/*.js')])
+  return [...sources, ...tests]
+}
+
+/**
  * Casts, `@ts-` directives and `any` in the repo's JavaScript
  * @returns {Promise<string[]>} Each as "path: what"
  */
 async function typeEscapes() {
-  const all = await paths('{packages/*/src,test}/**/*.js')
-  const checked = await unfenced(all)
-  const found = await Promise.all(checked.map(async (path) => escapesIn(path)))
+  const all = await javascriptFiles()
+  const found = await Promise.all(all.map(async (path) => escapesIn(path)))
   return found.flat()
 }
 
 export {
   escapes,
-  unfenced,
-  paths,
   importEveryModule,
+  javascriptFiles,
   manifests,
   outsideDependencies,
+  paths,
   sideEffectsBeyondStylesheets,
   typeEscapes,
 }

@@ -3,7 +3,7 @@
  * layer, in stylesheets and in modules' css templates alike.
  */
 
-import { paths, unfenced } from './repo.js'
+import { paths } from './repo.js'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const OPEN = '('
@@ -146,15 +146,25 @@ async function fileViolations(path) {
 }
 
 /**
+ * Every file whose styles the rule checks: the packages' stylesheets, and their modules (tests aside) for css
+ * templates. One glob
+ * each, as Bun's globs match nothing for a brace around a path with `**` after it
+ * @returns {Promise<string[]>} Their paths, from the repo root
+ */
+async function styledFiles() {
+  const [sheets, modules] = await Promise.all([paths('packages/**/*.css'), paths('packages/*/src/**/*.js')])
+  return [...sheets, ...modules].filter((path) => !path.includes('/node_modules/') && !path.endsWith('.test.js'))
+}
+
+/**
  * Selectors anywhere in the packages, in stylesheets or css templates, that have specificity or sit outside a
  * cascade layer
  * @returns {Promise<string[]>} Each as "path: selector"
  */
 async function stylesheetViolations() {
-  const all = await paths('packages/*/{**/*.css,src/**/*.js}')
-  const files = await unfenced(all.filter((path) => !path.includes('/node_modules/')))
+  const files = await styledFiles()
   const found = await Promise.all(files.map(async (path) => fileViolations(path)))
   return found.flat()
 }
 
-export { cssTemplates, styleRules, stylesheetViolations, zeroSpecificity }
+export { cssTemplates, styleRules, styledFiles, stylesheetViolations, zeroSpecificity }

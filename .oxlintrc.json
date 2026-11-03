@@ -29,14 +29,7 @@
   // typeCheck stays off: tsgo already type-checks every package in `bun run check`.
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
   "env": { "browser": true, "es2024": true },
-  "ignorePatterns": [
-    "**/node_modules/**",
-    "**/dist/**",
-    "**/docs/.vitepress/**",
-    // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
-    // list for the rule tests, so it is the one place a file leaves the fence.
-    "packages/keybinds/styles/palette.css"
-  ],
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**"],
   "rules": {
     // A JSDoc @type on a combined declaration types only its first declarator; typing the others needs an inline
     // comment, which eslint/no-inline-comments forbids.

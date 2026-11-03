@@ -139,20 +139,19 @@ A component is its behavior, written once as a plain API, plus a default view an
 
 ### What moves out of keybinds (Derived)
 
-Today `packages/keybinds/src/components/` holds six shadow-DOM elements, and two of them overlap with the `CommandHub`
-(`src/hub.js`):
+Today keybinds holds six shadow-DOM elements (`palette.js`, `cheatsheet.js`, `settings.js`, `basic-context-menu.js`,
+`context-menu.js`, `radial-menu.js`), and the `CommandHub` overlaps with them:
 
-- `CommandHub` builds those elements (`hub.js:118-127`), pushes context into them (`hub.js:339-347`) and paints
-  `data-command` buttons (`hub.js:405-433`). That is the bridge's job, and it moves to `@interact/components`.
+- `CommandHub` makes those elements and pushes its commands, store and context into them (`hub-components.js`), and
+  paints `data-command` buttons (`hub-buttons.js`). That is the bridge's job, and it moves to `@interact/components`.
 - keybinds keeps its sources, store, listening, `held` and `axis`.
-- keybinds' `TODO.md` names the three menus as 880 lines that each carry their own rendering, keyboard navigation and
-  dismissal. Rebuilding them as one menu behavior over shared collection and focus models removes that duplication.
+- keybinds' `TODO.md` named the three menus as 880 lines that each carry their own rendering, keyboard navigation and
+  dismissal. The two context menus now share one list (`menu-list.js`); the radial menu still has its own. Rebuilding
+  them as one menu behavior over shared collection and focus models removes what's left of that duplication.
 
 The elements are rewritten from the requirements, not ported. Once their replacements exist, the old modules and
 `styles/palette.css` are deleted from keybinds in the same change, so the old and new versions never sit side by side.
-Until then they are fenced: `test/repo.js` and `.oxlintrc.json` skip keybinds and say why, and
-`packages/keybinds/TODO.md` lists what it takes to bring keybinds under the repo's rules (5,369 lint diagnostics, 206
-casts).
+Until then they are kept under the repo's rules like everything else: there is no fence (`packages/keybinds/TODO.md`).
 
 These users still install keybinds from its own repository (`"keybinds": "github:pterror/keybinds"`):
 
@@ -539,4 +538,4 @@ and deleted.
    what's loaded otherwise; no readonly-parameter exemption per component (oxlint has no pattern form, so behaviors are
    readonly types instead). Variable row heights wait.
 5. **Order.** The listbox slice comes first. Bringing keybinds under the repo's rules (its 5,369 lint diagnostics and
-   206 casts) is its own task after that.
+   206 casts) is its own task after that. Done: keybinds passes every check with no fence.

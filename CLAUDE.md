@@ -53,10 +53,10 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
   looser type where a precise one stood to make a check pass: that defeats what the check is for.
 - Nothing is committed that fails `bun run check` or `bun test`.
 
-`test/rules.test.js` enforces the first four over everything but `packages/keybinds` (fenced in `test/repo.js` until its
-TODO.md entries are done). Lint and type rules are all on: every oxlint category and plugin, every tsgo strictness
-option. One is turned off only where it contradicts another rule or a convention the code follows, with the reason next
-to it in `.oxlintrc.json`, `.oxfmtrc.json` or `tsconfig.base.json`.
+`test/rules.test.js` enforces the first four over every package and the repo's tests, and checks that it reaches them.
+Lint and type rules are all on: every oxlint category and plugin, every tsgo strictness option. One is turned off only
+where it contradicts another rule or a convention the code follows, with the reason next to it in `.oxlintrc.json`,
+`.oxfmtrc.json` or `tsconfig.base.json`.
 
 <!-- BEGIN ECOSYSTEM RULES -->
 

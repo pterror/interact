@@ -74,13 +74,12 @@
 - [ ] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime (how they show bindings, and `CommandHub` assigns
       it), but their generated declarations don't have the property, so a page creating them with `createComponent` has
       to cast to set it (seen in pteraworld's src/input.ts). `KeybindCheatsheet` declares it as a getter/setter.
-- [ ] Not all of keybinds is under the repo's lint yet: the files `.oxlintrc.json` lists in its fence (the hub and the
-      components, 2,636 diagnostics between them) are skipped, by lint and by the rule tests in `test/repo.js` alike.
-      Everything else is under it.
-- [ ] The hub and the components still cast with JSDoc (`/** @type {X} */ (value)`), 150 of them. The repo allows no
-      casts, `any` or `@ts-` directives.
-- [ ] `styles/palette.css` selectors have specificity and sit outside cascade layers. It goes with the components (next
-      entry) rather than being fixed.
+- [x] keybinds wasn't under the repo's rules: lint, the no-casts rule and the stylesheet rule skipped it behind a fence.
+      Now nothing is fenced, and `bun run check` and the rule tests cover all of it. Its JSDoc casts are gone, the menus
+      share one list, and the settings panel is split by what each part owns.
+- [x] `styles/palette.css` selectors had specificity and sat outside cascade layers. Every selector is now `:where()`
+      inside `@layer keybinds.theme`, so a page's own unlayered rules win over it; the components' computed styles are
+      the same as before in Chrome, Firefox and WebKit.
 - [ ] The components and `CommandHub`'s component wiring (`hub.js` making elements, pushing context into them, painting
       `data-command` buttons) move to `@interact/components`, rewritten there; the old modules are deleted in the same
       change. See `docs/design.md`, "What moves out of keybinds".
