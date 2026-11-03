@@ -8,10 +8,10 @@
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test'
 
 import { KeybindCheatsheet } from './cheatsheet.js'
-import { KeybindSettings } from './components/settings.js'
 import { ContextMenu } from './context-menu.js'
 import { CommandHub } from './hub.js'
 import { CommandPalette } from './palette.js'
+import { KeybindSettings } from './settings.js'
 import { kbd } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
 

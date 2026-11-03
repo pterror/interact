@@ -125,7 +125,7 @@ Custom element: `<keybinds-cheatsheet>`
 
 ## KeybindSettings
 
-Custom element: `<keybinds-settings>`
+Custom element: `<keybinds-settings>`, from `keybinds/settings`
 
 ### Properties
 

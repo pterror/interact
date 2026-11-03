@@ -481,8 +481,8 @@ Each part is its own module, so a page loading keybinds straight from a CDN can 
   { "imports": { "keybinds/": "https://cdn.jsdelivr.net/gh/pterror/keybinds@<commit>/src/" } }
 </script>
 <script type="module">
-  import { KeybindSettings } from 'keybinds/components/settings.js'
   import { CommandHub } from 'keybinds/hub.js'
   import { keysUI } from 'keybinds/keys-ui.js'
+  import { KeybindSettings } from 'keybinds/settings'
 </script>
 ```

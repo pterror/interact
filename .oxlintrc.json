@@ -35,8 +35,6 @@
     "**/docs/.vitepress/**",
     // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
     // list for the rule tests, so it is the one place a file leaves the fence.
-    "packages/keybinds/src/components/settings.js",
-    "packages/keybinds/src/components/settings.test.js",
     "packages/keybinds/styles/palette.css"
   ],
   "rules": {

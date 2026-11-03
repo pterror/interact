@@ -4,8 +4,8 @@
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
 import type { AxisDef, AxisValue, Command, Context, Schema } from './command.js';
-import type { ContextMenu } from './components/context-menu.js';
-import type { KeybindSettings } from './components/settings.js';
+import type { ContextMenu } from './context-menu.js';
+import type { KeybindSettings } from './settings.js';
 import type { CommandDefinition } from './hub-commands.js';
 import type { CommandHubOptions } from './hub-options.js';
 import type { Input } from './input.js';

@@ -4,10 +4,10 @@
 
 import { BasicContextMenu } from './basic-context-menu.js'
 import { KeybindCheatsheet } from './cheatsheet.js'
-import { KeybindSettings } from './components/settings.js'
 import { ContextMenu } from './context-menu.js'
 import { CommandPalette } from './palette.js'
 import { RadialMenu } from './radial-menu.js'
+import { KeybindSettings } from './settings.js'
 
 /**
  * Registers every component under its plain `keybinds-<kind>` name, for use in HTML

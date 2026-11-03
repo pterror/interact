@@ -7,7 +7,7 @@
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { Command, Context, Schema } from './command.js'
  * @import { ContextMenu } from './context-menu.js'
- * @import { KeybindSettings } from './components/settings.js'
+ * @import { KeybindSettings } from './settings.js'
  * @import { Input, InputUI } from './input.js'
  * @import { CommandPalette } from './palette.js'
  * @import { BindingsStore } from './store.js'

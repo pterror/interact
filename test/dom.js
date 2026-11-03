@@ -19,6 +19,7 @@ Object.assign(globalThis, {
   Event: window.Event,
   EventTarget: window.EventTarget,
   FocusEvent: window.FocusEvent,
+  HTMLButtonElement: window.HTMLButtonElement,
   HTMLElement: window.HTMLElement,
   HTMLInputElement: window.HTMLInputElement,
   HTMLLIElement: window.HTMLLIElement,

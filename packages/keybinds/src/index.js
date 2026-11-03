@@ -1,6 +1,6 @@
 /**
  * Declarative, contextual keybindings: everything, from one place. Each part is also its own module (keybinds/core,
- * keybinds/keys, keybinds/components/palette, ...) for pages that load them without a bundler.
+ * keybinds/keys, keybinds/palette, ...) for pages that load them without a bundler.
  */
 
 /** @typedef {import('./command.js').Command} Command */
@@ -55,5 +55,5 @@ export { KeybindCheatsheet } from './cheatsheet.js'
 export { ContextMenu } from './context-menu.js'
 export { CommandPalette } from './palette.js'
 export { RadialMenu } from './radial-menu.js'
-export { KeybindSettings } from './components/settings.js'
+export { KeybindSettings } from './settings.js'
 export { registerComponents } from './register.js'

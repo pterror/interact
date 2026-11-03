@@ -7,7 +7,7 @@
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { AxisDef, AxisValue, Command, Context, Schema } from './command.js'
  * @import { ContextMenu } from './context-menu.js'
- * @import { KeybindSettings } from './components/settings.js'
+ * @import { KeybindSettings } from './settings.js'
  * @import { CommandDefinition, Source } from './hub-commands.js'
  * @import { HubComponents } from './hub-components.js'
  * @import { CommandHubOptions } from './hub-options.js'

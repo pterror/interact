@@ -4,8 +4,8 @@
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
 import type { Command, Context, Schema } from './command.js';
-import type { ContextMenu } from './components/context-menu.js';
-import type { KeybindSettings } from './components/settings.js';
+import type { ContextMenu } from './context-menu.js';
+import type { KeybindSettings } from './settings.js';
 import type { Input } from './input.js';
 import type { CommandPalette } from './palette.js';
 import type { BindingsStore } from './store.js';
