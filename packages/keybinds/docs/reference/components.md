@@ -193,9 +193,9 @@ Custom element: `<keybinds-settings>`
 
 ---
 
-## ContextMenu
+## BasicContextMenu
 
-Custom element: `<keybinds-basic-context-menu>`
+Custom element: `<keybinds-basic-context-menu>`, from `keybinds/basic-context-menu`
 
 ### Properties
 
@@ -250,6 +250,25 @@ Custom element: `<keybinds-basic-context-menu>`
 
 Keyboard and pointer input are tracked separately — moving the mouse won't hijack an in-progress keyboard selection
 until the pointer deliberately moves again.
+
+The `execute` event's `command` is the command as given, not a copy.
+
+---
+
+## ContextMenu
+
+Custom element: `<keybinds-context-menu>`, from `keybinds/context-menu`
+
+A context menu like `BasicContextMenu`, with a search field above its commands, which it ranks. It shows the top
+`maxVisible`, and a "▾ N more" row (part `more-row`) shows the rest when it's pointed at, focused or clicked. Its
+attributes, events, parts and keys are the basic menu's, plus the part `search`; in the search field, only `↑`, `↓`,
+`Enter` and `Escape` are the menu's, and the rest type.
+
+| Property     | Type             | Description                                                                         |
+| ------------ | ---------------- | ----------------------------------------------------------------------------------- |
+| `scorer`     | `Scorer`         | How commands rank with nothing typed; `undefined` for the default                   |
+| `history`    | `HistoryEntry[]` | When commands were run: the default scorer, `defaultScorer(history)`, ranks by them |
+| `maxVisible` | `number`         | How many show before "N more" (default 7)                                           |
 
 ---
 

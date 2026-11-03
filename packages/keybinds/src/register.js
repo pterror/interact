@@ -2,10 +2,10 @@
  * Registering every component under its plain `keybinds-<kind>` name, for pages that use them in HTML.
  */
 
+import { BasicContextMenu } from './basic-context-menu.js'
 import { KeybindCheatsheet } from './cheatsheet.js'
-import { BasicContextMenu } from './components/basic-context-menu.js'
-import { ContextMenu } from './components/context-menu.js'
 import { KeybindSettings } from './components/settings.js'
+import { ContextMenu } from './context-menu.js'
 import { CommandPalette } from './palette.js'
 import { RadialMenu } from './radial-menu.js'
 
