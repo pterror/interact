@@ -229,6 +229,20 @@ describe.each(CASES)('the listbox in %s DOM, in %s, to an accessibility checker'
   )
 })
 
+describe.each(CASES)('the listbox in %s DOM, in %s, in forced colors', (mode, engine) => {
+  test("shows a selected option in the person's own selection colors", async () => {
+    const seen = await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.emulateMedia({ forcedColors: 'active' })
+      return page.evaluate(async (dom) => {
+        const { selectedFills } = await import('./test-pages.js')
+        return selectedFills(dom)
+      }, mode)
+    })
+    expect(seen.selected).toBe(seen.highlight)
+    expect(seen.unselected).not.toBe(seen.highlight)
+  })
+})
+
 describe.each(CASES)('tokens for the listbox in %s DOM, in %s', (mode, engine) => {
   test('resolve on each element: the theme, then component, part, state and instance tokens over it', async () => {
     const theme = '<link rel="stylesheet" href="/packages/theme/tokens.css">'

@@ -135,6 +135,28 @@ async function focusedAndChosen(mode) {
 }
 
 /**
+ * Puts a new listbox in the page and selects its first item: the selected and an unselected option's fill, and what
+ * the system's selection color is.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ selected: string, unselected: string, highlight: string }>>} The colors
+ */
+async function selectedFills(mode) {
+  const listbox = await fresh(mode)
+  listbox.choose.press(NONE, { shift: false, toggle: false })
+  await settle()
+  const { root } = parts()
+  const probe = document.createElement('div')
+  probe.style.setProperty('background-color', 'Highlight')
+  probe.style.setProperty('forced-color-adjust', 'none')
+  document.body.append(probe)
+  return {
+    highlight: getComputedStyle(probe).backgroundColor,
+    selected: fillOf(root, '[aria-posinset="1"]'),
+    unselected: fillOf(root, '[aria-posinset="2"]'),
+  }
+}
+
+/**
  * Puts a new listbox in the page, focuses it from the keyboard, and selects its active item: the active option's
  * outline color and width, and its fill.
  * @param {DomMode} mode - Where the listbox lives
@@ -212,5 +234,6 @@ export {
   focusedAndChosen,
   jump,
   selectAllButOne,
+  selectedFills,
   tokenLevels,
 }
