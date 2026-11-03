@@ -1,10 +1,14 @@
 export type Command = import('../command.js').Command;
 export type Matcher = import('../search.js').Matcher;
-export type ScoredCommand = import('../search.js').ScoredCommand;
+export type ScoredCommand = import('../command.js').Command & {
+    active: boolean;
+    score: number;
+    positions?: readonly number[];
+};
 export type Input = import('../input.js').InputUI;
 /** @typedef {import('../command.js').Command} Command */
 /** @typedef {import('../search.js').Matcher} Matcher */
-/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../command.js').Command & { active: boolean, score: number, positions?: readonly number[] }} ScoredCommand */
 /** @typedef {import('../input.js').InputUI} Input */
 /**
  * <keybinds-command-palette> - Search-driven command execution

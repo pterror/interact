@@ -1,51 +1,39 @@
 /**
- * Axes: continuous input read every frame, from mouse movement ("mouse:x"), sticks and triggers
- * ("pad:rx", "pad:lt") or a pair of keys ("keys:a/d"). A leading "-" inverts a source. Showing
- * and recording them is keybinds/axes-ui.
+ * Axes: continuous input read every frame, from mouse movement ("mouse:x"), sticks and triggers ("pad:rx", "pad:lt")
+ * or a pair of keys ("keys:a/d"). A leading "-" inverts a source. Showing and recording them is keybinds/axes-ui.
  */
-export type Input = import('./input.js').Input;
-export type AxisDef = import('./command.js').AxisDef;
-export type AxisValue = import('./command.js').AxisValue;
-export type ParsedKey = import('./keys.js').ParsedKey;
-/** @typedef {import('./input.js').Input} Input */
-/** @typedef {import('./command.js').AxisDef} AxisDef */
-/** @typedef {import('./command.js').AxisValue} AxisValue */
-/** @typedef {import('./keys.js').ParsedKey} ParsedKey */
-export declare const PAD_AXES: string[];
-export type ParsedAxis = {
+import type { AxisInput } from './input.js';
+import type { KeySyntax, ParsedKey } from './keys.js';
+export type DeviceAxis = Readonly<{
+    invert: boolean;
     kind: 'mouse' | 'pad';
     source: string;
+}>;
+export type KeyAxis = Readonly<{
     invert: boolean;
-} | {
     kind: 'keys';
     neg: ParsedKey;
     pos: ParsedKey;
-    invert: boolean;
-};
+}>;
+export type ParsedAxis = DeviceAxis | KeyAxis;
 /**
- * Where an axis's value comes from: mouse movement, a stick or trigger, or a pair of keys
- * (the first pushes toward -1, the second toward 1). `invert` flips it.
- * @typedef {{ kind: 'mouse' | 'pad', source: string, invert: boolean }
- *   | { kind: 'keys', neg: ParsedKey, pos: ParsedKey, invert: boolean }} ParsedAxis
+ * Parses an axis binding: "mouse:x", "pad:rx", "keys:a/d", with a leading "-" to invert
+ * @param {string} binding - The binding
+ * @param {readonly KeySyntax[]} [syntax] - For key pairs, as for keys()
+ * @returns {ParsedAxis} The source
+ * @throws {Error} If the binding names no source
  */
+declare function parseAxis(binding: string, syntax?: readonly KeySyntax[]): ParsedAxis;
 /**
- * Parse an axis binding: "mouse:x", "pad:rx", "keys:a/d", with a leading "-" to invert
- * @param {string} binding
- * @param {import("./keys.js").KeySyntax[]} [syntax] - For key pairs, as for keys()
- * @returns {ParsedAxis}
- * @throws {Error} if the binding is invalid
+ * An axis source's normalized form, without its inversion
+ * @param {ParsedAxis} parsed - The source
+ * @returns {string} Its lookup
  */
-export declare function parseAxis(binding: string, syntax?: import("./keys.js").KeySyntax[]): ParsedAxis;
-/**
- * Normalized form of an axis binding, without its inversion
- * @param {ParsedAxis} parsed
- * @returns {string}
- */
-export declare function axisToLookup(parsed: ParsedAxis): string;
-export declare const hasPads: () => boolean;
+declare function axisToLookup(parsed: ParsedAxis): string;
 /**
  * Axes, read with `axis(id)` on what keybinds() returns
- * @param {...import("./keys.js").KeySyntax} syntax - For key pairs, as for keys()
- * @returns {Input}
+ * @param {readonly KeySyntax[]} syntax - For key pairs, as for keys()
+ * @returns {AxisInput} Axes, as an input
  */
-export declare function axes(...syntax: import("./keys.js").KeySyntax[]): Input;
+declare function axes(...syntax: readonly KeySyntax[]): AxisInput;
+export { axes, axisToLookup, parseAxis };

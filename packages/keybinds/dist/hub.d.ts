@@ -148,8 +148,8 @@ export declare class CommandHub<D extends {
     _defs: Map<string, D>;
     /** @type {Map<string, Command>} */
     _live: Map<string, Command>;
-    /** @type {BindingsStore<Schema> | null} */
-    _store: BindingsStore<Schema> | null;
+    /** @type {BindingsStore | null} */
+    _store: BindingsStore | null;
     _storeListener: () => void;
     /** @type {ReturnType<typeof keybinds> | null} */
     _unbind: ReturnType<typeof keybinds> | null;
@@ -204,7 +204,7 @@ export declare class CommandHub<D extends {
      */
     setScope(scope: string): void;
     /** The store of people's rebindings, as the settings panel edits it. */
-    get store(): BindingsStore<import("./command.js").Schema> | null;
+    get store(): BindingsStore | null;
     /**
      * Whether a command is held right now: its press fired and that key or button hasn't come up.
      * @param {string} id

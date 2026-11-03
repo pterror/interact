@@ -1,57 +1,39 @@
 /**
- * Mouse input: buttons ("$mod+Click", "MiddleClick", "Back:up") and scrolling ("ScrollUp").
- * Showing and recording them is keybinds/mouse-ui.
+ * Mouse input: buttons ("$mod+Click", "MiddleClick", "Back:up") and scrolling ("ScrollUp"). Showing and recording
+ * them is keybinds/mouse-ui.
  */
-export type Modifiers = import('./binding-mods.js').Modifiers;
-export type Input = import('./input.js').Input;
-export type Command = import('./command.js').Command;
-export type Press = import('./input.js').Press;
-export type ParsedMouse = {
+import type { Modifiers } from './binding-mods.js';
+import type { Command } from './command.js';
+import type { CommandInput } from './input.js';
+import type { WheelOptions } from './mouse-listener.js';
+export type ParsedMouse = Readonly<{
+    button: string;
     mods: Modifiers;
-    /**
-     * - Index into BUTTON_NAMES
-     */
-    button: number;
-};
+}>;
 /**
- * Parse a mouse binding like "$mod+Click" or "MiddleClick", without its release suffix
- * Supported: Click/LeftClick, RightClick, MiddleClick, BackClick, ForwardClick, Scroll{Up,Down,Left,Right}
- * @param {string} binding
- * @param {string} [suffix] - Its suffix (":up", ":hold"), if any; scrolling has none
- * @returns {ParsedMouse}
- * @throws {Error} if mouse binding is invalid
+ * Parses a mouse binding like "$mod+Click" or "MiddleClick", without its suffix
+ * @param {string} binding - The binding
+ * @param {string} [suffix] - Its suffix (":up", ":hold"), if any; scrolling takes none
+ * @returns {ParsedMouse} Its modifiers and button
+ * @throws {Error} If the binding is invalid
  */
-export declare function parseMouse(binding: string, suffix?: string): ParsedMouse;
+declare function parseMouse(binding: string, suffix?: string): ParsedMouse;
 /**
- * Binding name for a MouseEvent.button value, null for buttons with no name
- * @param {number} button
- * @returns {string | null}
+ * Whether a mouse press is one of a command's press bindings (same button, same modifiers), for code that handles
+ * the press itself, like a drag that should start on a rebindable button
+ * @param {Command} command - The command
+ * @param {MouseEvent} event - The press
+ * @returns {boolean} Whether it is
  */
-export declare function pointerButtonName(button: number): string | null;
-/**
- * Which way a wheel event scrolls, as a binding names it; null if it doesn't
- * @param {WheelEvent} event
- * @returns {string | null}
- */
-export declare function wheelDirection(event: WheelEvent): string | null;
-/**
- * Whether a mouse press is one of a command's press bindings (same button, same modifiers), for
- * code that handles the press itself, like a drag that should start on a rebindable button.
- * @param {Command} cmd
- * @param {MouseEvent} event
- * @returns {boolean}
- */
-export declare function mouseMatches(cmd: Command, event: MouseEvent): boolean;
+declare function mouseMatches(command: Command, event: MouseEvent): boolean;
 /**
  * The mouse
- * @param {{ wheel?: { step?: number, idle?: number } }} [options] - Scroll bindings: a command
- *   runs once per `step` pixels scrolled (default 50, about one mouse-wheel notch; a trackpad's
- *   small deltas add up to it), and a pause of `idle` ms (default 200) starts a new gesture.
- * @returns {Input}
+ * @param {Readonly<{ wheel?: WheelOptions }>} [options] - Scroll bindings: a command runs once per `step` pixels
+ *   scrolled (default 50, about one mouse-wheel notch; a trackpad's small deltas add up to it), and a pause of `idle`
+ *   ms (default 200) starts a new gesture
+ * @returns {CommandInput} The mouse, as an input
  */
-export declare function mouse(options?: {
-    wheel?: {
-        step?: number;
-        idle?: number;
-    };
-}): Input;
+declare function mouse(options?: Readonly<{
+    wheel?: WheelOptions;
+}>): CommandInput;
+export { mouse, mouseMatches, parseMouse };

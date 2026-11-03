@@ -1,16 +1,18 @@
 /**
  * Showing and recording axis sources, for the settings panel.
  */
-export type InputUI = import('./input.js').InputUI;
+import type { InputUI } from './input.js';
+import type { KeySyntax } from './keys.js';
 /**
- * Format an axis binding into display parts (e.g. "-mouse:y" -> ["Mouse ↕", "Inverted"])
- * @param {string} binding
- * @returns {string[]}
+ * An axis source as display parts ("-mouse:y" is ["Mouse ↕", "Inverted"]); one it can't read is shown as written
+ * @param {string} binding - The source
+ * @returns {string[]} The parts as shown
  */
-export declare function formatAxisParts(binding: string): string[];
+declare function formatAxisParts(binding: string): string[];
 /**
  * Axes, shown and recorded as well as read
- * @param {...import("./keys.js").KeySyntax} syntax - As for axes()
- * @returns {InputUI}
+ * @param {readonly KeySyntax[]} syntax - As for axes()
+ * @returns {InputUI} Axes, as an input that can be shown and recorded
  */
-export declare function axesUI(...syntax: import("./keys.js").KeySyntax[]): InputUI;
+declare function axesUI(...syntax: readonly KeySyntax[]): InputUI;
+export { axesUI, formatAxisParts };

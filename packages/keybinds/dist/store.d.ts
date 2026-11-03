@@ -1,141 +1,105 @@
 /**
  * Binding schemas, and the store of people's rebindings laid over them.
  */
-export type Command = import('./command.js').Command;
-export type BindingSchema = import('./command.js').BindingSchema;
-export type Schema = import('./command.js').Schema;
-export type BindingOverrides = import('./command.js').BindingOverrides;
-/** @typedef {import('./command.js').Command} Command */
-/** @typedef {import('./command.js').BindingSchema} BindingSchema */
-/** @typedef {import('./command.js').Schema} Schema */
-/** @typedef {import('./command.js').BindingOverrides} BindingOverrides */
-/**
- * Define a binding schema (identity function for type inference/autocomplete)
- * @template {Schema} T
- * @param {T} schema
- * @returns {T}
- */
-export declare function defineSchema<T extends Schema>(schema: T): T;
-/**
- * Merge schema with user overrides
- * @param {Schema} schema - Default bindings
- * @param {BindingOverrides} overrides - User customizations
- * @returns {Schema} Merged bindings
- */
-export declare function mergeBindings(schema: Schema, overrides: BindingOverrides): Schema;
-/**
- * Create commands from bindings + handlers
- * Handlers only need to implement commands they care about
- *
- * @param {Schema} bindings - Binding definitions (from schema + overrides)
- * @param {Record<string, (ctx: Record<string, unknown>, event?: Event) => unknown>} handlers - Handler implementations
- * @param {Record<string, { when?: (ctx: Record<string, unknown>) => boolean, captureInput?: boolean, anyModifiers?: boolean }>} [options] - Per-command options
- * @returns {Command[]}
- */
-export declare function fromBindings(bindings: Schema, handlers: Record<string, (ctx: Record<string, unknown>, event?: Event) => unknown>, options?: Record<string, {
-    when?: (ctx: Record<string, unknown>) => boolean;
-    captureInput?: boolean;
+import type { BindingOverrides, BindingSchema, Command, Context, Schema } from './command.js';
+export type BindingOverride = BindingOverrides[string];
+export type CommandOptions = Readonly<{
     anyModifiers?: boolean;
-}>): Command[];
-/**
- * Get all bindings as a flat list (for settings UI)
- * @param {Schema} schema
- * @returns {Array<BindingSchema & { id: string }>}
- */
-export declare function listBindings(schema: Schema): Array<BindingSchema & {
-    id: string;
+    captureInput?: boolean;
+    when?: (ctx: Context) => boolean;
 }>;
-export type BindingsChangeDetail<T extends Schema> = {
-    bindings: T;
-    overrides: BindingOverrides;
-};
-export type BindingsChangeEvent<T extends Schema> = CustomEvent<BindingsChangeDetail<T>>;
-export type BindingsStorage = {
+export type BindingsStorageFields = {
     /**
      * - The current overrides
      */
     load: () => BindingOverrides;
+    /**
+     * - Keeps new overrides
+     */
     save: (overrides: BindingOverrides) => void;
     /**
-     * - For storage
-     * that can change from elsewhere (another tab, an undo, sync): the store follows it. Returns an
-     * unsubscribe function
+     * - Follows changes made
+     * elsewhere; returns a function that stops
      */
     subscribe?: (onChange: (overrides: BindingOverrides) => void) => () => void;
 };
+export type BindingsStorage = Readonly<BindingsStorageFields>;
+export type BindingsChangeEvent = CustomEvent<Readonly<{
+    bindings: Schema;
+    overrides: BindingOverrides;
+}>>;
 /**
+ * A binding schema as given, for type inference and autocomplete
  * @template {Schema} T
- * @typedef {{ bindings: T, overrides: BindingOverrides }} BindingsChangeDetail
+ * @param {T} schema - The schema
+ * @returns {T} The same schema
  */
+declare function defineSchema<T extends Schema>(schema: T): T;
 /**
- * @template {Schema} T
- * @typedef {CustomEvent<BindingsChangeDetail<T>>} BindingsChangeEvent
+ * A schema with people's overrides laid over it. Overrides for ids the schema doesn't have are left out
+ * @param {Readonly<Schema>} schema - The default bindings
+ * @param {BindingOverrides} overrides - People's changes
+ * @returns {Schema} The bindings in effect
  */
+declare function mergeBindings(schema: Readonly<Schema>, overrides: BindingOverrides): Schema;
 /**
- * Where a BindingsStore keeps people's overrides
- *
- * @typedef {Object} BindingsStorage
- * @property {() => BindingOverrides} load - The current overrides
- * @property {(overrides: BindingOverrides) => void} save
- * @property {(onChange: (overrides: BindingOverrides) => void) => () => void} [subscribe] - For storage
- *   that can change from elsewhere (another tab, an undo, sync): the store follows it. Returns an
- *   unsubscribe function
+ * Commands from bindings and handlers: one per handler, each with its bindings and options
+ * @param {Readonly<Schema>} bindings - The bindings in effect (from mergeBindings(), say)
+ * @param {Readonly<Record<string, Command['execute']>>} handlers - What each command does, by id
+ * @param {Readonly<Record<string, CommandOptions>>} [options] - More for each command, by id
+ * @returns {Command[]} The commands
+ * @throws {Error} If a handler has no bindings, which would otherwise never run
  */
+declare function fromBindings(bindings: Readonly<Schema>, handlers: Readonly<Record<string, Command['execute']>>, options?: Readonly<Record<string, CommandOptions>>): Command[];
 /**
- * Storage that keeps overrides in localStorage under one key
- *
- * @param {string} key
- * @returns {BindingsStorage}
+ * Every binding not hidden, with its id, for the settings panel
+ * @param {Readonly<Schema>} schema - The bindings
+ * @returns {Readonly<{ binding: BindingSchema, id: string }>[]} Them, in the schema's order
  */
-export declare function localStorageBindings(key: string): BindingsStorage;
+declare function listBindings(schema: Readonly<Schema>): Readonly<{
+    binding: BindingSchema;
+    id: string;
+}>[];
 /**
- * Reactive bindings store, persisted to localStorage or to any {@link BindingsStorage}
- *
- * Extends EventTarget - dispatches 'change' events when bindings are saved, or when the storage
- * changes from elsewhere.
- *
- * @template {Schema} T
- * @extends {EventTarget}
- *
+ * Storage that keeps overrides in localStorage under one key. Unreadable or unavailable storage (private browsing, a
+ * full quota) reads as no overrides, and overrides saved then still apply until the page reloads
+ * @param {string} key - The key
+ * @returns {BindingsStorage} The storage
+ */
+declare function localStorageBindings(key: string): BindingsStorage;
+/**
+ * People's rebindings laid over a schema, kept in localStorage or any BindingsStorage. Dispatches 'change' when they
+ * are saved, or when the storage changes from elsewhere
  * @example
- * const store = new BindingsStore(schema, 'myapp:keybinds')
- * // or keep them anywhere:
- * const store = new BindingsStore(schema, { load: () => prefs.keys ?? {}, save: (o) => { prefs.keys = o } })
- *
- * // Get current bindings (merged schema + overrides)
- * const bindings = store.get()
- *
- * // Subscribe to changes
- * store.addEventListener('change', (ev) => {
- *   console.log(ev.detail.bindings) // fully typed
- * })
- *
- * // Save new overrides (dispatches 'change' event)
- * store.save({ delete: { keys: ['$mod+d'] } })
+ *   const store = new BindingsStore(schema, 'myapp:keybinds')
+ *   const elsewhere = new BindingsStore(schema, { load: () => prefs.keys ?? {}, save: (o) => { prefs.keys = o } })
+ *   store.addEventListener('change', (event) => render(event.detail.bindings))
+ *   store.save({ delete: { keys: ['$mod+d'] } })
  */
-export declare class BindingsStore<T extends Schema> extends EventTarget {
-    /** @type {(() => void) | null} */
-    _unsubscribe: (() => void) | null;
-    /** @type {T} */ schema: T;
-    /** @type {BindingsStorage} */ storage: BindingsStorage;
-    /** @type {BindingOverrides} */ overrides: BindingOverrides;
-    /** @type {T} */ bindings: T;
+declare class BindingsStore extends EventTarget {
+    #private;
     /**
-     * @param {T} schema - Default bindings schema
+     * Reads the overrides kept so far, and follows the storage if it can change from elsewhere
+     * @param {Readonly<Schema>} schema - The default bindings
      * @param {string | BindingsStorage} storage - A localStorage key, or where to keep overrides
      */
-    constructor(schema: T, storage: string | BindingsStorage);
-    /** Get current bindings (schema merged with overrides) */
-    get(): T;
-    /** Get current overrides only */
-    getOverrides(): import("./command.js").BindingOverrides;
+    constructor(schema: Readonly<Schema>, storage: string | BindingsStorage);
+    /** @returns {Readonly<Schema>} The default bindings */
+    get schema(): Readonly<Schema>;
+    /** @returns {Schema} The bindings in effect: the schema with the overrides laid over it */
+    get(): Schema;
+    /** @returns {BindingOverrides} The overrides alone */
+    getOverrides(): BindingOverrides;
     /**
-     * Save new overrides and dispatch 'change' event
-     * @param {BindingOverrides} newOverrides
+     * Keeps new overrides, and dispatches 'change'
+     * @param {BindingOverrides} overrides - The overrides, in place of the ones before
+     * @returns {void}
      */
-    save(newOverrides: BindingOverrides): void;
-    /** Stop following the storage's changes */
+    save(overrides: BindingOverrides): void;
+    /**
+     * Stops following the storage's changes
+     * @returns {void}
+     */
     dispose(): void;
-    /** @private */
-    private _changed;
 }
+export { BindingsStore, defineSchema, fromBindings, listBindings, localStorageBindings, mergeBindings };

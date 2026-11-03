@@ -1,16 +1,16 @@
 /**
  * Showing and recording gamepad bindings, for the settings panel, cheatsheet, palette and menus.
  */
-export type InputUI = import('./input.js').InputUI;
+import type { InputUI } from './input.js';
 /**
- * Format a gamepad binding into display parts (e.g. "rt:up" -> ["RT", "Release"])
- * @param {string} binding
- * @returns {string[]}
+ * A gamepad binding as display parts ("rt:up" is ["RT", "Release"])
+ * @param {string} binding - The binding
+ * @returns {string[]} The parts as shown
  */
-export declare function formatGamepadParts(binding: string): string[];
+declare function formatGamepadParts(binding: string): string[];
 /**
- * Gamepad buttons, shown and recorded as well as listened to. Recording is offered while a pad
- * is connected.
- * @returns {InputUI}
+ * Gamepad buttons, shown and recorded as well as listened to. Recording is offered while a pad is connected
+ * @returns {InputUI} Gamepad buttons, as an input that can be shown and recorded
  */
-export declare function gamepadUI(): InputUI;
+declare function gamepadUI(): InputUI;
+export { formatGamepadParts, gamepadUI };

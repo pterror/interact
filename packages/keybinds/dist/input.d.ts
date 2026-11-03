@@ -244,4 +244,11 @@ export type InputUI = Input & Readonly<InputUIFields>;
  * @returns {boolean} Whether it's a text field or editable
  */
 declare function inInput(target: EventTarget | null): boolean;
-export { inInput };
+/**
+ * The window a target is in, which has the focus and the events no element gets (blur, gamepadconnected); a target
+ * outside any document is its own
+ * @param {EventTarget} target - Where bindings listen
+ * @returns {EventTarget} Its window
+ */
+declare function windowOf(target: EventTarget): EventTarget;
+export { inInput, windowOf };

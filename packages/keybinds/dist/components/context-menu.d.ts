@@ -2,12 +2,16 @@ export type Command = import('../command.js').Command;
 export type Input = import('../input.js').InputUI;
 export type Scorer = import('../search.js').Scorer;
 export type HistoryEntry = import('../search.js').HistoryEntry;
-export type ScoredCommand = import('../search.js').ScoredCommand;
+export type ScoredCommand = import('../command.js').Command & {
+    active: boolean;
+    score: number;
+    positions?: readonly number[];
+};
 /** @typedef {import('../command.js').Command} Command */
 /** @typedef {import('../input.js').InputUI} Input */
 /** @typedef {import('../search.js').Scorer} Scorer */
 /** @typedef {import('../search.js').HistoryEntry} HistoryEntry */
-/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../command.js').Command & { active: boolean, score: number, positions?: readonly number[] }} ScoredCommand */
 /**
  * <keybinds-context-menu> - Scored, searchable context menu driven by commands
  *
@@ -117,8 +121,14 @@ export declare class ContextMenu extends HTMLElement {
     });
     get scorer(): import("../search.js").Scorer;
     set scorer(val: import("../search.js").Scorer);
-    get history(): import("../search.js").HistoryEntry[];
-    set history(val: import("../search.js").HistoryEntry[]);
+    get history(): Readonly<{
+        id: string;
+        timestamp: number;
+    }>[];
+    set history(val: Readonly<{
+        id: string;
+        timestamp: number;
+    }>[]);
     get maxVisible(): number;
     set maxVisible(val: number);
     /**

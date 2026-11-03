@@ -1,18 +1,19 @@
 /**
- * Gamepad buttons: bindings like "a", "rt" or "start:up". Gamepad buttons take no modifiers.
- * Showing and recording them is keybinds/gamepad-ui.
+ * Gamepad buttons: bindings like "a", "rt" or "start:up". Gamepad buttons take no modifiers. Showing and recording
+ * them is keybinds/gamepad-ui.
  */
-export type Input = import('./input.js').Input;
-export type Press = import('./input.js').Press;
-/** @typedef {import('./input.js').Input} Input */
-/** @typedef {import('./input.js').Press} Press */
-export declare const GAMEPAD_BUTTONS: string[];
-/** @type {Record<string, string>} */
-export declare const GAMEPAD_ALIASES: Record<string, string>;
-export declare const hasPads: () => boolean;
+import type { CommandInput } from './input.js';
 /**
- * Gamepad buttons. Gamepads have no events for their buttons, so they're read every frame, but
- * only while a command has a gamepad binding and a pad is connected.
- * @returns {Input}
+ * A gamepad binding's button, by its standard name ("a", "rt"), its alias resolved
+ * @param {string} binding - The binding, without its suffix
+ * @returns {string} The button's standard name
+ * @throws {Error} If no button has that name
  */
-export declare function gamepad(): Input;
+declare function parseGamepad(binding: string): string;
+/**
+ * Gamepad buttons. Gamepads have no events for their buttons, so they're read every frame, but only while a command
+ * has a gamepad binding and a pad is connected
+ * @returns {CommandInput} Gamepad buttons, as an input
+ */
+declare function gamepad(): CommandInput;
+export { gamepad, parseGamepad };

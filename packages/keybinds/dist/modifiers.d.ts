@@ -1,38 +1,41 @@
 /**
  * Holding a modifier on its own, or tapping it, as a trigger (the cheatsheet opens this way).
  */
-/**
- * Trigger callback when a modifier key is held
- *
- * @param {string | string[]} modifiers - Modifier(s) to listen for: 'Control', 'Alt', 'Shift', 'Meta'
- * @param {(held: boolean) => void} callback - Called with true on hold, false on release
- * @param {{ delay?: number, target?: EventTarget }} [options]
- * @returns {() => void} Cleanup function
- *
- * @example
- * const cleanup = onModifierHold('Control', (held) => {
- *   cheatsheet.open = held
- * }, { delay: 300 })
- */
-export declare function onModifierHold(modifiers: string | string[], callback: (held: boolean) => void, options?: {
+export type ModifierEvents = Readonly<{
+    down: () => void;
+    spoiled: () => void;
+    up: (clean: boolean) => void;
+}>;
+export type ModifierOptions = Readonly<{
+    count?: number;
     delay?: number;
     target?: EventTarget;
-}): () => void;
-/**
- * Trigger callback when a modifier key is tapped (pressed and released by itself) `count` times in
- * quick succession, as in double-tapping Shift.
- *
- * @param {string | string[]} modifiers - Modifier(s) to listen for: 'Control', 'Alt', 'Shift', 'Meta'
- * @param {number} count - Taps in a row
- * @param {() => void} callback
- * @param {{ within?: number, target?: EventTarget }} [options] - `within`: most ms from one tap's
- *   press to the next tap's release (default 400)
- * @returns {() => void} Cleanup function
- *
- * @example
- * onModifierTaps('Control', 2, () => { cheatsheet.open = !cheatsheet.open })
- */
-export declare function onModifierTaps(modifiers: string | string[], count: number, callback: () => void, options?: {
     within?: number;
-    target?: EventTarget;
-}): () => void;
+}>;
+/**
+ * Calls back when a modifier is held on its own for a while, and again when it's let go
+ * @example
+ *   const stop = onModifierHold('Control', (held) => {
+ *     cheatsheet.open = held
+ *   }, { delay: 300 })
+ * @param {string | readonly string[]} modifiers - The modifier or modifiers: "Control", "Alt", "Shift", "Meta"
+ * @param {(held: boolean) => void} onHeld - Called with true once it's been held `delay` ms, false when let go
+ * @param {ModifierOptions} [options] - `delay` in ms (default 200), and where to listen (default the window)
+ * @returns {() => void} A function that stops
+ */
+declare function onModifierHold(modifiers: string | readonly string[], onHeld: (held: boolean) => void, options?: ModifierOptions): () => void;
+/**
+ * Calls back when a modifier is tapped (pressed and let go on its own) `count` times in quick succession, as in
+ * double-tapping Shift
+ * @example
+ *   onModifierTaps('Control', () => {
+ *     cheatsheet.open = !cheatsheet.open
+ *   })
+ * @param {string | readonly string[]} modifiers - The modifier or modifiers: "Control", "Alt", "Shift", "Meta"
+ * @param {() => void} onTaps - Called once they've happened
+ * @param {ModifierOptions} [options] - `count`: taps in a row (default 2); `within`: most ms from one tap's press to
+ *   the next tap's release (default 400); and where to listen (default the window)
+ * @returns {() => void} A function that stops
+ */
+declare function onModifierTaps(modifiers: string | readonly string[], onTaps: () => void, options?: ModifierOptions): () => void;
+export { onModifierHold, onModifierTaps };

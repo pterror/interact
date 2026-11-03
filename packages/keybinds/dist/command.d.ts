@@ -140,13 +140,13 @@ export type BindingSchemaFields = {
     menu?: string | readonly string[] | undefined;
 };
 export type BindingSchema = Readonly<BindingSchemaFields>;
-export type Schema = Record<string, BindingSchema>;
-export type BindingOverrides = Record<string, Readonly<{
+export type Schema = Readonly<Record<string, BindingSchema>>;
+export type BindingOverrides = Readonly<Record<string, Readonly<{
     axes?: readonly string[];
     gamepad?: readonly string[];
     keys?: readonly string[];
     mouse?: readonly string[];
-}>>;
+}>>>;
 /**
  * What `when` conditions and commands see: the app's state, as its context function gives it
  * @typedef {Readonly<Record<string, unknown>>} Context
@@ -217,12 +217,12 @@ export type BindingOverrides = Record<string, Readonly<{
  */
 /**
  * Every rebindable command and axis, by id
- * @typedef {Record<string, BindingSchema>} Schema
+ * @typedef {Readonly<Record<string, BindingSchema>>} Schema
  */
 /**
  * A person's rebindings, by id: only the fields they changed
- * @typedef {Record<string, Readonly<{ axes?: readonly string[], gamepad?: readonly string[],
- *   keys?: readonly string[], mouse?: readonly string[] }>>} BindingOverrides
+ * @typedef {Readonly<Record<string, Readonly<{ axes?: readonly string[], gamepad?: readonly string[],
+ *   keys?: readonly string[], mouse?: readonly string[] }>>>} BindingOverrides
  */
 /**
  * Whether a command or axis applies in a context
