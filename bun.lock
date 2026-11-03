@@ -5,10 +5,13 @@
     "": {
       "name": "interact",
       "devDependencies": {
+        "@interact/components": "workspace:*",
+        "@interact/core": "workspace:*",
         "@types/bun": "^1.3.7",
         "@typescript/native-preview": "^7.0.0-dev.20260129.1",
         "axe-core": "^4.14.0",
         "happy-dom": "^20.4.0",
+        "keybinds": "workspace:*",
         "oxfmt": "^0.76.0",
         "oxlint": "^1.90.0",
         "oxlint-tsgolint": "^7.0.2005",

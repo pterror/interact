@@ -1,11 +1,7 @@
 /**
- * CommandHub. Sources are re-read on refresh(); the hub lays people's overrides over their commands, listens, and keeps
- * its components and buttons in step. What fails is left out and reported as an `error` event, or to reportError().
- */
-
-/**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
  * @import { AxisDef, AxisValue, Command, Context, Schema } from './command.js'
+ * @import { CommandSystem } from './command-system.js'
  * @import { ContextMenu } from './context-menu.js'
  * @import { KeybindSettings } from './settings.js'
  * @import { CommandDefinition, Source } from './hub-commands.js'
@@ -16,13 +12,17 @@
  * @import { BindingsStore } from './store.js'
  */
 
+import { listenFor, systemOf } from './command-system.js'
 import { commandOf } from './definition.js'
 import { HubBindings } from './hub-bindings.js'
 import { CommandButtons } from './hub-buttons.js'
+import { HubContext } from './hub-context.js'
 import { componentsOf, listenOptions, reporterFor, storageOf } from './hub-options.js'
 
 /**
- * Every command on the page, from every source, with one store of people's rebindings
+ * Every command on the page, from every source, with one store of people's rebindings. Sources are re-read on
+ * refresh(); the hub lays people's overrides over their commands, listens, and keeps its components and buttons in
+ * step. What fails is left out and reported as an `error` event, or to reportError()
  * @template {CommandDefinition} [D=Command] - What its sources give: commands, or definitions `adapt` turns into them
  * @template {Context} [C=Context] - The context `when` conditions see
  * @example
@@ -37,9 +37,9 @@ class CommandHub extends EventTarget {
   #bindings
   /**
    * @readonly
-   * @type {() => C}
+   * @type {HubContext<C>}
    */
-  #base
+  #context
   /**
    * @readonly
    * @type {HubComponents | undefined}
@@ -49,8 +49,6 @@ class CommandHub extends EventTarget {
   #sources = []
   /** @type {readonly Source<AxisDef>[]} */
   #axisSources = []
-  /** @type {readonly (() => Partial<C>)[]} */
-  #contexts = []
   #scope = 'global'
   /** @readonly */
   #buttons = new CommandButtons({
@@ -65,7 +63,7 @@ class CommandHub extends EventTarget {
    */
   constructor(options) {
     super()
-    this.#base = options.context
+    this.#context = new HubContext(options.context)
     this.#bindings = new HubBindings({
       adapt: options.adapt ?? commandOf,
       changed: this.refresh.bind(this),
@@ -117,8 +115,7 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * Replaces the axes owned by `owner` (undefined removes them), from refresh() on. Axes are rebindable in the
-   * settings panel like commands, and read with axis(id)
+   * Replaces the axes owned by `owner` (undefined removes them) from refresh() on, rebindable and read with axis(id)
    * @param {string} owner - Which part of the app they're from
    * @param {(() => readonly AxisDef[]) | undefined} get - Gives the axes
    * @returns {void}
@@ -134,24 +131,16 @@ class CommandHub extends EventTarget {
    * @returns {() => void} A function that removes it again
    */
   addContext(get) {
-    this.#contexts = [...this.#contexts, get]
-    return () => {
-      this.#contexts = this.#contexts.filter((each) => each !== get)
-    }
+    return this.#context.add(get)
   }
 
   /** @returns {C} The context now: the app's, with every part added laid over it, later ones over earlier */
   context() {
-    const context = { ...this.#base() }
-    for (const get of this.#contexts) {
-      Object.assign(context, get())
-    }
-    return context
+    return this.#context.now()
   }
 
   /**
-   * Keeps rebindings separately per scope (a document type, a game), so a key can mean different things in each,
-   * from refresh() on
+   * Keeps rebindings per scope (a document type, a game) from refresh() on, so a key can mean different things in each
    * @param {string} scope - The scope
    * @returns {void}
    */
@@ -188,6 +177,17 @@ class CommandHub extends EventTarget {
     return this.#bindings.commands.get(id)
   }
 
+  /** @returns {CommandSystem} This hub as a command system, for a bridge to menus, a palette and buttons */
+  commandSystem() {
+    return systemOf({
+      all: () => this.all(),
+      applies: (id) => this.#bindings.applying(id, this.context()) !== undefined,
+      keys: (id) => this.bindingsFor(id, 'keys'),
+      listen: (listener) => listenFor(this, 'context', listener),
+      run: (id) => this.run(id),
+    })
+  }
+
   /**
    * Runs a command if it applies now
    * @param {string} id - The command
@@ -221,12 +221,14 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * Pushes the context now into the components and command buttons, so commands that don't apply gray out
+   * Pushes the context now into the components and command buttons, so commands that don't apply gray out, and tells
+   * whoever listens for `context` events that which commands apply may have changed
    * @returns {void}
    */
   syncContext() {
     this.#components?.sync(this.context())
     this.#buttons.paint()
+    this.dispatchEvent(new Event('context'))
   }
 
   /**
@@ -255,8 +257,7 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * A command's or axis's bindings through one input right now, as shown to people ("Ctrl+Z" for keys, "Mouse ↔" for
-   * axes)
+   * A command's or axis's bindings through one input now, as shown to people ("Ctrl+Z" for keys, "Mouse ↔" for axes)
    * @param {string} id - The command or axis
    * @param {string} field - The input's field: "keys", "mouse", "gamepad", "axes"
    * @returns {string[]} The bindings
@@ -277,8 +278,7 @@ class CommandHub extends EventTarget {
   }
 
   /**
-   * Makes every element with `data-command="<id>"` under `root` run that command when clicked, and be disabled while
-   * the command doesn't apply
+   * Makes every `data-command="<id>"` element under `root` run that command when clicked, disabled while it can't
    * @param {Element} root - Where the buttons are
    * @returns {() => void} A function that stops
    */

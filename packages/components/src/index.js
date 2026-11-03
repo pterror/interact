@@ -1,4 +1,6 @@
 export { Chooser } from './chooser.js'
+export { CommandBridge, showCommands } from './command-bridge.js'
+export { bindCommandButtons } from './command-buttons.js'
 export { Items } from './items.js'
 export { Listbox } from './listbox.js'
 export { Menu } from './menu.js'
