@@ -106,6 +106,28 @@ function zeroSpecificity(selector) {
 }
 
 const CSS_TEMPLATE = /\bcss`(?<text>[^`]*)`/gu
+const COMMA = ','
+
+/**
+ * The selectors in a selector list: split at its own commas, not those inside `:where(...)` or any other parentheses
+ * @param {string} list - The selector list
+ * @returns {string[]} Each selector, trimmed
+ */
+function selectorsOf(list) {
+  /** @type {string[]} */
+  const selectors = []
+  let depth = OUTSIDE
+  let start = OUTSIDE
+  for (let index = OUTSIDE; index < list.length; index += COMMA.length) {
+    const char = list.charAt(index)
+    depth += depthChange(char)
+    if (char === COMMA && depth === OUTSIDE) {
+      selectors.push(list.slice(start, index).trim())
+      start = index + COMMA.length
+    }
+  }
+  return [...selectors, list.slice(start).trim()]
+}
 
 /**
  * Selectors in some CSS that have specificity or sit outside a cascade layer
@@ -115,9 +137,7 @@ const CSS_TEMPLATE = /\bcss`(?<text>[^`]*)`/gu
  */
 function cssViolations(where, text) {
   return styleRules(text).flatMap(({ layered, selector }) =>
-    selector
-      .split(',')
-      .map((part) => part.trim())
+    selectorsOf(selector)
       .filter((part) => !layered || !zeroSpecificity(part))
       .map((part) => `${where}: ${part}`),
   )
@@ -167,4 +187,4 @@ async function stylesheetViolations() {
   return found.flat()
 }
 
-export { cssTemplates, styleRules, styledFiles, stylesheetViolations, zeroSpecificity }
+export { cssTemplates, selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecificity }

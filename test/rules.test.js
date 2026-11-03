@@ -9,7 +9,14 @@ import {
   sideEffectsBeyondStylesheets,
   typeEscapes,
 } from './repo.js'
-import { cssTemplates, styleRules, styledFiles, stylesheetViolations, zeroSpecificity } from './stylesheets.js'
+import {
+  cssTemplates,
+  selectorsOf,
+  styleRules,
+  styledFiles,
+  stylesheetViolations,
+  zeroSpecificity,
+} from './stylesheets.js'
 
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo', async () => {
@@ -59,6 +66,7 @@ describe('stylesheets', () => {
       [false, true],
       [true, false],
     ])
+    expect(selectorsOf(':where(.a, .b) , .c')).toEqual([':where(.a, .b)', '.c'])
   })
 })
 

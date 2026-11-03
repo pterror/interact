@@ -29,7 +29,8 @@ import { virtualRows } from './virtual-rows.js'
  * What a list's viewport is: its role, its id if anything refers to it, its accessible name (a label, or the id of
  * what names it), whether it selects several items, what each row renders, and what a key or focus entering it does.
  * `focusable` is false for a list whose focus stays elsewhere (a combobox's input, which then names the active row as
- * its own active descendant): the viewport is no Tab stop and names no active descendant.
+ * its own active descendant): the viewport is no Tab stop and names no active descendant, and so hears no keys and no
+ * focus, which a focusable one needs `keydown` and `focus` for.
  * @typedef {Readonly<{
  *   role: 'listbox' | 'menu',
  *   focusable?: boolean,
@@ -38,8 +39,8 @@ import { virtualRows } from './virtual-rows.js'
  *   label: string | undefined,
  *   multiselectable: boolean,
  *   row: (row: Row) => TemplateResult,
- *   keydown: (event: KeyboardEvent) => void,
- *   focus: () => void,
+ *   keydown?: (event: KeyboardEvent) => void,
+ *   focus?: () => void,
  * }>} Viewport
  */
 
@@ -124,11 +125,11 @@ function rowsViewport(listbox, viewport) {
     aria-activedescendant=${focusable ? activeDescendant(listbox) : undefined}
     style=${viewportStyle(listbox)}
     @focus=${() => {
-      viewport.focus()
+      viewport.focus?.()
     }}
     @keydown=${(event) => {
       if (event instanceof KeyboardEvent) {
-        viewport.keydown(event)
+        viewport.keydown?.(event)
       }
     }}
     @scroll=${(event) => {
