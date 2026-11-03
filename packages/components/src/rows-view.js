@@ -23,13 +23,15 @@ import { UNMEASURED_ROWS, offsetFor, rowAt, rowCap, virtualRows } from './virtua
  */
 
 /**
- * What every row has, whatever it shows: its id, its place among the items, whether it is the active item, whether
+ * What every row has, whatever it shows: its id, its place among the items, whether only some of the items are rendered
+ * (so assistive technology needs `setsize` and `posinset` to know where it is), whether it is the active item, whether
  * it is rendered only so it can be focused (outside the window), and the style that puts it in its scrollable row.
  * @typedef {Readonly<{
  *   id: string,
  *   position: number,
  *   setsize: number,
  *   posinset: number,
+ *   partial: boolean,
  *   active: boolean,
  *   offscreen: boolean,
  *   style: string,
@@ -119,7 +121,8 @@ function modifiersOf(event) {
  * @template T, F
  * @param {Listbox<T, F>} listbox - The listbox
  * @param {number} position - Where it is
- * @param {Readonly<{ offset: number, start: number, end: number }>} placement - The offset, and the window
+ * @param {Readonly<{ offset: number, start: number, end: number, rendered: number }>} placement - The offset, the
+ *   window, and how many rows are rendered
  * @returns {Row} The row
  */
 function rowAtPosition(listbox, position, placement) {
@@ -127,6 +130,7 @@ function rowAtPosition(listbox, position, placement) {
     active: listbox.active.get() === position,
     id: rowId(listbox, position),
     offscreen: position < placement.start || position >= placement.end,
+    partial: placement.rendered < listbox.items.count,
     posinset: position + ONE,
     position,
     setsize: listbox.items.count,
@@ -258,6 +262,8 @@ function activeDescendant(listbox) {
 function rowsViewport(listbox, viewport) {
   const offset = placeOffset(listbox)
   const { end, start } = listbox.scroll.window()
+  const positions = listbox.positions()
+  const rendered = positions.length
   return html`<div
     part="viewport"
     role=${viewport.role}
@@ -283,9 +289,9 @@ function rowsViewport(listbox, viewport) {
       part="spacer"
       style=${`--interact-virtual-rows: ${String(virtualRows(listbox.items.count, placedFor(listbox).cap))}`}
       >${repeat(
-        listbox.positions(),
+        positions,
         (position) => position,
-        (position) => viewport.row(rowAtPosition(listbox, position, { end, offset, start })),
+        (position) => viewport.row(rowAtPosition(listbox, position, { end, offset, rendered, start })),
       )}</div
     ></div
   >`

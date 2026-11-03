@@ -55,6 +55,18 @@ function markOf(entry) {
 }
 
 /**
+ * An item's place and the menu's size, for assistive technology, when only some rows are rendered; nothing for a
+ * separator or an entry not yet read, or when every row is rendered and the browser counts them itself.
+ * @template F
+ * @param {Row} row - The row
+ * @param {MenuEntry<F> | undefined} item - Its item, if it is one
+ * @returns {Readonly<{ setsize: number, posinset: number }> | undefined} The place and size
+ */
+function placeIn(row, item) {
+  return row.partial && item !== undefined ? { posinset: row.posinset, setsize: row.setsize } : undefined
+}
+
+/**
  * The pointer moved over a row: the menu makes it active, and focus comes to the menu's list unless it is there.
  * @template F
  * @param {Menu<F>} menu - The menu
@@ -97,7 +109,9 @@ function left(menu, position, event) {
 
 /**
  * One row: an item, with its check mark, label, shortcut and submenu arrow, or a separator; nothing until its entry
- * arrives. One template for every kind, so a row keeps its node whatever its entry turns out to be.
+ * arrives. One template for every kind, so a row keeps its node whatever its entry turns out to be. When only some
+ * rows are rendered, an item says its place and the menu's size, both counting separators (which entries before it are
+ * separators isn't known without reading them); when all are, the browser counts them itself.
  * @template F
  * @param {Menu<F>} menu - The menu
  * @param {Row} row - Where it is
@@ -115,6 +129,8 @@ function menuRow(menu, row) {
     aria-disabled=${item?.disabled === true ? 'true' : undefined}
     aria-haspopup=${opens ? 'menu' : undefined}
     aria-expanded=${opens ? String(menu.submenu?.position === row.position) : undefined}
+    aria-setsize=${placeIn(row, item)?.setsize}
+    aria-posinset=${placeIn(row, item)?.posinset}
     aria-busy=${entry === undefined ? 'true' : false}
     data-offscreen=${row.offscreen}
     style=${row.style}
