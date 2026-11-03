@@ -49,6 +49,8 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
 - Importing a module has no side effects: nothing is defined, registered or changed until the app calls something.
 - Every selector has zero specificity (`:where()`), inside a cascade layer; precedence comes only from layers.
 - Fully type-safe JSDoc: no casts, no `any`, no `@ts-` directives.
+- When a type isn't proven, change the code until it is. Never widen a type, drop a generic, or put `unknown` or a
+  looser type where a precise one stood to make a check pass: that defeats what the check is for.
 - Nothing is committed that fails `bun run check` or `bun test`.
 
 `test/rules.test.js` enforces the first four over everything but `packages/keybinds` (fenced in `test/repo.js` until its
