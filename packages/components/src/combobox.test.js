@@ -244,6 +244,19 @@ describe('an editable combobox with list autocomplete, opening by key', () => {
   })
 })
 
+describe('an editable combobox without autocomplete', () => {
+  test('keeps its options whatever is typed, opens on the first with Down, and fills the field with the choice', async () => {
+    const box = new Combobox({ clearOnEscape: false, kind: 'editable', source: fruitSource() })
+    box.type('zz')
+    await settle()
+    const typed = box.layer.open.get()
+    await press(box, ['ArrowDown', 'ArrowDown', 'Enter'])
+    const chosen = [box.text.get(), box.value.get()]
+    const kept = await press(box, ['Escape'])
+    expect([typed, chosen, kept, box.text.get()]).toEqual([false, ['Apricot', 'Apricot'], [false], 'Apricot'])
+  })
+})
+
 describe('an editable combobox with inline autocomplete', () => {
   test('completes the field with the first fruit found, but not while deleting', async () => {
     const box = fruitSearch('both')
