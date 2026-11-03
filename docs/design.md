@@ -37,6 +37,8 @@ design:
 
 ## Packages
 
+The five packages are settled, and each is usable on its own.
+
 Dependencies only point down this list. So far each new package is a manifest only; its first module comes with the
 first build step.
 
@@ -73,7 +75,9 @@ A component is its behavior, written once as a plain API, plus a default view an
   `@interact/core` has one primitive for this, so every component handles control the same way.
 - **Commands.** Components know nothing about commands. A bridge needs only two operations: "list the commands available
   in a context" and "run one by id". With those it keeps buttons, menus and the palette in step with any command system,
-  and keybinds is one such system.
+  and keybinds is one such system. It also accepts an optional third, "tell me when the list changes" (**Settled**):
+  where the command system provides it the bridge is live, and otherwise it looks again when the app asks or a menu or
+  the palette opens.
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
@@ -258,11 +262,12 @@ Web Awesome uses layers too (`styles/layers.css`), but its components barely use
 **Derived:** the manifest needs at least what Web Awesome's records for each tag: attributes, properties, events, slots,
 CSS parts, CSS states and CSS properties (`dist/custom-elements.json`).
 
-**Unverified:**
+**Settled:** codegen targets every mainstream framework. All of them get typed declarations. A framework gets a wrapper
+wherever its own custom element handling falls short of idiomatic: events as callbacks, and two-way binding where the
+framework has it.
 
-- Whether `@custom-elements-manifest/analyzer` reads this repo's JSDoc-typed classes correctly. As a development
-  dependency it doesn't break the no-runtime-dependency rule.
-- Which framework wrappers are worth generating, given each framework's own custom element support.
+**Unverified:** whether `@custom-elements-manifest/analyzer` reads this repo's JSDoc-typed classes correctly. As a
+development dependency it doesn't break the no-runtime-dependency rule.
 
 keybinds' `TODO.md` has a case of the problem codegen solves. `inputs` is set at runtime but missing from the generated
 declarations, so pteraworld has to cast to set it.
@@ -315,11 +320,12 @@ Its pieces are also what comes next is made of. The menu, the palette and the co
 scope and an overlay, and the command bridge feeds the menu and palette. After that, keybinds' elements can be replaced
 and deleted.
 
-## Open questions for the owner
+## Settled with the owner after the first draft
 
-1. **Bridge freshness.** With only "list" and "run", a button's enabled state updates when the app tells the bridge to
-   look again, or when a menu or palette opens. An optional third operation, "tell me when the list changes", would
-   remove that call. Should the bridge accept one when the command system has it?
-2. **Package boundaries.** Should the five packages above be the split? The alternative is fewer packages with more
-   subpath modules. Either way an app ships only the modules it imports.
-3. **Wrappers.** Which frameworks get generated wrappers?
+1. **Bridge freshness.** The bridge accepts an optional change notification and is live where the command system
+   provides one (see Components).
+2. **Package boundaries.** The five packages stay, and each is usable on its own.
+3. **Wrappers.** Typed declarations for every mainstream framework, and wrappers where its own custom element handling
+   falls short of idiomatic (see Generated wrappers and types).
+4. **Order.** The listbox slice comes first. Bringing keybinds under the repo's rules (its 5,369 lint diagnostics and
+   206 casts) is its own task after that.
