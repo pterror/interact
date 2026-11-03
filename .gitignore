@@ -4,8 +4,8 @@ result
 
 # Node
 node_modules/
-docs/.vitepress/cache/
-docs/.vitepress/dist/
+packages/*/docs/.vitepress/cache/
+packages/*/docs/.vitepress/dist/
 
 # IDE
 .idea/

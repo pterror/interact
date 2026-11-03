@@ -1,0 +1,14 @@
+{
+  "name": "@interact/components",
+  "version": "0.0.0",
+  "description": "Components: each a behavior with a default web view, and the bridge to a command system",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  }
+}

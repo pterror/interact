@@ -1,0 +1,20 @@
+{
+  "name": "interact",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "check": "oxfmt --check && oxlint && for p in tsconfig.json packages/*/tsconfig.json; do tsgo --noEmit -p \"$p\" || exit 1; done"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.7",
+    "@typescript/native-preview": "^7.0.0-dev.20260129.1",
+    "happy-dom": "^20.4.0",
+    "oxfmt": "^0.76.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@interact/dom",
+  "version": "0.0.0",
+  "description": "Templates with holes, rendered to the DOM or to a string, hydrated, and registered as custom elements",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  }
+}

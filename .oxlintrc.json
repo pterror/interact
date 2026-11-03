@@ -1,0 +1,117 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "eslint",
+    "unicorn",
+    "typescript",
+    "oxc",
+    "import",
+    "jsdoc",
+    "promise",
+    "node",
+    "jest",
+    "vitest",
+    "react",
+    "react-perf",
+    "jsx-a11y",
+    "nextjs",
+    "vue"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error",
+    "nursery": "error"
+  },
+  // typeCheck stays off: tsgo already type-checks every package in `bun run check`.
+  "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
+  "env": { "browser": true, "es2024": true },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/docs/.vitepress/**",
+    // keybinds predates these rules: 5,369 diagnostics across 106 rules. Linting it is its own change (its TODO.md).
+    "packages/keybinds/**"
+  ],
+  "rules": {
+    // A JSDoc @type on a combined declaration types only its first declarator; typing the others needs an inline
+    // comment, which eslint/no-inline-comments forbids.
+    "eslint/one-var": "off",
+    // Each needs TypeScript-only syntax that is an error in a .js file: `public` (TS8009), `interface` (TS8006),
+    // `x!` (TS8013).
+    "typescript/explicit-member-accessibility": "off",
+    "typescript/consistent-type-definitions": "off",
+    "typescript/non-nullable-type-assertion-style": "off",
+    // Contradict import/no-default-export. Modules export named classes and functions for the app to register.
+    "import/no-named-export": "off",
+    "import/prefer-default-export": "off",
+    // Contradicts unicorn/prefer-ternary.
+    "eslint/no-ternary": "off",
+    // Contradicts typescript/prefer-optional-chain.
+    "oxc/no-optional-chaining": "off",
+    // Contradicts promise/prefer-await-to-then and promise/prefer-await-to-callbacks.
+    "oxc/no-async-await": "off",
+    // Contradicts eslint/prefer-object-spread.
+    "oxc/no-rest-spread-properties": "off",
+    // With unicorn/no-null, eslint/no-void and typescript/consistent-return, nothing could express a missing value.
+    // undefined is what optional parameters and properties hold.
+    "eslint/no-undefined": "off",
+    // A variable assigned later has no value yet: unicorn/no-useless-undefined forbids `= undefined` and
+    // unicorn/no-null forbids `= null`.
+    "eslint/init-declarations": "off",
+    // Tests import from bun:test, the runner.
+    "vitest/prefer-importing-vitest-globals": "off",
+    // Contradicts typescript/promise-function-async, which needs `async` on a function that returns a promise without
+    // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
+    "eslint/require-await": "off",
+    "eslint/func-style": ["error", "declaration"],
+    // oxfmt's sortImports orders declarations by source, which this rule's declaration order rejects.
+    "eslint/sort-imports": ["error", { "ignoreDeclarationSort": true }],
+    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule.
+    "typescript/prefer-readonly-parameter-types": [
+      "error",
+      {
+        "allow": [
+          {
+            "from": "lib",
+            "name": [
+              "CSSStyleSheet",
+              "CustomElementRegistry",
+              "CustomEvent",
+              "Document",
+              "DocumentFragment",
+              "Element",
+              "Event",
+              "EventTarget",
+              "FocusEvent",
+              "HTMLElement",
+              "KeyboardEvent",
+              "MouseEvent",
+              "Node",
+              "PointerEvent",
+              "RegExp",
+              "ShadowRoot",
+              "WheelEvent",
+              "Window"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["test/**"],
+      "globals": { "Bun": "readonly" }
+    },
+    {
+      // A preload runs before test files import code that reads globals as it loads (keybinds' core.js reads
+      // navigator), so the globals can't wait for a hook.
+      "files": ["test/dom.js"],
+      "rules": { "jest/require-hook": "off", "vitest/require-hook": "off" }
+    }
+  ]
+}

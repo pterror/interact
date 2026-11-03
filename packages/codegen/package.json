@@ -1,0 +1,14 @@
+{
+  "name": "@interact/codegen",
+  "version": "0.0.0",
+  "description": "Typed declarations and framework wrappers, generated from a Custom Elements Manifest",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  }
+}

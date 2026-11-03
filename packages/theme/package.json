@@ -1,0 +1,14 @@
+{
+  "name": "@interact/theme",
+  "version": "0.0.0",
+  "description": "The default visual theme: role-based tokens, kept apart from components' structural CSS",
+  "files": [
+    "*.css"
+  ],
+  "sideEffects": [
+    "./*.css"
+  ],
+  "exports": {
+    "./*.css": "./*.css"
+  }
+}

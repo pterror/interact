@@ -1,5 +1,5 @@
 {
-  description = "keybinds - Declarative, contextual keybindings for the web";
+  description = "interact - UI components, behavior first, no framework";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

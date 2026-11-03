@@ -1,0 +1,14 @@
+{
+  "name": "@interact/core",
+  "version": "0.0.0",
+  "description": "Behavior without a view: state that can be controlled or left alone, data sources, selection, focus scopes",
+  "files": [
+    "src"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  }
+}
