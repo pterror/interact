@@ -127,7 +127,9 @@
           // view is handed the behavior to read and act on, so the behavior's own type can't be readonly.
           { "from": "file", "name": ["Listbox"], "path": "src/listbox.js" },
           // The page a browser test drives is the browser itself.
-          { "from": "package", "name": ["Page"], "package": "playwright-core" }
+          { "from": "package", "name": ["Page"], "package": "playwright-core" },
+          // What the accessibility checker reports, as it makes it.
+          { "from": "package", "name": ["Result", "NodeResult"], "package": "axe-core" }
         ]
       }
     ]
@@ -135,7 +137,8 @@
   "overrides": [
     {
       "files": ["test/**", "**/*.test.js"],
-      "globals": { "Bun": "readonly" }
+      // axe is defined in test pages by axe-core's script (test/axe-global.d.ts).
+      "globals": { "Bun": "readonly", "axe": "readonly" }
     },
     {
       // A package's tests use the repo's one browser harness (test/browser.js), which only a parent path reaches; a

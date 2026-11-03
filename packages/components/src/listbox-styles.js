@@ -22,11 +22,11 @@ const listboxStyles = css`
         --interact-listbox-option-hover-fill,
         var(--interact-color-neutral-fill-quiet, color-mix(in srgb, CanvasText 8%, transparent))
       );
-      --_selected-fill: var(--interact-listbox-option-selected-fill, var(--interact-color-brand-fill-loud, Highlight));
-      --_selected-color: var(
-        --interact-listbox-option-selected-color,
-        var(--interact-color-brand-on-loud, HighlightText)
+      --_selected-fill: var(
+        --interact-listbox-option-selected-fill,
+        var(--interact-color-brand-fill-loud, color-mix(in srgb, Highlight 25%, Canvas))
       );
+      --_selected-color: var(--interact-listbox-option-selected-color, var(--interact-color-brand-on-loud, CanvasText));
       --_padding: var(--interact-listbox-option-padding, var(--interact-space-inline, 0.75em));
 
       display: block;
@@ -87,6 +87,22 @@ const listboxStyles = css`
     :where([part~='viewport']:focus-visible [part~='option-active']) {
       outline: 2px solid var(--_focus);
       outline-offset: -2px;
+    }
+
+    :where([part~='viewport']:focus-visible [part~='option-active'][part~='option-selected']) {
+      outline-color: var(--_selected-color);
+    }
+
+    @media (forced-colors: active) {
+      :where([part~='option-selected']) {
+        forced-color-adjust: none;
+        background: Highlight;
+        color: HighlightText;
+      }
+
+      :where([part~='viewport']:focus-visible [part~='option-active'][part~='option-selected']) {
+        outline-color: HighlightText;
+      }
     }
 
     :where([part~='option'][data-offscreen]) {

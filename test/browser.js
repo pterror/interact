@@ -5,6 +5,8 @@
  * one, every test in it fails rather than being skipped.
  */
 
+/// <reference path="./axe-global.d.ts" />
+
 import { chromium, firefox, webkit } from 'playwright-core'
 
 /** @import { Browser, Page } from 'playwright-core' */
@@ -16,6 +18,7 @@ import { chromium, firefox, webkit } from 'playwright-core'
 
 /** @type {readonly Engine[]} */
 const BROWSERS = ['chrome', 'firefox', 'webkit']
+const AXE = new URL(import.meta.resolve('axe-core/axe.min.js')).pathname
 
 const ROOT = new URL('..', import.meta.url).pathname
 const PAGE = /^\/(?<dir>.*)\/__page-(?<id>\d+)\.html$/u
@@ -196,6 +199,23 @@ async function withPage(options, drive) {
 }
 
 /**
+ * The accessibility problems axe-core finds in what a selector picks out of a page, shadow roots included, with every
+ * rule it runs by default (WCAG 2 A and AA, and its best practices).
+ * @param {Page} page - The page
+ * @param {string} selector - What to check
+ * @returns {Promise<string[]>} Each problem, as "rule: element"
+ */
+async function audit(page, selector) {
+  await page.addScriptTag({ path: AXE })
+  return page.evaluate(async (context) => {
+    const results = await axe.run(context)
+    return results.violations.flatMap((violation) =>
+      violation.nodes.map((node) => `${violation.id}: ${node.target.flat().join(' ')}`),
+    )
+  }, selector)
+}
+
+/**
  * Stops the browsers and the page server, if they started.
  * @returns {Promise<void>} When they have stopped
  */
@@ -216,4 +236,4 @@ async function closeBrowser() {
   }
 }
 
-export { BROWSERS, closeBrowser, inBrowser, withPage }
+export { BROWSERS, audit, closeBrowser, inBrowser, withPage }

@@ -7,7 +7,7 @@ import { afterAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { BROWSERS, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 import { MAX_SCROLL_PIXELS, rowCap } from './virtual-rows.js'
@@ -173,7 +173,7 @@ describe.each(CASES)('the listbox in %s DOM, in %s', (mode, engine) => {
 describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mode, engine) => {
   test("stay under every browser's limit for tall rows at 200% zoom, and still land exactly", async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {
-      const { zoomedTallRows } = await import('./test-pages.js')
+      const { zoomedTallRows } = await import('./test-pages-rows.js')
       return zoomedTallRows(dom)
     })
     expect(seen.scrollable).toBe(rowCap(TALL_ROW * ZOOM))
@@ -184,12 +184,49 @@ describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mod
 
   test('land exactly with rows a fraction of a pixel tall, near the limit', async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {
-      const { fractionalRows } = await import('./test-pages.js')
+      const { fractionalRows } = await import('./test-pages-rows.js')
       return fractionalRows(dom)
     })
     expect([seen.last.top, seen.last.bottom]).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
     expect([seen.fiveBillion.top, seen.fiveBillion.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
   })
+})
+
+describe.each(CASES)('the listbox in %s DOM, in %s, to an accessibility checker', (mode, engine) => {
+  test('has no problems as the server renders it, before it is live', async () => {
+    const body = serverPage(mode, FIVE_BILLION)
+    expect(
+      await withPage({ body, engine, moduleUrl: import.meta.url }, async (page) => audit(page, 'x-listbox')),
+    ).toEqual([])
+  })
+
+  test.each(['', '<link rel="stylesheet" href="/packages/theme/tokens.css">'])(
+    'has no problems focused, with an item active and some chosen, with the theme or none (%p)',
+    async (body) => {
+      const found = await withPage({ body, engine, moduleUrl: import.meta.url }, async (page) => {
+        await page.evaluate(async (dom) => {
+          const { focusedAndChosen } = await import('./test-pages.js')
+          await focusedAndChosen(dom)
+        }, mode)
+        return audit(page, 'x-listbox')
+      })
+      expect(found).toEqual([])
+    },
+  )
+
+  test.each(['', '<link rel="stylesheet" href="/packages/theme/tokens.css">'])(
+    'outlines the active option in a color its selected fill does not hide (%p)',
+    async (body) => {
+      const seen = await withPage({ body, engine, moduleUrl: import.meta.url }, async (page) =>
+        page.evaluate(async (dom) => {
+          const { activeSelectedOutline } = await import('./test-pages.js')
+          return activeSelectedOutline(dom)
+        }, mode),
+      )
+      expect(seen.outline).not.toBe(seen.fill)
+      expect(seen.width).toBe('2px')
+    },
+  )
 })
 
 describe.each(CASES)('tokens for the listbox in %s DOM, in %s', (mode, engine) => {
@@ -210,7 +247,7 @@ describe.each(CASES)('native scrolling of the listbox in %s DOM, in %s', (mode, 
   test('crosses a move of the offset without skipping a row or going back', async () => {
     const turns = summary(
       await wheeled({ engine, mode }, async (dom) => {
-        const { beforeRecentring } = await import('./test-pages.js')
+        const { beforeRecentring } = await import('./test-pages-rows.js')
         return beforeRecentring(dom)
       }),
     )
@@ -221,7 +258,7 @@ describe.each(CASES)('native scrolling of the listbox in %s DOM, in %s', (mode, 
   test('reaches the very last item and stops there', async () => {
     const turns = summary(
       await wheeled({ engine, mode }, async (dom) => {
-        const { beforeTheEnd } = await import('./test-pages.js')
+        const { beforeTheEnd } = await import('./test-pages-rows.js')
         return beforeTheEnd(dom)
       }),
     )

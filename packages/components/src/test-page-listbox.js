@@ -1,6 +1,7 @@
 /**
  * The listbox in a browser test's page: registering it, finding it, acting on it as a person would, and seeing what
  * it shows.
+ * @import { DomMode } from '@interact/dom/css'
  * @import { Listbox } from './listbox.js'
  * @import { Numbered, Range } from './test-helpers.js'
  */
@@ -26,6 +27,7 @@ import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
  */
 
 const ONE = 1
+const NONE = 0
 const HALF = 2
 const HALF_PIXEL = 0.5
 
@@ -150,11 +152,12 @@ function seen() {
  * A key pressed on the viewport.
  * @param {string} key - The key
  * @param {boolean} [toggle] - Whether the toggle modifier is held
+ * @param {boolean} [shift] - Whether Shift is held
  * @returns {void}
  */
-function press(key, toggle = false) {
+function press(key, toggle = false, shift = false) {
   parts().viewport.dispatchEvent(
-    new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ctrlKey: toggle, key }),
+    new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ctrlKey: toggle, key, shiftKey: shift }),
   )
 }
 
@@ -167,4 +170,18 @@ function middle() {
   return { across: box.left + box.width / HALF, down: box.top + box.height / HALF }
 }
 
-export { latest, middle, parts, press, reads, registerListbox, seen, settle }
+/**
+ * Puts a new listbox in the page, in a DOM mode.
+ * @param {DomMode} mode - Where it lives
+ * @returns {Promise<Listbox<Numbered, Range>>} It, once it has rendered
+ */
+async function fresh(mode) {
+  registerListbox(NONE)
+  const element = document.createElement('x-listbox')
+  element.setAttribute('dom-mode', mode)
+  document.body.append(element)
+  await settle()
+  return latest()
+}
+
+export { fresh, latest, middle, parts, press, reads, registerListbox, seen, settle }
