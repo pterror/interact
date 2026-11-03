@@ -8,7 +8,8 @@
 import { html } from '@interact/dom'
 
 import { listboxStyles } from './listbox-styles.js'
-import { modifiersOf, rowsViewport, syncRows } from './rows-view.js'
+import { syncRows } from './rows-place.js'
+import { modifiersOf, rowsViewport } from './rows-view.js'
 
 /**
  * One option: its text, or nothing until it arrives, placed in its scrollable row, and hidden but present when it is
