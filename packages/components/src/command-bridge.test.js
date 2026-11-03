@@ -15,6 +15,7 @@ import { Menu } from './menu.js'
 /** @type {Readonly<{ direction: 'ltr' | 'rtl', modifiers: Readonly<{ shift: boolean, toggle: boolean }> }>} */
 const PLAIN = { direction: 'ltr', modifiers: { shift: false, toggle: false } }
 const SECOND = 1
+const NO_TIME = 0
 
 /**
  * A command system for the tests: commands in a list the test changes, which it can say has changed, or not.
@@ -163,5 +164,41 @@ describe('command buttons', () => {
     pressButton(root, 'save')
     stop()
     expect([before, after, ran]).toEqual([[false, true], [true, true], ['save in toolbar']])
+  })
+})
+
+describe('a menu of commands shown by a view', () => {
+  test('runs the command chosen only once the view says the menu has gone, in the context it was chosen in', () => {
+    const { menu, ran } = commandMenu(true)
+    menu.open()
+    menu.layer.shown.set(true)
+    menuKey(menu, 'Enter', PLAIN)
+    const whileShown = [...ran]
+    menu.layer.shown.set(false)
+    expect([whileShown, ran]).toEqual([[], ['save in edit']])
+  })
+})
+
+describe('searching commands through the bridge', () => {
+  test('finds them among those listed by label when the system cannot search', async () => {
+    const { system } = commands(true)
+    const found = await new CommandBridge(system).search('sa', 'edit')
+    expect(found.map(({ id }) => id)).toEqual(['save'])
+  })
+
+  test("asks the system's own search when it has one", async () => {
+    const { system } = commands(true)
+    /** @type {string[]} */
+    const asked = []
+    const bridge = new CommandBridge({
+      ...system,
+      search: async (query, context) => {
+        asked.push(`${query} in ${context}`)
+        await Bun.sleep(NO_TIME)
+        return [{ enabled: true, id: 'undo', label: 'Undo' }]
+      },
+    })
+    const found = await bridge.search('u', 'edit')
+    expect([asked, found.map(({ id }) => id)]).toEqual([['u in edit'], ['undo']])
   })
 })

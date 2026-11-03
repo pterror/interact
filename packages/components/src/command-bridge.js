@@ -3,13 +3,19 @@
  * two things of a command system, "list the commands available in a context" and "run one by id", and a third if it
  * has it, "tell me when the list may have changed". With that third it is live: menus and buttons follow every change
  * as it happens. Without it they look again when the app says so (`refresh`), and a menu each time it opens.
+ *
+ * A palette searches the commands. A command system that ranks its own (by how often each is used, say, or on a
+ * server) has a fourth, `search`; the bridge asks it, and it may answer later. Without it, the bridge finds commands
+ * among those listed by their labels (`matchCommands`).
  * @import { MemorySource, Span } from '@interact/core/memory-source'
+ * @import { FoundCommand } from './command-match.js'
  * @import { Menu } from './menu.js'
  * @import { MenuEntry } from './menu-entry.js'
  */
 
 import { Listeners } from '@interact/core'
 
+import { matchCommands } from './command-match.js'
 import { menuEntries } from './menu-entry.js'
 
 /**
@@ -27,12 +33,14 @@ import { menuEntries } from './menu-entry.js'
 
 /**
  * What a command system gives the bridge: the commands available in a context (what the context is, the system says:
- * a menu's name, say), running one by id there, and, if it can, hearing when its list may have changed.
+ * a menu's name, say), running one by id there, and, if it can, hearing when its list may have changed, and finding
+ * commands by what was typed, best first, with where each matched, at once or later.
  * @template C
  * @typedef {Readonly<{
  *   list: (context: C) => readonly BridgeCommand[],
  *   run: (id: string, context: C) => boolean,
  *   subscribe?: (listener: () => void) => () => void,
+ *   search?: (query: string, context: C) => readonly FoundCommand[] | Promise<readonly FoundCommand[]>,
  * }>} CommandSystem
  */
 
@@ -88,6 +96,17 @@ class CommandBridge {
    */
   list(context) {
     return this.#system.list(context)
+  }
+
+  /**
+   * The commands found for what was typed, in a context, best first: the system's own search if it has one, otherwise
+   * those listed whose label has it.
+   * @param {string} query - What was typed
+   * @param {C} context - The context
+   * @returns {readonly FoundCommand[] | Promise<readonly FoundCommand[]>} What was found, at once or later
+   */
+  search(query, context) {
+    return this.#system.search?.(query, context) ?? matchCommands(this.#system.list(context), query)
   }
 
   /**
@@ -153,7 +172,8 @@ function updateEntries(source, entries) {
 
 /**
  * Makes a menu show the commands available in a context, and run the one chosen: its entries are listed when it opens,
- * and again whenever the bridge says the list may have changed while it is open.
+ * and again whenever the bridge says the list may have changed while it is open. A command chosen runs in the context
+ * it was chosen in, once the menu has gone and focus is back where it was, so it acts on what the person was on.
  * @template C
  * @param {Menu<Span>} menu - The menu, made with no entries of its own
  * @param {CommandBridge<C>} bridge - The bridge to the command system
@@ -182,7 +202,10 @@ function showCommands(menu, bridge, context) {
       }
     }),
     menu.onSelect(({ entry }) => {
-      bridge.run(entry.id, context())
+      const at = context()
+      menu.layer.afterHidden(() => {
+        bridge.run(entry.id, at)
+      })
     }),
   ]
   return () => {
