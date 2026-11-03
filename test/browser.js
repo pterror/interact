@@ -1,12 +1,21 @@
 /**
- * Runs test code in real Chrome, for what happy-dom doesn't do faithfully: adopted stylesheets, `@scope`, declarative
- * shadow roots, layout. Chrome is found as `$CHROME`, `google-chrome`, `google-chrome-stable` or `chromium`; without
- * one, every browser test fails rather than being skipped.
+ * Runs test code in real browsers, for what happy-dom doesn't do faithfully: adopted stylesheets, `@scope`,
+ * declarative shadow roots, layout. Chrome is found as `$CHROME`, `google-chrome`, `google-chrome-stable` or
+ * `chromium`; Firefox and WebKit are playwright's, from `$PLAYWRIGHT_BROWSERS_PATH` (the dev shell sets it). Without
+ * one, every test in it fails rather than being skipped.
  */
 
-import { chromium } from 'playwright-core'
+import { chromium, firefox, webkit } from 'playwright-core'
 
-/** @import { Browser } from 'playwright-core' */
+/** @import { Browser, Page } from 'playwright-core' */
+
+/**
+ * A browser engine the tests run in.
+ * @typedef {'chrome' | 'firefox' | 'webkit'} Engine
+ */
+
+/** @type {readonly Engine[]} */
+const BROWSERS = ['chrome', 'firefox', 'webkit']
 
 const ROOT = new URL('..', import.meta.url).pathname
 const PAGE = /^\/(?<dir>.*)\/__page-(?<id>\d+)\.html$/u
@@ -15,12 +24,14 @@ const MISSING = 404
 const NONE = 0
 
 /**
- * The browser and the server it loads pages from, started once per test run.
- * @typedef {Readonly<{ browser: Browser, server: Bun.Server<undefined>, pages: Map<string, string> }>} Running
+ * The server pages are loaded from, started once per test run, and the test pages' bodies it serves.
+ * @typedef {Readonly<{ server: Bun.Server<undefined>, pages: Map<string, string> }>} Serving
  */
 
-/** @type {Promise<Running> | undefined} */
-let running = undefined
+/** @type {Promise<Serving> | undefined} */
+let serving = undefined
+/** @type {Map<Engine, Promise<Browser>>} */
+const launched = new Map()
 
 /**
  * The Chrome to run.
@@ -77,27 +88,59 @@ async function respond(path, pages, map) {
 }
 
 /**
- * Starts Chrome and the page server.
- * @returns {Promise<Running>} Them
+ * Starts the page server.
+ * @returns {Promise<Serving>} It, and the pages it serves
  */
-async function launch() {
+async function serve() {
   /** @type {Map<string, string>} */
   const pages = new Map()
   const map = await importMap()
   const server = Bun.serve({ fetch: async (request) => respond(new URL(request.url).pathname, pages, map), port: NONE })
-  const browser = await chromium.launch({ args: ['--no-sandbox'], executablePath: chromePath() })
-  return { browser, pages, server }
+  return { pages, server }
 }
 
 /**
- * Opens a page in the test file's directory, noting any errors in it.
- * @param {string} moduleUrl - The test file's `import.meta.url`
- * @param {string} body - Markup for the page's body
- * @returns {Promise<Readonly<{ page: import('playwright-core').Page, errors: readonly Error[] }>>} The page, and its errors
+ * Starts a browser.
+ * @param {Engine} engine - Which
+ * @returns {Promise<Browser>} It
  */
-async function openPage(moduleUrl, body) {
-  running ??= launch()
-  const { browser, pages, server } = await running
+async function launch(engine) {
+  if (engine === 'chrome') {
+    return chromium.launch({ args: ['--no-sandbox'], executablePath: chromePath() })
+  }
+  return engine === 'firefox' ? firefox.launch() : webkit.launch()
+}
+
+/**
+ * A browser, started the first time it is asked for.
+ * @param {Engine} engine - Which
+ * @returns {Promise<Browser>} It
+ */
+async function browserFor(engine) {
+  const known = launched.get(engine)
+  if (known) {
+    return known
+  }
+  const started = launch(engine)
+  launched.set(engine, started)
+  return started
+}
+
+/**
+ * Where a test page opens: the browser, the test file's `import.meta.url` (the page is in the file's directory), and
+ * markup for the page's body, parsed as a page load parses it (declarative shadow roots too).
+ * @typedef {Readonly<{ engine: Engine, moduleUrl: string, body?: string }>} PageOptions
+ */
+
+/**
+ * Opens a page in the test file's directory, noting any errors in it.
+ * @param {PageOptions} options - Where it opens
+ * @returns {Promise<Readonly<{ page: Page, errors: readonly Error[] }>>} The page, and its errors
+ */
+async function openPage({ body = '', engine, moduleUrl }) {
+  serving ??= serve()
+  const { pages, server } = await serving
+  const browser = await browserFor(engine)
   const id = String(pages.size)
   pages.set(id, body)
   const page = await browser.newPage()
@@ -111,16 +154,15 @@ async function openPage(moduleUrl, body) {
 }
 
 /**
- * Runs a function in a fresh Chrome page, beside the test file: the page is in the file's directory, so the function's
+ * Runs a function in a fresh page, beside the test file: the page is in the file's directory, so the function's
  * imports (`await import('./x.js')`) resolve as the file's do, and are typed as they are. Errors in the page fail it.
  * @template R
- * @param {string} moduleUrl - The test file's `import.meta.url`
+ * @param {PageOptions} options - Where the page opens
  * @param {() => R | Promise<R>} run - What to run; it can't use the test file's variables, only what it imports
- * @param {string} [body] - Markup for the page's body, parsed as a page load parses it (declarative shadow roots too)
  * @returns {Promise<R>} What it returned
  */
-async function inBrowser(moduleUrl, run, body = '') {
-  const { errors, page } = await openPage(moduleUrl, body)
+async function inBrowser(options, run) {
+  const { errors, page } = await openPage(options)
   try {
     const result = await page.evaluate(run)
     if (errors.length > NONE) {
@@ -133,16 +175,15 @@ async function inBrowser(moduleUrl, run, body = '') {
 }
 
 /**
- * Opens a fresh Chrome page beside the test file and hands it to `drive`, for what a function run inside the page
- * can't do: real input (the mouse wheel, keys) and waiting between steps. Errors in the page fail it.
+ * Opens a fresh page beside the test file and hands it to `drive`, for what a function run inside the page can't do:
+ * real input (the mouse wheel, keys) and waiting between steps. Errors in the page fail it.
  * @template R
- * @param {string} moduleUrl - The test file's `import.meta.url`
- * @param {string} body - Markup for the page's body
- * @param {(page: import('playwright-core').Page) => Promise<R>} drive - What to do with the page
+ * @param {PageOptions} options - Where the page opens
+ * @param {(page: Page) => Promise<R>} drive - What to do with the page
  * @returns {Promise<R>} What it returned
  */
-async function withPage(moduleUrl, body, drive) {
-  const { errors, page } = await openPage(moduleUrl, body)
+async function withPage(options, drive) {
+  const { errors, page } = await openPage(options)
   try {
     const result = await drive(page)
     if (errors.length > NONE) {
@@ -155,17 +196,24 @@ async function withPage(moduleUrl, body, drive) {
 }
 
 /**
- * Stops Chrome and the page server, if they started.
+ * Stops the browsers and the page server, if they started.
  * @returns {Promise<void>} When they have stopped
  */
 async function closeBrowser() {
-  if (!running) {
-    return
+  const browsers = [...launched.values()]
+  launched.clear()
+  const started = serving
+  serving = undefined
+  await Promise.all(
+    browsers.map(async (starting) => {
+      const browser = await starting
+      await browser.close()
+    }),
+  )
+  if (started) {
+    const { server } = await started
+    await server.stop()
   }
-  const { browser, server } = await running
-  running = undefined
-  await browser.close()
-  await server.stop()
 }
 
-export { closeBrowser, inBrowser, withPage }
+export { BROWSERS, closeBrowser, inBrowser, withPage }

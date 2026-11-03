@@ -10,6 +10,8 @@
 
 /** The attribute every component carries, naming its kind, so styles and code never depend on tag names. */
 const KIND_ATTRIBUTE = 'data-interact'
+/** The attribute on the element a shadow-DOM component's view is rendered in, the one child of its shadow root. */
+const VIEW_ATTRIBUTE = 'data-interact-view'
 const KIND = /^[a-z][a-z0-9-]*$/u
 const NONE = 0
 
@@ -44,14 +46,23 @@ function checkKind(kind) {
 /**
  * A stylesheet's text scoped to one component: to the shadow host in shadow DOM, and to elements of its kind in light
  * DOM. Either way the scope stops at any component inside it, which styles itself.
+ *
+ * Firefox 157 drops every element below the host from `@scope (:host) to (...)` (Mozilla bug 2023867), and no engine
+ * matches a scope root with a selector that doesn't name `:scope`. So shadow DOM gets two scopes: the host alone, and
+ * the element the view is rendered in, stopping at components inside, where the host is `:host`.
  * @param {Stylesheet} sheet - The stylesheet
  * @param {string} kind - The component's kind
  * @param {DomMode} mode - Where it lives
  * @returns {string} The scoped text
  */
 function scopedText(sheet, kind, mode) {
-  const root = mode === 'shadow' ? ':host' : `[${KIND_ATTRIBUTE}="${checkKind(kind)}"]`
-  return `@scope (${root}) to ([${KIND_ATTRIBUTE}]) {\n${sheet.text}\n}\n`
+  const limit = `to ([${KIND_ATTRIBUTE}])`
+  if (mode === 'light') {
+    return `@scope ([${KIND_ATTRIBUTE}="${checkKind(kind)}"]) ${limit} {\n${sheet.text}\n}\n`
+  }
+  const below = sheet.text.replaceAll(/:scope(?![\w-])/gu, ':host')
+  const view = `[${VIEW_ATTRIBUTE}]`
+  return `@scope (:host) to (${view}) {\n${sheet.text}\n}\n@scope (:host > ${view}) ${limit} {\n${below}\n}\n`
 }
 
-export { KIND_ATTRIBUTE, checkKind, css, scopedText }
+export { KIND_ATTRIBUTE, VIEW_ATTRIBUTE, checkKind, css, scopedText }

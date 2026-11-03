@@ -45,9 +45,10 @@ function colorsIn(mode) {
   counter.setAttribute('dom-mode', mode)
   document.body.append(counter)
   const root = counter.shadowRoot ?? counter
+  const view = counter.shadowRoot?.querySelector('[data-interact-view]') ?? counter
   const badge = document.createElement('t-badge')
   badge.setAttribute('dom-mode', 'light')
-  root.append(badge)
+  view.append(badge)
   return {
     badge: colorOf(badge.querySelector('span')),
     count: colorOf(root.querySelector('button')),

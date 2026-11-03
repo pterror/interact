@@ -12,7 +12,10 @@ const SHEET = css`
 
 describe('css', () => {
   test('scopes one text to the shadow host, or to elements of its kind, stopping at components inside', () => {
-    expect(scopedText(SHEET, 'listbox', 'shadow')).toStartWith('@scope (:host) to ([data-interact]) {')
+    const shadow = scopedText(SHEET, 'listbox', 'shadow')
+    expect(shadow).toStartWith('@scope (:host) to ([data-interact-view]) {')
+    expect(shadow).toContain('@scope (:host > [data-interact-view]) to ([data-interact]) {')
+    expect(shadow.slice(shadow.indexOf('@scope (:host > [data-interact-view]) to'))).toContain(':where(:host)')
     expect(scopedText(SHEET, 'listbox', 'light')).toStartWith(
       '@scope ([data-interact="listbox"]) to ([data-interact]) {',
     )

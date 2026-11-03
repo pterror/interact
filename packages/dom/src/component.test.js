@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test'
 
-import { closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
 import { component } from './component.js'
 import { register } from './register.js'
 import { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
@@ -32,9 +32,9 @@ describe('component', () => {
   })
 })
 
-describe('component, in Chrome', () => {
+describe.each(BROWSERS)('component, in %s', (engine) => {
   test('styles with one stylesheet in shadow and light DOM, stopping at a component inside', async () => {
-    const colors = await inBrowser(import.meta.url, async () => {
+    const colors = await inBrowser({ engine, moduleUrl: import.meta.url }, async () => {
       const { bothModes } = await import('./test-pages.js')
       return bothModes()
     })
@@ -45,47 +45,35 @@ describe('component, in Chrome', () => {
   })
 })
 
-describe('component shadow server markup, in Chrome', () => {
+describe.each(BROWSERS)('component shadow server markup, in %s', (engine) => {
   test('adopts shadow server markup: same nodes, styled before it upgrades, then live', async () => {
     const markup = renderComponent(counterView, new Counter(), { mode: 'shadow', prefix: 't', styles: 'inline' })
-    const seen = await inBrowser(
-      import.meta.url,
-      async () => {
-        const { adoptServerCounter } = await import('./test-pages.js')
-        return adoptServerCounter()
-      },
-      markup,
-    )
+    const seen = await inBrowser({ body: markup, engine, moduleUrl: import.meta.url }, async () => {
+      const { adoptServerCounter } = await import('./test-pages.js')
+      return adoptServerCounter()
+    })
     expect(seen).toEqual({ adopted: ONE, colorBefore: BLUE, same: true, serverStyles: NONE, text: '1' })
   })
 })
 
-describe('component server markup, in Chrome', () => {
+describe.each(BROWSERS)('component server markup, in %s', (engine) => {
   test("adopts light server markup, using the page's stylesheet instead of adopting another", async () => {
     const styles = `<style ${stylesheetAttributes(['counter'])}>${stylesheetText(counterView, 'light')}</style>`
     const markup = renderComponent(counterView, new Counter(), { mode: 'light', prefix: 't' })
-    const seen = await inBrowser(
-      import.meta.url,
-      async () => {
-        const { adoptServerCounter } = await import('./test-pages.js')
-        return adoptServerCounter()
-      },
-      `${styles}${markup}`,
-    )
+    const seen = await inBrowser({ body: `${styles}${markup}`, engine, moduleUrl: import.meta.url }, async () => {
+      const { adoptServerCounter } = await import('./test-pages.js')
+      return adoptServerCounter()
+    })
     expect(seen).toEqual({ adopted: NONE, colorBefore: BLUE, same: true, serverStyles: Number.NaN, text: '1' })
   })
 
   test('links shadow instances to one stylesheet instead of inlining it', async () => {
     const href = `data:text/css,${encodeURIComponent(stylesheetText(counterView, 'shadow'))}`
     const markup = renderComponent(counterView, new Counter(), { mode: 'shadow', prefix: 't', styles: { href } })
-    const seen = await inBrowser(
-      import.meta.url,
-      async () => {
-        const { adoptServerCounter } = await import('./test-pages.js')
-        return adoptServerCounter()
-      },
-      markup,
-    )
+    const seen = await inBrowser({ body: markup, engine, moduleUrl: import.meta.url }, async () => {
+      const { adoptServerCounter } = await import('./test-pages.js')
+      return adoptServerCounter()
+    })
     expect(seen).toEqual({ adopted: ONE, colorBefore: BLUE, same: true, serverStyles: NONE, text: '1' })
   })
 })

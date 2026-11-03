@@ -16,6 +16,9 @@
           buildInputs = with pkgs; [
             bun
           ];
+          # Firefox and WebKit for the browser tests, patched for NixOS, at the revisions playwright-core expects
+          PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+          PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
         };
       }
     );

@@ -4,7 +4,7 @@
  */
 
 import { adoptStyles } from './adopt.js'
-import { KIND_ATTRIBUTE, checkKind } from './css.js'
+import { KIND_ATTRIBUTE, VIEW_ATTRIBUTE, checkKind } from './css.js'
 import { hasServerMarkup, hydrate, render } from './render.js'
 
 /**
@@ -21,7 +21,7 @@ import { hasServerMarkup, hydrate, render } from './render.js'
  *   kind: string,
  *   styles: Stylesheet,
  *   render: (behavior: B) => TemplateResult,
- *   rendered?: (behavior: B, root: HTMLElement | ShadowRoot) => void,
+ *   rendered?: (behavior: B, root: HTMLElement) => void,
  * }>} View
  */
 
@@ -82,25 +82,43 @@ function elementMode(element) {
 }
 
 /**
- * Where an element's view goes: its shadow root in shadow DOM (made if the server didn't), else the element itself.
+ * Where an element's view goes: in shadow DOM, the one element in its shadow root that the view is rendered in (made
+ * if the server didn't), so its stylesheet can scope to it; else the element itself.
  * @param {HTMLElement} element - The element
  * @param {DomMode} mode - Where it lives
- * @returns {HTMLElement | ShadowRoot} Where its view goes
+ * @returns {HTMLElement} Where its view goes
  */
 function viewRoot(element, mode) {
-  return mode === 'shadow' ? (element.shadowRoot ?? element.attachShadow({ mode: 'open' })) : element
+  return mode === 'light' ? element : shadowView(element.shadowRoot ?? element.attachShadow({ mode: 'open' }))
+}
+
+/**
+ * The element a shadow root's view is rendered in: the server's, or one made now.
+ * @param {ShadowRoot} shadow - The shadow root
+ * @returns {HTMLElement} The element
+ */
+function shadowView(shadow) {
+  const found = [...shadow.children].find((child) => child.hasAttribute(VIEW_ATTRIBUTE))
+  if (found instanceof HTMLElement) {
+    return found
+  }
+  const made = document.createElement('div')
+  made.setAttribute(VIEW_ATTRIBUTE, '')
+  made.setAttribute('style', 'display: contents')
+  shadow.append(made)
+  return made
 }
 
 /**
  * Styles an element, and renders its view or adopts the server's.
  * @template {Behavior} B
- * @param {HTMLElement | ShadowRoot} root - Where its view goes
+ * @param {HTMLElement} root - Where its view goes
  * @param {View<B>} view - The view
  * @param {Readonly<{ behavior: B, mode: DomMode }>} instance - Its behavior, and where it lives
  * @returns {void}
  */
 function show(root, view, instance) {
-  const styleRoot = root instanceof ShadowRoot ? root : root.getRootNode()
+  const styleRoot = root.getRootNode()
   if (styleRoot instanceof Document || styleRoot instanceof ShadowRoot) {
     adoptStyles(styleRoot, view.styles, { kind: view.kind, mode: instance.mode })
   }
@@ -115,7 +133,7 @@ function show(root, view, instance) {
 /**
  * Renders a view again whenever its behavior's state changes, once per task however many changes there were.
  * @template {Behavior} B
- * @param {HTMLElement | ShadowRoot} root - Where the view is
+ * @param {HTMLElement} root - Where the view is
  * @param {View<B>} view - The view
  * @param {B} behavior - The behavior
  * @returns {() => void} Stops

@@ -1,12 +1,13 @@
 /** @import { DomMode } from '@interact/dom/css' */
 /** @import { Page } from 'playwright-core' */
+/** @import { Engine } from '../../../test/browser.js' */
 /** @import { Seen } from './test-page-listbox.js' */
 
 import { afterAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, closeBrowser, withPage } from '../../../test/browser.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 
@@ -28,6 +29,13 @@ const PART = 'rgb(4, 5, 6)'
 const INSTANCE = 'rgb(7, 8, 9)'
 /** @type {DomMode[]} */
 const MODES = ['shadow', 'light']
+/** @type {(readonly [DomMode, Engine])[]} */
+const CASES = []
+for (const mode of MODES) {
+  for (const engine of BROWSERS) {
+    CASES.push([mode, engine])
+  }
+}
 
 afterAll(closeBrowser)
 
@@ -67,14 +75,19 @@ async function wheel(page, left, noted) {
 }
 
 /**
+ * Where a scenario runs: the browser, the listbox's DOM mode, and the page's markup.
+ * @typedef {Readonly<{ engine: Engine, mode: DomMode, body?: string }>} Where
+ */
+
+/**
  * Puts a listbox in a page with a scenario that leaves it ready to scroll, then turns the wheel over it.
- * @param {DomMode} mode - Where the listbox lives
+ * @param {Where} where - Where it runs
  * @param {(dom: DomMode) => Promise<Readonly<{ across: number, down: number }>>} scenario - What runs in the page,
  *   giving where to put the mouse
  * @returns {Promise<readonly Seen[]>} What showed after each turn
  */
-async function wheeled(mode, scenario) {
-  return withPage(import.meta.url, '', async (page) => {
+async function wheeled({ engine, mode }, scenario) {
+  return withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
     const point = await page.evaluate(scenario, mode)
     await page.mouse.move(point.across, point.down)
     return wheel(page, WHEELS, [])
@@ -104,18 +117,17 @@ function summary(noted) {
 /**
  * Runs a page scenario that takes the DOM mode.
  * @template R
- * @param {DomMode} mode - Where the listbox lives
- * @param {string} body - The page's markup
+ * @param {Where} where - Where it runs
  * @param {(dom: DomMode) => Promise<R>} scenario - What runs in the page
  * @returns {Promise<R>} What it reported
  */
-async function inPage(mode, body, scenario) {
-  return withPage(import.meta.url, body, async (page) => page.evaluate(scenario, mode))
+async function inPage({ body = '', engine, mode }, scenario) {
+  return withPage({ body, engine, moduleUrl: import.meta.url }, async (page) => page.evaluate(scenario, mode))
 }
 
-describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
+describe.each(CASES)('the listbox in %s DOM, in %s', (mode, engine) => {
   test('adopts the server markup at five billion: the same nodes, its top item at the top', async () => {
-    const seen = await inPage(mode, serverPage(mode, FIVE_BILLION), async () => {
+    const seen = await inPage({ body: serverPage(mode, FIVE_BILLION), engine, mode }, async () => {
       const pages = await import('./test-pages.js')
       return pages.adoptServerListbox(pages.FIVE_BILLION)
     })
@@ -124,7 +136,7 @@ describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
   })
 
   test('lands exactly on five billion and on the last item, holding a bounded cache however far it jumps', async () => {
-    const seen = await inPage(mode, '', async (dom) => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
       const { jump } = await import('./test-pages.js')
       return jump(dom)
     })
@@ -135,7 +147,7 @@ describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
   })
 
   test('selects all ten billion but one, reading only what shows', async () => {
-    const seen = await inPage(mode, '', async (dom) => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
       const { selectAllButOne } = await import('./test-pages.js')
       return selectAllButOne(dom)
     })
@@ -144,7 +156,7 @@ describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
   })
 
   test('keeps focus while the active item is scrolled far away, and brings it back on the next key', async () => {
-    const seen = await inPage(mode, '', async (dom) => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
       const { focusAway } = await import('./test-pages.js')
       return focusAway(dom)
     })
@@ -155,10 +167,10 @@ describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
   })
 })
 
-describe.each(MODES)('tokens for the listbox in %s DOM, in Chrome', (mode) => {
+describe.each(CASES)('tokens for the listbox in %s DOM, in %s', (mode, engine) => {
   test('resolve on each element: the theme, then component, part, state and instance tokens over it', async () => {
     const theme = '<link rel="stylesheet" href="/packages/theme/tokens.css">'
-    const seen = await inPage(mode, theme, async (dom) => {
+    const seen = await inPage({ body: theme, engine, mode }, async (dom) => {
       const { tokenLevels } = await import('./test-pages.js')
       return tokenLevels(dom)
     })
@@ -169,10 +181,10 @@ describe.each(MODES)('tokens for the listbox in %s DOM, in Chrome', (mode) => {
   })
 })
 
-describe.each(MODES)('native scrolling of the listbox in %s DOM, in Chrome', (mode) => {
+describe.each(CASES)('native scrolling of the listbox in %s DOM, in %s', (mode, engine) => {
   test('crosses a move of the offset without skipping a row or going back', async () => {
     const turns = summary(
-      await wheeled(mode, async (dom) => {
+      await wheeled({ engine, mode }, async (dom) => {
         const { beforeRecentring } = await import('./test-pages.js')
         return beforeRecentring(dom)
       }),
@@ -183,7 +195,7 @@ describe.each(MODES)('native scrolling of the listbox in %s DOM, in Chrome', (mo
 
   test('reaches the very last item and stops there', async () => {
     const turns = summary(
-      await wheeled(mode, async (dom) => {
+      await wheeled({ engine, mode }, async (dom) => {
         const { beforeTheEnd } = await import('./test-pages.js')
         return beforeTheEnd(dom)
       }),

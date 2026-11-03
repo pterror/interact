@@ -4,7 +4,7 @@
  */
 
 import { STYLES_ATTRIBUTE } from './adopt.js'
-import { KIND_ATTRIBUTE, checkKind, scopedText } from './css.js'
+import { KIND_ATTRIBUTE, VIEW_ATTRIBUTE, checkKind, scopedText } from './css.js'
 import { escapeAttribute } from './escape.js'
 import { renderToString } from './render-string.js'
 
@@ -81,7 +81,8 @@ function renderComponent(view, behavior, rendering) {
     return `<${tag} ${KIND_ATTRIBUTE}="${view.kind}" dom-mode="light">${content}</${tag}>`
   }
   const styles = shadowStyles(view, rendering.styles)
-  return `<${tag} ${KIND_ATTRIBUTE}="${view.kind}"><template shadowrootmode="open">${styles}${content}</template></${tag}>`
+  const inner = `<div ${VIEW_ATTRIBUTE} style="display: contents">${content}</div>`
+  return `<${tag} ${KIND_ATTRIBUTE}="${view.kind}"><template shadowrootmode="open">${styles}${inner}</template></${tag}>`
 }
 
 export { renderComponent, stylesheetAttributes, stylesheetText }
