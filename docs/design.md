@@ -220,8 +220,20 @@ stylesheets in shadow DOM, and `@scope` in light DOM.
 **Derived:** a view's template and stylesheet are the same in both modes, and the mode decides only where the stylesheet
 goes.
 
-**Unverified:** how one stylesheet is written so that `:host`/`::part` in shadow DOM and `@scope` in light DOM both
-select correctly. This is the first thing the DOM package proves.
+**Derived (measured in Chrome 156):** one stylesheet selects correctly in both modes when the component writes its host
+as `:scope` and `@interact/dom` wraps the text when it adopts it (`packages/dom/src/css.js`, `scopedText`):
+
+- in shadow DOM, `@scope (:host) to ([data-interact]) { … }`, adopted by the shadow root;
+- in light DOM, `@scope ([data-interact="<kind>"]) to ([data-interact]) { … }`, adopted once by the document or shadow
+  root the instance is in.
+
+The `to ([data-interact])` bound stops either scope at any component inside, so a component never styles another's
+insides. `@layer` inside `@scope` works in both modes, so a component's own layers survive the wrapping. Shown by
+`packages/dom/src/component.test.js` ("styles with one stylesheet in shadow and light DOM, stopping at a component
+inside"): host red and count blue in both modes, and a badge inside left unstyled.
+
+Parts are attributes (`part="count"`) in both modes. From outside, `::part()` reaches them in shadow DOM and
+`[part~="count"]` in light DOM; custom properties reach both.
 
 FAST only switches between shadow and light DOM per definition, not per instance (`shadowOptions: null`), and in light
 DOM it adopts styles into the root without scoping them (`element-controller.js:705-709`).
@@ -234,6 +246,18 @@ the page.
 
 **Derived:** styles and code never depend on tag names. keybinds already marks each element with its kind
 (`data-keybinds="<kind>"`, `core.js:177`), and the same idea holds here.
+
+**Derived (built):**
+
+- `component(view, create)` (`packages/dom/src/component.js`) makes a class and defines nothing.
+- `register(classes, { prefix, mode })` (`register.js`) defines `<prefix>-<kind>` for each class. It defines a subclass
+  of its own each time, so one class can be registered under two prefixes, which Web Awesome's classes can't.
+- Every instance carries `data-interact="<kind>"`.
+- An instance's DOM mode comes from, in order:
+  - a declarative shadow root, if it has one;
+  - its `dom-mode` attribute;
+  - the `mode` the app registered it with;
+  - shadow.
 
 Two of the evaluated libraries register on import:
 
@@ -249,9 +273,33 @@ re-rendering it.
 The evaluation found two things to learn from:
 
 - **Inlining styles in every instance is too heavy.** Web Awesome's server renderer inlines each component's whole
-  stylesheet into every instance: one button and one select came to 61,477 characters. **Proposed:** light-DOM instances
-  share one page stylesheet. For shadow instances, find the cheapest way to share a stylesheet across declarative shadow
-  roots; which way that is remains unverified.
+  stylesheet into every instance: one button and one select came to 61,477 characters.
+
+  **Derived (measured in Chrome 156):** light-DOM instances share one page stylesheet, and each shadow instance links to
+  one stylesheet URL. The test page held 100 and 3,000 instances, with a 3.1 KB scoped stylesheet served 400 ms late.
+  Paint was sampled every frame from the top of the page:
+
+  | Technique                                                                                               | Bytes per instance                | First frame                                                                                                  |
+  | ------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+  | `<style>` inlined in each shadow root                                                                   | 3,234 (grows with the stylesheet) | styled                                                                                                       |
+  | `<link rel="stylesheet">` in each shadow root                                                           | 140 (fixed)                       | none until the stylesheet arrived (404 ms), then styled; never unstyled, with or without scripts in the page |
+  | Declarative adopted stylesheets (`shadowrootadoptedstylesheets` with `<style type="module" specifier>`) | 172                               | unstyled: not supported in Chrome 156 without flags                                                          |
+  | Light DOM with one page `<style>`                                                                       | 87                                | styled                                                                                                       |
+
+  So `renderComponent` (`packages/dom/src/render-component.js`) links shadow instances to `{ href }` by default, with
+  `'inline'` for a page that can't serve the stylesheet. For light DOM the page includes `stylesheetText(view, 'light')`
+  once, marked by `stylesheetAttributes`. On upgrade, a shadow root adopts the constructed sheet and drops the server's
+  `<link>`/`<style>`, so the rules have one source. A light instance uses the page's sheet instead of adopting a second
+  copy. `component.test.js` shows all three in Chrome.
+
+- **Hydration (built):** `renderToString` marks child holes with `<!--i[-->`…`<!--i]-->` and bound elements with a
+  `<!--i@-->` before them (`packages/dom/src/markers.js`). `hydrate` walks the markers in the same order the DOM
+  renderer finds them in a fresh clone (`collect.js`). It keeps the server's nodes and attaches parts. Repeated items
+  are paired by position, and then reconciled by key as on any update (`reconcile.js`). Markup from a different template
+  is an error, not a silent re-render. A missing, `null` or `false` attribute is left out; an empty string keeps it.
+- **Formatting templates:** oxfmt formats `html` and `css` templates. With any `htmlWhitespaceSensitivity` but `strict`
+  it adds whitespace text to rendered markup. Strict only moves whitespace inside tags, which the template scanner drops
+  (`prepare.js`).
 - **FAST's hydration works.** In headless Chrome it adopted server markup, kept the same nodes, and attached event
   bindings. Two parts are references for the markers and the reconciliation of repeated items: `fast-element`
   `dist/esm/hydration/repeat-ranges.js` and `markers.js`. FAST's rule that a missing or null value leaves the attribute
