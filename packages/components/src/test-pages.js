@@ -7,6 +7,8 @@
  * @import { Seen } from './test-page-listbox.js'
  */
 
+import { spanning, toggle } from '@interact/core'
+
 import { TEN_BILLION } from './test-helpers.js'
 import { fresh, parts, press, reads, registerListbox, seen, settle } from './test-page-listbox.js'
 
@@ -122,6 +124,35 @@ async function focusAway(mode) {
 }
 
 /**
+ * Selects a few items from five billion on as an app would, then deselects the first.
+ * @param {Listbox<Numbered, Range>} listbox - The listbox
+ * @returns {void}
+ */
+function selectFromFiveBillion(listbox) {
+  const { source } = listbox.items
+  if (source === undefined) {
+    throw new Error('The listbox has no source')
+  }
+  const span = spanning(source, FIVE_BILLION, FIVE_BILLION + PRESSED)
+  listbox.selection.set(toggle(span, source, { id: FIVE_BILLION }))
+}
+
+/**
+ * Has the app select a few items from five billion on and deselect the first, then focuses the listbox with nothing
+ * active: what shows once focus has gone where it goes.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Seen>} What showed
+ */
+async function focusSelected(mode) {
+  selectFromFiveBillion(await fresh(mode))
+  await settle()
+  parts().viewport.focus()
+  await settle()
+  await settle()
+  return seen()
+}
+
+/**
  * Focuses a new listbox, moves down, toggles an item and extends the selection, as a person would before an audit.
  * @param {DomMode} mode - Where the listbox lives
  * @returns {Promise<void>} When it has rendered
@@ -231,6 +262,7 @@ export {
   activeSelectedOutline,
   adoptServerListbox,
   focusAway,
+  focusSelected,
   focusedAndChosen,
   jump,
   selectAllButOne,

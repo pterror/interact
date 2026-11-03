@@ -1,6 +1,9 @@
-/** @import { Change, Source } from '@interact/core/source' */
+/**
+ * @import { Selection } from '@interact/core/selection'
+ * @import { Change, Source } from '@interact/core/source'
+ */
 
-import { BlockCache, Listeners, startsWithTyped } from '@interact/core'
+import { BlockCache, Listeners, findsSelected, firstSelected, startsWithTyped } from '@interact/core'
 
 const NONE = 0
 
@@ -124,6 +127,34 @@ class Items {
     try {
       const found = await this.#find(text, start, textOf)
       return found === undefined && start > NONE ? await this.#find(text, NONE, textOf) : found
+    } catch (error) {
+      this.#errors.emit(error)
+      return undefined
+    }
+  }
+
+  /**
+   * Whether the source can say where a selection starts (see `findsSelected`).
+   * @param {Selection<F>} selection - The selection
+   * @returns {boolean} Whether `firstSelected` can ask it
+   */
+  findsSelected(selection) {
+    return this.#source !== undefined && findsSelected(selection, this.#source)
+  }
+
+  /**
+   * Where a selection starts, asked of the source. A failed answer is reported as an error, and finds nothing.
+   * @param {Selection<F>} selection - The selection, for a source that `findsSelected`
+   * @returns {Promise<number | undefined>} The first selected position, if any
+   */
+  async firstSelected(selection) {
+    const source = this.#source
+    if (source === undefined) {
+      return undefined
+    }
+    try {
+      const found = await firstSelected(selection, source)
+      return found
     } catch (error) {
       this.#errors.emit(error)
       return undefined

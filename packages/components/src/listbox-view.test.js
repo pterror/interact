@@ -170,6 +170,18 @@ describe.each(CASES)('the listbox in %s DOM, in %s', (mode, engine) => {
   })
 })
 
+describe.each(CASES)('focus entering the listbox in %s DOM, in %s', (mode, engine) => {
+  test('goes to the first selected item, far down, and shows it', async () => {
+    const seen = await inPage({ engine, mode }, async (dom) => {
+      const { focusSelected } = await import('./test-pages.js')
+      return focusSelected(dom)
+    })
+    expect([seen.focused, seen.activeThere, seen.active]).toEqual([true, true, FIVE_BILLION + ONE])
+    expect(seen.top).toBeLessThanOrEqual(FIVE_BILLION + ONE)
+    expect(seen.bottom).toBeGreaterThanOrEqual(FIVE_BILLION + ONE)
+  })
+})
+
 describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mode, engine) => {
   test("stay under every browser's limit for tall rows at 200% zoom, and still land exactly", async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {

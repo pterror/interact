@@ -1,8 +1,11 @@
-/** @import { Change, Source } from '@interact/core/source' */
+/** @import { Change, Key, Source } from '@interact/core/source' */
 
 import { Listeners } from '@interact/core'
 
 import { Listbox } from './listbox.js'
+
+const START = 0
+const STEP = 1
 
 /** @typedef {Readonly<{ id: number }>} Numbered */
 /** @typedef {Readonly<{ start: number, end: number }>} Range */
@@ -23,12 +26,39 @@ function itemsBetween(start, end) {
 }
 
 /**
+ * Where a numbered item's key is: its own number, while that is a position.
+ * @param {Key} key - The key
+ * @param {number} count - How many items there are
+ * @returns {number | undefined} Its position, if there is one
+ */
+function numberAt(key, count) {
+  return typeof key === 'number' && Number.isInteger(key) && key >= START && key < count ? key : undefined
+}
+
+/**
+ * The first number in a range not passed over: no more steps than `except` has keys.
+ * @param {Range} range - The range
+ * @param {ReadonlySet<Key>} except - Numbers to pass over
+ * @returns {number | undefined} The number, if the range has one left
+ */
+function firstInRange(range, except) {
+  for (let position = range.start; position < range.end; position += STEP) {
+    if (!except.has(position)) {
+      return position
+    }
+  }
+  return undefined
+}
+
+/**
  * Items numbered by position, `count` of them, given at once. Positions are their keys, so a range of positions is
- * a filter, counted without reading anything.
+ * a filter, counted without reading anything, and the source places items (`positionOf`, `firstMatching`) unless
+ * `places` is false.
  * @param {number} count - How many there are
+ * @param {boolean} [places] - Whether it can place items
  * @returns {Numbers} The source, how many reads it answered, and a way to report a change
  */
-function numbers(count) {
+function numbers(count, places = true) {
   let reads = 0
   /** @type {Listeners<Change>} */
   const changes = new Listeners()
@@ -44,6 +74,7 @@ function numbers(count) {
     },
     span: (start, end) => ({ end, start }),
     subscribe: (listener) => changes.add(listener),
+    ...(places ? { firstMatching: firstInRange, positionOf: (key) => numberAt(key, count) } : {}),
   }
   return {
     emit: (change) => {

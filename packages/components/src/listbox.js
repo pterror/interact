@@ -5,11 +5,12 @@
  * @import { KeyAction, Modifiers } from './listbox-keys.js'
  */
 
-import { Controllable, Listeners, entry, nothing, plainText, shiftPosition } from '@interact/core'
+import { Controllable, Listeners, nothing, plainText, shiftPosition } from '@interact/core'
 
 import { Chooser } from './chooser.js'
 import { Items } from './items.js'
 import { act } from './listbox-act.js'
+import { enterFocus } from './listbox-focus.js'
 import { keyAction } from './listbox-keys.js'
 import { ScrollRows } from './scroll-rows.js'
 import { Typeahead } from './typeahead.js'
@@ -153,20 +154,12 @@ class Listbox {
   }
 
   /**
-   * What focus entering the listbox does: the active item stays and is scrolled into view; otherwise the item last
-   * chosen becomes active, or the top one.
+   * What focus entering the listbox does (see `enterFocus`): the active item stays and is shown; with nothing active,
+   * the first selected item when the source can say where it is, otherwise the item last chosen, or the top one.
    * @returns {void}
    */
   focus() {
-    const active = this.active.get()
-    if (active !== undefined) {
-      this.scroll.reveal(active)
-      return
-    }
-    const position = entry(this.choose.anchor ?? this.scroll.top.get(), this.items.count)
-    if (position !== undefined) {
-      this.active.request(position)
-    }
+    enterFocus(this)
   }
 
   /**

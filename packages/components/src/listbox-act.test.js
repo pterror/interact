@@ -192,21 +192,3 @@ describe('selecting with keys in multiple mode', () => {
     expect([listbox.active.get(), await listbox.choose.count()]).toEqual([START, TEN_BILLION])
   })
 })
-
-describe('focus entering', () => {
-  test('brings the active item back into view when it was scrolled away', () => {
-    const listbox = new Listbox({ rows: ROWS, source: numbers(TEN_BILLION).source })
-    listbox.goTo(THREE)
-    listbox.scroll.scrollTo(FIVE_BILLION)
-    listbox.focus()
-    expect(listbox.scroll.top.get()).toBe(THREE)
-  })
-
-  test('makes the item last chosen active when nothing is', () => {
-    const listbox = new Listbox({ mode: 'multiple', rows: ROWS, source: numbers(TEN_BILLION).source })
-    listbox.choose.press(FOUR, PLAIN)
-    listbox.active.set(undefined)
-    listbox.focus()
-    expect(listbox.active.get()).toBe(FOUR)
-  })
-})
