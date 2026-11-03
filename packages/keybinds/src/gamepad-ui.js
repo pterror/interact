@@ -2,101 +2,92 @@
  * Showing and recording gamepad bindings, for the settings panel, cheatsheet, palette and menus.
  */
 
+/** @import { InputUI } from './input.js' */
+
 import { formatWithRelease } from './binding-format.js'
-import { RELEASE_SUFFIX } from './binding.js'
-import { gamepad, GAMEPAD_BUTTONS, GAMEPAD_ALIASES, hasPads } from './gamepad.js'
+import { GamepadRecorder } from './gamepad-recorder.js'
+import { gamepad } from './gamepad.js'
+import { GAMEPAD_ALIASES, connectedPads } from './pads.js'
 
-/** @typedef {import('./input.js').InputUI} InputUI */
+/**
+ * How each button is shown, by its standard name
+ * @type {ReadonlyMap<string, string>}
+ */
+const GAMEPAD_GLYPHS = new Map([
+  ['a', 'A'],
+  ['b', 'B'],
+  ['back', 'Back'],
+  ['down', 'D-pad ↓'],
+  ['home', 'Home'],
+  ['lb', 'LB'],
+  ['left', 'D-pad ←'],
+  ['ls', 'LS'],
+  ['lt', 'LT'],
+  ['rb', 'RB'],
+  ['right', 'D-pad →'],
+  ['rs', 'RS'],
+  ['rt', 'RT'],
+  ['start', 'Start'],
+  ['up', 'D-pad ↑'],
+  ['x', 'X'],
+  ['y', 'Y'],
+])
 
-/** @type {Record<string, string>} */
-const GAMEPAD_GLYPHS = {
-  a: 'A',
-  b: 'B',
-  x: 'X',
-  y: 'Y',
-  lb: 'LB',
-  rb: 'RB',
-  lt: 'LT',
-  rt: 'RT',
-  back: 'Back',
-  start: 'Start',
-  ls: 'LS',
-  rs: 'RS',
-  up: 'D-pad ↑',
-  down: 'D-pad ↓',
-  left: 'D-pad ←',
-  right: 'D-pad →',
-  home: 'Home',
+const NONE = 0
+
+/**
+ * One gamepad button as shown
+ * @param {string} part - The button, by any of its names
+ * @returns {string} How it's shown
+ */
+function formatGamepadPart(part) {
+  const name = part.trim().toLowerCase()
+  return GAMEPAD_GLYPHS.get(GAMEPAD_ALIASES.get(name) ?? name) ?? part
 }
 
 /**
- * Format a gamepad binding into display parts (e.g. "rt:up" -> ["RT", "Release"])
- * @param {string} binding
- * @returns {string[]}
+ * A gamepad binding as display parts ("rt:up" is ["RT", "Release"])
+ * @param {string} binding - The binding
+ * @returns {string[]} The parts as shown
  */
-export function formatGamepadParts(binding) {
-  return formatWithRelease(binding, (part) => {
-    const p = part.trim().toLowerCase()
-    return GAMEPAD_GLYPHS[GAMEPAD_ALIASES[p] ?? p] ?? part
-  })
+function formatGamepadParts(binding) {
+  return formatWithRelease(binding, formatGamepadPart)
 }
 
 /**
- * Gamepad buttons, shown and recorded as well as listened to. Recording is offered while a pad
- * is connected.
- * @returns {InputUI}
+ * Follows pads connecting and disconnecting
+ * @param {() => void} onChange - Called on each
+ * @returns {() => void} A function that stops
  */
-export function gamepadUI() {
-  return {
-    ...gamepad(),
-    label: 'Gamepad',
-    format: formatGamepadParts,
-    release: () => true,
-    prompt: (release) => (release ? 'Press and release a gamepad button...' : 'Press a gamepad button...'),
-    available: () => hasPads() && navigator.getGamepads().some(Boolean),
-    watch(onChange) {
-      window.addEventListener('gamepadconnected', onChange)
-      window.addEventListener('gamepaddisconnected', onChange)
-      return () => {
-        window.removeEventListener('gamepadconnected', onChange)
-        window.removeEventListener('gamepaddisconnected', onChange)
-      }
-    },
-
-    // Recording reads every pad each frame. Buttons already down when recording starts don't
-    // count until they've been let go
-    record({ release }, done) {
-      /** @type {Map<number, boolean[]>} */
-      const before = new Map()
-      /** @type {string | null} */
-      let held = null
-      /** @type {number | null} */
-      let frame = null
-      const read = () => {
-        frame = null
-        for (const pad of navigator.getGamepads()) {
-          if (!pad) continue
-          const now = pad.buttons.slice(0, GAMEPAD_BUTTONS.length).map((b) => b.pressed)
-          const was = before.get(pad.index)
-          before.set(pad.index, now)
-          if (!was) continue
-          for (let i = 0; i < now.length; i++) {
-            const name = /** @type {string} */ (GAMEPAD_BUTTONS[i])
-            const id = `${pad.index}:${i}`
-            if (now[i] && !was[i]) {
-              if (!release) return done(name)
-              held = id
-            } else if (!now[i] && was[i] && held === id) {
-              return done(name + RELEASE_SUFFIX)
-            }
-          }
-        }
-        frame = requestAnimationFrame(read)
-      }
-      if (hasPads()) frame = requestAnimationFrame(read)
-      return () => {
-        if (frame !== null) cancelAnimationFrame(frame)
-      }
-    },
+function watchPads(onChange) {
+  globalThis.addEventListener('gamepadconnected', onChange)
+  globalThis.addEventListener('gamepaddisconnected', onChange)
+  return () => {
+    globalThis.removeEventListener('gamepadconnected', onChange)
+    globalThis.removeEventListener('gamepaddisconnected', onChange)
   }
 }
+
+/**
+ * Gamepad buttons, shown and recorded as well as listened to. Recording is offered while a pad is connected
+ * @returns {InputUI} Gamepad buttons, as an input that can be shown and recorded
+ */
+function gamepadUI() {
+  return {
+    ...gamepad(),
+    available: () => connectedPads().length > NONE,
+    format: formatGamepadParts,
+    label: 'Gamepad',
+    prompt: (release) => (release ? 'Press and release a gamepad button...' : 'Press a gamepad button...'),
+    record: ({ release }, done) => {
+      const recorder = new GamepadRecorder(release, done)
+      return () => {
+        recorder.stop()
+      }
+    },
+    release: () => true,
+    watch: watchPads,
+  }
+}
+
+export { formatGamepadParts, gamepadUI }

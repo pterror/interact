@@ -9,7 +9,7 @@
  */
 
 import { eventMods, modsToPrefix } from './binding-mods.js'
-import { inInput } from './input.js'
+import { inInput, windowOf } from './input.js'
 import { overlayOpen } from './modal.js'
 
 /**
@@ -85,8 +85,7 @@ class KeyListener {
     this.#dispatch = dispatch
     this.#syntax = syntax
     const { target } = dispatch
-    // Focus is the window's, whatever element the bindings listen on
-    this.#window = target instanceof Node ? (target.ownerDocument?.defaultView ?? target) : target
+    this.#window = windowOf(target)
     target.addEventListener('keydown', this, { capture: dispatch.capture })
     target.addEventListener('keyup', this, { capture: dispatch.capture })
     this.#window.addEventListener('blur', this)

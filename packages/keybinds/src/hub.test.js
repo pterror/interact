@@ -212,3 +212,35 @@ describe('held through the hub', () => {
     expect(hub.held('fwd')).toBe(false)
   })
 })
+
+describe('the hub with gamepads and axes', () => {
+  test('shows gamepad bindings', () => {
+    const hub = new CommandHub({ ...ALL, storageKey: 't', listen: { target: document.createElement('div') } })
+    hub.setSource('a', () => [{ id: 'jump', label: 'Jump', gamepad: ['a'], execute: () => {} }])
+    hub.refresh()
+    expect(hub.bindingsFor('jump', 'gamepad')).toEqual(['A'])
+    hub.destroy()
+  })
+
+  test('the hub rebinds and reads axes', () => {
+    const target = document.createElement('div')
+    /** @type {Record<string, import('./index.js').BindingOverrides>} */
+    const kept = { global: { strafe: { axes: ['keys:j/l'] } } }
+    const hub = new CommandHub({
+      ...ALL,
+      listen: { target },
+      storage: (scope) => ({
+        load: () => kept[scope] ?? {},
+        save: (o) => {
+          kept[scope] = o
+        },
+      }),
+    })
+    hub.setAxes('game', () => [{ id: 'strafe', label: 'Strafe', axes: ['keys:a/d'] }])
+    hub.refresh()
+    expect(hub.bindingsFor('strafe', 'axes')).toEqual(['J / L'])
+    target.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
+    expect(hub.axis('strafe').position).toBe(1)
+    hub.destroy()
+  })
+})

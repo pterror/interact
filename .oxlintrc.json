@@ -35,9 +35,6 @@
     "**/docs/.vitepress/**",
     // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
     // list for the rule tests, so it is the one place a file leaves the fence.
-    "packages/keybinds/src/axes-ui.js",
-    "packages/keybinds/src/axes.js",
-    "packages/keybinds/src/axes.test.js",
     "packages/keybinds/src/components/basic-context-menu.js",
     "packages/keybinds/src/components/cheatsheet.js",
     "packages/keybinds/src/components/cheatsheet.test.js",
@@ -50,9 +47,6 @@
     "packages/keybinds/src/components/radial-menu.js",
     "packages/keybinds/src/components/settings.js",
     "packages/keybinds/src/components/settings.test.js",
-    "packages/keybinds/src/gamepad-ui.js",
-    "packages/keybinds/src/gamepad.js",
-    "packages/keybinds/src/gamepad.test.js",
     "packages/keybinds/src/hub.js",
     "packages/keybinds/src/hub.test.js",
     "packages/keybinds/src/modifiers.js",
@@ -60,7 +54,6 @@
     "packages/keybinds/src/search.test.js",
     "packages/keybinds/src/store.js",
     "packages/keybinds/src/store.test.js",
-    "packages/keybinds/src/test-pads.js",
     "packages/keybinds/styles/palette.css"
   ],
   "rules": {

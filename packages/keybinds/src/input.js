@@ -127,4 +127,14 @@ function inInput(target) {
   )
 }
 
-export { inInput }
+/**
+ * The window a target is in, which has the focus and the events no element gets (blur, gamepadconnected); a target
+ * outside any document is its own
+ * @param {EventTarget} target - Where bindings listen
+ * @returns {EventTarget} Its window
+ */
+function windowOf(target) {
+  return target instanceof Node ? (target.ownerDocument?.defaultView ?? target) : target
+}
+
+export { inInput, windowOf }

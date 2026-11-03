@@ -2,109 +2,81 @@
  * Showing and recording axis sources, for the settings panel.
  */
 
-import { axes, parseAxis, axisToLookup, hasPads, PAD_AXES } from './axes.js'
-import { formatKeyParts, eventToBindingString } from './keys-ui.js'
+/**
+ * @import { ParsedAxis } from './axes.js'
+ * @import { InputUI } from './input.js'
+ * @import { KeySyntax } from './keys.js'
+ */
+
+import { AxesRecorder } from './axes-recorder.js'
+import { axes, axisToLookup, parseAxis } from './axes.js'
+import { formatKeyParts } from './keys-ui.js'
 import { keyToLookup } from './keys.js'
 
-/** @typedef {import('./input.js').InputUI} InputUI */
+/**
+ * How each mouse, stick and trigger source is shown
+ * @type {ReadonlyMap<string, string>}
+ */
+const AXIS_GLYPHS = new Map([
+  ['mouse:x', 'Mouse ↔'],
+  ['mouse:y', 'Mouse ↕'],
+  ['pad:lt', 'LT'],
+  ['pad:lx', 'Left stick ↔'],
+  ['pad:ly', 'Left stick ↕'],
+  ['pad:rt', 'RT'],
+  ['pad:rx', 'Right stick ↔'],
+  ['pad:ry', 'Right stick ↕'],
+])
 
-/** @type {Record<string, string>} */
-const AXIS_GLYPHS = {
-  'mouse:x': 'Mouse ↔',
-  'mouse:y': 'Mouse ↕',
-  'pad:lx': 'Left stick ↔',
-  'pad:ly': 'Left stick ↕',
-  'pad:rx': 'Right stick ↔',
-  'pad:ry': 'Right stick ↕',
-  'pad:lt': 'LT',
-  'pad:rt': 'RT',
+/**
+ * An axis source parsed, if it can be
+ * @param {string} binding - The source
+ * @returns {ParsedAxis | undefined} It parsed, or undefined if it names none
+ */
+function readable(binding) {
+  try {
+    return parseAxis(binding)
+  } catch {
+    return undefined
+  }
 }
 
 /**
- * Format an axis binding into display parts (e.g. "-mouse:y" -> ["Mouse ↕", "Inverted"])
- * @param {string} binding
- * @returns {string[]}
+ * An axis source as display parts ("-mouse:y" is ["Mouse ↕", "Inverted"]); one it can't read is shown as written
+ * @param {string} binding - The source
+ * @returns {string[]} The parts as shown
  */
-export function formatAxisParts(binding) {
-  let parsed
-  try {
-    parsed = parseAxis(binding)
-  } catch {
+function formatAxisParts(binding) {
+  const parsed = readable(binding)
+  if (parsed === undefined) {
     return [binding]
   }
   const parts =
     parsed.kind === 'keys'
       ? [...formatKeyParts(keyToLookup(parsed.neg)), '/', ...formatKeyParts(keyToLookup(parsed.pos))]
-      : [AXIS_GLYPHS[axisToLookup(parsed)] ?? binding]
-  if (parsed.invert) parts.push('Inverted')
-  return parts
+      : [AXIS_GLYPHS.get(axisToLookup(parsed)) ?? binding]
+  return parsed.invert ? [...parts, 'Inverted'] : parts
 }
 
 /**
  * Axes, shown and recorded as well as read
- * @param {...import("./keys.js").KeySyntax} syntax - As for axes()
- * @returns {InputUI}
+ * @param {readonly KeySyntax[]} syntax - As for axes()
+ * @returns {InputUI} Axes, as an input that can be shown and recorded
  */
-export function axesUI(...syntax) {
+function axesUI(...syntax) {
   return {
     ...axes(...syntax),
-    label: 'Axis',
-    invert: true,
     format: formatAxisParts,
+    invert: true,
+    label: 'Axis',
     prompt: () => 'Move the mouse, tilt a stick, or press two keys...',
-
-    // Recorded from whichever comes first: enough mouse movement along one direction, a stick or
-    // trigger pushed well past its rest, or two keys (toward -1, then toward 1)
-    record(_options, done) {
-      const moved = { x: 0, y: 0 }
-      /** @type {string | null} */
-      let firstKey = null
-      /** @param {Event} e */
-      const onMove = (e) => {
-        const event = /** @type {MouseEvent} */ (e)
-        moved.x += Math.abs(event.movementX ?? 0)
-        moved.y += Math.abs(event.movementY ?? 0)
-        if (Math.max(moved.x, moved.y) > 80) done(moved.x >= moved.y ? 'mouse:x' : 'mouse:y')
-      }
-      /** @param {Event} e */
-      const onKey = (e) => {
-        const event = /** @type {KeyboardEvent} */ (e)
-        if (event.key === 'Escape' || event.repeat) return
-        const binding = eventToBindingString(event, syntax)
-        if (!binding) return
-        event.preventDefault()
-        event.stopPropagation()
-        const key = binding.slice(binding.lastIndexOf('+') + 1)
-        if (firstKey === null) firstKey = key
-        else if (key !== firstKey) done(`keys:${firstKey}/${key}`)
-      }
-      window.addEventListener('mousemove', onMove, true)
-      window.addEventListener('keydown', onKey, true)
-      /** @type {Map<number, number[]>} */
-      const rest = new Map()
-      /** @type {number | null} */
-      let frame = null
-      const read = () => {
-        frame = null
-        for (const pad of navigator.getGamepads()) {
-          if (!pad) continue
-          const now = [...pad.axes.slice(0, 4), pad.buttons[6]?.value ?? 0, pad.buttons[7]?.value ?? 0]
-          const was = rest.get(pad.index)
-          if (!was) {
-            rest.set(pad.index, now)
-            continue
-          }
-          const i = now.findIndex((v, j) => Math.abs(v - (was[j] ?? 0)) > 0.6)
-          if (i !== -1) return done(`pad:${PAD_AXES[i]}`)
-        }
-        frame = requestAnimationFrame(read)
-      }
-      if (hasPads()) frame = requestAnimationFrame(read)
+    record: ({ target }, done) => {
+      const recorder = new AxesRecorder(target ?? globalThis, syntax, done)
       return () => {
-        window.removeEventListener('mousemove', onMove, true)
-        window.removeEventListener('keydown', onKey, true)
-        if (frame !== null) cancelAnimationFrame(frame)
+        recorder.stop()
       }
     },
   }
 }
+
+export { axesUI, formatAxisParts }

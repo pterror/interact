@@ -1,9 +1,11 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
+import { createComponent } from '../components/create.js'
 import { KeybindSettings } from '../components/settings.js'
 import { BindingsStore } from '../store.js'
-import { keybinds } from '../test-helpers.js'
+import { kbd, keybinds } from '../test-helpers.js'
 import { ALL } from '../test-inputs.js'
+import { fakePads } from '../test-pads.js'
 
 // --- KeybindSettings component tests ---
 
@@ -493,6 +495,49 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     store.save({ go: { keys: ['ctrl+k ctrl+s', 'k:hold'] } })
     const chips = byPart('binding-keys').map((c) => Array.from(c.querySelectorAll('kbd')).map((k) => k.textContent))
     expect(chips).toEqual([['Ctrl', 'K', 'then', 'Ctrl', 'S'], ['K', 'Hold'], ['Scroll ↑']])
+    el.remove()
+  })
+})
+
+describe('KeybindSettings recording gamepads and axes', () => {
+  test('the settings panel records a gamepad button', () => {
+    const pads = fakePads()
+    pads.set([])
+    const el = /** @type {import('../index.js').KeybindSettings} */ (createComponent(KeybindSettings))
+    el.inputs = ALL.inputs
+    el.store = new BindingsStore({ jump: { label: 'Jump', keys: ['space'] } }, 'test:pad-settings')
+    document.body.appendChild(el)
+    el.open = true
+    const add = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part="add-gamepad"]'))
+    expect(add).toBeTruthy()
+    add.click()
+    pads.frame() // first sight
+    pads.set([3])
+    pads.frame()
+    expect(el.store?.getOverrides()).toEqual({ jump: { gamepad: ['y'] } })
+    el.remove()
+    localStorage.removeItem('test:pad-settings')
+    pads.restore()
+  })
+
+  test('the settings panel records two keys as an axis, and inverts it', () => {
+    const el = /** @type {import('../index.js').KeybindSettings} */ (createComponent(KeybindSettings))
+    el.inputs = ALL.inputs
+    el.store = new BindingsStore(
+      { strafe: { label: 'Strafe', axes: ['keys:a/d'] } },
+      { load: () => ({}), save: () => {} },
+    )
+    document.body.appendChild(el)
+    el.open = true
+    const add = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part="add-axis"]'))
+    expect(add).toBeTruthy()
+    add.click()
+    window.dispatchEvent(kbd('keydown', { code: 'KeyJ', key: 'j' }))
+    window.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
+    expect(el.store?.get()['strafe']?.axes).toEqual(['keys:a/d', 'keys:j/l'])
+    const invert = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part~="binding-invert"]'))
+    invert.click()
+    expect(el.store?.get()['strafe']?.axes).toEqual(['-keys:a/d', 'keys:j/l'])
     el.remove()
   })
 })

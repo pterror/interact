@@ -1,42 +1,92 @@
 /**
- * A fake gamepad for the tests, and animation frames run by hand.
+ * Fake gamepads for the tests, in place of the browser's, and animation frames run by hand.
  */
 
-/** A fake pad, and animation frames run by hand */
-const fakePads = () => {
-  /** @type {any[]} */
+/** @import { Pad } from './pads.js' */
+
+const BUTTONS = 17
+const PULLED = 1
+const LET_GO = 0
+
+/**
+ * A pad with some buttons down, its sticks at rest
+ * @param {readonly number[]} down - The buttons down, by index
+ * @param {number} index - The pad's index
+ * @returns {Pad} The pad
+ */
+function padWith(down, index) {
+  return {
+    axes: [],
+    buttons: Array.from({ length: BUTTONS }, (_unused, button) => ({
+      pressed: down.includes(button),
+      value: down.includes(button) ? PULLED : LET_GO,
+    })),
+    index,
+  }
+}
+
+/**
+ * @typedef {object} FakePadsFields
+ * @property {() => void} frame - Runs the animation frames asked for since the last
+ * @property {() => void} restore - Puts the browser's gamepads and animation frames back
+ * @property {(...down: readonly (readonly number[])[]) => void} set - Connects one pad per list, with those buttons
+ *   down
+ * @property {(pads: readonly Pad[]) => void} setPads - Connects these pads, sticks and triggers as given
+ */
+
+/**
+ * The fake pads, controlled by hand
+ * @typedef {Readonly<FakePadsFields>} FakePads
+ */
+
+/**
+ * Replaces the browser's gamepads and animation frames with ones the test controls
+ * @returns {FakePads} How to control them, and put the real ones back
+ */
+function fakePads() {
+  /** @type {readonly Pad[]} */
   let pads = []
   /** @type {FrameRequestCallback[]} */
   let frames = []
-  const nav = /** @type {any} */ (navigator)
-  const saved = { cancel: globalThis.cancelAnimationFrame, get: nav.getGamepads, raf: globalThis.requestAnimationFrame }
+  const own = Object.getOwnPropertyDescriptor(navigator, 'getGamepads')
+  const raf = globalThis.requestAnimationFrame
+  const cancel = globalThis.cancelAnimationFrame
   Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => pads, writable: true })
-  globalThis.requestAnimationFrame = (cb) => {
-    frames.push(cb)
+  /**
+   * Asks for a frame, which the test runs by hand
+   * @param {FrameRequestCallback} onFrame - What runs then
+   * @returns {number} The frame's id
+   */
+  function requestFrame(onFrame) {
+    frames.push(onFrame)
     return frames.length
   }
+  globalThis.requestAnimationFrame = requestFrame
   globalThis.cancelAnimationFrame = () => {
     frames = []
   }
-  /** @param {number[]} down */
-  const pad = (down, index = 0) => ({
-    buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: down.includes(i) })),
-    index,
-  })
   return {
     frame: () => {
       const run = frames
       frames = []
-      for (const f of run) f(0)
+      for (const onFrame of run) {
+        onFrame(performance.now())
+      }
     },
     restore: () => {
-      Object.defineProperty(navigator, 'getGamepads', { value: saved.get, configurable: true, writable: true })
-      globalThis.requestAnimationFrame = saved.raf
-      globalThis.cancelAnimationFrame = saved.cancel
+      if (own === undefined) {
+        Reflect.deleteProperty(navigator, 'getGamepads')
+      } else {
+        Object.defineProperty(navigator, 'getGamepads', own)
+      }
+      globalThis.requestAnimationFrame = raf
+      globalThis.cancelAnimationFrame = cancel
     },
-    /** @param {...number[]} down - pressed buttons, one list per pad */
     set: (...down) => {
-      pads = down.map((d, i) => pad(d, i))
+      pads = down.map((buttons, index) => padWith(buttons, index))
+    },
+    setPads: (next) => {
+      pads = next
     },
   }
 }
