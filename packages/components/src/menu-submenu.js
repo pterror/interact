@@ -33,6 +33,8 @@ class SubmenuSlot {
   #pending = undefined
   /** @type {readonly Point[] | undefined} */
   #heading = undefined
+  /** @type {number | undefined} */
+  #pointed = undefined
   /**
    * @readonly
    * @type {SlotHost}
@@ -85,26 +87,33 @@ class SubmenuSlot {
     const open = this.#open
     this.cancel()
     this.#heading = undefined
+    this.#pointed = undefined
     this.#unfollow?.()
     this.#unfollow = undefined
     this.#open = undefined
-    open?.menu.layer.open.set(false)
-    this.#host.changed()
+    if (open !== undefined) {
+      open.menu.layer.open.set(false)
+      this.#host.changed()
+    }
   }
 
   /**
-   * The pointer came to rest on the entry at a position: any other submenu closes, and the entry's opens once the
-   * pointer has rested there, unless something else happens first.
+   * The pointer came onto the entry at a position: any other submenu closes, and the entry's opens once the pointer
+   * has rested there, unless something else happens first. Moving on over the same entry changes nothing.
    * @param {number} position - The entry's position
    * @param {boolean} opens - Whether the entry opens a submenu
    * @param {() => void} open - Opens it
    * @returns {void}
    */
   pointedAt(position, opens, open) {
+    if (this.#pointed === position) {
+      return
+    }
     this.cancel()
     if (this.#open?.position !== position) {
       this.close()
     }
+    this.#pointed = position
     if (opens && this.#open === undefined) {
       this.#pending = this.#host.wait(OPEN_DELAY, () => {
         this.#pending = undefined

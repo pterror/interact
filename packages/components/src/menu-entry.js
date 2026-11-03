@@ -5,6 +5,8 @@
  * @import { Source } from '@interact/core/source'
  */
 
+import { MemorySource } from '@interact/core'
+
 /**
  * One entry in a menu. Every kind has an `id`, unique in its menu. An item has a `label`, may be `disabled` (it can
  * still take focus, but does nothing), and may show a `shortcut`, the keys that run it, as people read them.
@@ -60,4 +62,14 @@ function entryRole(entry) {
   return entry.kind === 'separator' ? 'separator' : 'menuitem'
 }
 
-export { entryRole, entryText, isSeparator }
+/**
+ * Entries held in memory, keyed by their ids, found by their labels when typing.
+ * @template F
+ * @param {readonly MenuEntry<F>[]} entries - The entries, in order
+ * @returns {MemorySource<MenuEntry<F>>} Their source
+ */
+function menuEntries(entries) {
+  return new MemorySource(entries, (entry) => entry.id, entryText)
+}
+
+export { entryRole, entryText, isSeparator, menuEntries }

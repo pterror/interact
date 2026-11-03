@@ -1,13 +1,12 @@
 /**
  * Menus for the tests: a source of entries, a clock that waits only when told, and a menu of each kind of entry with a
  * submenu, the same on the server and in the page.
- * @import { Span } from '@interact/core/memory-source'
+ * @import { MemorySource, Span } from '@interact/core/memory-source'
  * @import { MenuEntry } from './menu-entry.js'
  * @import { Wait } from './menu-types.js'
  */
 
-import { MemorySource } from '@interact/core'
-
+import { menuEntries } from './menu-entry.js'
 import { Menu } from './menu.js'
 
 /**
@@ -16,7 +15,7 @@ import { Menu } from './menu.js'
  * @returns {MemorySource<MenuEntry<Span>>} The source
  */
 function entries(list) {
-  return new MemorySource(list, (entry) => entry.id)
+  return menuEntries(list)
 }
 
 /**

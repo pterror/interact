@@ -37,10 +37,12 @@ import { UNMEASURED_ROWS, offsetFor, rowAt, rowCap, virtualRows } from './virtua
  */
 
 /**
- * What a list's viewport is: its role and accessible name, whether it selects several items, what each row renders,
- * and what a key or focus entering it does.
+ * What a list's viewport is: its role, its id if anything refers to it, its accessible name (a label, or the id of
+ * what names it), whether it selects several items, what each row renders, and what a key or focus entering it does.
  * @typedef {Readonly<{
  *   role: 'listbox' | 'menu',
+ *   id?: string,
+ *   labelledby?: string,
  *   label: string | undefined,
  *   multiselectable: boolean,
  *   row: (row: Row) => TemplateResult,
@@ -259,7 +261,9 @@ function rowsViewport(listbox, viewport) {
   return html`<div
     part="viewport"
     role=${viewport.role}
+    id=${viewport.id}
     tabindex="0"
+    aria-labelledby=${viewport.labelledby}
     aria-label=${viewport.label === undefined || viewport.label === '' ? undefined : viewport.label}
     aria-multiselectable=${viewport.multiselectable ? 'true' : undefined}
     aria-activedescendant=${activeDescendant(listbox)}
