@@ -1,78 +1,54 @@
-export type Command = import('./command.js').Command;
-export type Input = import('./input.js').InputUI;
-/** @typedef {import('./command.js').Command} Command */
-/** @typedef {import('./input.js').InputUI} Input */
 /**
- * <keybinds-cheatsheet> - Grouped display of available bindings
+ * <keybinds-cheatsheet>: every command's bindings, grouped by category, those that don't apply now grayed out.
  *
- * Attributes:
- *   open         - Show/hide the cheatsheet
- *   auto-trigger  - Open while a modifier is held on its own; tapping it twice keeps it open
- *   trigger-key   - The modifier to hold: $mod (default: Meta on Mac, Control elsewhere), Control, Alt, Shift or Meta
- *   trigger-delay - How long to hold it before opening, in ms (default 1000)
+ * Attributes: `open`; `auto-trigger` (open while a modifier is held on its own; tapping it twice keeps it open);
+ * `trigger-key` (the modifier: $mod by default, which is Meta on Mac and Control elsewhere, or Control, Alt, Shift,
+ * Meta); `trigger-delay` (how long to hold it before opening, in ms; default 1000).
  *
- * Properties:
- *   commands: Command[]     - Array of command definitions
- *   context: object         - Context for `when` checks (grays out inactive)
- *   open: boolean           - Show/hide the cheatsheet
- *   inputs: Input[]         - Which bindings are shown, and how (default: keys only)
+ * Properties: `commands`, `context` (what `when` conditions see), `open`, `inputs` (which bindings are shown, and how;
+ * default keys only).
  *
- * Events:
- *   open  - Fired when it opens, however that happened
- *   close - Fired when cheatsheet is dismissed
+ * Events: `open` when it opens, however that happened; `close` when it's dismissed.
  *
- * BEM classes:
- *   .cheatsheet
- *   .cheatsheet__backdrop
- *   .cheatsheet__dialog
- *   .cheatsheet__group
- *   .cheatsheet__group-title
- *   .cheatsheet__list
- *   .cheatsheet__item
- *   .cheatsheet__item--disabled
- *   .cheatsheet__item-label
- *   .cheatsheet__item-keys
- *   .cheatsheet__item-binding
- *   .cheatsheet__item-key
+ * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
+ * __item-keys, __item-binding, __item-key.
  */
-export declare class KeybindCheatsheet extends HTMLElement {
-    /** How bindings are shown. @type {Input[]} */
-    _inputs: Input[];
-    /** Stops following how the inputs show bindings changing (a layout() switching) */
-    /** @type {(() => void)[]} */
-    _unwatch: (() => void)[];
-    /** @type {Command[]} */
-    _commands: Command[];
-    /** @type {Record<string, unknown>} */
-    _context: Record<string, unknown>;
-    /** @type {(() => void) | null} */
-    _cleanupTrigger: (() => void) | null;
-    /** @type {HTMLElement} */
-    _backdrop: HTMLElement;
-    /** @type {HTMLElement} */
-    _dialog: HTMLElement;
+import type { Command, Context } from './command.js';
+import type { InputUI } from './input.js';
+/** A cheatsheet of bindings */
+declare class KeybindCheatsheet extends HTMLElement {
+    #private;
     static kind: string;
-    static get observedAttributes(): string[];
+    static observedAttributes: string[];
+    /** Builds the cheatsheet's shadow DOM */
     constructor();
-    get inputs(): import("./input.js").InputUI[];
-    set inputs(val: import("./input.js").InputUI[]);
-    _watchInputs(): void;
-    get commands(): Readonly<import("./command.js").CommandFields>[];
-    set commands(val: Readonly<import("./command.js").CommandFields>[]);
-    get context(): Record<string, unknown>;
-    set context(val: Record<string, unknown>);
+    /** @returns {readonly InputUI[]} Which bindings are shown, and how */
+    get inputs(): readonly InputUI[];
+    /** @param {readonly InputUI[]} inputs - Which bindings are shown, and how */
+    set inputs(inputs: readonly InputUI[]);
+    /** @returns {readonly Command[]} The commands shown */
+    get commands(): readonly Command[];
+    /** @param {readonly Command[]} commands - The commands shown */
+    set commands(commands: readonly Command[]);
+    /** @returns {Context} What `when` conditions see */
+    get context(): Context;
+    /** @param {Context} context - What `when` conditions see */
+    set context(context: Context);
+    /** @returns {boolean} Whether it's open */
     get open(): boolean;
-    set open(val: boolean);
+    /** @param {boolean} open - Whether it's open */
+    set open(open: boolean);
     /**
-     * @param {string} name
-     * @param {string | null} _oldVal
-     * @param {string | null} newVal
+     * Follows its attributes
+     * @param {string} name - Which changed
+     * @param {string | null} _previous - Its value before
+     * @param {string | null} value - Its value now
+     * @returns {void}
      */
-    attributeChangedCallback(name: string, _oldVal: string | null, newVal: string | null): void;
+    attributeChangedCallback(name: string, _previous: string | null, value: string | null): void;
+    /** @returns {void} */
     connectedCallback(): void;
+    /** @returns {void} */
     disconnectedCallback(): void;
-    /** @param {boolean} enable */
-    _setupAutoTrigger(enable: boolean): void;
-    _close(): void;
-    _render(): void;
 }
+export { KeybindCheatsheet };

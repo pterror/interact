@@ -28,8 +28,9 @@ One module per part, JSDoc types checked via `tsconfig.json`; `src/index.js` re-
   schema and live commands), `hub-components.js` (making and syncing components), `hub-buttons.js`, `hub-focus.js`,
   `hub-options.js`
 - Components: `palette.js` (with `palette-list.js`, `palette-parts.js`, `palette-search.js`, `palette-source.js`),
-  `cheatsheet.js`, `radial-menu.js`, built with `component-dom.js` and made by `create-component.js`; the context menus
-  and settings panel are still in `src/components/`
+  `cheatsheet.js` (with `cheatsheet-groups.js`, `cheatsheet-trigger.js`), `radial-menu.js` (with `radial-keys.js`,
+  `radial-layout.js`, `radial-slots.js`), built with `component-dom.js` and made by `create-component.js`; the context
+  menus and settings panel are still in `src/components/`
 
 Key concepts:
 

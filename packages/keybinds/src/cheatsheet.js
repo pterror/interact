@@ -1,278 +1,216 @@
-import { bindingParts } from './binding-format.js'
-import { isMac } from './binding-mods.js'
-import { keysUI } from './keys-ui.js'
-import { markKind } from './modal.js'
-import { onModifierHold, onModifierTaps } from './modifiers.js'
-import { groupByCategory } from './search.js'
-
-/** @typedef {import('./command.js').Command} Command */
-/** @typedef {import('./input.js').InputUI} Input */
+/**
+ * <keybinds-cheatsheet>: every command's bindings, grouped by category, those that don't apply now grayed out.
+ *
+ * Attributes: `open`; `auto-trigger` (open while a modifier is held on its own; tapping it twice keeps it open);
+ * `trigger-key` (the modifier: $mod by default, which is Meta on Mac and Control elsewhere, or Control, Alt, Shift,
+ * Meta); `trigger-delay` (how long to hold it before opening, in ms; default 1000).
+ *
+ * Properties: `commands`, `context` (what `when` conditions see), `open`, `inputs` (which bindings are shown, and how;
+ * default keys only).
+ *
+ * Events: `open` when it opens, however that happened; `close` when it's dismissed.
+ *
+ * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
+ * __item-keys, __item-binding, __item-key.
+ */
 
 /**
- * <keybinds-cheatsheet> - Grouped display of available bindings
- *
- * Attributes:
- *   open         - Show/hide the cheatsheet
- *   auto-trigger  - Open while a modifier is held on its own; tapping it twice keeps it open
- *   trigger-key   - The modifier to hold: $mod (default: Meta on Mac, Control elsewhere), Control, Alt, Shift or Meta
- *   trigger-delay - How long to hold it before opening, in ms (default 1000)
- *
- * Properties:
- *   commands: Command[]     - Array of command definitions
- *   context: object         - Context for `when` checks (grays out inactive)
- *   open: boolean           - Show/hide the cheatsheet
- *   inputs: Input[]         - Which bindings are shown, and how (default: keys only)
- *
- * Events:
- *   open  - Fired when it opens, however that happened
- *   close - Fired when cheatsheet is dismissed
- *
- * BEM classes:
- *   .cheatsheet
- *   .cheatsheet__backdrop
- *   .cheatsheet__dialog
- *   .cheatsheet__group
- *   .cheatsheet__group-title
- *   .cheatsheet__list
- *   .cheatsheet__item
- *   .cheatsheet__item--disabled
- *   .cheatsheet__item-label
- *   .cheatsheet__item-keys
- *   .cheatsheet__item-binding
- *   .cheatsheet__item-key
+ * @import { Command, Context } from './command.js'
+ * @import { InputUI } from './input.js'
  */
-export class KeybindCheatsheet extends HTMLElement {
+
+import { cheatsheetGroups } from './cheatsheet-groups.js'
+import { holdToOpen } from './cheatsheet-trigger.js'
+import { OVERLAY_STYLE, make, styleOf } from './component-dom.js'
+import { keysUI } from './keys-ui.js'
+import { markKind } from './modal.js'
+
+/** A cheatsheet of bindings */
+class KeybindCheatsheet extends HTMLElement {
   static kind = 'cheatsheet'
+  static observedAttributes = ['auto-trigger', 'open', 'trigger-delay', 'trigger-key']
 
-  static get observedAttributes() {
-    return ['open', 'auto-trigger', 'trigger-key', 'trigger-delay']
-  }
+  /** @type {readonly InputUI[]} */
+  #inputs = [keysUI()]
+  /**
+   * Stops following how the inputs show bindings changing (a layout() switching)
+   * @type {readonly (() => void)[]}
+   */
+  #unwatch = []
+  /** @type {readonly Command[]} */
+  #commands = []
+  /** @type {Context} */
+  #context = {}
+  /** @type {(() => void) | undefined} */
+  #stopTrigger
+  /** @readonly */
+  #dialog = make('div', { className: 'cheatsheet__dialog', part: 'dialog' })
 
+  /** Builds the cheatsheet's shadow DOM */
   constructor() {
     super()
-    /** How bindings are shown. @type {Input[]} */
-    this._inputs = [keysUI()]
-    /** Stops following how the inputs show bindings changing (a layout() switching) */
-    /** @type {(() => void)[]} */
-    this._unwatch = []
-    /** @type {Command[]} */
-    this._commands = []
-    /** @type {Record<string, unknown>} */
-    this._context = {}
-    /** @type {(() => void) | null} */
-    this._cleanupTrigger = null
-
-    const shadow = this.attachShadow({ mode: 'open' })
-    shadow.innerHTML = `
-      <style>
-        :host { display: none; }
-        :host([open]) { display: block; }
-        * { box-sizing: border-box; }
-      </style>
-      <div class="cheatsheet" part="cheatsheet">
-        <div class="cheatsheet__backdrop" part="backdrop"></div>
-        <div class="cheatsheet__dialog" part="dialog" role="dialog" aria-modal="true"></div>
-      </div>
-    `
-
-    /** @type {HTMLElement} */
-    this._backdrop = /** @type {HTMLElement} */ (shadow.querySelector('.cheatsheet__backdrop'))
-    /** @type {HTMLElement} */
-    this._dialog = /** @type {HTMLElement} */ (shadow.querySelector('.cheatsheet__dialog'))
-
-    this._backdrop.addEventListener('click', () => this._close())
+    const backdrop = make('div', { className: 'cheatsheet__backdrop', part: 'backdrop' })
+    this.#dialog.setAttribute('role', 'dialog')
+    this.#dialog.setAttribute('aria-modal', 'true')
+    const root = make('div', { className: 'cheatsheet', part: 'cheatsheet' })
+    root.append(backdrop, this.#dialog)
+    this.attachShadow({ mode: 'open' }).append(styleOf(OVERLAY_STYLE), root)
+    backdrop.addEventListener('click', () => {
+      this.#close()
+    })
   }
 
+  /** @returns {readonly InputUI[]} Which bindings are shown, and how */
   get inputs() {
-    return this._inputs
-  }
-  set inputs(val) {
-    this._inputs = val || []
-    if (this.isConnected) this._watchInputs()
-    if (this.open) this._render()
+    return this.#inputs
   }
 
-  // An open cheatsheet shows bindings as they look now
-  _watchInputs() {
-    for (const stop of this._unwatch) stop()
-    this._unwatch = this._inputs.flatMap((i) =>
-      i.watch
-        ? [
-            i.watch(() => {
-              if (this.open) this._render()
-            }),
-          ]
-        : [],
-    )
+  /** @param {readonly InputUI[]} inputs - Which bindings are shown, and how */
+  set inputs(inputs) {
+    this.#inputs = inputs
+    if (this.isConnected) {
+      this.#watch()
+    }
+    this.#refresh()
   }
 
+  /** @returns {readonly Command[]} The commands shown */
   get commands() {
-    return this._commands
-  }
-  set commands(val) {
-    this._commands = val || []
-    if (this.open) this._render()
+    return this.#commands
   }
 
+  /** @param {readonly Command[]} commands - The commands shown */
+  set commands(commands) {
+    this.#commands = commands
+    this.#refresh()
+  }
+
+  /** @returns {Context} What `when` conditions see */
   get context() {
-    return this._context
-  }
-  set context(val) {
-    this._context = val || {}
-    if (this.open) this._render()
+    return this.#context
   }
 
+  /** @param {Context} context - What `when` conditions see */
+  set context(context) {
+    this.#context = context
+    this.#refresh()
+  }
+
+  /** @returns {boolean} Whether it's open */
   get open() {
     return this.hasAttribute('open')
   }
-  set open(val) {
-    if (val) this.setAttribute('open', '')
-    else this.removeAttribute('open')
+
+  /** @param {boolean} open - Whether it's open */
+  set open(open) {
+    this.toggleAttribute('open', open)
   }
 
   /**
-   * @param {string} name
-   * @param {string | null} _oldVal
-   * @param {string | null} newVal
+   * Follows its attributes
+   * @param {string} name - Which changed
+   * @param {string | null} _previous - Its value before
+   * @param {string | null} value - Its value now
+   * @returns {void}
    */
-  attributeChangedCallback(name, _oldVal, newVal) {
-    if (name === 'open' && newVal !== null) {
-      this.dispatchEvent(new CustomEvent('open'))
-      this._render()
-    } else if (name === 'auto-trigger') {
-      this._setupAutoTrigger(newVal !== null)
-    } else if ((name === 'trigger-key' || name === 'trigger-delay') && this.hasAttribute('auto-trigger')) {
-      this._setupAutoTrigger(true)
+  attributeChangedCallback(name, _previous, value) {
+    if (name === 'open') {
+      if (value !== null) {
+        this.dispatchEvent(new CustomEvent('open'))
+        this.#render()
+      }
+    } else if (name === 'auto-trigger' || this.hasAttribute('auto-trigger')) {
+      this.#trigger(this.hasAttribute('auto-trigger'))
     }
   }
 
+  /** @returns {void} */
   connectedCallback() {
     markKind(this, 'cheatsheet')
-    this._watchInputs()
-    if (this.hasAttribute('auto-trigger')) {
-      this._setupAutoTrigger(true)
-    }
+    this.#watch()
+    this.#trigger(this.hasAttribute('auto-trigger'))
   }
 
+  /** @returns {void} */
   disconnectedCallback() {
-    this._setupAutoTrigger(false)
-    for (const stop of this._unwatch) stop()
-    this._unwatch = []
+    this.#trigger(false)
+    this.#stopWatching()
   }
 
-  /** @param {boolean} enable */
-  _setupAutoTrigger(enable) {
-    if (this._cleanupTrigger) {
-      this._cleanupTrigger()
-      this._cleanupTrigger = null
-    }
-    if (!enable) return
-
-    // Which modifier to hold: "$mod" (the default) is Meta on Mac and Control elsewhere, like in bindings
-    const key = this.getAttribute('trigger-key') || '$mod'
-    const modifier = key.toLowerCase() === '$mod' ? (isMac ? 'Meta' : 'Control') : key
-    // Long enough that pausing with it down to find the rest of a shortcut doesn't open it
-    const delay = Number(this.getAttribute('trigger-delay') ?? 1000)
-    // Holding shows it until the key is let go; tapping twice keeps it open (and tapping twice again,
-    // Escape or a click outside closes it).
-    let pinned = false
-    const unhold = onModifierHold(
-      modifier,
-      (held) => {
-        if (!pinned) this.open = held
-      },
-      { delay: Number.isFinite(delay) ? delay : 1000 },
+  /**
+   * Follows how the inputs show bindings, so an open cheatsheet shows them as they look now
+   * @returns {void}
+   */
+  #watch() {
+    this.#stopWatching()
+    this.#unwatch = this.#inputs.flatMap(({ watch }) =>
+      watch === undefined
+        ? []
+        : [
+            watch(() => {
+              this.#refresh()
+            }),
+          ],
     )
-    const untap = onModifierTaps(modifier, () => {
-      pinned = !this.open
-      this.open = pinned
-    })
-    /** @param {KeyboardEvent} e */
-    const escape = (e) => {
-      if (e.key !== 'Escape' || !this.open) return
-      // Escape was for closing it, not for whatever is underneath too
-      e.preventDefault()
-      e.stopPropagation()
-      this._close()
-    }
-    const closed = () => {
-      pinned = false
-    }
-    window.addEventListener('keydown', escape, true)
-    this.addEventListener('close', closed)
-    this._cleanupTrigger = () => {
-      unhold()
-      untap()
-      window.removeEventListener('keydown', escape, true)
-      this.removeEventListener('close', closed)
-    }
   }
 
-  _close() {
+  /** @returns {void} */
+  #stopWatching() {
+    for (const stop of this.#unwatch) {
+      stop()
+    }
+    this.#unwatch = []
+  }
+
+  /**
+   * Starts or stops opening while a modifier is held
+   * @param {boolean} on - Whether it should
+   * @returns {void}
+   */
+  #trigger(on) {
+    this.#stopTrigger?.()
+    this.#stopTrigger = on
+      ? holdToOpen(
+          {
+            close: () => {
+              this.#close()
+            },
+            isOpen: () => this.open,
+            onClose: (closed) => {
+              this.addEventListener('close', closed)
+              return () => {
+                this.removeEventListener('close', closed)
+              }
+            },
+            setOpen: (open) => {
+              this.open = open
+            },
+          },
+          { delay: this.getAttribute('trigger-delay'), key: this.getAttribute('trigger-key') },
+        )
+      : undefined
+  }
+
+  /** @returns {void} */
+  #close() {
     this.open = false
     this.dispatchEvent(new CustomEvent('close'))
   }
 
-  _render() {
-    const groups = groupByCategory(
-      this._commands,
-      this._context,
-      this.inputs.filter((i) => !i.axis).map((i) => i.field),
-    )
-    this._dialog.replaceChildren()
-
-    for (const [category, entries] of Object.entries(groups)) {
-      const cmds = entries.map(({ command, active }) => ({ ...command, active }))
-      const group = document.createElement('div')
-      group.className = 'cheatsheet__group'
-      group.setAttribute('part', 'group')
-
-      const title = document.createElement('div')
-      title.className = 'cheatsheet__group-title'
-      title.setAttribute('part', 'group-title')
-      title.textContent = category
-      group.appendChild(title)
-
-      const list = document.createElement('ul')
-      list.className = 'cheatsheet__list'
-      list.setAttribute('part', 'list')
-
-      for (const cmd of cmds) {
-        const li = document.createElement('li')
-        li.className = 'cheatsheet__item'
-        if (!cmd.active) li.className += ' cheatsheet__item--disabled'
-        li.setAttribute('part', `item${!cmd.active ? ' item-disabled' : ''}`)
-
-        const label = document.createElement('span')
-        label.className = 'cheatsheet__item-label'
-        label.setAttribute('part', 'item-label')
-        label.textContent = cmd.label
-        li.appendChild(label)
-
-        const bindings = document.createElement('span')
-        bindings.className = 'cheatsheet__item-keys'
-        bindings.setAttribute('part', 'item-keys')
-
-        for (const parts of bindingParts(cmd, this.inputs)) {
-          const binding = document.createElement('span')
-          binding.className = 'cheatsheet__item-binding'
-          binding.setAttribute('part', 'item-binding')
-          for (const part of parts) {
-            const kbd = document.createElement('kbd')
-            kbd.className = 'cheatsheet__item-key'
-            kbd.setAttribute('part', 'item-key')
-            kbd.textContent = part
-            binding.appendChild(kbd)
-          }
-          bindings.appendChild(binding)
-        }
-
-        li.appendChild(bindings)
-        list.appendChild(li)
-      }
-
-      group.appendChild(list)
-      this._dialog.appendChild(group)
+  /**
+   * Shows the bindings again if it's open
+   * @returns {void}
+   */
+  #refresh() {
+    if (this.open) {
+      this.#render()
     }
   }
+
+  /** @returns {void} */
+  #render() {
+    this.#dialog.replaceChildren(...cheatsheetGroups(this.#commands, this.#context, this.#inputs))
+  }
 }
+
+export { KeybindCheatsheet }

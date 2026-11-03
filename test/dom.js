@@ -28,6 +28,7 @@ Object.assign(globalThis, {
   MutationObserver: window.MutationObserver,
   Node: window.Node,
   PointerEvent: window.PointerEvent,
+  SVGElement: window.SVGElement,
   ShadowRoot: window.ShadowRoot,
   Text: window.Text,
   WheelEvent: window.WheelEvent,

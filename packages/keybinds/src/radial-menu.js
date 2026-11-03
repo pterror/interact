@@ -1,448 +1,242 @@
-import { isActive } from './command.js'
-import { markKind } from './modal.js'
-
-/** @typedef {import('./command.js').Command} Command */
+/**
+ * <keybinds-radial-menu>: up to eight commands evenly around a circle, so each direction becomes muscle memory. It has
+ * no trigger of its own: the app opens it with openAt() and closes it with close().
+ *
+ * Properties: `commands` (the first eight), `context` (what `when` conditions see), `open`.
+ *
+ * Events: `command` (detail: { command }) when a command is chosen and run; `close` when it's dismissed.
+ *
+ * Parts: backdrop, container, spoke, slot, slot-active, slot-disabled, indicator, label. Colors come from
+ * --radial-menu-active-color, -inactive-color, -disabled-color, -text-color and -spoke-color.
+ */
 
 /**
- * <keybinds-radial-menu> - Radial command menu with bilateral text layout
- *
- * Up to 8 commands arranged evenly around a circle. Labels on the right half
- * are left-aligned to the right of their indicator; labels on the left half
- * are right-aligned to the left. Direction becomes muscle memory; eight slots
- * maps to Miller's Law (≤7±2).
- *
- * No auto-trigger — caller controls open/close.
- *
- * Attributes:
- *   open - Reflects open state
- *
- * Properties:
- *   commands: Command[]            - Up to 8 command definitions
- *   context: object                - Context for `when` checks
- *   open: boolean                  - Show/hide the menu
- *
- * Methods:
- *   open({ x, y })  - Open at viewport coordinates (omit for viewport center)
- *   close()         - Dismiss the menu
- *
- * Events:
- *   command - Fired when command is executed (detail: { command })
- *   close   - Fired when menu is dismissed
- *
- * CSS parts:
- *   backdrop        - Click-away backdrop
- *   container       - SVG/div outer wrapper
- *   slot            - Each radial slot wrapper
- *   slot-active     - Hovered/focused slot
- *   slot-disabled   - Inactive command slot
- *   indicator       - The dot/circle for each slot
- *   label           - The text label for each slot
+ * @import { Command, Context } from './command.js'
+ * @import { ActiveCommand } from './search.js'
  */
-// Colors from CSS custom properties, with fallbacks
-const ACTIVE_COLOR = 'var(--radial-menu-active-color, #4f8ef7)'
-const INACTIVE_COLOR = 'var(--radial-menu-inactive-color, #888)'
-const DISABLED_COLOR = 'var(--radial-menu-disabled-color, #555)'
-const TEXT_COLOR = 'var(--radial-menu-text-color, currentColor)'
-const SPOKE_COLOR = 'var(--radial-menu-spoke-color, currentColor)'
 
-export class RadialMenu extends HTMLElement {
-  static kind = 'radial-menu'
+import { isActive } from './command.js'
+import { make, styleOf } from './component-dom.js'
+import { markKind } from './modal.js'
+import { slotForKey } from './radial-keys.js'
+import { SLOTS, SVG, placeFrame } from './radial-layout.js'
+import { RadialSlots } from './radial-slots.js'
 
-  static get observedAttributes() {
-    return ['open']
+const HALF = 2
+const FIRST = 0
+const NONE = -1
+
+const STYLE = `@layer keybinds.structure {
+  :host { display: none; }
+  :host(:where([open])) { display: block; }
+  :where(*) { box-sizing: border-box; }
+  :where(.radial-menu__backdrop) { position: fixed; inset: 0; z-index: 9998; }
+  :where(.radial-menu__container) { position: fixed; z-index: 9999; pointer-events: none; overflow: visible; }
+  :where(.radial-menu__slot) { pointer-events: all; cursor: pointer; }
+  :where(.radial-menu__slot--disabled) { cursor: default; opacity: 0.35; }
+  :where(.radial-menu__indicator) { transition: r 0.1s, fill 0.1s; }
+  :where(.radial-menu__label) {
+    font: 13px/1.4 system-ui, sans-serif;
+    fill: currentColor;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
   }
+  :where(.radial-menu__spoke) { stroke-width: 1; opacity: 0.25; }
+}`
 
+/**
+ * The menu's SVG, holding a group for the spokes and one for the slots
+ * @returns {Readonly<{ frame: SVGSVGElement, slots: SVGGElement, spokes: SVGGElement }>} The SVG and its groups
+ */
+function frameOf() {
+  const frame = document.createElementNS(SVG, 'svg')
+  frame.setAttribute('class', 'radial-menu__container')
+  frame.setAttribute('part', 'container')
+  const spokes = document.createElementNS(SVG, 'g')
+  spokes.setAttribute('class', 'radial-menu__spokes')
+  const slots = document.createElementNS(SVG, 'g')
+  slots.setAttribute('class', 'radial-menu__slots')
+  frame.append(spokes, slots)
+  return { frame, slots, spokes }
+}
+
+/** A radial menu */
+class RadialMenu extends HTMLElement {
+  static kind = 'radial-menu'
+  static observedAttributes = ['open']
+
+  /** @type {readonly Command[]} */
+  #commands = []
+  /** @type {Context} */
+  #context = {}
+  #centre = { x: FIRST, y: FIRST }
+  /**
+   * @readonly
+   * @type {SVGSVGElement}
+   */
+  #frame
+  /**
+   * @readonly
+   * @type {RadialSlots}
+   */
+  #slots
+  /** @readonly */
+  #keys = this.#key.bind(this)
+
+  /** Builds the menu's shadow DOM */
   constructor() {
     super()
-    /** @type {Command[]} */
-    this._commands = []
-    /** @type {Record<string, unknown>} */
-    this._context = {}
-    /** @type {{ x: number, y: number }} */
-    this._position = { x: 0, y: 0 }
-    /** @type {(Command & { active: boolean })[]} */
-    this._items = []
-    /** @type {number} */
-    this._activeIndex = -1
-    /** @type {'keyboard' | 'pointer'} */
-    this._inputMode = 'pointer'
-    /** @type {((e: Event) => void) | null} */
-    this._keyHandler = null
-
-    // Radial layout constants
-    /** @type {number} */
-    this._radius = 80
-    /** @type {number} */
-    this._indicatorR = 6
-    /** @type {number} */
-    this._labelGap = 14
-
-    const shadow = this.attachShadow({ mode: 'open' })
-    shadow.innerHTML = `
-      <style>
-        :host { display: none; }
-        :host([open]) { display: block; }
-        * { box-sizing: border-box; }
-        .radial-menu__backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 9998;
-        }
-        .radial-menu__container {
-          position: fixed;
-          z-index: 9999;
-          pointer-events: none;
-          overflow: visible;
-        }
-        .radial-menu__slot {
-          pointer-events: all;
-          cursor: pointer;
-        }
-        .radial-menu__slot--disabled {
-          cursor: default;
-          opacity: 0.35;
-        }
-        .radial-menu__indicator {
-          transition: r 0.1s, fill 0.1s;
-        }
-        .radial-menu__slot--active .radial-menu__indicator {
-          /* active state handled via JS attribute */
-        }
-        .radial-menu__label {
-          font: 13px/1.4 system-ui, sans-serif;
-          fill: currentColor;
-          dominant-baseline: central;
-          pointer-events: none;
-          user-select: none;
-        }
-        .radial-menu__spoke {
-          stroke-width: 1;
-          opacity: 0.25;
-        }
-      </style>
-      <div class="radial-menu__backdrop" part="backdrop"></div>
-      <svg class="radial-menu__container" part="container" xmlns="http://www.w3.org/2000/svg">
-        <g class="radial-menu__spokes"></g>
-        <g class="radial-menu__slots"></g>
-      </svg>
-    `
-
-    this._backdrop = /** @type {HTMLElement} */ (shadow.querySelector('.radial-menu__backdrop'))
-    this._svg = /** @type {SVGSVGElement} */ (shadow.querySelector('.radial-menu__container'))
-    this._spokesGroup = /** @type {SVGGElement} */ (shadow.querySelector('.radial-menu__spokes'))
-    this._slotsGroup = /** @type {SVGGElement} */ (shadow.querySelector('.radial-menu__slots'))
-
-    this._backdrop.addEventListener('click', () => this._close())
-    this._backdrop.addEventListener('contextmenu', (e) => {
-      e.preventDefault()
-      this._close()
+    const { frame, slots, spokes } = frameOf()
+    this.#frame = frame
+    this.#slots = new RadialSlots(spokes, slots, (slot) => {
+      this.#execute(slot)
+    })
+    const backdrop = make('div', { className: 'radial-menu__backdrop', part: 'backdrop' })
+    this.attachShadow({ mode: 'open' }).append(styleOf(STYLE), backdrop, frame)
+    backdrop.addEventListener('click', () => {
+      this.close()
+    })
+    backdrop.addEventListener('contextmenu', (event) => {
+      event.preventDefault()
+      this.close()
     })
   }
 
+  /** @returns {void} */
   connectedCallback() {
     markKind(this, 'radial-menu')
   }
 
+  /** @returns {readonly Command[]} The commands in its slots */
   get commands() {
-    return this._commands
-  }
-  set commands(val) {
-    this._commands = (val || []).slice(0, 8)
-    if (this.open) this._buildItems()
+    return this.#commands
   }
 
+  /** @param {readonly Command[]} commands - The commands; it shows the first eight */
+  set commands(commands) {
+    this.#commands = commands.slice(FIRST, SLOTS)
+    this.#refresh()
+  }
+
+  /** @returns {Context} What `when` conditions see */
   get context() {
-    return this._context
-  }
-  set context(val) {
-    this._context = val || {}
-    if (this.open) this._buildItems()
+    return this.#context
   }
 
+  /** @param {Context} context - What `when` conditions see */
+  set context(context) {
+    this.#context = context
+    this.#refresh()
+  }
+
+  /** @returns {boolean} Whether it's open */
   get open() {
     return this.hasAttribute('open')
   }
-  set open(val) {
-    if (val) this.setAttribute('open', '')
-    else this.removeAttribute('open')
+
+  /** @param {boolean} open - Whether it's open */
+  set open(open) {
+    this.toggleAttribute('open', open)
   }
 
   /**
-   * @param {string} name
-   * @param {string | null} _oldVal
-   * @param {string | null} newVal
+   * Follows its `open` attribute
+   * @param {string} _name - The attribute, always `open`
+   * @param {string | null} _previous - Its value before
+   * @param {string | null} value - Its value now
+   * @returns {void}
    */
-  attributeChangedCallback(name, _oldVal, newVal) {
-    if (name === 'open') {
-      if (newVal !== null) this._onOpen()
-      else this._onClose()
+  attributeChangedCallback(_name, _previous, value) {
+    if (value === null) {
+      document.removeEventListener('keydown', this.#keys)
+      return
     }
+    this.#slots.reset()
+    this.#refresh()
+    document.addEventListener('keydown', this.#keys)
   }
 
   /**
-   * Open the menu at the given viewport coordinates.
-   * If no coords given, centers in the viewport.
-   * @param {{ x?: number, y?: number } | undefined} [coords]
+   * Opens it around a point, the viewport's centre if none is given
+   * @param {Readonly<{ x?: number, y?: number }>} [point] - Where, in viewport pixels
+   * @returns {void}
    */
-  openAt(coords) {
-    if (coords && typeof coords.x === 'number' && typeof coords.y === 'number') {
-      this._position = { x: coords.x, y: coords.y }
-    } else {
-      this._position = {
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
-      }
-    }
-    this._buildItems()
+  openAt(point = {}) {
+    const { x, y } = point
+    this.#centre =
+      x === undefined || y === undefined
+        ? { x: globalThis.innerWidth / HALF, y: globalThis.innerHeight / HALF }
+        : { x, y }
+    this.#show()
     this.open = true
   }
 
+  /**
+   * Dismisses it
+   * @returns {void}
+   */
   close() {
-    this._close()
-  }
-
-  _onOpen() {
-    this._activeIndex = -1
-    this._inputMode = 'pointer'
-    this._buildItems()
-    this._updatePosition()
-    /** @type {(e: Event) => void} */
-    const handler = (e) => this._handleKey(/** @type {KeyboardEvent} */ (e))
-    this._keyHandler = handler
-    // Listen on the document so the component doesn't need focus
-    document.addEventListener('keydown', handler)
-  }
-
-  _onClose() {
-    if (this._keyHandler) {
-      document.removeEventListener('keydown', this._keyHandler)
-      this._keyHandler = null
-    }
-  }
-
-  _close() {
     this.open = false
     this.dispatchEvent(new CustomEvent('close'))
   }
 
-  _buildItems() {
-    this._items = this._commands
-      .filter((cmd) => !cmd.hidden)
-      .map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
-    this._render()
-  }
-
-  _updatePosition() {
-    const { x, y } = this._position
-    const r = this._radius
-    const pad = r + 160 // enough room for labels
-    this._svg.style.left = `${x - pad}px`
-    this._svg.style.top = `${y - pad}px`
-    this._svg.style.width = `${pad * 2}px`
-    this._svg.style.height = `${pad * 2}px`
-    this._svg.setAttribute('viewBox', `${-pad} ${-pad} ${pad * 2} ${pad * 2}`)
-  }
-
-  _render() {
-    this._updatePosition()
-    this._spokesGroup.replaceChildren()
-    this._slotsGroup.replaceChildren()
-
-    const count = this._items.length
-    if (count === 0) return
-
-    const total = 8 // always 8 slots so positions are consistent
-    const r = this._radius
-    const indR = this._indicatorR
-    const gap = this._labelGap
-
-    for (let slot = 0; slot < total; slot++) {
-      // Distribute evenly, starting at top (−π/2), clockwise
-      const angle = (2 * Math.PI * slot) / total - Math.PI / 2
-      const cx = r * Math.cos(angle)
-      const cy = r * Math.sin(angle)
-
-      const cmd = this._items[slot]
-
-      // Spoke line from origin to indicator
-      const spokeLine = document.createElementNS('http://www.w3.org/2000/svg', 'line')
-      spokeLine.setAttribute('class', 'radial-menu__spoke')
-      spokeLine.setAttribute('x1', '0')
-      spokeLine.setAttribute('y1', '0')
-      spokeLine.setAttribute('x2', String(cx))
-      spokeLine.setAttribute('y2', String(cy))
-      spokeLine.setAttribute('stroke', cmd ? SPOKE_COLOR : DISABLED_COLOR)
-      spokeLine.setAttribute('part', 'spoke')
-      this._spokesGroup.appendChild(spokeLine)
-
-      if (!cmd) continue
-
-      const isActive_ = cmd.active
-
-      // Slot group (how it shows being active is _paint's)
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g')
-      g.dataset['slot'] = String(slot)
-      g.setAttribute('role', 'menuitem')
-      g.setAttribute('aria-label', cmd.label)
-      if (!isActive_) g.setAttribute('aria-disabled', 'true')
-
-      // Clickable hit area (larger than visual indicator)
-      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-      hit.setAttribute('cx', String(cx))
-      hit.setAttribute('cy', String(cy))
-      hit.setAttribute('r', String(indR + 10))
-      hit.setAttribute('fill', 'transparent')
-      g.appendChild(hit)
-
-      // Visual indicator dot
-      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
-      dot.setAttribute('class', 'radial-menu__indicator')
-      dot.setAttribute('part', 'indicator')
-      dot.setAttribute('cx', String(cx))
-      dot.setAttribute('cy', String(cy))
-      g.appendChild(dot)
-
-      // Label — bilateral layout:
-      // Right half (cos > 0 or top/bottom dead center columns): label to the right, left-aligned
-      // Left half (cos < 0): label to the left, right-aligned
-      // Exactly at ±90° (cos ≈ 0): stack label to the right (top/bottom slots go right by convention)
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text')
-      text.setAttribute('class', 'radial-menu__label')
-      text.setAttribute('part', 'label')
-
-      const onRight = Math.cos(angle) >= 0
-      const lx = onRight ? cx + indR + gap : cx - indR - gap
-      text.setAttribute('x', String(lx))
-      text.setAttribute('y', String(cy))
-      text.setAttribute('text-anchor', onRight ? 'start' : 'end')
-      text.textContent = cmd.label
-      g.appendChild(text)
-
-      // Events
-      if (isActive_) {
-        g.addEventListener('click', () => this._execute(slot))
-      }
-      g.addEventListener('mouseenter', () => {
-        if (this._inputMode !== 'pointer') return
-        this._activeIndex = slot
-        this._markActive()
-      })
-      g.addEventListener('mouseleave', () => {
-        if (this._inputMode !== 'pointer') return
-        if (this._activeIndex === slot) {
-          this._activeIndex = -1
-          this._markActive()
-        }
-      })
-
-      this._paint(g)
-      this._slotsGroup.appendChild(g)
+  /**
+   * Draws the slots again if it's open
+   * @returns {void}
+   */
+  #refresh() {
+    if (this.open) {
+      this.#show()
     }
   }
 
   /**
-   * How a slot shows whether it's the active one, and whether it can be used.
-   * @param {SVGGElement} g
+   * Draws its slots around its centre, for the commands that aren't hidden
+   * @returns {void}
    */
-  _paint(g) {
-    const slot = Number(g.dataset['slot'])
-    const enabled = /** @type {Command & { active: boolean }} */ (this._items[slot]).active
-    const on = slot === this._activeIndex
-    g.setAttribute(
-      'class',
-      `radial-menu__slot${!enabled ? ' radial-menu__slot--disabled' : ''}${on ? ' radial-menu__slot--active' : ''}`,
-    )
-    g.setAttribute('part', `slot${on ? ' slot-active' : ''}${!enabled ? ' slot-disabled' : ''}`)
-    const dot = /** @type {SVGCircleElement} */ (g.querySelector('.radial-menu__indicator'))
-    dot.setAttribute('r', String(on ? this._indicatorR + 2 : this._indicatorR))
-    dot.setAttribute('fill', !enabled ? DISABLED_COLOR : on ? ACTIVE_COLOR : INACTIVE_COLOR)
-    const text = /** @type {SVGTextElement} */ (g.querySelector('.radial-menu__label'))
-    text.setAttribute('fill', !enabled ? DISABLED_COLOR : on ? ACTIVE_COLOR : TEXT_COLOR)
+  #show() {
+    placeFrame(this.#frame, this.#centre)
+    /** @type {ActiveCommand[]} */
+    const entries = this.#commands
+      .filter((command) => command.hidden !== true)
+      .map((command) => ({ active: isActive(command, this.#context), command }))
+    this.#slots.show(entries)
   }
 
-  // Shows which slot is active on the slots already there. Drawing them again would replace the one
-  // under the pointer, and a press that began on it would never become a click.
-  _markActive() {
-    for (const g of Array.from(
-      /** @type {NodeListOf<SVGGElement>} */ (this._slotsGroup.querySelectorAll('[data-slot]')),
-    ))
-      this._paint(g)
-  }
-
-  /** @param {KeyboardEvent} e */
-  _handleKey(e) {
-    if (!this.open) return
-
-    // Arrow key → slot mapping based on 8-slot layout
-    // Slots: 0=top, 1=top-right, 2=right, 3=bottom-right, 4=bottom, 5=bottom-left, 6=left, 7=top-left
-    /** @type {Record<string, number>} */
-    const arrowToSlot = {
-      ArrowUp: 0,
-      ArrowRight: 2,
-      ArrowDown: 4,
-      ArrowLeft: 6,
-    }
-
-    switch (e.key) {
-      case 'ArrowUp':
-      case 'ArrowRight':
-      case 'ArrowDown':
-      case 'ArrowLeft': {
-        e.preventDefault()
-        this._inputMode = 'keyboard'
-        const target = /** @type {number} */ (arrowToSlot[e.key])
-        // Find the nearest filled slot at or adjacent to the arrow direction
-        if (this._items[target]) {
-          this._activeIndex = target
-        } else {
-          // walk clockwise to find nearest filled slot
-          for (let d = 1; d < 8; d++) {
-            const cw = (target + d) % 8
-            const ccw = (target - d + 8) % 8
-            if (this._items[cw]) {
-              this._activeIndex = cw
-              break
-            }
-            if (this._items[ccw]) {
-              this._activeIndex = ccw
-              break
-            }
-          }
-        }
-        this._render()
-        break
-      }
-      case 'Tab': {
-        e.preventDefault()
-        this._inputMode = 'keyboard'
-        const filled = this._items.map((_, i) => i)
-        if (filled.length === 0) break
-        const cur = filled.indexOf(this._activeIndex)
-        const next = e.shiftKey
-          ? filled[cur <= 0 ? filled.length - 1 : cur - 1]
-          : filled[cur >= filled.length - 1 ? 0 : cur + 1]
-        this._activeIndex = next ?? 0
-        this._render()
-        break
-      }
-      case 'Enter':
-        e.preventDefault()
-        if (this._activeIndex >= 0) this._execute(this._activeIndex)
-        break
-      case 'Escape':
-        e.preventDefault()
-        this._close()
-        break
+  /**
+   * What a key does while it's open: arrows and Tab choose a slot, Enter runs it, Escape closes the menu
+   * @param {KeyboardEvent} event - The key going down
+   * @returns {void}
+   */
+  #key(event) {
+    const slot = slotForKey(event, { active: this.#slots.active, filled: this.#slots.entries.length })
+    if (slot !== undefined) {
+      event.preventDefault()
+      this.#slots.choose(slot === NONE ? this.#slots.active : slot)
+    } else if (event.key === 'Enter') {
+      event.preventDefault()
+      this.#execute(this.#slots.active)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      this.close()
     }
   }
 
-  /** @param {number} slot */
-  _execute(slot) {
-    const cmd = this._items[slot]
-    if (!cmd || !cmd.active) return
-
-    this._close()
-    cmd.execute(this._context)
-    this.dispatchEvent(new CustomEvent('command', { detail: { command: cmd } }))
+  /**
+   * Runs the command in a slot, closing first, if it applies
+   * @param {number} slot - Which
+   * @returns {void}
+   */
+  #execute(slot) {
+    const entry = this.#slots.entries[slot]
+    if (entry === undefined || !entry.active) {
+      return
+    }
+    this.close()
+    entry.command.execute(this.#context)
+    this.dispatchEvent(new CustomEvent('command', { detail: { command: entry.command } }))
   }
 }
+
+export { RadialMenu }

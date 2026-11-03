@@ -36,11 +36,8 @@
     // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
     // list for the rule tests, so it is the one place a file leaves the fence.
     "packages/keybinds/src/components/basic-context-menu.js",
-    "packages/keybinds/src/cheatsheet.js",
-    "packages/keybinds/src/cheatsheet.test.js",
     "packages/keybinds/src/components/context-menu.js",
     "packages/keybinds/src/components/context-menu.test.js",
-    "packages/keybinds/src/radial-menu.js",
     "packages/keybinds/src/components/settings.js",
     "packages/keybinds/src/components/settings.test.js",
     "packages/keybinds/styles/palette.css"
@@ -143,6 +140,9 @@
               "RegExp",
               "Request",
               "RegExpExecArray",
+              "SVGElement",
+              "SVGGElement",
+              "SVGSVGElement",
               "ShadowRoot",
               "TemplateStringsArray",
               "Text",
