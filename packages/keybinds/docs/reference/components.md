@@ -258,11 +258,11 @@ until the pointer deliberately moves again.
 Convert a KeyboardEvent to a canonical binding string.
 
 ```ts
-function eventToBindingString(event: KeyboardEvent): string | null
+function eventToBindingString(event: KeyboardEvent, syntax?: readonly KeySyntax[]): string | undefined
 ```
 
-Returns `null` for bare modifier presses and unknown keys. Uses `$mod` for the platform modifier (Meta on Mac, Ctrl
-elsewhere).
+Returns `undefined` for bare modifier presses and keys that can't be bound. Uses `$mod` for the platform modifier (Meta
+on Mac, Ctrl elsewhere).
 
 ---
 
@@ -278,17 +278,16 @@ Maps button numbers to canonical names (0=click, 1=middle, 2=right).
 
 ---
 
-## findConflict(schema, bindingStr, input, excludeId?)
+## findConflict(schema, { binding, input, except? })
 
-Check if a binding string conflicts with any command in a schema.
+Check if a binding string conflicts with any command in a schema. `except` is a command not to check, usually the one
+being rebound.
 
 ```ts
 function findConflict(
   schema: Schema,
-  bindingStr: string,
-  input: Input,
-  excludeId?: string,
-): { commandId: string; label: string } | null
+  candidate: { binding: string; input: Input; except?: string },
+): { commandId: string; label: string } | undefined
 ```
 
 Normalizes through parse → lookup for accurate cross-format comparison.

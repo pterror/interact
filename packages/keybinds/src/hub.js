@@ -2,15 +2,17 @@
  * CommandHub: every command on the page, from every source, with one store of people's rebindings.
  */
 
+import { formatBinding } from './binding-format.js'
+import { isActive } from './command.js'
 import { createComponent } from './components/create.js'
-import { keybinds, isActive, validateCommands, formatBinding } from './core.js'
+import { keybinds, validateCommands } from './core.js'
 import { BindingsStore, localStorageBindings } from './store.js'
 
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').AxisDef} AxisDef */
-/** @typedef {import('./core.js').AxisValue} AxisValue */
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').Schema} Schema */
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./command.js').AxisDef} AxisDef */
+/** @typedef {import('./command.js').AxisValue} AxisValue */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./command.js').Schema} Schema */
 /** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
 /** @typedef {import('./store.js').BindingsStorage} BindingsStorage */
 /** @typedef {import('./components/palette.js').CommandPalette} CommandPalette */
@@ -30,8 +32,8 @@ import { BindingsStore, localStorageBindings } from './store.js'
  *   localStorage, separately per scope. Takes the place of `storageKey`
  * @property {import('./core.js').Phase} [releases] - From releases(), for release bindings ("k:up")
  * @property {import('./core.js').Phase} [holds] - From holds(), for "k:hold" and "k:tap"
- * @property {import('./core.js').Sequences} [sequences] - From sequences(), for bindings of several steps ("g i")
- * @property {import('./core.js').AnyModifiers} [anyModifiers] - From anyModifiers(), for commands with `anyModifiers`
+ * @property {import('./sequences.js').Sequences} [sequences] - From sequences(), for bindings of several steps ("g i")
+ * @property {import('./any-modifiers.js').AnyModifiers} [anyModifiers] - From anyModifiers(), for commands with `anyModifiers`
  * @property {Omit<KeybindsOptions, 'inputs' | 'axes' | 'releases' | 'holds' | 'sequences' | 'anyModifiers'>} [listen] - Passed on to keybinds(): target, capture, onExecute
  */
 
@@ -55,7 +57,7 @@ import { BindingsStore, localStorageBindings } from './store.js'
  * hub.refresh()
  * hub.bindButtons(toolbar) // <button data-command="save">Save</button>
  *
- * @template {{ id: string, label: string, category?: string | undefined, description?: string | undefined, keys?: string[] | undefined, mouse?: string[] | undefined, gamepad?: string[] | undefined, hidden?: boolean | undefined }} [D=Command]
+ * @template {{ id: string, label: string, category?: string | undefined, description?: string | undefined, keys?: readonly string[] | undefined, mouse?: readonly string[] | undefined, gamepad?: readonly string[] | undefined, hidden?: boolean | undefined }} [D=Command]
  * @template {object} [C=Record<string, unknown>] - The context `when` conditions see
  */
 export class CommandHub extends EventTarget {
@@ -411,7 +413,7 @@ export class CommandHub extends EventTarget {
     const list = /** @type {string[] | undefined} */ (
       /** @type {Record<string, unknown> | undefined} */ (source)?.[field]
     )
-    const ui = 'format' in input ? /** @type {import('./core.js').InputUI} */ (input) : null
+    const ui = 'format' in input ? /** @type {import('./input.js').InputUI} */ (input) : null
     return (list ?? []).map((b) =>
       ui
         ? formatBinding(ui, b)

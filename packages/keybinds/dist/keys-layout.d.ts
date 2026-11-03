@@ -1,25 +1,30 @@
 /**
- * Showing physical keys ("slash", "digit1", "bracketleft") as the character they type on the
- * person's own keyboard layout, rather than a US one. Browsers that can tell (Chromium) say so
- * through navigator.keyboard.getLayoutMap(); elsewhere keys show as on a US layout.
- *
+ * Showing physical keys ("slash", "digit1", "bracketleft") as the character they type on the person's own keyboard
+ * layout, rather than a US one. Browsers that can tell (Chromium) say so through navigator.keyboard.getLayoutMap();
+ * elsewhere keys show as on a US layout.
  * @example
- * const input = keysUI(layout())  // follows the layout, and switches to it
+ * const input = keysUI(followLayout()) // follows the layout, and switches with it
+ * const fixed = keysUI(layout(await loadLayout())) // shows one layout and nothing more
  */
-export type KeySyntax = import('./keys.js').KeySyntax;
+import type { KeySyntax } from './keys.js';
 /**
- * The person's keyboard layout, from the browser, or null where it can't tell
- * @returns {Promise<Map<string, string> | null>}
+ * The person's keyboard layout, from the browser
+ * @returns {Promise<ReadonlyMap<string, string> | undefined>} What each physical key types, or undefined where the
+ *   browser can't tell, or won't here (an iframe without permission, say)
  */
-export declare function loadLayout(): Promise<Map<string, string> | null>;
+declare function loadLayout(): Promise<ReadonlyMap<string, string> | undefined>;
 /**
- * For keysUI(layout()): shows physical keys as the person's layout types them.
- *
- * Without a map, it loads the layout and follows it: browsers say nothing when someone switches
- * layouts, so it looks again when the window gets focus back, and when a key types something other
- * than the layout it has says it should. Components showing bindings update when it changes. Given
- * a map (from loadLayout(), or null), it shows that one and nothing more.
- * @param {Map<string, string> | null} [map]
- * @returns {KeySyntax}
+ * For keysUI(layout(map)): shows physical keys as one layout types them
+ * @param {ReadonlyMap<string, string>} [map] - The layout, from loadLayout(); none shows keys as on a US
+ *   layout
+ * @returns {KeySyntax} The layout, as a piece of key syntax
  */
-export declare function layout(map?: Map<string, string> | null): KeySyntax;
+declare function layout(map?: ReadonlyMap<string, string>): KeySyntax;
+/**
+ * For keysUI(followLayout()): shows physical keys as the person's layout types them, following them switching
+ * layouts. Components showing bindings update when it changes
+ * @param {EventTarget} [view] - The window to follow (default: the global one)
+ * @returns {KeySyntax} The layout, as a piece of key syntax that can change
+ */
+declare function followLayout(view?: EventTarget): KeySyntax;
+export { followLayout, layout, loadLayout };

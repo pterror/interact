@@ -2,12 +2,15 @@
  * Mouse input: buttons ("$mod+Click", "MiddleClick", "Back:up") and scrolling ("ScrollUp").
  * Showing and recording them is keybinds/mouse-ui.
  */
-export type Modifiers = import('./core.js').Modifiers;
-export type Input = import('./core.js').Input;
-export type Command = import('./core.js').Command;
-export type Press = import('./core.js').Press;
+export type Modifiers = import('./binding-mods.js').Modifiers;
+export type Input = import('./input.js').Input;
+export type Command = import('./command.js').Command;
+export type Press = import('./input.js').Press;
 export type ParsedMouse = {
     mods: Modifiers;
+    /**
+     * - Index into BUTTON_NAMES
+     */
     button: number;
 };
 /**

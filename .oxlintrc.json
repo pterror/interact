@@ -35,7 +35,6 @@
     "**/docs/.vitepress/**",
     // The fence: keybinds files not yet under the repo's rules (packages/keybinds/TODO.md). test/repo.js reads this
     // list for the rule tests, so it is the one place a file leaves the fence.
-    "packages/keybinds/src/any-modifiers.js",
     "packages/keybinds/src/axes-ui.js",
     "packages/keybinds/src/axes.js",
     "packages/keybinds/src/axes.test.js",
@@ -51,36 +50,20 @@
     "packages/keybinds/src/components/radial-menu.js",
     "packages/keybinds/src/components/settings.js",
     "packages/keybinds/src/components/settings.test.js",
-    "packages/keybinds/src/core.js",
-    "packages/keybinds/src/core.test.js",
-    "packages/keybinds/src/elements.d.ts",
     "packages/keybinds/src/gamepad-ui.js",
     "packages/keybinds/src/gamepad.js",
     "packages/keybinds/src/gamepad.test.js",
-    "packages/keybinds/src/holds.js",
-    "packages/keybinds/src/holds.test.js",
     "packages/keybinds/src/hub.js",
     "packages/keybinds/src/hub.test.js",
-    "packages/keybinds/src/index.js",
-    "packages/keybinds/src/keys-aliases.js",
-    "packages/keybinds/src/keys-layout.js",
-    "packages/keybinds/src/keys-layout.test.js",
-    "packages/keybinds/src/keys-symbols.js",
-    "packages/keybinds/src/keys-ui.js",
-    "packages/keybinds/src/keys.js",
-    "packages/keybinds/src/keys.test.js",
     "packages/keybinds/src/modifiers.js",
     "packages/keybinds/src/mouse-ui.js",
     "packages/keybinds/src/mouse.js",
     "packages/keybinds/src/mouse.test.js",
-    "packages/keybinds/src/releases.js",
     "packages/keybinds/src/search.js",
     "packages/keybinds/src/search.test.js",
-    "packages/keybinds/src/sequences.js",
-    "packages/keybinds/src/sequences.test.js",
     "packages/keybinds/src/store.js",
     "packages/keybinds/src/store.test.js",
-    "packages/keybinds/src/test-helpers.js",
+    "packages/keybinds/src/test-pads.js",
     "packages/keybinds/styles/palette.css"
   ],
   "rules": {
@@ -114,6 +97,10 @@
     // Contradicts typescript/promise-function-async, which needs `async` on a function that returns a promise without
     // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
     "eslint/require-await": "off",
+    // A function giving a value it already has as a promise can satisfy only two of three rules:
+    // `async () => value` fails typescript/require-await, `() => Promise.resolve(value)` fails
+    // typescript/promise-function-async, and `async () => Promise.resolve(value)` fails this one.
+    "unicorn/no-useless-promise-resolve-reject": "off",
     // Async work started from a sync event (a read the cache reports on) has to be marked as not awaited:
     // typescript/no-floating-promises accepts only `void` or `.catch()`, promise/prefer-await-to-then forbids `.catch()`,
     // and an async listener fails typescript/no-misused-promises. So `void` is allowed as a statement, nowhere else.
@@ -153,7 +140,9 @@
               "FocusEvent",
               "HTMLElement",
               "KeyboardEvent",
+              "KeyboardEventInit",
               "MouseEvent",
+              "MouseEventInit",
               "MutationRecord",
               "Node",
               "PointerEvent",

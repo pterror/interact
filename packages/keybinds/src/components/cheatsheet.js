@@ -1,10 +1,12 @@
-import { markKind, isMac, bindingParts } from '../core.js'
+import { bindingParts } from '../binding-format.js'
+import { isMac } from '../binding-mods.js'
 import { keysUI } from '../keys-ui.js'
+import { markKind } from '../modal.js'
 import { onModifierHold, onModifierTaps } from '../modifiers.js'
 import { groupByCategory } from '../search.js'
 
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
 
 /**
  * <keybinds-cheatsheet> - Grouped display of available bindings

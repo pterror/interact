@@ -1,11 +1,12 @@
-import { markKind, bindingParts } from '../core.js'
+import { bindingParts } from '../binding-format.js'
 import { keysUI } from '../keys-ui.js'
+import { markKind } from '../modal.js'
 import { searchCommands } from '../search.js'
 
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').Matcher} Matcher */
-/** @typedef {import('../core.js').ScoredCommand} ScoredCommand */
-/** @typedef {import('../core.js').InputUI} Input */
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../search.js').Matcher} Matcher */
+/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../input.js').InputUI} Input */
 
 /**
  * <keybinds-command-palette> - Search-driven command execution

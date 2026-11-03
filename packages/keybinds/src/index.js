@@ -1,93 +1,68 @@
 /**
- * keybinds - Declarative contextual keybindings
- *
- * Everything, from one place. Each part is also its own module (keybinds/core, keybinds/keys,
- * keybinds/palette, ...) for pages that load them without a bundler.
+ * Declarative, contextual keybindings: everything, from one place. Each part is also its own module (keybinds/core,
+ * keybinds/keys, keybinds/components/palette, ...) for pages that load them without a bundler.
  */
 
-import { BasicContextMenu } from './components/basic-context-menu.js'
-import { KeybindCheatsheet } from './components/cheatsheet.js'
-import { ContextMenu } from './components/context-menu.js'
-import { CommandPalette } from './components/palette.js'
-import { RadialMenu } from './components/radial-menu.js'
-import { KeybindSettings } from './components/settings.js'
-import { keybinds } from './core.js'
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./command.js').AxisDef} AxisDef */
+/** @typedef {import('./command.js').AxisValue} AxisValue */
+/** @typedef {import('./command.js').BindingSchema} BindingSchema */
+/** @typedef {import('./command.js').Schema} Schema */
+/** @typedef {import('./command.js').BindingOverrides} BindingOverrides */
+/** @typedef {import('./command.js').Context} Context */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./input.js').InputUI} InputUI */
+/** @typedef {import('./input.js').Dispatch} Dispatch */
+/** @typedef {import('./input.js').Press} Press */
+/** @typedef {import('./binding-mods.js').Modifiers} Modifiers */
+/** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
+/** @typedef {import('./search.js').Matcher} Matcher */
+/** @typedef {import('./search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('./store.js').BindingsStorage} BindingsStorage */
 
-export {
-  keybinds,
-  validateCommands,
-  executeCommand,
-  findConflict,
-  bindingParts,
-  isActive,
-  parseBinding,
-  splitBinding,
-  bindingLookup,
-  formatBinding,
-} from './core.js'
-export { keys, parseKey } from './keys.js'
-export { symbols } from './keys-symbols.js'
-export { aliases } from './keys-aliases.js'
-export { layout, loadLayout } from './keys-layout.js'
-export { releases } from './releases.js'
 export { anyModifiers } from './any-modifiers.js'
-export { holds } from './holds.js'
-export { sequences } from './sequences.js'
-export { keysUI, formatKeyParts, eventToBindingString } from './keys-ui.js'
-export { mouse, mouseMatches } from './mouse.js'
-export { mouseUI, formatMouseParts, eventToMouseBindingString } from './mouse-ui.js'
-export { gamepad } from './gamepad.js'
-export { gamepadUI, formatGamepadParts } from './gamepad-ui.js'
 export { axes } from './axes.js'
 export { axesUI, formatAxisParts } from './axes-ui.js'
+export { bindingLookup, findConflict, parseBinding, splitBinding } from './binding.js'
+export { bindingParts, formatBinding } from './binding-format.js'
+export { executeCommand, isActive } from './command.js'
+export { createComponent } from './components/create.js'
+export { keybinds, validateCommands } from './core.js'
+export { gamepad } from './gamepad.js'
+export { formatGamepadParts, gamepadUI } from './gamepad-ui.js'
+export { holds } from './holds.js'
+export { CommandHub } from './hub.js'
+export { keys, parseKey } from './keys.js'
+export { aliases } from './keys-aliases.js'
+export { followLayout, layout, loadLayout } from './keys-layout.js'
+export { symbols } from './keys-symbols.js'
+export { eventToBindingString, formatKeyParts, keysUI } from './keys-ui.js'
+export { onModifierHold, onModifierTaps } from './modifiers.js'
+export { mouse, mouseMatches } from './mouse.js'
+export { eventToMouseBindingString, formatMouseParts } from './mouse-ui.js'
+export { releases } from './releases.js'
 export {
+  defaultScorer,
+  filterByMenu,
+  fuzzyMatcher,
+  groupByCategory,
   matchCommands,
   searchCommands,
-  defaultScorer,
-  groupByCategory,
-  filterByMenu,
   simpleMatcher,
-  fuzzyMatcher,
 } from './search.js'
+export { sequences } from './sequences.js'
 export {
+  BindingsStore,
   defineSchema,
-  mergeBindings,
   fromBindings,
   listBindings,
   localStorageBindings,
-  BindingsStore,
+  mergeBindings,
 } from './store.js'
-export { onModifierHold, onModifierTaps } from './modifiers.js'
-export { createComponent } from './components/create.js'
-export { CommandHub } from './hub.js'
-export { CommandPalette, KeybindCheatsheet, KeybindSettings, BasicContextMenu, ContextMenu, RadialMenu }
-
-/**
- * @typedef {import('./core.js').Command} Command
- * @typedef {import('./core.js').AxisDef} AxisDef
- * @typedef {import('./core.js').AxisValue} AxisValue
- * @typedef {import('./core.js').Input} Input
- * @typedef {import('./core.js').InputUI} InputUI
- * @typedef {import('./core.js').Dispatch} Dispatch
- * @typedef {import('./core.js').Press} Press
- * @typedef {import('./core.js').Modifiers} Modifiers
- * @typedef {import('./core.js').KeybindsOptions} KeybindsOptions
- * @typedef {import('./core.js').BindingSchema} BindingSchema
- * @typedef {import('./core.js').Schema} Schema
- * @typedef {import('./core.js').BindingOverrides} BindingOverrides
- * @typedef {import('./core.js').Matcher} Matcher
- * @typedef {import('./core.js').ScoredCommand} ScoredCommand
- * @typedef {import('./store.js').BindingsStorage} BindingsStorage
- */
-
-/**
- * Register every component under its plain `keybinds-<kind>` name, for use in HTML
- */
-export function registerComponents() {
-  for (const cls of [CommandPalette, KeybindCheatsheet, BasicContextMenu, ContextMenu, KeybindSettings, RadialMenu]) {
-    const name = `keybinds-${cls.kind}`
-    if (!customElements.get(name)) customElements.define(name, cls)
-  }
-}
-
-export default keybinds
+export { BasicContextMenu } from './components/basic-context-menu.js'
+export { KeybindCheatsheet } from './components/cheatsheet.js'
+export { ContextMenu } from './components/context-menu.js'
+export { CommandPalette } from './components/palette.js'
+export { RadialMenu } from './components/radial-menu.js'
+export { KeybindSettings } from './components/settings.js'
+export { registerComponents } from './register.js'

@@ -2,6 +2,8 @@ import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
 import { BasicContextMenu } from '../components/basic-context-menu.js'
 import { ContextMenu } from '../components/context-menu.js'
+import { createComponent } from '../components/create.js'
+import { keybinds } from '../test-helpers.js'
 
 // --- ContextMenu (new scored/searchable component) tests ---
 
@@ -262,4 +264,20 @@ describe('pointing at an item', () => {
       el.remove()
     })
   }
+})
+
+describe('an open context menu holds keys back', () => {
+  test('an open context menu keeps its keys (Enter picks its item, not a command bound to Enter)', () => {
+    const target = document.createElement('div')
+    document.body.append(target)
+    const fn = mock(() => {})
+    const cleanup = keybinds([{ execute: fn, id: 'go', keys: ['Enter'], label: 'Go' }], undefined, { target })
+    const menu = createComponent(ContextMenu)
+    target.append(menu)
+    menu.setAttribute('open', '')
+    menu.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, code: 'Enter', key: 'Enter' }))
+    expect(fn).not.toHaveBeenCalled()
+    cleanup()
+    target.remove()
+  })
 })

@@ -1,7 +1,7 @@
 /**
  * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus.
  */
-export type InputUI = import('./core.js').InputUI;
+export type InputUI = import('./input.js').InputUI;
 /**
  * Format mouse binding into array of display parts
  * @param {string} binding

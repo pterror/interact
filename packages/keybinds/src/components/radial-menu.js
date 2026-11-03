@@ -1,6 +1,7 @@
-import { markKind, isActive } from '../core.js'
+import { isActive } from '../command.js'
+import { markKind } from '../modal.js'
 
-/** @typedef {import('../core.js').Command} Command */
+/** @typedef {import('../command.js').Command} Command */
 
 /**
  * <keybinds-radial-menu> - Radial command menu with bilateral text layout

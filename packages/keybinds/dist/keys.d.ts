@@ -1,76 +1,74 @@
 /**
- * Keyboard input: bindings like "$mod+k", "shift+slash" or "Escape". More syntax is opt-in, each
- * its own module passed to keys(): symbols() for "?" and other typed characters, aliases() for
- * "up" and "plus". Showing and recording bindings is keybinds/keys-ui.
+ * Keyboard input: bindings like "$mod+k", "shift+slash" or "Escape". More syntax is opt-in, each its own module
+ * passed to keys(): symbols() for "?" and other typed characters, aliases() for "up" and "plus". Showing and
+ * recording bindings is keybinds/keys-ui.
  */
-export type Modifiers = import('./core.js').Modifiers;
-export type Input = import('./core.js').Input;
-export type ParsedKey = {
-    mods: Modifiers;
+import type { Modifiers } from './binding-mods.js';
+import type { CommandInput } from './input.js';
+export type ParsedKey = Readonly<{
     key: string;
-};
-export type KeySyntax = {
+    mods: Modifiers;
+}>;
+export type KeySyntaxFields = {
+    /**
+     * - Which piece it is ("symbols", "aliases", "layout")
+     */
     name: string;
+    /**
+     * - The key a name stands for
+     */
     alias?: (name: string) => string | undefined;
+    /**
+     * - Keys it makes bindable
+     */
     accepts?: (key: string) => boolean;
+    /**
+     * - What a binding with Shift means instead
+     */
     shifted?: (key: string) => string | undefined;
+    /**
+     * - More lookups for a key event
+     */
     lookups?: (key: string, prefix: string, suffix: string) => string[];
+    /**
+     * - How a key is shown, for display pieces like layout()
+     */
     glyph?: (name: string) => string | undefined;
+    /**
+     * - Follows how keys are shown changing
+     */
     watch?: (onChange: () => void) => () => void;
 };
-/** @typedef {import('./core.js').Modifiers} Modifiers */
-/** @typedef {import('./core.js').Input} Input */
+export type KeySyntax = Readonly<KeySyntaxFields>;
+/** Named keys, by the name a key event reports (`event.key`, or `event.code` for physical keys) */
+declare const NAMED_KEY: RegExp;
 /**
- * @typedef {Object} ParsedKey
- * @property {Modifiers} mods
- * @property {string} key
+ * Whether a key is a letter (in any script) or a digit: what a key types on its own, bindable as itself
+ * @param {string} key - A key name
+ * @returns {boolean} Whether it is
  */
+declare function isLetterOrDigit(key: string): boolean;
 /**
- * A piece of key binding syntax beyond modifiers and key names
- * @typedef {Object} KeySyntax
- * @property {string} name
- * @property {(name: string) => string | undefined} [alias] - The key a name stands for
- * @property {(key: string) => boolean} [accepts] - Keys it makes bindable
- * @property {(key: string) => string | undefined} [shifted] - What a binding with Shift means instead
- * @property {(key: string, prefix: string, suffix: string) => string[]} [lookups] - More lookups for a key event
- * @property {(name: string) => string | undefined} [glyph] - How a key is shown, for display pieces like layout()
- * @property {(onChange: () => void) => () => void} [watch] - Follows how keys are shown changing
+ * Parses a key binding like "Ctrl+Shift+K" into normalized form. Its release suffix, if any, has already been taken
+ * off.
+ * @param {string} binding - The binding
+ * @param {readonly KeySyntax[]} [syntax] - The syntax on
+ * @returns {ParsedKey} Its modifiers and key
+ * @throws {Error} If the binding is invalid
  */
-export declare const NAMED_KEY: RegExp;
+declare function parseKey(binding: string, syntax?: readonly KeySyntax[]): ParsedKey;
 /**
- * A letter (in any script) or a digit: what a key types on its own, bindable as itself
- * @param {string} key
+ * A parsed key as a lookup ("ctrl+shift+k")
+ * @param {ParsedKey} parsed - The key
+ * @returns {string} Its lookup
  */
-export declare const isLetterOrDigit: (key: string) => boolean;
-/**
- * Parse a key string like "Ctrl+Shift+K" into normalized form. Its release suffix, if any, has
- * already been taken off.
- * @param {string} keyStr
- * @param {KeySyntax[]} [syntax]
- * @returns {ParsedKey}
- * @throws {Error} if key binding is invalid
- */
-export declare function parseKey(keyStr: string, syntax?: KeySyntax[]): ParsedKey;
-/**
- * Convert parsed key to lookup key (e.g., "ctrl+shift+k")
- * @param {ParsedKey} parsed
- * @returns {string}
- */
-export declare function keyToLookup(parsed: ParsedKey): string;
-/**
- * Convert keyboard event to lookup keys (returns multiple for key/code variants)
- * @param {KeyboardEvent} event
- * @param {string} [prefix] - Modifier prefix to use instead of the event's own
- * @param {string} [suffix] - Appended to every lookup (e.g. ":up")
- * @param {KeySyntax[]} [syntax]
- * @returns {string[]}
- */
-export declare function eventToKeyLookups(event: KeyboardEvent, prefix?: string, suffix?: string, syntax?: KeySyntax[]): string[];
+declare function keyToLookup(parsed: ParsedKey): string;
 /**
  * The keyboard
- * @param {...KeySyntax} syntax - More binding syntax: symbols(), aliases()
- * @returns {Input & { syntax: KeySyntax[] }}
+ * @param {readonly KeySyntax[]} syntax - More binding syntax: symbols(), aliases()
+ * @returns {CommandInput & Readonly<{ syntax: readonly KeySyntax[] }>} The keyboard, as an input
  */
-export declare function keys(...syntax: KeySyntax[]): Input & {
-    syntax: KeySyntax[];
-};
+declare function keys(...syntax: readonly KeySyntax[]): CommandInput & Readonly<{
+    syntax: readonly KeySyntax[];
+}>;
+export { NAMED_KEY, isLetterOrDigit, keyToLookup, keys, parseKey };

@@ -240,14 +240,15 @@ Physical keys (`slash`, `digit1`, `bracketleft`) are shown as the character they
 can tell the person's own layout (Chromium, through `navigator.keyboard`), show them as that types them instead:
 
 ```js
-import { keysUI, layout } from 'keybinds'
+import { followLayout, keysUI } from 'keybinds'
 
-const input = keysUI(layout()) // shift+slash shows as "Shift -" on a German layout
+const input = keysUI(followLayout()) // shift+slash shows as "Shift -" on a German layout
 ```
 
-Browsers say nothing when someone switches layouts, so `layout()` looks again when the window gets focus back, and when
-a key types something other than the layout it has says it should; the settings panel and an open cheatsheet update
-then. `layout(await loadLayout())` shows one layout and nothing more.
+Browsers say nothing when someone switches layouts, so `followLayout()` looks again when the window gets focus back, and
+when a key types something other than the layout it has says it should; the settings panel and an open cheatsheet update
+then. It follows the global window; `followLayout(view)` follows another (an iframe's). `layout(await loadLayout())`
+shows one layout and nothing more; `loadLayout()` gives `undefined` where the browser can't tell.
 
 Letters and typed characters are bound by what they type, so they show as written.
 

@@ -6,7 +6,7 @@ import { axes, parseAxis, axisToLookup, hasPads, PAD_AXES } from './axes.js'
 import { formatKeyParts, eventToBindingString } from './keys-ui.js'
 import { keyToLookup } from './keys.js'
 
-/** @typedef {import('./core.js').InputUI} InputUI */
+/** @typedef {import('./input.js').InputUI} InputUI */
 
 /** @type {Record<string, string>} */
 const AXIS_GLYPHS = {

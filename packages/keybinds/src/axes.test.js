@@ -5,7 +5,9 @@ import { createComponent } from './components/create.js'
 import { KeybindSettings } from './components/settings.js'
 import { CommandHub } from './hub.js'
 import { BindingsStore } from './store.js'
-import { ALL, keybinds, kbd, fakePads } from './test-helpers.js'
+import { kbd, keybinds } from './test-helpers.js'
+import { ALL } from './test-inputs.js'
+import { fakePads } from './test-pads.js'
 
 describe('axes', () => {
   const noop = /** @type {import('./index.js').Command[]} */ ([])
@@ -32,11 +34,11 @@ describe('axes', () => {
     const target = document.createElement('div')
     const kb = keybinds(noop, undefined, { target, axes: [{ id: 'strafe', label: 'Strafe', axes: ['keys:a/d'] }] })
     expect(kb.axis('strafe')).toEqual({ position: 0, delta: 0 })
-    target.dispatchEvent(kbd('keydown', 'd', 'KeyD'))
+    target.dispatchEvent(kbd('keydown', { code: 'KeyD', key: 'd' }))
     expect(kb.axis('strafe').position).toBe(1)
-    target.dispatchEvent(kbd('keydown', 'a', 'KeyA', { shiftKey: true }))
+    target.dispatchEvent(kbd('keydown', { code: 'KeyA', key: 'a', shiftKey: true }))
     expect(kb.axis('strafe').position).toBe(0)
-    target.dispatchEvent(kbd('keyup', 'd', 'KeyD'))
+    target.dispatchEvent(kbd('keyup', { code: 'KeyD', key: 'd' }))
     expect(kb.axis('strafe').position).toBe(-1)
     window.dispatchEvent(new Event('blur'))
     expect(kb.axis('strafe').position).toBe(0)
@@ -115,7 +117,7 @@ describe('axes', () => {
     hub.setAxes('game', () => [{ id: 'strafe', label: 'Strafe', axes: ['keys:a/d'] }])
     hub.refresh()
     expect(hub.bindingsFor('strafe', 'axes')).toEqual(['J / L'])
-    target.dispatchEvent(kbd('keydown', 'l', 'KeyL'))
+    target.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
     expect(hub.axis('strafe').position).toBe(1)
     hub.destroy()
   })
@@ -132,8 +134,8 @@ describe('axes', () => {
     const add = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part="add-axis"]'))
     expect(add).toBeTruthy()
     add.click()
-    window.dispatchEvent(kbd('keydown', 'j', 'KeyJ'))
-    window.dispatchEvent(kbd('keydown', 'l', 'KeyL'))
+    window.dispatchEvent(kbd('keydown', { code: 'KeyJ', key: 'j' }))
+    window.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
     expect(el.store?.get()['strafe']?.axes).toEqual(['keys:a/d', 'keys:j/l'])
     const invert = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part~="binding-invert"]'))
     invert.click()

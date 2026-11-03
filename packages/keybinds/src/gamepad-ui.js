@@ -2,10 +2,11 @@
  * Showing and recording gamepad bindings, for the settings panel, cheatsheet, palette and menus.
  */
 
-import { RELEASE_SUFFIX, formatWithRelease } from './core.js'
+import { formatWithRelease } from './binding-format.js'
+import { RELEASE_SUFFIX } from './binding.js'
 import { gamepad, GAMEPAD_BUTTONS, GAMEPAD_ALIASES, hasPads } from './gamepad.js'
 
-/** @typedef {import('./core.js').InputUI} InputUI */
+/** @typedef {import('./input.js').InputUI} InputUI */
 
 /** @type {Record<string, string>} */
 const GAMEPAD_GLYPHS = {

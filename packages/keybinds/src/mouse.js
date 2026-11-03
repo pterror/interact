@@ -3,12 +3,14 @@
  * Showing and recording them is keybinds/mouse-ui.
  */
 
-import { NO_MODS, parseMods, modsToPrefix, eventMods, holdsAll, overlayOpen, splitBinding } from './core.js'
+import { NO_MODS, eventMods, holdsAll, modsToPrefix, parseMods } from './binding-mods.js'
+import { splitBinding } from './binding.js'
+import { overlayOpen } from './modal.js'
 
-/** @typedef {import('./core.js').Modifiers} Modifiers */
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').Press} Press */
+/** @typedef {import('./binding-mods.js').Modifiers} Modifiers */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./input.js').Press} Press */
 
 /**
  * @typedef {Object} ParsedMouse
@@ -212,7 +214,7 @@ export function mouse(options = {}) {
       /**
        * The lookups of a mouse event
        * @param {MouseEvent} event
-       * @returns {import('./core.js').Lookups}
+       * @returns {import('./input.js').Lookups}
        */
       const lookupsOf = (event) => (suffix, mods) => {
         const exact = eventToMouseLookup(event, modsToPrefix(mods), suffix)

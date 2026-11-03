@@ -1,30 +1,27 @@
 /**
  * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus.
  */
-export type InputUI = import('./core.js').InputUI;
-export type KeySyntax = import('./keys.js').KeySyntax;
+import type { InputUI } from './input.js';
+import type { KeySyntax } from './keys.js';
 /**
- * Format key binding into array of display parts (e.g., "$mod+k" -> ["⌘", "K"] on Mac)
- * @param {string} key
- * @param {KeySyntax[]} [syntax] - As for keys(); a layout() among them shows physical keys as it types them
- * @returns {string[]}
+ * A key binding as display parts ("$mod+k" is ["⌘", "K"] on a Mac)
+ * @param {string} binding - The binding
+ * @param {readonly KeySyntax[]} [syntax] - As for keys(); a layout() among them shows physical keys as it types them
+ * @returns {string[]} The parts as shown
  */
-export declare function formatKeyParts(key: string, syntax?: KeySyntax[]): string[];
+declare function formatKeyParts(binding: string, syntax?: readonly KeySyntax[]): string[];
 /**
- * Convert a KeyboardEvent to a canonical binding string (e.g. "$mod+shift+k"), in the syntax the
- * keyboard input reads: a typed character like "?" only with symbols(), "plus" only with aliases()
- * too; otherwise the physical key ("shift+slash").
- *
- * Returns null for bare modifier presses (Shift/Ctrl/Alt/Meta alone) and keys that can't be bound.
- *
- * @param {KeyboardEvent} event
- * @param {KeySyntax[]} [syntax]
- * @returns {string | null}
+ * A key event as a binding ("$mod+shift+k"), in the syntax the keyboard input reads: a typed character like "?" only
+ * with symbols(), "plus" only with aliases() too; otherwise the physical key ("shift+slash")
+ * @param {KeyboardEvent} event - The event
+ * @param {readonly KeySyntax[]} [syntax] - The syntax on
+ * @returns {string | undefined} The binding, or undefined for a modifier pressed alone or a key that can't be bound
  */
-export declare function eventToBindingString(event: KeyboardEvent, syntax?: KeySyntax[]): string | null;
+declare function eventToBindingString(event: KeyboardEvent, syntax?: readonly KeySyntax[]): string | undefined;
 /**
  * The keyboard, shown and recorded as well as listened to
- * @param {...KeySyntax} syntax - As for keys()
- * @returns {InputUI}
+ * @param {readonly KeySyntax[]} syntax - As for keys()
+ * @returns {InputUI} The keyboard, as an input that can be shown and recorded
  */
-export declare function keysUI(...syntax: KeySyntax[]): InputUI;
+declare function keysUI(...syntax: readonly KeySyntax[]): InputUI;
+export { eventToBindingString, formatKeyParts, keysUI };

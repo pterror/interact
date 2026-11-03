@@ -1,7 +1,7 @@
-export type Command = import('../core.js').Command;
-export type Input = import('../core.js').InputUI;
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
+export type Command = import('../command.js').Command;
+export type Input = import('../input.js').InputUI;
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
 /**
  * <keybinds-basic-context-menu> - Context menu driven by commands (no search, no limit)
  *
@@ -36,11 +36,42 @@ export type Input = import('../core.js').InputUI;
  *   .context-menu__item-key
  */
 export declare class BasicContextMenu extends HTMLElement {
+    /** How bindings are shown: an item shows its first. @type {Input[]} */
+    inputs: Input[];
+    /** @type {Command[]} */
+    _commands: Command[];
+    /** @type {Record<string, unknown>} */
+    _context: Record<string, unknown>;
+    /** @type {string} */
+    _menu: string;
+    /** @type {{ x: number, y: number }} */
+    _position: {
+        x: number;
+        y: number;
+    };
+    /** @type {(Command & { active: boolean })[]} */
+    _items: (Command & {
+        active: boolean;
+    })[];
+    /** @type {number} */
+    _activeIndex: number;
+    /** @type {'keyboard' | 'pointer'} */
+    _inputMode: 'keyboard' | 'pointer';
+    /** @type {(() => void) | null} */
+    _cleanupTrigger: (() => void) | null;
+    /** @type {((e: Event) => void) | null} */
+    _keyHandler: ((e: Event) => void) | null;
+    /** @type {HTMLElement} */
+    _backdrop: HTMLElement;
+    /** @type {HTMLElement} */
+    _list: HTMLElement;
+    /** @type {ResizeObserver | null} */
+    _resize: ResizeObserver | null;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get commands(): import("../core.js").Command[];
-    set commands(val: import("../core.js").Command[]);
+    get commands(): Readonly<import("../command.js").CommandFields>[];
+    set commands(val: Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get menu(): string;

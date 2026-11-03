@@ -11,9 +11,13 @@ Declarative, contextual keybindings for the web. Zero-dependency JavaScript libr
 
 One module per part, JSDoc types checked via `tsconfig.json`; `src/index.js` re-exports everything.
 
-- `src/core.js` — `keybinds()`, the dispatcher: commands, context, presses, `held`. Knows no particular input
-- `src/keys.js`, `src/mouse.js`, `src/gamepad.js`, `src/axes.js` — inputs: each parses and listens for its own bindings;
-  `src/*-ui.js` formats and records them
+- `src/core.js` — `keybinds()` and `validateCommands()`. `runner.js` runs commands in the app's context;
+  `input-listener.js` is one input's presses (`held`, phases, sequences); `binding-index.js` looks presses up. Knows no
+  particular input
+- `src/command.js` (commands, axes, schemas), `binding.js` (parsing, splitting, conflicts), `binding-format.js` (display
+  parts), `binding-mods.js` (modifiers), `input.js` (the input contract), `modal.js` (open overlays)
+- `src/keys.js`, `src/mouse.js`, `src/gamepad.js`, `src/axes.js` — inputs: each parses and listens for its own bindings
+  (`keys-listener.js` for the keyboard); `src/*-ui.js` formats and records them (`keys-recorder.js`)
 - Syntax beyond modifiers and key names is opt-in, one module each: `releases.js` (`:up`), `holds.js` (`:hold`, `:tap`),
   `sequences.js` (`g i`), `any-modifiers.js`, `keys-symbols.js` (`?`), `keys-aliases.js` (`up`, `plus`). Without one,
   its syntax is an error. `keys-layout.js` shows physical keys as the person's layout types them

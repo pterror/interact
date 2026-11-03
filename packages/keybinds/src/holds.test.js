@@ -1,6 +1,9 @@
-import { describe, test, expect, mock } from 'bun:test'
+/** @import { Command } from './command.js' */
 
-import { keybinds, validateCommands, formatBinding } from './core.js'
+import { describe, expect, mock, test } from 'bun:test'
+
+import { formatBinding } from './binding-format.js'
+import { keybinds, validateCommands } from './core.js'
 import { holds } from './holds.js'
 import { keysUI } from './keys-ui.js'
 import { keys } from './keys.js'
@@ -8,72 +11,86 @@ import { mouse } from './mouse.js'
 import { kbd } from './test-helpers.js'
 
 const DELAY = 30
-const wait = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms))
+const LONG = 60
+const ONCE = 1
+const NO_TIME = 0
+const MIDDLE = 1
+const MIDDLE_HELD = 4
 
-/** @param {import('./core.js').Command[]} commands */
-const listen = (commands) => {
+/**
+ * Listens with holds on a fresh element
+ * @param {readonly Command[]} commands - The commands
+ * @returns {Readonly<{ listening: import('./core.js').Keybinds, target: HTMLElement }>} What keybinds() returned,
+ *   and the element
+ */
+function listen(commands) {
   const target = document.createElement('div')
-  const kb = keybinds(commands, undefined, { target, inputs: [keys(), mouse()], holds: holds({ delay: DELAY }) })
-  return { target, kb }
+  const listening = keybinds(commands, undefined, {
+    holds: holds({ delay: DELAY }),
+    inputs: [keys(), mouse()],
+    target,
+  })
+  return { listening, target }
+}
+
+/**
+ * Holds K down for a while, then lets it go
+ * @param {HTMLElement} target - Where the keys are pressed
+ * @param {number} milliseconds - How long it's held
+ * @returns {Promise<void>} When it has been let go
+ */
+async function pressFor(target, milliseconds) {
+  target.dispatchEvent(kbd('keydown', { code: 'KeyK', key: 'k' }))
+  await Bun.sleep(milliseconds)
+  target.dispatchEvent(kbd('keyup', { code: 'KeyK', key: 'k' }))
 }
 
 describe('holds', () => {
-  test('a hold binding fires once the key has been held long enough, and the command is held until it comes up', async () => {
-    const fn = mock(() => {})
-    const { target, kb } = listen([{ id: 'charge', label: 'Charge', keys: ['k:hold'], execute: fn }])
-    target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
-    expect(fn).not.toHaveBeenCalled()
-    await wait(DELAY * 2)
-    expect(fn).toHaveBeenCalledTimes(1)
-    expect(kb.held('charge')).toBe(true)
-    target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
-    expect(kb.held('charge')).toBe(false)
-    kb()
+  test('a hold binding fires once the key has been held long enough, and is held until it comes up', async () => {
+    const execute = mock(() => undefined)
+    const { listening, target } = listen([{ execute, id: 'charge', keys: ['k:hold'], label: 'Charge' }])
+    target.dispatchEvent(kbd('keydown', { code: 'KeyK', key: 'k' }))
+    expect(execute).not.toHaveBeenCalled()
+    await Bun.sleep(LONG)
+    expect([execute.mock.calls.length, listening.held('charge')]).toEqual([ONCE, true])
+    target.dispatchEvent(kbd('keyup', { code: 'KeyK', key: 'k' }))
+    expect(listening.held('charge')).toBe(false)
+    listening()
   })
 
   test('a key let go before then is a tap, not a hold', async () => {
-    const hold = mock(() => {})
-    const tap = mock(() => {})
-    const { target, kb } = listen([
-      { id: 'hold', label: 'Hold', keys: ['k:hold'], execute: hold },
-      { id: 'tap', label: 'Tap', keys: ['k:tap'], execute: tap },
+    const hold = mock(() => undefined)
+    const tap = mock(() => undefined)
+    const { listening, target } = listen([
+      { execute: hold, id: 'hold', keys: ['k:hold'], label: 'Hold' },
+      { execute: tap, id: 'tap', keys: ['k:tap'], label: 'Tap' },
     ])
-    target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
-    target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
-    await wait(DELAY * 2)
-    expect(tap).toHaveBeenCalledTimes(1)
-    expect(hold).not.toHaveBeenCalled()
-
-    target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
-    await wait(DELAY * 2)
-    target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
-    expect(hold).toHaveBeenCalledTimes(1)
-    expect(tap).toHaveBeenCalledTimes(1)
-    kb()
+    await pressFor(target, NO_TIME)
+    await Bun.sleep(LONG)
+    expect([hold.mock.calls.length, tap.mock.calls.length]).toEqual([ONCE - ONCE, ONCE])
+    await pressFor(target, LONG)
+    expect([hold.mock.calls.length, tap.mock.calls.length]).toEqual([ONCE, ONCE])
+    listening()
   })
+})
 
+describe('holds beyond keys', () => {
   test('mouse buttons can be held too, but scrolling cannot', async () => {
-    const fn = mock(() => {})
-    const { target, kb } = listen([{ id: 'grab', label: 'Grab', mouse: ['middle:hold'], execute: fn }])
-    target.dispatchEvent(new MouseEvent('mousedown', { button: 1, buttons: 4, cancelable: true }))
-    await wait(DELAY * 2)
-    expect(fn).toHaveBeenCalledTimes(1)
-    kb()
-    expect(() =>
-      validateCommands([{ id: 'z', label: 'Z', mouse: ['scrollup:hold'], execute: () => {} }], {
-        inputs: [mouse()],
-        holds: holds(),
-      }),
-    ).toThrow('Scroll has no ":hold"')
+    const execute = mock(() => undefined)
+    const { listening, target } = listen([{ execute, id: 'grab', label: 'Grab', mouse: ['middle:hold'] }])
+    target.dispatchEvent(new MouseEvent('mousedown', { button: MIDDLE, buttons: MIDDLE_HELD, cancelable: true }))
+    await Bun.sleep(LONG)
+    expect(execute).toHaveBeenCalledTimes(ONCE)
+    listening()
+    const scroll = { execute: () => undefined, id: 'z', label: 'Z', mouse: ['scrollup:hold'] }
+    expect(() => validateCommands([scroll], { holds: holds(), inputs: [mouse()] })).toThrow('Scroll has no ":hold"')
   })
 
   test('holding and tapping need holds()', () => {
-    expect(() =>
-      validateCommands([{ id: 'k', label: 'K', keys: ['k:hold'], execute: () => {} }], { inputs: [keys()] }),
-    ).toThrow('needs holds()')
-    expect(() =>
-      validateCommands([{ id: 'k', label: 'K', keys: ['k:tap'], execute: () => {} }], { inputs: [keys()] }),
-    ).toThrow('needs holds()')
+    for (const binding of ['k:hold', 'k:tap']) {
+      const command = { execute: () => undefined, id: 'k', keys: [binding], label: 'K' }
+      expect(() => validateCommands([command], { inputs: [keys()] })).toThrow('needs holds()')
+    }
   })
 
   test('shown with what it waits for', () => {

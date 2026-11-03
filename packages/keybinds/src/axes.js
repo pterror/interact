@@ -4,12 +4,16 @@
  * and recording them is keybinds/axes-ui.
  */
 
-import { NO_MODS, isActive, anyOverlayOpen, inInput } from './core.js'
-import { parseKey, keyToLookup, eventToKeyLookups } from './keys.js'
+import { NO_MODS } from './binding-mods.js'
+import { isActive } from './command.js'
+import { inInput } from './input.js'
+import { eventToKeyLookups } from './keys-listener.js'
+import { keyToLookup, parseKey } from './keys.js'
+import { anyOverlayOpen } from './modal.js'
 
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').AxisDef} AxisDef */
-/** @typedef {import('./core.js').AxisValue} AxisValue */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./command.js').AxisDef} AxisDef */
+/** @typedef {import('./command.js').AxisValue} AxisValue */
 /** @typedef {import('./keys.js').ParsedKey} ParsedKey */
 
 export const PAD_AXES = ['lx', 'ly', 'rx', 'ry', 'lt', 'rt']
@@ -119,7 +123,8 @@ export function axes(...syntax) {
       /** @param {Event} e */
       const onDown = (e) => {
         const event = /** @type {KeyboardEvent} */ (e)
-        if (!inInput(event.target)) downKeys.set(event.code || event.key, eventToKeyLookups(event, '', '', syntax))
+        if (!inInput(event.target))
+          downKeys.set(event.code || event.key, eventToKeyLookups(event, { prefix: '', suffix: '', syntax }))
       }
       /** @param {Event} e */
       const onUp = (e) => {

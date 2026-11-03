@@ -2,10 +2,10 @@
  * Binding schemas, and the store of people's rebindings laid over them.
  */
 
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').BindingSchema} BindingSchema */
-/** @typedef {import('./core.js').Schema} Schema */
-/** @typedef {import('./core.js').BindingOverrides} BindingOverrides */
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./command.js').BindingSchema} BindingSchema */
+/** @typedef {import('./command.js').Schema} Schema */
+/** @typedef {import('./command.js').BindingOverrides} BindingOverrides */
 
 /**
  * Define a binding schema (identity function for type inference/autocomplete)

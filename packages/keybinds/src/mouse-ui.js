@@ -2,10 +2,12 @@
  * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus.
  */
 
-import { RELEASE_SUFFIX, splitRelease, eventModParts, formatModPart, formatWithRelease } from './core.js'
+import { formatWithRelease } from './binding-format.js'
+import { eventModParts, formatModPart } from './binding-mods.js'
+import { RELEASE_SUFFIX, splitRelease } from './binding.js'
 import { mouse, pointerButtonName, wheelDirection } from './mouse.js'
 
-/** @typedef {import('./core.js').InputUI} InputUI */
+/** @typedef {import('./input.js').InputUI} InputUI */
 
 /**
  * Format a single mouse binding part for display

@@ -1,7 +1,14 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
+import { KeybindCheatsheet } from './components/cheatsheet.js'
+import { ContextMenu } from './components/context-menu.js'
+import { CommandPalette } from './components/palette.js'
+import { KeybindSettings } from './components/settings.js'
 import { CommandHub } from './hub.js'
-import { ALL, COMPONENTS } from './test-helpers.js'
+import { kbd } from './test-helpers.js'
+import { ALL } from './test-inputs.js'
+
+const COMPONENTS = [CommandPalette, KeybindCheatsheet, KeybindSettings, ContextMenu]
 
 describe('CommandHub', () => {
   beforeEach(() => localStorage.clear())
@@ -190,5 +197,18 @@ describe('CommandHub', () => {
     expect(hub.menu?.context).toEqual({ editing: false })
     hub.destroy()
     host.remove()
+  })
+})
+
+describe('held through the hub', () => {
+  test('the hub answers too', () => {
+    const target = document.createElement('div')
+    const hub = new CommandHub({ ...ALL, listen: { target }, storageKey: 't' })
+    hub.setSource('a', () => [{ execute: () => {}, id: 'fwd', keys: ['w'], label: 'Forward' }])
+    hub.refresh()
+    target.dispatchEvent(kbd('keydown', { code: 'KeyW', key: 'w' }))
+    expect(hub.held('fwd')).toBe(true)
+    hub.destroy()
+    expect(hub.held('fwd')).toBe(false)
   })
 })

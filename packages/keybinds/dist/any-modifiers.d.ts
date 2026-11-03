@@ -1,14 +1,26 @@
 /**
- * Commands with `anyModifiers: true`: their bindings match whatever other modifiers are held, as a
- * game's movement keys should. A binding's own modifiers are still required, and a command bound
- * exactly to what was pressed comes first.
+ * Commands with `anyModifiers: true`: their bindings match whatever other modifiers are held, as a game's movement
+ * keys should. A binding's own modifiers are still required, and a command bound exactly to what was pressed comes
+ * first.
  */
-export type Command = import('./core.js').Command;
-export type Modifiers = import('./core.js').Modifiers;
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').Modifiers} Modifiers */
+import type { ParsedBinding } from './binding.js';
+import type { Modifiers } from './binding-mods.js';
+import type { Command } from './command.js';
+export type LooseTable = Readonly<{
+    add: (parsed: ParsedBinding, command: Command) => void;
+    find: (loose: readonly string[], mods: Modifiers, found: readonly Command[] | undefined) => readonly Command[] | undefined;
+    size: () => number;
+}>;
+export type AnyModifiers = Readonly<{
+    table: () => LooseTable;
+}>;
+export type Loose = Readonly<{
+    command: Command;
+    mods: Modifiers;
+}>;
 /**
  * For keybinds({ anyModifiers: anyModifiers() })
- * @returns {import('./core.js').AnyModifiers}
+ * @returns {AnyModifiers} What keybinds() finds `anyModifiers` commands with
  */
-export declare function anyModifiers(): import('./core.js').AnyModifiers;
+declare function anyModifiers(): AnyModifiers;
+export { anyModifiers };

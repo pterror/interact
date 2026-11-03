@@ -1,12 +1,15 @@
 import { describe, test, expect, mock } from 'bun:test'
 
+import { findConflict } from './binding.js'
 import { createComponent } from './components/create.js'
 import { KeybindSettings } from './components/settings.js'
-import { validateCommands, findConflict } from './core.js'
+import { validateCommands } from './core.js'
 import { formatGamepadParts } from './gamepad-ui.js'
 import { CommandHub } from './hub.js'
 import { mergeBindings, BindingsStore } from './store.js'
-import { INPUT, ALL, keybinds, fakePads } from './test-helpers.js'
+import { keybinds } from './test-helpers.js'
+import { ALL, INPUT } from './test-inputs.js'
+import { fakePads } from './test-pads.js'
 
 describe('gamepad', () => {
   test('parses names and aliases, and rejects unknown buttons', () => {
@@ -112,7 +115,10 @@ describe('gamepad', () => {
 
   test('conflicts, overrides and the hub', () => {
     const schema = { jump: { label: 'Jump', gamepad: ['a'] }, fire: { label: 'Fire', gamepad: ['rt'] } }
-    expect(findConflict(schema, 'south', INPUT.gamepad, 'fire')).toEqual({ commandId: 'jump', label: 'Jump' })
+    expect(findConflict(schema, { binding: 'south', except: 'fire', input: INPUT.gamepad })).toEqual({
+      commandId: 'jump',
+      label: 'Jump',
+    })
     expect(mergeBindings(schema, { jump: { gamepad: ['b'] } })['jump']?.gamepad).toEqual(['b'])
     const hub = new CommandHub({ ...ALL, storageKey: 't', listen: { target: document.createElement('div') } })
     hub.setSource('a', () => [{ id: 'jump', label: 'Jump', gamepad: ['a'], execute: () => {} }])

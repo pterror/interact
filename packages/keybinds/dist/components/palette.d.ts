@@ -1,11 +1,11 @@
-export type Command = import('../core.js').Command;
-export type Matcher = import('../core.js').Matcher;
-export type ScoredCommand = import('../core.js').ScoredCommand;
-export type Input = import('../core.js').InputUI;
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').Matcher} Matcher */
-/** @typedef {import('../core.js').ScoredCommand} ScoredCommand */
-/** @typedef {import('../core.js').InputUI} Input */
+export type Command = import('../command.js').Command;
+export type Matcher = import('../search.js').Matcher;
+export type ScoredCommand = import('../search.js').ScoredCommand;
+export type Input = import('../input.js').InputUI;
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../search.js').Matcher} Matcher */
+/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../input.js').InputUI} Input */
 /**
  * <keybinds-command-palette> - Search-driven command execution
  *
@@ -47,17 +47,50 @@ export type Input = import('../core.js').InputUI;
  *   .palette__empty
  */
 export declare class CommandPalette extends HTMLElement {
+    /** How bindings are shown: an item shows its first. @type {Input[]} */
+    inputs: Input[];
+    /** @type {Command[]} */
+    _commands: Command[];
+    /** @type {Record<string, unknown>} */
+    _context: Record<string, unknown>;
+    /** @type {Matcher | undefined} */
+    _matcher: Matcher | undefined;
+    /** @type {ScoredCommand[]} */
+    _results: ScoredCommand[];
+    /** @type {HTMLLIElement[]} */
+    _items: HTMLLIElement[];
+    /** @type {number} */
+    _activeIndex: number;
+    /** @type {'keyboard' | 'pointer'} */
+    _inputMode: 'keyboard' | 'pointer';
+    /** @type {(() => void) | null} */
+    _cleanupTrigger: (() => void) | null;
+    /** @type {((query: string) => Command[] | Promise<Command[]>) | undefined} */
+    _source: ((query: string) => Command[] | Promise<Command[]>) | undefined;
+    /** @type {number} */
+    sourceDelay: number;
+    /** What `source` answered for the query in the input. @type {Command[]} */
+    _sourced: Command[];
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    _sourceTimer: ReturnType<typeof setTimeout> | undefined;
+    /** @type {HTMLElement} */
+    _backdrop: HTMLElement;
+    /** @type {HTMLInputElement} */
+    _input: HTMLInputElement;
+    /** @type {HTMLElement} */
+    _list: HTMLElement;
+    _emptyEl: HTMLLIElement | undefined;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get commands(): import("../core.js").Command[];
-    set commands(val: import("../core.js").Command[]);
+    get commands(): Readonly<import("../command.js").CommandFields>[];
+    set commands(val: Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
-    get matcher(): import("../core.js").Matcher | undefined;
-    set matcher(val: import("../core.js").Matcher | undefined);
-    get source(): ((query: string) => import("../core.js").Command[] | Promise<import("../core.js").Command[]>) | undefined;
-    set source(val: ((query: string) => import("../core.js").Command[] | Promise<import("../core.js").Command[]>) | undefined);
+    get matcher(): import("../search.js").Matcher | undefined;
+    set matcher(val: import("../search.js").Matcher | undefined);
+    get source(): ((query: string) => Command[] | Promise<Command[]>) | undefined;
+    set source(val: ((query: string) => Command[] | Promise<Command[]>) | undefined);
     get open(): boolean;
     set open(val: boolean);
     /**
@@ -85,15 +118,15 @@ export declare class CommandPalette extends HTMLElement {
         label: string;
         description?: string | undefined;
         category?: string | undefined;
-        keys?: string[] | undefined;
-        mouse?: string[] | undefined;
-        gamepad?: string[] | undefined;
-        when?: ((ctx: Record<string, unknown>) => boolean) | undefined;
-        execute: (ctx: Record<string, unknown>, event?: Event | undefined) => unknown;
+        keys?: readonly string[] | undefined;
+        mouse?: readonly string[] | undefined;
+        gamepad?: readonly string[] | undefined;
+        when?: ((ctx: import("../command.js").Context) => boolean) | undefined;
+        execute: (ctx: import("../command.js").Context, event?: Event) => unknown;
         hidden?: boolean | undefined;
         captureInput?: boolean | undefined;
         anyModifiers?: boolean | undefined;
-        menu?: string | string[] | undefined;
+        menu?: string | readonly string[] | undefined;
         rank?: number | undefined;
         active: boolean;
         score: number;

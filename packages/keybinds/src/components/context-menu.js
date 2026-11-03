@@ -1,12 +1,14 @@
-import { markKind, isActive, bindingParts } from '../core.js'
+import { bindingParts } from '../binding-format.js'
+import { isActive } from '../command.js'
 import { keysUI } from '../keys-ui.js'
+import { markKind } from '../modal.js'
 import { filterByMenu, searchCommands, defaultScorer } from '../search.js'
 
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
-/** @typedef {import('../core.js').Scorer} Scorer */
-/** @typedef {import('../core.js').HistoryEntry} HistoryEntry */
-/** @typedef {import('../core.js').ScoredCommand} ScoredCommand */
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
+/** @typedef {import('../search.js').Scorer} Scorer */
+/** @typedef {import('../search.js').HistoryEntry} HistoryEntry */
+/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
 
 /**
  * <keybinds-context-menu> - Scored, searchable context menu driven by commands

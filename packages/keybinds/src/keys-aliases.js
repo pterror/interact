@@ -1,22 +1,25 @@
 /**
- * Short names for keys in bindings: "up", "down", "left", "right" for the arrow keys, and "plus"
- * for "+" (which separates a binding's parts, so it can't be written as itself; needs symbols()).
+ * Short names for keys in bindings: "up", "down", "left", "right" for the arrow keys, and "plus" for "+" (which
+ * separates a binding's parts, so it can't be written as itself; needs symbols()).
  */
 
-/** @typedef {import('./keys.js').KeySyntax} KeySyntax */
+/** @import { KeySyntax } from './keys.js' */
 
-export const KEY_ALIASES = /** @type {Record<string, string>} */ ({
-  up: 'arrowup',
-  down: 'arrowdown',
-  left: 'arrowleft',
-  right: 'arrowright',
-  plus: '+',
-})
+/** @type {ReadonlyMap<string, string>} */
+const KEY_ALIASES = new Map([
+  ['down', 'arrowdown'],
+  ['left', 'arrowleft'],
+  ['plus', '+'],
+  ['right', 'arrowright'],
+  ['up', 'arrowup'],
+])
 
 /**
  * For keys(aliases())
- * @returns {KeySyntax}
+ * @returns {KeySyntax} The aliases, as a piece of key syntax
  */
-export function aliases() {
-  return { name: 'aliases', alias: (name) => KEY_ALIASES[name] }
+function aliases() {
+  return { alias: (name) => KEY_ALIASES.get(name), name: 'aliases' }
 }
+
+export { KEY_ALIASES, aliases }

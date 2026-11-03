@@ -1,13 +1,13 @@
-export type Command = import('../core.js').Command;
-export type Input = import('../core.js').InputUI;
-export type Scorer = import('../core.js').Scorer;
-export type HistoryEntry = import('../core.js').HistoryEntry;
-export type ScoredCommand = import('../core.js').ScoredCommand;
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
-/** @typedef {import('../core.js').Scorer} Scorer */
-/** @typedef {import('../core.js').HistoryEntry} HistoryEntry */
-/** @typedef {import('../core.js').ScoredCommand} ScoredCommand */
+export type Command = import('../command.js').Command;
+export type Input = import('../input.js').InputUI;
+export type Scorer = import('../search.js').Scorer;
+export type HistoryEntry = import('../search.js').HistoryEntry;
+export type ScoredCommand = import('../search.js').ScoredCommand;
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
+/** @typedef {import('../search.js').Scorer} Scorer */
+/** @typedef {import('../search.js').HistoryEntry} HistoryEntry */
+/** @typedef {import('../search.js').ScoredCommand} ScoredCommand */
 /**
  * <keybinds-context-menu> - Scored, searchable context menu driven by commands
  *
@@ -52,11 +52,55 @@ export type ScoredCommand = import('../core.js').ScoredCommand;
  *   more-row        - "▾ N more" toggle row
  */
 export declare class ContextMenu extends HTMLElement {
+    /** How bindings are shown: an item shows its first. @type {Input[]} */
+    inputs: Input[];
+    /** @type {Command[]} */
+    _commands: Command[];
+    /** @type {Record<string, unknown>} */
+    _context: Record<string, unknown>;
+    /** @type {string} */
+    _menu: string;
+    /** @type {{ x: number, y: number }} */
+    _position: {
+        x: number;
+        y: number;
+    };
+    /** @type {(Command & { active: boolean })[]} */
+    _allItems: (Command & {
+        active: boolean;
+    })[];
+    /** @type {(Command & { active: boolean })[]} */
+    _visibleItems: (Command & {
+        active: boolean;
+    })[];
+    /** @type {number} */
+    _activeIndex: number;
+    /** @type {'keyboard' | 'pointer'} */
+    _inputMode: 'keyboard' | 'pointer';
+    /** @type {(() => void) | null} */
+    _cleanupTrigger: (() => void) | null;
+    /** @type {((e: Event) => void) | null} */
+    _keyHandler: ((e: Event) => void) | null;
+    /** @type {Scorer} */
+    _scorer: Scorer;
+    /** @type {HistoryEntry[]} */
+    _history: HistoryEntry[];
+    /** @type {number} */
+    _maxVisible: number;
+    /** @type {boolean} */
+    _expanded: boolean;
+    /** @type {HTMLElement} */
+    _backdrop: HTMLElement;
+    /** @type {HTMLInputElement} */
+    _searchInput: HTMLInputElement;
+    /** @type {HTMLElement} */
+    _list: HTMLElement;
+    _resize: ResizeObserver | null | undefined;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get commands(): import("../core.js").Command[];
-    set commands(val: import("../core.js").Command[]);
+    get commands(): Readonly<import("../command.js").CommandFields>[];
+    set commands(val: Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get menu(): string;
@@ -71,10 +115,10 @@ export declare class ContextMenu extends HTMLElement {
         x: number;
         y: number;
     });
-    get scorer(): import("../core.js").Scorer;
-    set scorer(val: import("../core.js").Scorer);
-    get history(): import("../core.js").HistoryEntry[];
-    set history(val: import("../core.js").HistoryEntry[]);
+    get scorer(): import("../search.js").Scorer;
+    set scorer(val: import("../search.js").Scorer);
+    get history(): import("../search.js").HistoryEntry[];
+    set history(val: import("../search.js").HistoryEntry[]);
     get maxVisible(): number;
     set maxVisible(val: number);
     /**

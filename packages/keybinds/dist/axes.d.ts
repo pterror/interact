@@ -3,13 +3,13 @@
  * ("pad:rx", "pad:lt") or a pair of keys ("keys:a/d"). A leading "-" inverts a source. Showing
  * and recording them is keybinds/axes-ui.
  */
-export type Input = import('./core.js').Input;
-export type AxisDef = import('./core.js').AxisDef;
-export type AxisValue = import('./core.js').AxisValue;
+export type Input = import('./input.js').Input;
+export type AxisDef = import('./command.js').AxisDef;
+export type AxisValue = import('./command.js').AxisValue;
 export type ParsedKey = import('./keys.js').ParsedKey;
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').AxisDef} AxisDef */
-/** @typedef {import('./core.js').AxisValue} AxisValue */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./command.js').AxisDef} AxisDef */
+/** @typedef {import('./command.js').AxisValue} AxisValue */
 /** @typedef {import('./keys.js').ParsedKey} ParsedKey */
 export declare const PAD_AXES: string[];
 export type ParsedAxis = {

@@ -1,6 +1,7 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, mock } from 'bun:test'
 
 import { CommandPalette } from '../components/palette.js'
+import { keybinds } from '../test-helpers.js'
 
 describe('CommandPalette source', () => {
   beforeEach(() => {
@@ -97,5 +98,53 @@ describe('CommandPalette source', () => {
     }
     expect(ran).toEqual(['b', 'b'])
     el.remove()
+  })
+})
+
+describe('an open palette holds keys back', () => {
+  test('does not dispatch when event target is an open keybinds-command-palette', () => {
+    const fn = mock(() => {})
+    const target = document.createElement('div')
+    const commands = [{ execute: fn, id: 'save', keys: ['ctrl+s'], label: 'Save' }]
+    const cleanup = keybinds(commands, undefined, { target })
+    if (!customElements.get('keybinds-command-palette')) {
+      customElements.define('keybinds-command-palette', CommandPalette)
+    }
+    document.body.append(target)
+
+    const palette = document.createElement('keybinds-command-palette')
+    palette.setAttribute('open', '')
+    target.append(palette)
+
+    const event = new KeyboardEvent('keydown', {
+      code: 'KeyS',
+      ctrlKey: true,
+      key: 's',
+    })
+    Object.defineProperty(event, 'target', { value: palette })
+    target.dispatchEvent(event)
+
+    expect(fn).not.toHaveBeenCalled()
+    cleanup()
+    target.remove()
+  })
+
+  test('a palette registered under another name still holds keys back while open', () => {
+    const name = 'my-own-palette'
+    if (!customElements.get(name)) {
+      customElements.define(name, class extends CommandPalette {})
+    }
+    const target = document.createElement('div')
+    document.body.append(target)
+    const fn = mock(() => {})
+    const cleanup = keybinds([{ execute: fn, id: 's', keys: ['ctrl+s'], label: 'S' }], undefined, { target })
+    const palette = document.createElement(name)
+    target.append(palette)
+    palette.setAttribute('open', '')
+    expect(palette.dataset['keybinds']).toBe('command-palette')
+    palette.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, code: 'KeyS', ctrlKey: true, key: 's' }))
+    expect(fn).not.toHaveBeenCalled()
+    cleanup()
+    target.remove()
   })
 })

@@ -1,4 +1,4 @@
-import { CommandPalette, KeybindCheatsheet, KeybindSettings, BasicContextMenu, ContextMenu } from './index.js'
+import type { BasicContextMenu, CommandPalette, ContextMenu, KeybindCheatsheet, KeybindSettings } from './index.js'
 
 declare global {
   interface HTMLElementTagNameMap {

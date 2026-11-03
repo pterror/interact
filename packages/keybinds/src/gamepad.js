@@ -3,10 +3,11 @@
  * Showing and recording them is keybinds/gamepad-ui.
  */
 
-import { NO_MODS, anyOverlayOpen } from './core.js'
+import { NO_MODS } from './binding-mods.js'
+import { anyOverlayOpen } from './modal.js'
 
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').Press} Press */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./input.js').Press} Press */
 
 // The browser's "standard" gamepad layout, by button index. Face buttons are named by position
 // (an Xbox pad's A is "a", a PlayStation pad's cross is too)

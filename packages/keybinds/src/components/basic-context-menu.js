@@ -1,9 +1,11 @@
-import { markKind, isActive, bindingParts } from '../core.js'
+import { bindingParts } from '../binding-format.js'
+import { isActive } from '../command.js'
 import { keysUI } from '../keys-ui.js'
+import { markKind } from '../modal.js'
 import { filterByMenu } from '../search.js'
 
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
 
 /**
  * <keybinds-basic-context-menu> - Context menu driven by commands (no search, no limit)

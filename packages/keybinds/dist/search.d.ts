@@ -1,12 +1,26 @@
 /**
  * Searching, ranking and grouping commands, for the palette, cheatsheet and menus.
  */
-export type Command = import('./core.js').Command;
-export type Matcher = import('./core.js').Matcher;
-export type Scorer = import('./core.js').Scorer;
-export type SearchOptions = import('./core.js').SearchOptions;
-export type ScoredCommand = import('./core.js').ScoredCommand;
-export type HistoryEntry = import('./core.js').HistoryEntry;
+export type Command = import('./command.js').Command;
+export type MatchResult = {
+    score: number;
+    positions?: number[];
+};
+export type Matcher = (query: string, text: string) => MatchResult | null;
+export type HistoryEntry = {
+    id: string;
+    timestamp: number;
+};
+export type Scorer = (command: Command, context: unknown) => number;
+export type SearchOptions = {
+    matcher?: Matcher | undefined;
+    scorer?: Scorer | undefined;
+};
+export type ScoredCommand = Command & {
+    active: boolean;
+    score: number;
+    positions?: number[];
+};
 /**
  * Search commands with a given matcher
  *
@@ -79,7 +93,7 @@ export declare function filterByMenu(commands: Command[], menu: string, context?
  *
  * @type {Matcher}
  */
-export declare function simpleMatcher(query: string, text: string): import("./core.js").MatchResult | null;
+export declare function simpleMatcher(query: string, text: string): MatchResult | null;
 /**
  * Fuzzy sequential character matcher
  *
@@ -89,4 +103,4 @@ export declare function simpleMatcher(query: string, text: string): import("./co
  *
  * @type {Matcher}
  */
-export declare function fuzzyMatcher(query: string, text: string): import("./core.js").MatchResult | null;
+export declare function fuzzyMatcher(query: string, text: string): MatchResult | null;

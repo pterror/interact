@@ -254,10 +254,10 @@ store.save({ save: { keys: ['$mod+Shift+s'] } })
 Convert a KeyboardEvent to a canonical binding string.
 
 ```ts
-function eventToBindingString(event: KeyboardEvent): string | null
+function eventToBindingString(event: KeyboardEvent, syntax?: readonly KeySyntax[]): string | undefined
 ```
 
-Returns `null` for bare modifier presses and unknown keys.
+Returns `undefined` for bare modifier presses and keys that can't be bound.
 
 ```js
 // In a keydown handler:
@@ -287,21 +287,20 @@ eventToMouseBindingString(mouseupEvent) // e.g. "middle:up"
 
 ---
 
-## findConflict(schema, bindingStr, type, excludeId?)
+## findConflict(schema, { binding, input, except? })
 
-Check if a binding conflicts with any command in a schema.
+Check if a binding conflicts with any command in a schema. `except` is a command not to check, usually the one being
+rebound.
 
 ```ts
 function findConflict(
   schema: Schema,
-  bindingStr: string,
-  input: Input,
-  excludeId?: string,
-): { commandId: string; label: string } | null
+  candidate: { binding: string; input: Input; except?: string },
+): { commandId: string; label: string } | undefined
 ```
 
 ```js
-const conflict = findConflict(schema, '$mod+s', keys(), 'save')
+const conflict = findConflict(schema, { binding: '$mod+s', except: 'save', input: keys() })
 if (conflict) {
   console.log(`Conflicts with ${conflict.label}`)
 }

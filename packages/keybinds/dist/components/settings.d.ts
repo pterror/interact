@@ -1,8 +1,8 @@
-export type Input = import('../core.js').InputUI;
-export type BindingSchema = import('../core.js').BindingSchema;
+export type Input = import('../input.js').InputUI;
+export type BindingSchema = import('../command.js').BindingSchema;
 export type AnyStore = import('../store.js').BindingsStore<any>;
-/** @typedef {import('../core.js').InputUI} Input */
-/** @typedef {import('../core.js').BindingSchema} BindingSchema */
+/** @typedef {import('../input.js').InputUI} Input */
+/** @typedef {import('../command.js').BindingSchema} BindingSchema */
 /** @typedef {import('../store.js').BindingsStore<any>} AnyStore */
 /**
  * <keybinds-settings> - Keybinding settings panel
@@ -47,14 +47,63 @@ export type AnyStore = import('../store.js').BindingsStore<any>;
  *   .settings__conflict
  */
 export declare class KeybindSettings extends HTMLElement {
+    /** @type {AnyStore | null} */
+    _store: AnyStore | null;
+    /** @type {((e: Event) => void) | null} */
+    _storeListener: ((e: Event) => void) | null;
+    /** @type {Input[]} */
+    _inputs: Input[];
+    /** Whether release bindings ("k:up") are on, so they can be recorded and switched to */
+    releases: boolean;
+    /** Whether hold and tap bindings ("k:hold", "k:tap") are on, so they can be recorded */
+    holds: boolean;
+    /** Whether bindings of several steps ("g i") are on, so they can be recorded */
+    sequences: boolean;
+    /** @type {(() => void)[]} */
+    _unwatch: (() => void)[];
+    /** @type {{ commandId: string, input: Input, index: number | null } | null} */
+    _recording: {
+        commandId: string;
+        input: Input;
+        index: number | null;
+    } | null;
+    /** @type {{ commandId: string, label: string, bindingStr: string, input: Input, index: number | null, flip?: boolean } | null} */
+    _conflict: {
+        commandId: string;
+        label: string;
+        bindingStr: string;
+        input: Input;
+        index: number | null;
+        flip?: boolean;
+    } | null;
+    /** What recording captures: a press (""), or a release, hold or tap (":up", ":hold", ":tap") */
+    _recordSuffix: string;
+    /** Whether recording takes several steps, and the steps so far */
+    _recordSequence: boolean;
+    /** @type {string[]} */
+    _steps: string[];
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    _stepTimer: ReturnType<typeof setTimeout> | undefined;
+    /** The switches in the recording prompt, whose clicks aren't recorded */
+    /** @type {HTMLElement[]} */
+    _toggles: HTMLElement[];
+    /** @type {(() => void) | null} */
+    _stopRecorder: (() => void) | null;
+    /** @type {((e: Event) => void) | null} */
+    _escapeHandler: ((e: Event) => void) | null;
+    _availabilityChanged: () => void;
+    /** @type {HTMLElement} */
+    _backdrop: HTMLElement;
+    /** @type {HTMLElement} */
+    _dialog: HTMLElement;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
     connectedCallback(): void;
     get store(): import("../store.js").BindingsStore<any> | null;
     set store(val: import("../store.js").BindingsStore<any> | null);
-    get inputs(): import("../core.js").InputUI[];
-    set inputs(val: import("../core.js").InputUI[]);
+    get inputs(): import("../input.js").InputUI[];
+    set inputs(val: import("../input.js").InputUI[]);
     get open(): boolean;
     set open(val: boolean);
     /**

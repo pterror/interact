@@ -2,14 +2,39 @@
  * Searching, ranking and grouping commands, for the palette, cheatsheet and menus.
  */
 
-import { isActive } from './core.js'
+import { isActive } from './command.js'
 
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').Matcher} Matcher */
-/** @typedef {import('./core.js').Scorer} Scorer */
-/** @typedef {import('./core.js').SearchOptions} SearchOptions */
-/** @typedef {import('./core.js').ScoredCommand} ScoredCommand */
-/** @typedef {import('./core.js').HistoryEntry} HistoryEntry */
+/** @typedef {import('./command.js').Command} Command */
+
+/**
+ * How well a query matches some text, and where
+ * @typedef {{ score: number, positions?: number[] }} MatchResult
+ */
+
+/**
+ * Matches a query against some text: a result, or null for no match
+ * @typedef {(query: string, text: string) => MatchResult | null} Matcher
+ */
+
+/**
+ * When a command was last run, for ranking by frecency
+ * @typedef {{ id: string, timestamp: number }} HistoryEntry
+ */
+
+/**
+ * Ranks a command before relevance: higher first
+ * @typedef {(command: Command, context: unknown) => number} Scorer
+ */
+
+/**
+ * How to search: a matcher and a scorer
+ * @typedef {{ matcher?: Matcher | undefined, scorer?: Scorer | undefined }} SearchOptions
+ */
+
+/**
+ * A command found by a search: whether it applies now, its score, and where the query matched its label
+ * @typedef {Command & { active: boolean, score: number, positions?: number[] }} ScoredCommand
+ */
 
 /**
  * Dedupe commands by ID (last wins - for registration order / inner scope)

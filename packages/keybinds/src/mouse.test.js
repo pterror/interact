@@ -1,8 +1,11 @@
 import { describe, test, expect, mock } from 'bun:test'
 
-import { validateCommands, findConflict } from './core.js'
+import { findConflict } from './binding.js'
+import { validateCommands } from './core.js'
 import { formatMouseParts, eventToMouseBindingString } from './mouse-ui.js'
-import { INPUT, ALL, keybinds, mouse } from './test-helpers.js'
+import { keybinds, mouse } from './test-helpers.js'
+import { kbd } from './test-helpers.js'
+import { ALL, INPUT } from './test-inputs.js'
 
 describe('formatMouseParts', () => {
   test('formats click buttons', () => {
@@ -180,9 +183,9 @@ describe('side buttons', () => {
     expect(formatMouseParts('Back')).toEqual(['Back'])
     expect(formatMouseParts('ctrl+ForwardClick')).toEqual(['Ctrl', 'Forward'])
     const schema = { s: { label: 'S', mouse: ['back'] } }
-    expect(findConflict(schema, 'BackClick', INPUT.mouse)?.commandId).toBe('s')
-    expect(findConflict(schema, 'scrollup', INPUT.mouse)).toBeNull()
-    expect(findConflict(schema, 'forward', INPUT.mouse)).toBeNull()
+    expect(findConflict(schema, { binding: 'BackClick', input: INPUT.mouse })?.commandId).toBe('s')
+    expect(findConflict(schema, { binding: 'scrollup', input: INPUT.mouse })).toBeUndefined()
+    expect(findConflict(schema, { binding: 'forward', input: INPUT.mouse })).toBeUndefined()
   })
 
   test('eventToMouseBindingString names side buttons and rejects unnamed ones', () => {
@@ -257,5 +260,93 @@ describe('scroll gestures', () => {
     expect(fn).toHaveBeenCalledTimes(1)
     expect(later.defaultPrevented).toBe(false)
     cleanup()
+  })
+})
+
+describe('mouse buttons held and released', () => {
+  /** @param {string[]} calls */
+  const recorder = (calls) => (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => {
+    calls.push(/** @type {Event} */ (e).type)
+  }
+
+  test('mouse buttons, and losing focus', () => {
+    const target = document.createElement('div')
+    const kb = keybinds(
+      [
+        { execute: () => {}, id: 'fire', label: 'Fire', mouse: ['Click'] },
+        { execute: () => {}, id: 'fwd', keys: ['w'], label: 'Forward' },
+      ],
+      undefined,
+      { target },
+    )
+    target.dispatchEvent(mouse('mousedown', 0, { buttons: 1 }))
+    target.dispatchEvent(kbd('keydown', { code: 'KeyW', key: 'w' }))
+    expect(kb.held('fire')).toBe(true)
+    window.dispatchEvent(new Event('blur'))
+    expect(kb.held('fwd')).toBe(false)
+    expect(kb.held('fire')).toBe(true)
+    target.dispatchEvent(mouse('mouseup', 0, { buttons: 0 }))
+    expect(kb.held('fire')).toBe(false)
+    kb()
+  })
+
+  test('a mouse button is not released just because focus went', () => {
+    /** @type {string[]} */
+    const calls = []
+    const target = document.createElement('div')
+    const cleanup = keybinds(
+      [{ execute: recorder(calls), id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'] }],
+      undefined,
+      { target },
+    )
+    target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
+    window.dispatchEvent(new Event('blur'))
+    // Still held when the page hears from the mouse again
+    target.dispatchEvent(mouse('mousemove', 0, { buttons: 4 }))
+    expect(calls).toEqual(['mousedown'])
+    target.dispatchEvent(mouse('mouseup', 1, { buttons: 0 }))
+    expect(calls).toEqual(['mousedown', 'mouseup'])
+    cleanup()
+  })
+
+  test('a mouse button let go out of sight is released on the next mouse event', () => {
+    /** @type {string[]} */
+    const calls = []
+    const target = document.createElement('div')
+    const cleanup = keybinds(
+      [{ execute: recorder(calls), id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'] }],
+      undefined,
+      { target },
+    )
+    target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
+    target.dispatchEvent(mouse('mousemove', 0, { buttons: 0 }))
+    expect(calls).toEqual(['mousedown', 'mouseup'])
+    cleanup()
+  })
+
+  test("another button going down doesn't release one that is still held", () => {
+    /** @type {string[]} */
+    const calls = []
+    const target = document.createElement('div')
+    const cleanup = keybinds(
+      [{ execute: recorder(calls), id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'] }],
+      undefined,
+      { target },
+    )
+    target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
+    target.dispatchEvent(mouse('mousedown', 0, { buttons: 5 }))
+    target.dispatchEvent(mouse('mouseup', 0, { buttons: 4 }))
+    expect(calls).toEqual(['mousedown'])
+    cleanup()
+  })
+
+  test('format adds a Release part', () => {
+    expect(formatMouseParts('MiddleClick:up')).toEqual(['Middle', 'Release'])
+  })
+
+  test('event to binding string gives :up for mouseup', () => {
+    expect(eventToMouseBindingString(mouse('mouseup', 1))).toBe('middle:up')
+    expect(eventToMouseBindingString(mouse('mouseup', 3))).toBe('back:up')
+    expect(eventToMouseBindingString(mouse('mousedown', 1))).toBe('middle')
   })
 })

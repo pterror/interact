@@ -29,6 +29,6 @@
   },
   "scripts": {
     "check": "tsgo --noEmit",
-    "build:types": "tsgo --declaration --emitDeclarationOnly --outDir dist --rootDir src && find dist -name '*.test.d.ts' -delete && rm -f dist/test-helpers.d.ts"
+    "build:types": "rm -rf dist && tsgo --noEmit false --declaration --emitDeclarationOnly --outDir dist --rootDir src && find dist -name '*.test.d.ts' -delete && rm -f dist/test-*.d.ts"
   }
 }

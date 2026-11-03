@@ -1,7 +1,7 @@
-export type Command = import('../core.js').Command;
-export type Input = import('../core.js').InputUI;
-/** @typedef {import('../core.js').Command} Command */
-/** @typedef {import('../core.js').InputUI} Input */
+export type Command = import('../command.js').Command;
+export type Input = import('../input.js').InputUI;
+/** @typedef {import('../command.js').Command} Command */
+/** @typedef {import('../input.js').InputUI} Input */
 /**
  * <keybinds-cheatsheet> - Grouped display of available bindings
  *
@@ -36,14 +36,29 @@ export type Input = import('../core.js').InputUI;
  *   .cheatsheet__item-key
  */
 export declare class KeybindCheatsheet extends HTMLElement {
+    /** How bindings are shown. @type {Input[]} */
+    _inputs: Input[];
+    /** Stops following how the inputs show bindings changing (a layout() switching) */
+    /** @type {(() => void)[]} */
+    _unwatch: (() => void)[];
+    /** @type {Command[]} */
+    _commands: Command[];
+    /** @type {Record<string, unknown>} */
+    _context: Record<string, unknown>;
+    /** @type {(() => void) | null} */
+    _cleanupTrigger: (() => void) | null;
+    /** @type {HTMLElement} */
+    _backdrop: HTMLElement;
+    /** @type {HTMLElement} */
+    _dialog: HTMLElement;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
-    get inputs(): import("../core.js").InputUI[];
-    set inputs(val: import("../core.js").InputUI[]);
+    get inputs(): import("../input.js").InputUI[];
+    set inputs(val: import("../input.js").InputUI[]);
     _watchInputs(): void;
-    get commands(): import("../core.js").Command[];
-    set commands(val: import("../core.js").Command[]);
+    get commands(): Readonly<import("../command.js").CommandFields>[];
+    set commands(val: Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get open(): boolean;

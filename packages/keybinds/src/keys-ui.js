@@ -2,154 +2,213 @@
  * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus.
  */
 
-import { RELEASE_SUFFIX, eventModParts, formatModPart, formatWithRelease } from './core.js'
+/**
+ * @import { InputUI } from './input.js'
+ * @import { KeySyntax } from './keys.js'
+ */
+
+import { formatWithRelease } from './binding-format.js'
+import { eventModParts, formatModPart } from './binding-mods.js'
+import { RELEASE_SUFFIX } from './binding.js'
+import { KeyRecorder } from './keys-recorder.js'
 import { PUNCTUATION_CODES, isSymbolKey } from './keys-symbols.js'
-import { keys, NAMED_KEY, isLetterOrDigit } from './keys.js'
+import { NAMED_KEY, isLetterOrDigit, keys } from './keys.js'
 
-/** @typedef {import('./core.js').InputUI} InputUI */
-/** @typedef {import('./keys.js').KeySyntax} KeySyntax */
-
-// How a physical key name is shown: the character it types on a US layout
-const CODE_GLYPHS = /** @type {Record<string, string>} */ ({
-  ...Object.fromEntries(Object.entries(PUNCTUATION_CODES).map(([ch, code]) => [code, ch])),
-  ...Object.fromEntries(Array.from({ length: 10 }, (_, d) => [`digit${d}`, String(d)])),
-  plus: '+',
-})
+const DIGITS = 10
+const FIRST = 0
+const NONE = 0
+const ONE = 1
 
 /**
- * Format a single key part for display
- * @param {string} part
- * @param {KeySyntax[]} syntax - A layout() among them shows physical keys as it types them
- * @returns {string}
+ * How each physical key name is shown: the character it types on a US layout
+ * @returns {ReadonlyMap<string, string>} The characters, by physical key name
+ */
+function codeGlyphs() {
+  /** @type {Map<string, string>} */
+  const glyphs = new Map([['plus', '+']])
+  for (const [typed, code] of PUNCTUATION_CODES) {
+    glyphs.set(code, typed)
+  }
+  for (let digit = FIRST; digit < DIGITS; digit += ONE) {
+    glyphs.set(`digit${digit}`, String(digit))
+  }
+  return glyphs
+}
+
+const CODE_GLYPHS = codeGlyphs()
+
+/** @type {ReadonlyMap<string, string>} */
+const NAMED_GLYPHS = new Map([
+  ['arrowdown', '↓'],
+  ['arrowleft', '←'],
+  ['arrowright', '→'],
+  ['arrowup', '↑'],
+  ['backspace', '⌫'],
+  ['delete', '⌦'],
+  ['down', '↓'],
+  ['enter', '↵'],
+  ['esc', 'Esc'],
+  ['escape', 'Esc'],
+  ['left', '←'],
+  ['right', '→'],
+  ['space', 'Space'],
+  ['tab', 'Tab'],
+  ['up', '↑'],
+])
+
+/** @type {ReadonlySet<string>} */
+const BARE_MODIFIERS = new Set(['alt', 'control', 'meta', 'shift'])
+
+const LETTER_CODE = /^key[a-z]$/u
+const ASCII_LETTER_OR_DIGIT = /^[a-z\d]$/u
+
+/**
+ * How a piece of syntax shows a key, the first that shows it
+ * @param {string} name - The key's name, lowercase
+ * @param {readonly KeySyntax[]} syntax - The syntax on; a layout() among them shows physical keys as it types them
+ * @returns {string | undefined} The key as shown, if any piece shows it
+ */
+function glyphOf(name, syntax) {
+  for (const each of syntax) {
+    const glyph = each.glyph?.(name)
+    if (glyph !== undefined && glyph !== '') {
+      return glyph
+    }
+  }
+  return undefined
+}
+
+/**
+ * One part of a key binding as shown
+ * @param {string} part - The part
+ * @param {readonly KeySyntax[]} syntax - The syntax on
+ * @returns {string} Its symbol or name
  */
 function formatKeyPart(part, syntax) {
-  const p = part.trim().toLowerCase()
-  const mod = formatModPart(p)
-  if (mod) return mod
-  for (const s of syntax) {
-    const glyph = s.glyph?.(p)
-    if (glyph) return glyph
-  }
-  if (p === 'backspace') return '⌫'
-  if (p === 'delete') return '⌦'
-  if (p === 'escape' || p === 'esc') return 'Esc'
-  if (p === 'enter') return '↵'
-  if (p === 'space') return 'Space'
-  if (p === 'tab') return 'Tab'
-  if (p === 'arrowup' || p === 'up') return '↑'
-  if (p === 'arrowdown' || p === 'down') return '↓'
-  if (p === 'arrowleft' || p === 'left') return '←'
-  if (p === 'arrowright' || p === 'right') return '→'
-  return CODE_GLYPHS[p] ?? part.toUpperCase()
+  const name = part.trim().toLowerCase()
+  return (
+    formatModPart(name) ??
+    glyphOf(name, syntax) ??
+    NAMED_GLYPHS.get(name) ??
+    CODE_GLYPHS.get(name) ??
+    part.toUpperCase()
+  )
 }
 
 /**
- * Format key binding into array of display parts (e.g., "$mod+k" -> ["⌘", "K"] on Mac)
- * @param {string} key
- * @param {KeySyntax[]} [syntax] - As for keys(); a layout() among them shows physical keys as it types them
- * @returns {string[]}
+ * A key binding as display parts ("$mod+k" is ["⌘", "K"] on a Mac)
+ * @param {string} binding - The binding
+ * @param {readonly KeySyntax[]} [syntax] - As for keys(); a layout() among them shows physical keys as it types them
+ * @returns {string[]} The parts as shown
  */
-export function formatKeyParts(key, syntax = []) {
-  return formatWithRelease(key, (part) => formatKeyPart(part, syntax))
+function formatKeyParts(binding, syntax = []) {
+  return formatWithRelease(binding, (part) => formatKeyPart(part, syntax))
 }
 
-const ASCII_LETTER_OR_DIGIT = /^[a-z0-9]$/
-
 /**
- * Convert a KeyboardEvent to a canonical binding string (e.g. "$mod+shift+k"), in the syntax the
- * keyboard input reads: a typed character like "?" only with symbols(), "plus" only with aliases()
- * too; otherwise the physical key ("shift+slash").
- *
- * Returns null for bare modifier presses (Shift/Ctrl/Alt/Meta alone) and keys that can't be bound.
- *
- * @param {KeyboardEvent} event
- * @param {KeySyntax[]} [syntax]
- * @returns {string | null}
+ * The name a key event's key is bound by. A letter key typing something no binding names (Option+A types "å" on a
+ * Mac) is the key itself
+ * @param {KeyboardEvent} event - The event
+ * @returns {string} The name
  */
-export function eventToBindingString(event, syntax = []) {
+function keyName(event) {
   const key = event.key.toLowerCase()
-  const suffix = event.type === 'keyup' ? RELEASE_SUFFIX : ''
-
-  // Ignore bare modifier presses
-  if (['shift', 'control', 'alt', 'meta'].includes(key)) return null
-
-  let name = key === ' ' ? 'space' : key
+  const name = key === ' ' ? 'space' : key
   const code = event.code.toLowerCase()
-  // A letter key typing something no binding names (Option+A types "å" on a Mac) is the key itself
-  if (/^key[a-z]$/.test(code) && !ASCII_LETTER_OR_DIGIT.test(name) && !NAMED_KEY.test(name) && !isSymbolKey(name))
-    name = code.slice(3)
-
-  if (isSymbolKey(name)) {
-    const symbols = syntax.some((s) => s.name === 'symbols')
-    const aliases = syntax.some((s) => s.name === 'aliases')
-    // A symbol is recorded as the character typed ("?"), which already says Shift was needed
-    if (symbols && (name !== '+' || aliases))
-      return [...eventModParts(event, false), name === '+' ? 'plus' : name].join('+') + suffix
-    // Otherwise as the physical key that typed it (a letter key, on some layouts)
-    if (/^key[a-z]$/.test(code)) name = code.slice(3)
-    else if (NAMED_KEY.test(code)) name = code
-    else return null
-  } else if (!isLetterOrDigit(name) && !NAMED_KEY.test(name)) {
-    return null
-  }
-  return [...eventModParts(event), name].join('+') + suffix
+  const unnamed = !ASCII_LETTER_OR_DIGIT.test(name) && !NAMED_KEY.test(name) && !isSymbolKey(name)
+  return LETTER_CODE.test(code) && unnamed ? code.replace(/^key/u, '') : name
 }
 
 /**
- * The keyboard, shown and recorded as well as listened to
- * @param {...KeySyntax} syntax - As for keys()
- * @returns {InputUI}
+ * The physical key that typed a symbol, by its `event.code`
+ * @param {string} code - The code, lowercase
+ * @returns {string | undefined} A letter or named key, or undefined if it's neither
  */
-export function keysUI(...syntax) {
-  const watched = syntax.filter((s) => s.watch)
-  return {
-    ...keys(...syntax),
-    // How keys are shown can change (a layout() following the person's layout)
-    ...(watched.length > 0 && {
-      /** @param {() => void} onChange */
-      watch: (onChange) => {
-        const stops = watched.map((s) => /** @type {NonNullable<KeySyntax['watch']>} */ (s.watch)(onChange))
-        return () => {
-          for (const stop of stops) stop()
-        }
-      },
-    }),
-    label: 'Key',
-    format: (binding) => formatKeyParts(binding, syntax),
-    release: () => true,
-    prompt: (release) => (release ? 'Press and release a key...' : 'Press a key...'),
+function physicalName(code) {
+  if (LETTER_CODE.test(code)) {
+    return code.replace(/^key/u, '')
+  }
+  return NAMED_KEY.test(code) ? code : undefined
+}
 
-    record({ release, ignore }, done) {
-      /** @type {{ id: string, binding: string } | null} */
-      let held = null
-      /** @param {Event} e */
-      const down = (e) => {
-        const event = /** @type {KeyboardEvent} */ (e)
-        if (ignore(event) || event.key === 'Escape') return
-        const binding = eventToBindingString(event, syntax)
-        if (!binding) return // bare modifier
-        event.preventDefault()
-        event.stopPropagation()
-        if (!release) return done(binding)
-        // Held until its keyup; the press-time modifiers are what the release binds to
-        if (!event.repeat) held = { id: event.code || event.key, binding }
-      }
-      /** @param {Event} e */
-      const up = (e) => {
-        const event = /** @type {KeyboardEvent} */ (e)
-        if (ignore(event) || !held || held.id !== (event.code || event.key)) return
-        event.preventDefault()
-        event.stopPropagation()
-        const binding = held.binding
-        held = null
-        done(binding + RELEASE_SUFFIX)
-      }
-      window.addEventListener('keydown', down, true)
-      window.addEventListener('keyup', up, true)
+/**
+ * A typed symbol's binding parts: the character typed ("?"), which already says Shift was needed, when the syntax
+ * reads it; otherwise the physical key that typed it (a letter key, on some layouts)
+ * @param {KeyboardEvent} event - The event
+ * @param {string} name - The symbol typed
+ * @param {readonly KeySyntax[]} syntax - The syntax on
+ * @returns {string[] | undefined} The parts, or undefined if it can't be bound
+ */
+function symbolParts(event, name, syntax) {
+  const symbols = syntax.some((each) => each.name === 'symbols')
+  const aliases = syntax.some((each) => each.name === 'aliases')
+  if (symbols && (name !== '+' || aliases)) {
+    return [...eventModParts(event, false), name === '+' ? 'plus' : name]
+  }
+  const physical = physicalName(event.code.toLowerCase())
+  return physical === undefined ? undefined : [...eventModParts(event), physical]
+}
+
+/**
+ * A key event as a binding ("$mod+shift+k"), in the syntax the keyboard input reads: a typed character like "?" only
+ * with symbols(), "plus" only with aliases() too; otherwise the physical key ("shift+slash")
+ * @param {KeyboardEvent} event - The event
+ * @param {readonly KeySyntax[]} [syntax] - The syntax on
+ * @returns {string | undefined} The binding, or undefined for a modifier pressed alone or a key that can't be bound
+ */
+function eventToBindingString(event, syntax = []) {
+  if (BARE_MODIFIERS.has(event.key.toLowerCase())) {
+    return undefined
+  }
+  const suffix = event.type === 'keyup' ? RELEASE_SUFFIX : ''
+  const name = keyName(event)
+  const plain = isLetterOrDigit(name) || NAMED_KEY.test(name) ? [...eventModParts(event), name] : undefined
+  const parts = isSymbolKey(name) ? symbolParts(event, name, syntax) : plain
+  return parts === undefined ? undefined : `${parts.join('+')}${suffix}`
+}
+
+/**
+ * Follows every piece of syntax that can change how keys are shown (a layout() following the person's layout)
+ * @param {readonly KeySyntax[]} syntax - The syntax on
+ * @returns {Readonly<{ watch?: (onChange: () => void) => () => void }>} A `watch` if any piece changes
+ */
+function watching(syntax) {
+  const watchers = syntax.flatMap((each) => (each.watch === undefined ? [] : [each.watch]))
+  if (watchers.length === NONE) {
+    return {}
+  }
+  return {
+    watch: (onChange) => {
+      const stops = watchers.map((watch) => watch(onChange))
       return () => {
-        window.removeEventListener('keydown', down, true)
-        window.removeEventListener('keyup', up, true)
+        for (const stop of stops) {
+          stop()
+        }
       }
     },
   }
 }
+
+/**
+ * The keyboard, shown and recorded as well as listened to
+ * @param {readonly KeySyntax[]} syntax - As for keys()
+ * @returns {InputUI} The keyboard, as an input that can be shown and recorded
+ */
+function keysUI(...syntax) {
+  return {
+    ...keys(...syntax),
+    ...watching(syntax),
+    format: (binding) => formatKeyParts(binding, syntax),
+    label: 'Key',
+    prompt: (release) => (release ? 'Press and release a key...' : 'Press a key...'),
+    record: (options, done) => {
+      const recorder = new KeyRecorder(options, { done, toBinding: (event) => eventToBindingString(event, syntax) })
+      return () => {
+        recorder.stop()
+      }
+    },
+    release: () => true,
+  }
+}
+
+export { eventToBindingString, formatKeyParts, keysUI }

@@ -2,10 +2,10 @@
  * Gamepad buttons: bindings like "a", "rt" or "start:up". Gamepad buttons take no modifiers.
  * Showing and recording them is keybinds/gamepad-ui.
  */
-export type Input = import('./core.js').Input;
-export type Press = import('./core.js').Press;
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').Press} Press */
+export type Input = import('./input.js').Input;
+export type Press = import('./input.js').Press;
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./input.js').Press} Press */
 export declare const GAMEPAD_BUTTONS: string[];
 /** @type {Record<string, string>} */
 export declare const GAMEPAD_ALIASES: Record<string, string>;

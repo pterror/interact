@@ -218,3 +218,14 @@ describe('BindingsStore', () => {
     expect(store.get()['save']?.keys).toEqual(['$mod+s'])
   })
 })
+
+describe('release bindings in the store', () => {
+  test('settings store round-trips release bindings', () => {
+    const schema = { close: { label: 'Close', mouse: ['middle:up'] }, open: { label: 'Open', mouse: ['middle'] } }
+    const store = new BindingsStore(schema, 'test:release-bindings')
+    store.save({ close: { mouse: ['back:up'] } })
+    const reloaded = new BindingsStore(schema, 'test:release-bindings')
+    expect(reloaded.get().close?.mouse).toEqual(['back:up'])
+    expect(reloaded.get().open?.mouse).toEqual(['middle'])
+  })
+})

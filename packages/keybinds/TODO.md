@@ -74,10 +74,9 @@
 - [ ] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime (how they show bindings, and `CommandHub` assigns
       it), but their generated declarations don't have the property, so a page creating them with `createComponent` has
       to cast to set it (seen in pteraworld's src/input.ts). `KeybindCheatsheet` declares it as a getter/setter.
-- [ ] keybinds isn't under the repo's lint yet: `.oxlintrc.json` ignores `packages/keybinds/**`. Under that config it
-      has 5,369 diagnostics across 106 rules, most from `no-underscore-dangle`, `no-magic-numbers`, `curly`,
-      `sort-keys`, `id-length`, `no-inline-comments` and `prefer-readonly-parameter-types`. `test/repo.js` fences it
-      from the rule tests too.
+- [ ] Not all of keybinds is under the repo's lint yet: the files `.oxlintrc.json` lists in its fence (the mouse,
+      gamepad and axes inputs, search, store, modifiers, the hub and the components) are skipped, by lint and by the
+      rule tests in `test/repo.js` alike. The core, keyboard and syntax modules are under it.
 - [ ] keybinds casts with JSDoc (`/** @type {X} */ (value)`); oxlint's `no-unsafe-type-assertion` counted 206. The repo
       allows no casts, `any` or `@ts-` directives.
 - [ ] `styles/palette.css` selectors have specificity and sit outside cascade layers. It goes with the components (next

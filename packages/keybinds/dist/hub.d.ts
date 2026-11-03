@@ -1,12 +1,13 @@
 /**
  * CommandHub: every command on the page, from every source, with one store of people's rebindings.
  */
+import { keybinds } from './core.js';
 import { BindingsStore } from './store.js';
-export type Command = import('./core.js').Command;
-export type AxisDef = import('./core.js').AxisDef;
-export type AxisValue = import('./core.js').AxisValue;
-export type Input = import('./core.js').Input;
-export type Schema = import('./core.js').Schema;
+export type Command = import('./command.js').Command;
+export type AxisDef = import('./command.js').AxisDef;
+export type AxisValue = import('./command.js').AxisValue;
+export type Input = import('./input.js').Input;
+export type Schema = import('./command.js').Schema;
 export type KeybindsOptions = import('./core.js').KeybindsOptions;
 export type BindingsStorage = import('./store.js').BindingsStorage;
 export type CommandPalette = import('./components/palette.js').CommandPalette;
@@ -14,24 +15,57 @@ export type KeybindCheatsheet = import('./components/cheatsheet.js').KeybindChea
 export type KeybindSettings = import('./components/settings.js').KeybindSettings;
 export type ContextMenu = import('./components/context-menu.js').ContextMenu;
 export type CommandHubOptions = {
+    /**
+     * - What to listen to: e.g. [keys(), mouse()]. With components, their UI
+     * halves, which can also be shown and recorded: [keysUI(), mouseUI()]
+     */
     inputs?: Input[];
+    /**
+     * - Components to make
+     * inside `host`: any of CommandPalette, KeybindCheatsheet, KeybindSettings, ContextMenu
+     */
     components?: (CustomElementConstructor & {
         kind: string;
     })[];
+    /**
+     * - Where the components go
+     */
     host?: HTMLElement;
+    /**
+     * - localStorage key for people's rebindings (default "keybinds"); the scope is appended
+     */
     storageKey?: string;
+    /**
+     * - Keep rebindings somewhere other than
+     * localStorage, separately per scope. Takes the place of `storageKey`
+     */
     storage?: (scope: string) => BindingsStorage;
+    /**
+     * - From releases(), for release bindings ("k:up")
+     */
     releases?: import('./core.js').Phase;
+    /**
+     * - From holds(), for "k:hold" and "k:tap"
+     */
     holds?: import('./core.js').Phase;
-    sequences?: import('./core.js').Sequences;
-    anyModifiers?: import('./core.js').AnyModifiers;
+    /**
+     * - From sequences(), for bindings of several steps ("g i")
+     */
+    sequences?: import('./sequences.js').Sequences;
+    /**
+     * - From anyModifiers(), for commands with `anyModifiers`
+     */
+    anyModifiers?: import('./any-modifiers.js').AnyModifiers;
+    /**
+     * - Passed on to keybinds(): target, capture, onExecute
+     */
     listen?: Omit<KeybindsOptions, 'inputs' | 'axes' | 'releases' | 'holds' | 'sequences' | 'anyModifiers'>;
 };
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').AxisDef} AxisDef */
-/** @typedef {import('./core.js').AxisValue} AxisValue */
-/** @typedef {import('./core.js').Input} Input */
-/** @typedef {import('./core.js').Schema} Schema */
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./command.js').AxisDef} AxisDef */
+/** @typedef {import('./command.js').AxisValue} AxisValue */
+/** @typedef {import('./input.js').Input} Input */
+/** @typedef {import('./command.js').Schema} Schema */
 /** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
 /** @typedef {import('./store.js').BindingsStorage} BindingsStorage */
 /** @typedef {import('./components/palette.js').CommandPalette} CommandPalette */
@@ -50,8 +84,8 @@ export type CommandHubOptions = {
  *   localStorage, separately per scope. Takes the place of `storageKey`
  * @property {import('./core.js').Phase} [releases] - From releases(), for release bindings ("k:up")
  * @property {import('./core.js').Phase} [holds] - From holds(), for "k:hold" and "k:tap"
- * @property {import('./core.js').Sequences} [sequences] - From sequences(), for bindings of several steps ("g i")
- * @property {import('./core.js').AnyModifiers} [anyModifiers] - From anyModifiers(), for commands with `anyModifiers`
+ * @property {import('./sequences.js').Sequences} [sequences] - From sequences(), for bindings of several steps ("g i")
+ * @property {import('./any-modifiers.js').AnyModifiers} [anyModifiers] - From anyModifiers(), for commands with `anyModifiers`
  * @property {Omit<KeybindsOptions, 'inputs' | 'axes' | 'releases' | 'holds' | 'sequences' | 'anyModifiers'>} [listen] - Passed on to keybinds(): target, capture, onExecute
  */
 /**
@@ -74,7 +108,7 @@ export type CommandHubOptions = {
  * hub.refresh()
  * hub.bindButtons(toolbar) // <button data-command="save">Save</button>
  *
- * @template {{ id: string, label: string, category?: string | undefined, description?: string | undefined, keys?: string[] | undefined, mouse?: string[] | undefined, gamepad?: string[] | undefined, hidden?: boolean | undefined }} [D=Command]
+ * @template {{ id: string, label: string, category?: string | undefined, description?: string | undefined, keys?: readonly string[] | undefined, mouse?: readonly string[] | undefined, gamepad?: readonly string[] | undefined, hidden?: boolean | undefined }} [D=Command]
  * @template {object} [C=Record<string, unknown>] - The context `when` conditions see
  */
 export declare class CommandHub<D extends {
@@ -82,11 +116,50 @@ export declare class CommandHub<D extends {
     label: string;
     category?: string | undefined;
     description?: string | undefined;
-    keys?: string[] | undefined;
-    mouse?: string[] | undefined;
-    gamepad?: string[] | undefined;
+    keys?: readonly string[] | undefined;
+    mouse?: readonly string[] | undefined;
+    gamepad?: readonly string[] | undefined;
     hidden?: boolean | undefined;
 } = Command, C extends object = Record<string, unknown>> extends EventTarget {
+    /** @type {Input[]} */
+    inputs: Input[];
+    /** @type {(scope: string) => BindingsStorage} */
+    _storage: (scope: string) => BindingsStorage;
+    /** What keybinds() is given besides the commands and axes */
+    /** @type {KeybindsOptions} */
+    _options: KeybindsOptions;
+    /** @type {(def: D) => Command} */
+    _adapt: (def: D) => Command;
+    /** @type {{ owner: string, get: () => D[] }[]} */
+    _sources: {
+        owner: string;
+        get: () => D[];
+    }[];
+    /** @type {{ owner: string, get: () => AxisDef[] }[]} */
+    _axisSources: {
+        owner: string;
+        get: () => AxisDef[];
+    }[];
+    /** @type {Map<string, AxisDef>} */
+    _axes: Map<string, AxisDef>;
+    /** @type {(() => Partial<C>)[]} */
+    _contexts: (() => Partial<C>)[];
+    /** @type {Map<string, D>} */
+    _defs: Map<string, D>;
+    /** @type {Map<string, Command>} */
+    _live: Map<string, Command>;
+    /** @type {BindingsStore<Schema> | null} */
+    _store: BindingsStore<Schema> | null;
+    _storeListener: () => void;
+    /** @type {ReturnType<typeof keybinds> | null} */
+    _unbind: ReturnType<typeof keybinds> | null;
+    _scope: string;
+    /** @type {Set<Element>} */
+    _buttonRoots: Set<Element>;
+    /** @type {HTMLElement | null} */
+    _lastFocus: HTMLElement | null;
+    /** @param {FocusEvent} e */
+    _onFocusIn: ((e: FocusEvent) => void) | undefined;
     /** @type {CommandPalette | null} */
     palette: CommandPalette | null;
     /** @type {KeybindCheatsheet | null} */
@@ -131,7 +204,7 @@ export declare class CommandHub<D extends {
      */
     setScope(scope: string): void;
     /** The store of people's rebindings, as the settings panel edits it. */
-    get store(): BindingsStore<import("./core.js").Schema> | null;
+    get store(): BindingsStore<import("./command.js").Schema> | null;
     /**
      * Whether a command is held right now: its press fired and that key or button hasn't come up.
      * @param {string} id

@@ -1,14 +1,14 @@
 /**
  * Binding schemas, and the store of people's rebindings laid over them.
  */
-export type Command = import('./core.js').Command;
-export type BindingSchema = import('./core.js').BindingSchema;
-export type Schema = import('./core.js').Schema;
-export type BindingOverrides = import('./core.js').BindingOverrides;
-/** @typedef {import('./core.js').Command} Command */
-/** @typedef {import('./core.js').BindingSchema} BindingSchema */
-/** @typedef {import('./core.js').Schema} Schema */
-/** @typedef {import('./core.js').BindingOverrides} BindingOverrides */
+export type Command = import('./command.js').Command;
+export type BindingSchema = import('./command.js').BindingSchema;
+export type Schema = import('./command.js').Schema;
+export type BindingOverrides = import('./command.js').BindingOverrides;
+/** @typedef {import('./command.js').Command} Command */
+/** @typedef {import('./command.js').BindingSchema} BindingSchema */
+/** @typedef {import('./command.js').Schema} Schema */
+/** @typedef {import('./command.js').BindingOverrides} BindingOverrides */
 /**
  * Define a binding schema (identity function for type inference/autocomplete)
  * @template {Schema} T
@@ -51,8 +51,16 @@ export type BindingsChangeDetail<T extends Schema> = {
 };
 export type BindingsChangeEvent<T extends Schema> = CustomEvent<BindingsChangeDetail<T>>;
 export type BindingsStorage = {
+    /**
+     * - The current overrides
+     */
     load: () => BindingOverrides;
     save: (overrides: BindingOverrides) => void;
+    /**
+     * - For storage
+     * that can change from elsewhere (another tab, an undo, sync): the store follows it. Returns an
+     * unsubscribe function
+     */
     subscribe?: (onChange: (overrides: BindingOverrides) => void) => () => void;
 };
 /**
@@ -106,6 +114,8 @@ export declare function localStorageBindings(key: string): BindingsStorage;
  * store.save({ delete: { keys: ['$mod+d'] } })
  */
 export declare class BindingsStore<T extends Schema> extends EventTarget {
+    /** @type {(() => void) | null} */
+    _unsubscribe: (() => void) | null;
     /** @type {T} */ schema: T;
     /** @type {BindingsStorage} */ storage: BindingsStorage;
     /** @type {BindingOverrides} */ overrides: BindingOverrides;
@@ -118,7 +128,7 @@ export declare class BindingsStore<T extends Schema> extends EventTarget {
     /** Get current bindings (schema merged with overrides) */
     get(): T;
     /** Get current overrides only */
-    getOverrides(): import("./core.js").BindingOverrides;
+    getOverrides(): import("./command.js").BindingOverrides;
     /**
      * Save new overrides and dispatch 'change' event
      * @param {BindingOverrides} newOverrides
@@ -126,7 +136,6 @@ export declare class BindingsStore<T extends Schema> extends EventTarget {
     save(newOverrides: BindingOverrides): void;
     /** Stop following the storage's changes */
     dispose(): void;
-    private 
     /** @private */
-    _changed;
+    private _changed;
 }

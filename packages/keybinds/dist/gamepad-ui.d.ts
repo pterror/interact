@@ -1,7 +1,7 @@
 /**
  * Showing and recording gamepad bindings, for the settings panel, cheatsheet, palette and menus.
  */
-export type InputUI = import('./core.js').InputUI;
+export type InputUI = import('./input.js').InputUI;
 /**
  * Format a gamepad binding into display parts (e.g. "rt:up" -> ["RT", "Release"])
  * @param {string} binding

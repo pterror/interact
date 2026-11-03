@@ -1,116 +1,133 @@
-import { describe, test, expect, mock } from 'bun:test'
+/** @import { Command } from './command.js' */
 
-import { keybinds, validateCommands, formatBinding } from './core.js'
+import { describe, expect, mock, test } from 'bun:test'
+
+import { formatBinding } from './binding-format.js'
+import { keybinds, validateCommands } from './core.js'
 import { keysUI } from './keys-ui.js'
 import { keys } from './keys.js'
 import { sequences } from './sequences.js'
 import { kbd } from './test-helpers.js'
 
+const ONCE = 1
+const TIMEOUT = 20
+const TOO_LONG = 40
+
 /**
- * @param {import('./core.js').Command[]} commands
- * @param {{ timeout?: number }} [options]
+ * A key pressed and let go
+ * @typedef {(key: string, init?: KeyboardEventInit) => KeyboardEvent} Press
  */
-const listen = (commands, options) => {
+
+/**
+ * Listens with sequences on a fresh element
+ * @param {readonly Command[]} commands - The commands
+ * @param {Readonly<{ timeout?: number }>} [options] - For sequences()
+ * @returns {Readonly<{ press: Press, stop: () => void, target: HTMLElement }>} A way to press keys, how to stop,
+ *   and the element
+ */
+function listen(commands, options) {
   const target = document.createElement('div')
-  const stop = keybinds(commands, undefined, { target, inputs: [keys()], sequences: sequences(options) })
-  /** @param {string} key @param {KeyboardEventInit} [init] */
-  const press = (key, init = {}) => {
-    const code = /^[a-z]$/.test(key) ? `Key${key.toUpperCase()}` : key
-    const down = kbd('keydown', key, code, init)
+  const stop = keybinds(commands, undefined, { inputs: [keys()], sequences: sequences(options), target })
+  /**
+   * Presses a key and lets it go
+   * @param {string} key - The key
+   * @param {KeyboardEventInit} [init] - More of the events
+   * @returns {KeyboardEvent} The keydown
+   */
+  function press(key, init = {}) {
+    const code = /^[a-z]$/u.test(key) ? `Key${key.toUpperCase()}` : key
+    const down = kbd('keydown', { code, key, ...init })
     target.dispatchEvent(down)
-    target.dispatchEvent(kbd('keyup', key, code, init))
+    target.dispatchEvent(kbd('keyup', { code, key, ...init }))
     return down
   }
-  return { target, stop, press }
+  return { press, stop, target }
+}
+
+/**
+ * A command bound to "g i"
+ * @param {Partial<Command>} [fields] - More of it
+ * @returns {Command} The command
+ */
+function inbox(fields = {}) {
+  return { execute: () => undefined, id: 'inbox', keys: ['g i'], label: 'Inbox', ...fields }
 }
 
 describe('sequences', () => {
-  test('a binding of several steps fires on its last step, and earlier steps are its own', () => {
-    const fn = mock(() => {})
-    const { press, stop } = listen([{ id: 'inbox', label: 'Inbox', keys: ['g i'], execute: fn }])
-    const g = press('g')
-    expect(g.defaultPrevented).toBe(true)
-    expect(fn).not.toHaveBeenCalled()
+  test('fire on their last step, and earlier steps are theirs', () => {
+    const execute = mock(() => undefined)
+    const { press, stop } = listen([inbox({ execute })])
+    expect(press('g').defaultPrevented).toBe(true)
+    expect(execute).not.toHaveBeenCalled()
     press('i')
-    expect(fn).toHaveBeenCalledTimes(1)
     press('i')
-    expect(fn).toHaveBeenCalledTimes(1)
+    expect(execute).toHaveBeenCalledTimes(ONCE)
     stop()
   })
 
-  test('steps can have modifiers, and a double tap is the same key twice', () => {
-    const save = mock(() => {})
-    const twice = mock(() => {})
+  test('have steps with modifiers, and a double tap is the same key twice', () => {
+    const save = mock(() => undefined)
+    const twice = mock(() => undefined)
     const { press, stop } = listen([
-      { id: 'save-all', label: 'Save all', keys: ['ctrl+k ctrl+s'], execute: save },
-      { id: 'twice', label: 'Twice', keys: ['j j'], execute: twice },
+      { execute: save, id: 'save-all', keys: ['ctrl+k ctrl+s'], label: 'Save all' },
+      { execute: twice, id: 'twice', keys: ['j j'], label: 'Twice' },
     ])
     press('k', { ctrlKey: true })
     press('s', { ctrlKey: true })
-    expect(save).toHaveBeenCalledTimes(1)
     press('j')
     press('j')
-    expect(twice).toHaveBeenCalledTimes(1)
+    expect([save.mock.calls.length, twice.mock.calls.length]).toEqual([ONCE, ONCE])
     stop()
   })
 
-  test('a press that does not go on from the steps so far is a press of its own', () => {
-    const inbox = mock(() => {})
-    const x = mock(() => {})
-    const { press, stop } = listen([
-      { id: 'inbox', label: 'Inbox', keys: ['g i'], execute: inbox },
-      { id: 'x', label: 'X', keys: ['x'], execute: x },
-    ])
+  test('let a press that does not go on from the steps so far be a press of its own', () => {
+    const execute = mock(() => undefined)
+    const other = mock(() => undefined)
+    const { press, stop } = listen([inbox({ execute }), { execute: other, id: 'x', keys: ['x'], label: 'X' }])
     press('g')
     press('x')
-    expect(x).toHaveBeenCalledTimes(1)
     press('i')
-    expect(inbox).not.toHaveBeenCalled()
+    expect([other.mock.calls.length, execute.mock.calls.length]).toEqual([ONCE, ONCE - ONCE])
     stop()
   })
 
-  test('the next step has to come within the timeout', async () => {
-    const fn = mock(() => {})
-    const { press, stop } = listen([{ id: 'inbox', label: 'Inbox', keys: ['g i'], execute: fn }], { timeout: 20 })
+  test('need the next step within the timeout', async () => {
+    const execute = mock(() => undefined)
+    const { press, stop } = listen([inbox({ execute })], { timeout: TIMEOUT })
     press('g')
-    await new Promise((r) => setTimeout(r, 40))
+    await Bun.sleep(TOO_LONG)
     press('i')
-    expect(fn).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
     stop()
   })
+})
 
-  test('pressing Shift between steps does not break a sequence', () => {
-    const fn = mock(() => {})
-    const { target, press, stop } = listen([{ id: 'top', label: 'Top', keys: ['g shift+g'], execute: fn }])
+describe('sequences with other keys', () => {
+  test('carry on through Shift pressed between steps', () => {
+    const execute = mock(() => undefined)
+    const { press, stop, target } = listen([{ execute, id: 'top', keys: ['g shift+g'], label: 'Top' }])
     press('g')
-    target.dispatchEvent(kbd('keydown', 'Shift', 'ShiftLeft', { shiftKey: true }))
-    press('G', { shiftKey: true, code: 'KeyG' })
-    expect(fn).toHaveBeenCalledTimes(1)
+    target.dispatchEvent(kbd('keydown', { code: 'ShiftLeft', key: 'Shift', shiftKey: true }))
+    press('G', { code: 'KeyG', shiftKey: true })
+    expect(execute).toHaveBeenCalledTimes(ONCE)
     stop()
   })
 
-  test('a sequence whose commands are not active does not take its first step', () => {
-    const { press, stop } = listen([
-      { id: 'inbox', label: 'Inbox', keys: ['g i'], when: () => false, execute: () => {} },
-    ])
+  test('do not take their first step while their commands do not apply', () => {
+    const { press, stop } = listen([inbox({ when: () => false })])
     expect(press('g').defaultPrevented).toBe(false)
     stop()
   })
 
-  test('a step that is also a binding of its own is an error, and so is a sequence without sequences()', () => {
-    const both = [
-      { id: 'go', label: 'Go', keys: ['g'], execute: () => {} },
-      { id: 'inbox', label: 'Inbox', keys: ['g i'], execute: () => {} },
-    ]
+  test('cannot start with a step that is a binding of its own, nor be used without sequences()', () => {
+    const both = [{ execute: () => undefined, id: 'go', keys: ['g'], label: 'Go' }, inbox()]
     expect(() => validateCommands(both, { inputs: [keys()], sequences: sequences() })).toThrow(
       'both a binding and the start of a sequence',
     )
-    expect(() =>
-      validateCommands([{ id: 'inbox', label: 'Inbox', keys: ['g i'], execute: () => {} }], { inputs: [keys()] }),
-    ).toThrow('needs sequences()')
+    expect(() => validateCommands([inbox()], { inputs: [keys()] })).toThrow('needs sequences()')
   })
 
-  test('shown step by step', () => {
+  test('are shown step by step', () => {
     expect(formatBinding(keysUI(), 'ctrl+k ctrl+s')).toEqual(['Ctrl', 'K', 'then', 'Ctrl', 'S'])
   })
 })

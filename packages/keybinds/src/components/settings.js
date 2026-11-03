@@ -1,16 +1,10 @@
-import {
-  RELEASE_SUFFIX,
-  markKind,
-  findConflict,
-  flipRelease,
-  splitRelease,
-  bindingLookup,
-  formatBinding,
-} from '../core.js'
+import { formatBinding } from '../binding-format.js'
+import { RELEASE_SUFFIX, bindingLookup, findConflict, flipRelease, splitRelease } from '../binding.js'
 import { keysUI } from '../keys-ui.js'
+import { markKind } from '../modal.js'
 
-/** @typedef {import('../core.js').InputUI} Input */
-/** @typedef {import('../core.js').BindingSchema} BindingSchema */
+/** @typedef {import('../input.js').InputUI} Input */
+/** @typedef {import('../command.js').BindingSchema} BindingSchema */
 /** @typedef {import('../store.js').BindingsStore<any>} AnyStore */
 
 /**
@@ -271,7 +265,8 @@ export class KeybindSettings extends HTMLElement {
     if (!input?.record) return
     /** @param {Event} e */
     const ignore = (e) => this._toggles.some((t) => e.composedPath().includes(t))
-    this._stopRecorder = input.record({ release: this._recordSuffix === RELEASE_SUFFIX, ignore }, (b) =>
+    const target = this.ownerDocument.defaultView ?? globalThis
+    this._stopRecorder = input.record({ ignore, release: this._recordSuffix === RELEASE_SUFFIX, target }, (b) =>
       this._recorded(b),
     )
   }
@@ -348,7 +343,7 @@ export class KeybindSettings extends HTMLElement {
    */
   _flip(commandId, input, index, flipped) {
     if (this._store) {
-      const conflict = findConflict(this._store.get(), flipped, input, commandId)
+      const conflict = findConflict(this._store.get(), { binding: flipped, except: commandId, input })
       if (conflict) {
         this._stopRecording()
         this._recording = { commandId, input, index }
@@ -384,7 +379,7 @@ export class KeybindSettings extends HTMLElement {
     if (!this._recording || !this._store) return
     const { commandId, input, index } = this._recording
 
-    const conflict = findConflict(this._store.get(), bindingStr, input, commandId)
+    const conflict = findConflict(this._store.get(), { binding: bindingStr, except: commandId, input })
     if (conflict) {
       this._conflict = { ...conflict, bindingStr, input, index }
       this._render()

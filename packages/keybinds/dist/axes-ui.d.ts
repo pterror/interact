@@ -1,7 +1,7 @@
 /**
  * Showing and recording axis sources, for the settings panel.
  */
-export type InputUI = import('./core.js').InputUI;
+export type InputUI = import('./input.js').InputUI;
 /**
  * Format an axis binding into display parts (e.g. "-mouse:y" -> ["Mouse ↕", "Inverted"])
  * @param {string} binding

@@ -1,18 +1,23 @@
 /**
- * Typed characters as key bindings: "?", "!", "/", "+" (written "plus" with aliases()). A binding
- * to one matches however it was typed: "?" takes Shift on most layouts, and still fires.
+ * Typed characters as key bindings: "?", "!", "/", "+" (written "plus" with aliases()). A binding to one matches
+ * however it was typed: "?" takes Shift on most layouts, and still fires.
  */
-export type KeySyntax = import('./keys.js').KeySyntax;
-/** @typedef {import('./keys.js').KeySyntax} KeySyntax */
-export declare const PUNCTUATION_CODES: Record<string, string>;
+import type { KeySyntax } from './keys.js';
+/** @import { KeySyntax } from './keys.js' */
 /**
- * A single printable character that isn't a letter or digit ("?", "!", "+"; "é" is a letter)
- * @param {string} key
- * @returns {boolean}
+ * Punctuation keys, and the name of the physical key that types each on a US layout (`event.code`)
+ * @type {ReadonlyMap<string, string>}
  */
-export declare function isSymbolKey(key: string): boolean;
+declare const PUNCTUATION_CODES: ReadonlyMap<string, string>;
+/**
+ * Whether a key is a single printable character that isn't a letter or digit ("?", "!", "+"; "é" is a letter)
+ * @param {string} key - A key name, as an event reports it
+ * @returns {boolean} Whether it is
+ */
+declare function isSymbolKey(key: string): boolean;
 /**
  * For keys(symbols())
- * @returns {KeySyntax}
+ * @returns {KeySyntax} Typed characters, as a piece of key syntax
  */
-export declare function symbols(): KeySyntax;
+declare function symbols(): KeySyntax;
+export { PUNCTUATION_CODES, isSymbolKey, symbols };

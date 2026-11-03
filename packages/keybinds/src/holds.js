@@ -1,35 +1,46 @@
 /**
- * Holding and tapping: "k:hold" runs once a key or button has been held for a while, "k:tap" when
- * it comes up before that. Together they give one key two jobs.
+ * Holding and tapping: "k:hold" runs once a key or button has been held for a while, "k:tap" when it comes up before
+ * that. Together they give one key two jobs.
  */
 
 /**
- * For keybinds({ holds: holds() })
- * @param {{ delay?: number }} [options] - How long a press is held before it's a hold, in ms (default 500)
- * @returns {import('./core.js').Phase}
+ * @import { Phase } from './core.js'
+ * @import { Press } from './input.js'
  */
-export function holds({ delay = 500 } = {}) {
-  /** Each press's timer, while it's waiting to become a hold */
-  /** @type {WeakMap<import('./core.js').Press, ReturnType<typeof setTimeout>>} */
+
+const DEFAULT_DELAY = 500
+
+/**
+ * For keybinds({ holds: holds() })
+ * @param {Readonly<{ delay?: number }>} [options] - How long a press is held before it's a hold, in ms (default 500)
+ * @returns {Phase} The phase that runs hold and tap bindings
+ */
+function holds({ delay = DEFAULT_DELAY } = {}) {
+  /** @type {WeakMap<Press, ReturnType<typeof setTimeout>>} */
   const timers = new WeakMap()
   return {
-    suffixes: [':hold', ':tap'],
-    down(p) {
-      if (!p.find(':hold')) return
-      timers.set(
-        p.press,
-        setTimeout(() => {
-          if (!p.held()) return
-          const found = p.find(':hold')
-          if (found) p.fire(found)
-        }, delay),
-      )
+    down(run) {
+      if (run.bound(':hold') === undefined) {
+        return
+      }
+      const timer = setTimeout(() => {
+        const found = run.held() ? run.bound(':hold') : undefined
+        if (found !== undefined) {
+          run.fire(found)
+        }
+      }, delay)
+      timers.set(run.press, timer)
     },
-    up(p) {
-      clearTimeout(timers.get(p.press))
-      if (performance.now() - p.press.at >= delay) return false
-      const found = p.find(':tap')
-      return !!found && p.fire(found)
+    suffixes: [':hold', ':tap'],
+    up(run) {
+      clearTimeout(timers.get(run.press))
+      if (performance.now() - run.press.at >= delay) {
+        return false
+      }
+      const found = run.bound(':tap')
+      return found !== undefined && run.fire(found)
     },
   }
 }
+
+export { holds }

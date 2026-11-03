@@ -1,11 +1,40 @@
-export type Command = import('../core.js').Command;
+export type Command = import('../command.js').Command;
 export declare class RadialMenu extends HTMLElement {
+    /** @type {Command[]} */
+    _commands: Command[];
+    /** @type {Record<string, unknown>} */
+    _context: Record<string, unknown>;
+    /** @type {{ x: number, y: number }} */
+    _position: {
+        x: number;
+        y: number;
+    };
+    /** @type {(Command & { active: boolean })[]} */
+    _items: (Command & {
+        active: boolean;
+    })[];
+    /** @type {number} */
+    _activeIndex: number;
+    /** @type {'keyboard' | 'pointer'} */
+    _inputMode: 'keyboard' | 'pointer';
+    /** @type {((e: Event) => void) | null} */
+    _keyHandler: ((e: Event) => void) | null;
+    /** @type {number} */
+    _radius: number;
+    /** @type {number} */
+    _indicatorR: number;
+    /** @type {number} */
+    _labelGap: number;
+    _backdrop: HTMLElement;
+    _svg: SVGSVGElement;
+    _spokesGroup: SVGGElement;
+    _slotsGroup: SVGGElement;
     static kind: string;
     static get observedAttributes(): string[];
     constructor();
     connectedCallback(): void;
-    get commands(): import("../core.js").Command[];
-    set commands(val: import("../core.js").Command[]);
+    get commands(): Readonly<import("../command.js").CommandFields>[];
+    set commands(val: Readonly<import("../command.js").CommandFields>[]);
     get context(): Record<string, unknown>;
     set context(val: Record<string, unknown>);
     get open(): boolean;
