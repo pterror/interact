@@ -71,8 +71,12 @@ A component is its behavior, written once as a plain API, plus a default view an
 
 - **State.** Data goes in and events come out. Each piece of state is either controlled (the app owns it and hears
   change requests) or left to the component. zag.js does this with a `value` / `defaultValue` / `onValueChange` triple
-  for each piece of state (`@zag-js/listbox` `dist/listbox.types.d.ts:60-80`, read in the evaluation). **Proposed:**
-  `@interact/core` has one primitive for this, so every component handles control the same way.
+  for each piece of state (`@zag-js/listbox` `dist/listbox.types.d.ts:60-80`, read in the evaluation). **Derived:**
+  `@interact/core` has one primitive for this, `Controllable` (`packages/core/src/controllable.js`), so every component
+  handles control the same way. The component calls `request(next)`. Every request is heard (`onRequest`). Left to the
+  component, the value changes at once; controlled, it changes only when the app calls `set`. `subscribe` hears actual
+  changes, and `controlled` can be switched either way after construction, which a custom element created by the browser
+  needs.
 - **Commands.** Components know nothing about commands. A bridge needs only two operations: "list the commands available
   in a context" and "run one by id". With those it keeps buttons, menus and the palette in step with any command system,
   and keybinds is one such system. It also accepts an optional third, "tell me when the list changes" (**Settled**):
@@ -119,9 +123,18 @@ trees all take the same kind of data source.
 - Positions are plain numbers, since 10^10 is well below 2^53.
 - Fetching is by range and may be asynchronous. Items not yet fetched render as placeholders whose size is known in
   advance, so nothing shifts when they arrive.
-- Change notifications say what changed: a range inserted, a range removed, a range changed, or the count changed. A
-  view can then shift or refetch exactly what's affected.
+- Change notifications say what changed: a range inserted, a range removed, a range changed, or a reset. A view can then
+  shift or refetch exactly what's affected. A count that grows (a remote source learning more) is an insertion at the
+  end, so it needs no kind of its own.
 - Selection and focus need to refer to items whose positions move, so a source also gives each item a key.
+- The contract is `Source<T, F>` (`packages/core/src/source.js`): `count()`, `read(start, end)` (the items at once, or a
+  promise of them), `key(item)`, `subscribe(listener)` for changes, and filters of the source's own type `F`.
+  `span(start, end)` makes a filter for the items now at those positions, `matches(filter, item)` tests one, and
+  `countMatching(filter)` counts one, at once or later. `shiftPosition(position, change)` says where a position is after
+  a change.
+- `MemorySource` (`packages/core/src/memory-source.js`) holds the items in an array. Its filters are spans between two
+  keys, so a span keeps meaning the same items as others are inserted around it. Its key-to-position index is the only
+  thing it keeps per item besides the items themselves, rebuilt lazily after a change.
 
 ### Virtualization
 
@@ -140,6 +153,14 @@ The view keeps only a window of items, plus a bounded cache of fetched blocks. T
   2^32−2 become string-keyed properties, and `length = 1e10` throws. AG Grid's block cache (`cacheBlockSize`,
   `maxBlocksInCache`) stayed level at about 1,000 nodes. The cache here is therefore a bounded map of blocks keyed by
   block number, with least-recently-used eviction.
+- **Derived:** the cache is `BlockCache` in `@interact/core` (`packages/core/src/block-cache.js`), not part of the web
+  virtualizer. Every collection view needs it, a future terminal view included, and none of it touches the DOM.
+  - Views read items (`get`) and follow changes through the cache, never the source directly. It drops whatever a change
+    made stale, including reads still on their way, before passing the change on, so a view can't re-read stale items.
+  - A block arriving is reported as `changed` over its positions, so arrivals and edits are handled the same way.
+  - A source that answers at once (`MemorySource`) has its block in the cache before `ensure` returns, so in-memory
+    lists never show placeholders.
+  - Tested against a computed source of 10^10 items (`block-cache.test.js`).
 - **Scroll position.** Native scrolling over a capped height is one of the inputs to the virtual window, not the source
   of truth. The source of truth is the position of the item at the top of the view, which keeps keyboard navigation,
   `scrollTo(position)` and restoring a view exact. **Unverified:** how native scrolling feels near the cap's edges, and
@@ -154,8 +175,15 @@ Selecting all of ten billion items then costs nothing, and so does deselecting o
 **Derived:**
 
 - The filter is stored in the selection itself. Changing what the view shows afterwards doesn't change what is selected.
-- Counting selected items asks the source for the count matching F, then subtracts the exceptions that match F. So a
-  source that supports filtered selection must also count by filter.
+- Exceptions go both ways (`packages/core/src/selection.js`). A selection is `{ filter, removed, added }`: every item
+  the filter matches, except the keys in `removed`, plus the keys in `added`. Without both directions, "this span and
+  one more item" (a span, then a Ctrl+click outside it) would have no form.
+  - `toggle` puts the key in whichever set fits, depending on whether the filter matches the item.
+  - `spanning(source, start, end)` selects a range as the source's own filter. Select-all is the span over every
+    position, so even a Shift+End over billions of items is one filter.
+- Counting is `countMatching(filter) - removed.size + added.size` (`countSelected`). So a source that supports filtered
+  selection must also count by filter. Keys are counted as they were when toggled: an item deleted since still counts
+  until the selection changes, because a removal reports positions, not keys.
 - AG Grid's server-side selection uses the same shape, `{ selectAll, toggledNodes }`. In the evaluation it stayed
   `selectAll: true` after the filter changed, and whether that is intended is unverified.
 - Vaadin and zag.js hold selected items or keys in full: Vaadin's `selectAll` with a data provider clears the selection
@@ -174,6 +202,13 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:13
 - Overlays that close (menus, the palette, dialogs) form a stack, so Escape and outside presses close the top one only.
   zag.js has a working stack to read (`@zag-js/dismissable` `dist/layer-stack.mjs`), as do its typeahead and tabbable
   helpers (`@zag-js/dom-query`).
+- What the listbox needs is built (`packages/core/src/focus.js`):
+  - `entry(left, count)`: where focus enters a collection. It goes back to where it left, while that's still inside,
+    otherwise to the first item, and nowhere when the collection is empty.
+  - `move(position, by, count)`: moves the active position and keeps it inside.
+
+  The active position follows changes through `shiftPosition`. Trapping, restoring focus and the overlay stack come with
+  the first overlay (the menu), since the listbox needs none of them.
 
 ## DOM (Settled)
 
