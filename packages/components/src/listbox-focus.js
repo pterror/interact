@@ -8,7 +8,10 @@
 
 import { entry } from '@interact/core'
 
+import { landing } from './landing.js'
+
 const NONE = 0
+const FORWARD = 1
 
 /**
  * Makes an item active as focus enters: `position` while it is inside, otherwise the item last chosen, or the top.
@@ -19,7 +22,8 @@ const NONE = 0
  */
 function enterAt(listbox, position) {
   const left = position ?? listbox.choose.anchor ?? listbox.scroll.top.get()
-  const at = entry(left, listbox.items.count)
+  const entered = entry(left, listbox.items.count)
+  const at = entered === undefined ? undefined : landing(listbox, entered, FORWARD)
   if (at !== undefined) {
     listbox.active.request(at)
   }

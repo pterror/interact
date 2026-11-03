@@ -18,7 +18,7 @@ const TOGGLE = { shift: false, toggle: true }
 
 /**
  * A chooser over ten billion numbered items, all read, with what it asked for.
- * @param {'single' | 'multiple'} mode - How it selects
+ * @param {'single' | 'multiple' | 'none'} mode - How it selects
  * @returns {Readonly<{ chooser: Chooser<Numbered, Range>, selection: Controllable<Selection<Range>>, actives: number[] }>}
  *   The chooser, the selection it changes, and the active items it asked for
  */
@@ -99,5 +99,20 @@ describe('Chooser in multiple mode', () => {
     chooser.reset()
     chooser.press(START, SHIFT)
     expect(await chooser.count()).toBe(ONE)
+  })
+})
+
+describe('Chooser with no selection', () => {
+  test('makes what is pressed or moved to active, and selects nothing', async () => {
+    const { actives, chooser, selection } = choosing('none')
+    chooser.press(FIVE, SHIFT)
+    chooser.press(TWO, TOGGLE)
+    chooser.moved(ONE, true, FIVE)
+    chooser.toggle(ONE)
+    chooser.span(START, FIVE)
+    chooser.all()
+    expect(actives).toEqual([FIVE, TWO])
+    expect(selection.get()).toEqual(nothing())
+    expect(await chooser.count()).toBe(START)
   })
 })

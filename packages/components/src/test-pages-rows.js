@@ -28,8 +28,7 @@ function rowsOf(viewport) {
   const spacer = viewport.querySelector('[part~="spacer"]')
   return {
     height: option ? pixels(getComputedStyle(option).height) : Number.NaN,
-    scrollable:
-      spacer instanceof HTMLElement ? Number(spacer.style.getPropertyValue('--interact-listbox-virtual-rows')) : NONE,
+    scrollable: spacer instanceof HTMLElement ? Number(spacer.style.getPropertyValue('--interact-virtual-rows')) : NONE,
   }
 }
 

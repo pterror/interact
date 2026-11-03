@@ -1,12 +1,14 @@
-import { css } from '@interact/dom'
+import { css, joinStyles } from '@interact/dom'
+
+import { rowsStyles } from './rows-styles.js'
 
 /**
- * The listbox's structural stylesheet, the same in shadow and light DOM. Every visual value is a token: an instance's
- * own (set on the element), else the component's (`--interact-listbox-*`), else the theme's global one
+ * The listbox's own structural stylesheet, the same in shadow and light DOM. Every visual value is a token: an
+ * instance's own (set on the element), else the component's (`--interact-listbox-*`), else the theme's global one
  * (`--interact-color-*`, `--interact-size-*`), else a system color, so it works with no theme at all. They are resolved
  * on the element itself, so a token set on one instance applies to that instance.
  */
-const listboxStyles = css`
+const listboxOwnStyles = css`
   @layer interact.structure, interact.theme;
 
   @layer interact.structure {
@@ -33,18 +35,9 @@ const listboxStyles = css`
     }
 
     :where([part~='viewport']) {
-      --_pitch: var(--interact-listbox-pitch, var(--_row-height));
-
-      position: relative;
-      box-sizing: content-box;
-      block-size: calc(var(--interact-listbox-visible-rows) * var(--_row-height));
-      overflow-y: auto;
-      overflow-anchor: none;
-      overscroll-behavior: contain;
       border: 1px solid var(--_border);
       background: var(--_fill);
       color: var(--_color);
-      outline: none;
     }
 
     :where([part~='viewport']:focus-visible) {
@@ -52,27 +45,10 @@ const listboxStyles = css`
       outline-offset: 1px;
     }
 
-    :where([part~='spacer']) {
-      position: relative;
-      block-size: calc(var(--interact-listbox-virtual-rows) * var(--_pitch));
-      overflow: clip;
-    }
-
     :where([part~='option']) {
-      position: absolute;
-      inset-block-start: calc(var(--interact-listbox-row) * var(--_pitch));
-      inset-inline: 0;
-      box-sizing: border-box;
-      block-size: var(--_row-height);
       padding-inline: var(--_padding);
-      overflow: hidden;
-      line-height: var(--_row-height);
-      white-space: nowrap;
-      text-overflow: ellipsis;
       background: var(--_option-fill);
       color: var(--_option-color);
-      cursor: default;
-      user-select: none;
     }
 
     :where([part~='option']:hover) {
@@ -104,11 +80,10 @@ const listboxStyles = css`
         outline-color: HighlightText;
       }
     }
-
-    :where([part~='option'][data-offscreen]) {
-      clip-path: inset(50%);
-    }
   }
 `
+
+/** The listbox's stylesheet: the rows' structure, then its own. */
+const listboxStyles = joinStyles(rowsStyles, listboxOwnStyles)
 
 export { listboxStyles }

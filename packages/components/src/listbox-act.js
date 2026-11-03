@@ -6,11 +6,15 @@
 
 import { move } from '@interact/core'
 
+import { landing } from './landing.js'
+
 const NONE = 0
 const ONE = 1
+const FORWARD = 1
+const BACK = -1
 
 /**
- * Where a key moves the active item, if it moves it.
+ * Where a key moves the active item, if it moves it: never onto an item focus passes over.
  * @template T, F
  * @param {Listbox<T, F>} listbox - The listbox
  * @param {KeyAction} action - What the key asked
@@ -20,12 +24,16 @@ function target(listbox, action) {
   const { count } = listbox.items
   if (action.kind === 'move') {
     const by = action.rows + action.pages * listbox.scroll.rows.get()
-    return move(listbox.active.get() ?? listbox.scroll.top.get(), by, count)
+    return landing(
+      listbox,
+      move(listbox.active.get() ?? listbox.scroll.top.get(), by, count),
+      by < NONE ? BACK : FORWARD,
+    )
   }
   if (action.kind === 'first') {
-    return NONE
+    return landing(listbox, NONE, FORWARD)
   }
-  return action.kind === 'last' ? count - ONE : undefined
+  return action.kind === 'last' ? landing(listbox, count - ONE, BACK) : undefined
 }
 
 /**

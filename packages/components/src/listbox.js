@@ -7,8 +7,9 @@
 
 import { Controllable, Listeners, nothing, plainText, shiftPosition } from '@interact/core'
 
-import { Chooser } from './chooser.js'
+import { chooserFor } from './chooser.js'
 import { Items } from './items.js'
+import { landing } from './landing.js'
 import { act } from './listbox-act.js'
 import { enterFocus } from './listbox-focus.js'
 import { keyAction } from './listbox-keys.js'
@@ -16,13 +17,14 @@ import { ScrollRows } from './scroll-rows.js'
 import { Typeahead } from './typeahead.js'
 
 /**
- * How a listbox starts. `text` is what an item is called, `rows` how many show at once, `id` what its options' ids
- * start with (unique in the page for light DOM), `label` its accessible name, `top` the position shown first, and
- * `now` the clock typing is timed by, in milliseconds.
+ * How a listbox starts. `text` is what an item is called, `skip` which items focus passes over (a menu's separators),
+ * `rows` how many show at once, `id` what its options' ids start with (unique in the page for light DOM), `label` its
+ * accessible name, `top` the position shown first, and `now` the clock typing is timed by, in milliseconds.
  * @template T, F
  * @typedef {Readonly<{
  *   source?: Source<T, F>,
  *   text?: (item: T) => string,
+ *   skip?: (item: T) => boolean,
  *   mode?: SelectionMode,
  *   rows?: number,
  *   id?: string,
@@ -40,9 +42,18 @@ const BLOCKS = 16
 const DEFAULT_ROWS = 10
 const NONE = 0
 const ONE = 1
+const FORWARD = 1
 
 /** @type {number | undefined} */
 const NO_POSITION = undefined
+
+/**
+ * Passes over no item.
+ * @returns {boolean} False
+ */
+function passNothing() {
+  return false
+}
 
 /**
  * A listbox's behavior, with no DOM, ten items or ten billion at the same cost. Its parts: `items` (the source, read
@@ -100,31 +111,18 @@ class Listbox {
     this.label = options.label ?? ''
     /** @readonly */
     this.text = options.text ?? plainText
+    /** @readonly */
+    this.skip = options.skip ?? passNothing
     this.#typeahead = new Typeahead(options.now ?? (() => performance.now()))
-    const { items } = this
     /** @readonly */
     this.scroll = new ScrollRows({
-      count: () => items.count,
+      count: () => this.items.count,
       overscan: OVERSCAN,
       rows: options.rows ?? DEFAULT_ROWS,
       top: options.top ?? NONE,
     })
     /** @readonly */
-    this.choose = new Chooser(
-      {
-        count: () => items.count,
-        item: (at) => items.item(at),
-        requestActive: (position) => {
-          this.active.request(position)
-        },
-        requestSelection: (next) => {
-          this.selection.request(next)
-        },
-        selection: () => this.selection.get(),
-        source: () => items.source,
-      },
-      options.mode ?? 'single',
-    )
+    this.choose = chooserFor(this, options.mode ?? 'single')
     this.source = new Controllable(options.source, false)
     this.#followState()
     this.#use(options.source)
@@ -203,8 +201,9 @@ class Listbox {
     const found = await this.#typeahead.seek(character, at, async (text, from) =>
       this.items.findPrefix(text, from, this.text),
     )
-    if (found !== undefined) {
-      this.goTo(found)
+    const landed = found === undefined ? undefined : landing(this, found, FORWARD)
+    if (landed !== undefined) {
+      this.goTo(landed)
     }
   }
 
