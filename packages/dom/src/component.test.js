@@ -41,6 +41,17 @@ describe('component', () => {
     await Promise.resolve()
     expect([hosts, seen.log]).toEqual([[element], ['rendered 0', 'rendered 0', 'rendered 1']])
   })
+
+  test('tells the view when the element leaves the page, and renders nothing after', async () => {
+    const counter = new Counter()
+    const seen = renderingView()
+    register([component(seen.view, () => counter)], { prefix: 'left' })
+    const element = await connected('left-rendering')
+    counter.increment()
+    element.remove()
+    await Promise.resolve()
+    expect(seen.log).toEqual(['rendered 0', 'rendered 0', 'disconnected 0'])
+  })
 })
 
 describe.each(BROWSERS)('component, in %s', (engine) => {

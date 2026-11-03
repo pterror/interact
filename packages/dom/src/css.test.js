@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { css, scopedText } from './css.js'
+import { css, joinStyles, scopedText } from './css.js'
 
 const SHEET = css`
   @layer test {
@@ -11,6 +11,10 @@ const SHEET = css`
 `
 
 describe('css', () => {
+  test('joins stylesheets into one, in order', () => {
+    expect(joinStyles(css`a`, css`b`)).toEqual({ kind: 'stylesheet', text: 'a\nb' })
+  })
+
   test('scopes one text to the shadow host, or to elements of its kind, stopping at components inside', () => {
     const shadow = scopedText(SHEET, 'listbox', 'shadow')
     expect(shadow).toStartWith('@scope (:host) to ([data-interact-view]) {')

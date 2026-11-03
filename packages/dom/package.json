@@ -10,5 +10,8 @@
   "exports": {
     ".": "./src/index.js",
     "./*": "./src/*.js"
+  },
+  "dependencies": {
+    "@interact/core": "workspace:*"
   }
 }

@@ -30,6 +30,16 @@ function css(strings, ...holes) {
 }
 
 /**
+ * Stylesheets joined into one, in order, for a view made of parts that each bring their own (a menu's list and its
+ * overlay).
+ * @param {readonly Stylesheet[]} sheets - The stylesheets
+ * @returns {Stylesheet} One stylesheet holding them all
+ */
+function joinStyles(...sheets) {
+  return { kind: 'stylesheet', text: sheets.map((sheet) => sheet.text).join('\n') }
+}
+
+/**
  * Fails unless a kind is a lowercase name, safe in a selector and a tag name.
  * @param {string} kind - A component's kind
  * @returns {string} The kind
@@ -65,4 +75,4 @@ function scopedText(sheet, kind, mode) {
   return `@scope (:host) to (${view}) {\n${sheet.text}\n}\n@scope (:host > ${view}) ${limit} {\n${below}\n}\n`
 }
 
-export { KIND_ATTRIBUTE, VIEW_ATTRIBUTE, checkKind, css, scopedText }
+export { KIND_ATTRIBUTE, VIEW_ATTRIBUTE, checkKind, css, joinStyles, scopedText }

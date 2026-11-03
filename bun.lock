@@ -34,6 +34,9 @@
     "packages/dom": {
       "name": "@interact/dom",
       "version": "0.0.0",
+      "dependencies": {
+        "@interact/core": "workspace:*",
+      },
     },
     "packages/keybinds": {
       "name": "keybinds",

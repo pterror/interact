@@ -114,6 +114,9 @@ function renderingView() {
   return {
     log,
     view: {
+      disconnected: (_counter, root) => {
+        log.push(`disconnected ${root.textContent}`)
+      },
       kind: 'rendering',
       render: (counter) => html`<span>${counter.count}</span>`,
       rendered: (_counter, root, again) => {

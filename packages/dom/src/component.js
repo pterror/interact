@@ -16,13 +16,15 @@ import { hasServerMarkup, hydrate, render } from './render.js'
  * A component's default web view: its kind, its stylesheet, and what it renders for its behavior's state now. A view
  * that has to read layout or drive the page (a scroll position, say) also has `rendered`, called with the root its view
  * is in after the first render or adoption and after every render since, and with `again`, which asks for one more
- * render, as when what it read changes what to render.
+ * render, as when what it read changes what to render. A view that took part of the page when rendered (an overlay in
+ * its document's stack) also has `disconnected`, called when the element leaves the page.
  * @template {Behavior} B
  * @typedef {Readonly<{
  *   kind: string,
  *   styles: Stylesheet,
  *   render: (behavior: B) => TemplateResult,
  *   rendered?: (behavior: B, root: HTMLElement, again: () => void) => void,
+ *   disconnected?: (behavior: B, root: HTMLElement) => void,
  * }>} View
  */
 
@@ -150,11 +152,32 @@ function scheduler(root, view, behavior) {
     pending = true
     queueMicrotask(() => {
       pending = false
+      if (!root.isConnected) {
+        return
+      }
       render(view.render(behavior), root)
       view.rendered?.(behavior, root, again)
     })
   }
   return again
+}
+
+/**
+ * An element coming into the page: marked with its kind, its view rendered or the server's adopted, and following its
+ * behavior from then on.
+ * @template {Behavior} B
+ * @param {HTMLElement} element - The element
+ * @param {View<B>} view - Its view
+ * @param {B} behavior - Its behavior
+ * @returns {Readonly<{ root: HTMLElement, stop: () => void }>} Where its view is, and how to stop following
+ */
+function connect(element, view, behavior) {
+  element.setAttribute(KIND_ATTRIBUTE, view.kind)
+  const mode = elementMode(element)
+  const root = viewRoot(element, mode)
+  const again = scheduler(root, view, behavior)
+  show(root, view, { again, behavior, mode })
+  return { root, stop: behavior.subscribe(again) }
 }
 
 /**
@@ -175,8 +198,8 @@ function component(view, create) {
     static view = view
     /** @readonly */
     #behavior = create(this)
-    /** @type {(() => void) | undefined} */
-    #stop = undefined
+    /** @type {Readonly<{ root: HTMLElement, stop: () => void }> | undefined} */
+    #connected = undefined
 
     /**
      * The instance's behavior: its methods, state and events.
@@ -200,20 +223,18 @@ function component(view, create) {
      * @returns {void}
      */
     connectedCallback() {
-      this.setAttribute(KIND_ATTRIBUTE, view.kind)
-      const { mode } = this
-      const root = viewRoot(this, mode)
-      const again = scheduler(root, view, this.#behavior)
-      show(root, view, { again, behavior: this.#behavior, mode })
-      this.#stop = this.#behavior.subscribe(again)
+      this.#connected = connect(this, view, this.#behavior)
     }
 
     /**
-     * Stops following the behavior.
+     * Stops following the behavior, and lets the view give back what it took of the page.
      * @returns {void}
      */
     disconnectedCallback() {
-      this.#stop?.()
+      this.#connected?.stop()
+      if (this.#connected !== undefined) {
+        view.disconnected?.(this.#behavior, this.#connected.root)
+      }
     }
   }
 }
