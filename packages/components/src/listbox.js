@@ -264,7 +264,8 @@ class Listbox {
   }
 
   /**
-   * Follows a change in the source: positions that moved move with their items.
+   * Follows a change in the source: positions that moved move with their items, and items it made stale are read
+   * again. A read fetches only what is not here, so a block arriving, reported as a change too, reads nothing more.
    * @param {Change} change - What changed
    * @returns {void}
    */
@@ -274,8 +275,8 @@ class Listbox {
       this.active.set(active === undefined ? undefined : shiftPosition(active, change))
       const top = shiftPosition(this.scroll.top.get(), change) ?? (change.kind === 'reset' ? NONE : change.start)
       this.scroll.top.set(this.scroll.within(top))
-      this.#read()
     }
+    this.#read()
     this.#changes.emit(undefined)
   }
 
