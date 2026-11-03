@@ -61,7 +61,9 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **The behavior** is a class with no DOM in it. It has methods, observable state and events, and uses a state machine
   only where modes and timing call for one: a menu opening and closing with pointer intent, a combobox, a tooltip's
   delays. A component without modes is a few fields and methods. A behavior can be driven by tests, by the DOM, or later
-  by a terminal view.
+  by a terminal view. **Derived:** the menu's timing came to one timer (a submenu opening once the pointer rests on its
+  entry) and an area the pointer may cross (`menu-submenu.js`), so core has no state machine yet; the combobox is the
+  next place one may be needed.
 - **The view** belongs to one target family. Web views are templates with holes, used by three things:
   - a DOM renderer;
   - a string renderer, for server rendering, which emits Declarative Shadow DOM when the instance uses shadow DOM;
@@ -87,7 +89,18 @@ A component is its behavior, written once as a plain API, plus a default view an
   in a context" and "run one by id". With those it keeps buttons, menus and the palette in step with any command system,
   and keybinds is one such system. It also accepts an optional third, "tell me when the list changes" (**Settled**):
   where the command system provides it the bridge is live, and otherwise it looks again when the app asks or a menu or
-  the palette opens.
+  the palette opens. **Derived, built:** `CommandBridge` (`packages/components/src/command-bridge.js`) takes a
+  `CommandSystem` of `list(context)`, `run(id, context)` and optional `subscribe(listener)`; a listed command has its
+  id, label, `enabled`, and optionally a shortcut, category and description. `refresh()` is the app's "look again".
+  `showCommands(menu, bridge, context)` fills a menu (disabled where a command can't run; listed when it opens, and
+  again on every change while open, in place, so the active item stays) and runs the command chosen;
+  `bindCommandButtons(root, bridge, context)` does the same for `data-command` buttons. keybinds' side is
+  `hub.commandSystem()` (`packages/keybinds/src/command-system.js`): a context is a menu's tag, or undefined for every
+  command; hidden commands are never listed; it is live through a `context` event the hub sends whenever its context is
+  synced, which refreshing does too. Neither package imports the other: the shapes match, and a root test joins them
+  (`test/command-bridge.test.js`). The adapter is a hub method rather than a function taking the hub because a
+  `CommandHub` can't be a readonly parameter (its getters expose element classes); the method hands closures over its
+  own operations to `systemOf`.
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
@@ -137,13 +150,57 @@ A component is its behavior, written once as a plain API, plus a default view an
 - `listboxView()` is the default web view, and `listboxElement(create)` is the element class. The app registers the
   class, and `create(host)` builds each instance's listbox.
 
+### The menu (Derived, built)
+
+- **The listbox, changed for it rather than copied:** a selection mode of `none` (items are activated, never selected;
+  select-all does nothing), `skip` for items focus passes over, honored by every move, Home, End, typing and focus
+  entering (`landing.js`), a `typing` getter so Space can be part of what is typed, and the virtualized viewport taken
+  out of the listbox's view (`rows-view.js`, `rows-styles.js`) so rows can be menu items. A listbox now also reads again
+  after a source changes items in place, which left rows blank before.
+- `Menu` (`packages/components/src/menu.js`) is the behavior: its entries in a `Listbox` that selects nothing and passes
+  over separators; a `Layer`; a `point` for a context menu; `open('first' | 'last' | 'none')`, `openAt(point)`,
+  `close()`, `closeAll()`, `activate(position, 'enter' | 'space' | 'press')`, `openSubmenu(position, focus)`,
+  `pointTo(position, pointer)`, `headFor(area)`, `onSelect`, `takeFocus()` (a submenu opened from a key, or closed back,
+  asks for focus; its view gives it) and `subscribe`. `menuKey(menu, key, { direction, modifiers })` gives the keys.
+- **Entries (`menu-entry.js`, from the APG menu and menu button pages, fetched):** commands, checkbox and radio items,
+  separators, and submenus, each with an id; an item may be disabled (focusable, does nothing) and show a shortcut.
+  Whether an item is checked is the app's; activating one is reported. The APG doesn't define a `group` role for menus,
+  so radio items that go together sit between separators, as its examples do. `menuEntries(list)` is an in-memory source
+  that typing searches by label.
+- **Collections:** a menu's entries come through a source, like the listbox's, and its rows are the listbox's
+  virtualized rows; a menu of any length costs the same. It shows as many rows as it has entries, up to `rows` (10).
+  Rows don't size a virtualized list, so a menu is `--interact-menu-width` wide at least.
+- **Keys (the APG menu and menu button patterns):** on the button, Enter and Space open on the first item, Down on the
+  first, Up on the last. In the menu, the arrows, Home, End and typing move, passing over separators, without wrapping
+  (optional in the APG); Enter runs an item, or opens its submenu with focus on its first item, and closes the menus
+  above; Space does the same, but leaves a checkbox or radio item's menu open; the arrow toward the inline end opens a
+  submenu, the arrow back closes it, and Escape closes only the menu focus is in, focus going back to its parent or to
+  the button; Tab moving focus out closes them all.
+- **Submenus:** a menu of its own, in an overlay inside its parent's overlay, beside its entry. With the pointer, an
+  entry becomes active as the pointer moves over it, its submenu opens once the pointer has rested there 200ms (zag.js's
+  wait), and any other closes. Leaving an entry toward its open submenu notes an area (`intentArea`, in core): from just
+  behind the pointer to the submenu's near edge and round its far side, zag.js's polygon. While the pointer stays in it,
+  crossing other entries changes nothing; once it strays, the next entry it is over takes over, closing the submenu.
+- **Views:** `menuButtonView()` and `contextMenuView()`, with `menuButtonElement` and `contextMenuElement`, and
+  `openOnContextMenu(target, menu)`, which opens a menu at the point a context menu was asked for. A context menu sits
+  with its corner exactly at the point (no gap).
+- **Proven** (`menu-view.test.js`, Chrome 156, Firefox 157 and WebKit 27.2, shadow and light DOM): the keys above; Space
+  on a checkbox item; submenus from the keyboard and the pointer, including crossing other entries diagonally on the way
+  and straying; a context menu at its point, focus going back to where it came from; server markup adopted with its
+  button kept; and axe-core finding nothing with a submenu open.
+- **Unverified:** focus leaving the document with Tab (no element after the menu) closes nothing, since the overlay
+  layer closes on focus moving outside and none arrives; screen readers (only axe); touch; a context menu asked for from
+  the keyboard (its event's point); `aria-setsize`/`aria-posinset` are not set on menu items, so a long, virtualized
+  menu's size is the rendered window's to assistive technology.
+
 ### What moves out of keybinds (Derived)
 
 Today keybinds holds six shadow-DOM elements (`palette.js`, `cheatsheet.js`, `settings.js`, `basic-context-menu.js`,
 `context-menu.js`, `radial-menu.js`), and the `CommandHub` overlaps with them:
 
 - `CommandHub` makes those elements and pushes its commands, store and context into them (`hub-components.js`), and
-  paints `data-command` buttons (`hub-buttons.js`). That is the bridge's job, and it moves to `@interact/components`.
+  paints `data-command` buttons (`hub-buttons.js`). That is the bridge's job, and it moves to `@interact/components`:
+  `hub.commandSystem()` and the bridge now do it from the outside, so what is left is deleting keybinds' own.
 - keybinds keeps its sources, store, listening, `held` and `axis`.
 - keybinds' `TODO.md` named the three menus as 880 lines that each carry their own rendering, keyboard navigation and
   dismissal. The two context menus now share one list (`menu-list.js`); the radial menu still has its own. Rebuilding
@@ -591,8 +648,9 @@ Not verified:
 with the row cap set from the smallest measured limit; the listbox checked against the APG pattern, Vaadin's keyboard
 and a11y code and axe-core; typeahead with a source capability; behaviors readonly to their views. What it settled is
 under Collections, Focus scopes, DOM and Styling. The listbox's API is in Components. Then the overlay layer: layers,
-their stack and placement in core, their binding in dom (see Overlays). Next: the menu with submenus and the command
-bridge, the palette, the combobox, then keybinds' menus and palette moved onto them.
+their stack and placement in core, their binding in dom (see Overlays). Then the menu with submenus, and the command
+bridge (see The menu, and Commands under Components). Next: the palette, the combobox, then keybinds' menus and palette
+moved onto them.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
