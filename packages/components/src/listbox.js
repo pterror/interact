@@ -160,6 +160,11 @@ class Listbox {
     enterFocus(this)
   }
 
+  /** @returns {boolean} Whether what was typed a moment ago is still being added to, so a space is part of it */
+  get typing() {
+    return this.#typeahead.typing
+  }
+
   /**
    * Acts on a key, if it means anything here.
    * @param {string} key - The key, as `KeyboardEvent.key` names it

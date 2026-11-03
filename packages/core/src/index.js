@@ -1,6 +1,7 @@
 export { BlockCache } from './block-cache.js'
 export { Controllable } from './controllable.js'
 export { entry, move } from './focus.js'
+export { insideArea, intentArea } from './intent.js'
 export { Layer } from './layer.js'
 export { LayerStack } from './layer-stack.js'
 export { Listeners } from './listeners.js'
