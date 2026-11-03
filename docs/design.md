@@ -241,6 +241,57 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Unverified:** screen readers (only axe); a remote `search` under load (only a slow in-page one, whose late answer is
   dropped); input methods composing in the field (Enter while composing is left to the input method, untested).
 
+### The combobox (Derived, built)
+
+- **Pattern (the APG combobox page and its select-only and list-autocomplete examples, fetched):** a field with
+  `role="combobox"` controlling a listbox popup; DOM focus stays in the field, which names the active option as its
+  `aria-activedescendant`, and that option is the one `aria-selected`. `aria-expanded` follows the popup's layer.
+- **Kinds (`combobox-options.js`):** select-only (a focusable field showing the option chosen, `aria-haspopup`, a fixed
+  source); editable without autocomplete (an input over a fixed source); editable with `list` autocomplete (the options
+  are what the app's `suggest(text)` finds, at once or later), with `manual` selection (nothing active until the arrows)
+  or `automatic` (the first found active); and `both`, list plus inline completion, always automatic. The options are a
+  union type, so `suggest` exists exactly for the kinds that suggest.
+- **Behavior:** `Combobox` (`combobox.js`): `layer`, `list` (a `Listbox` that selects nothing; its active option is the
+  field's), `value` (the option chosen, a `Controllable`), `text` (an editable field's, a `Controllable` that follows
+  the option chosen), `kind`, `suggestions`, `open(at)`, `close()`, `toggle()`, `choose(position)`, `chooseActive()`,
+  `clear()`, `type(text, deleting)`, `key(key, { alt, shift, toggle })`, `point(position)`, `completion`,
+  `keepCompletion()`, `subscribe`. Options come from a source, so ten billion cost what ten do: opening a select-only
+  one over 10^10 numbers lands on the one chosen, five billion in, through the source's `positionOf`; without it, on the
+  first.
+- **Keys (`combobox-keys.js`, the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else
+  the first), Alt+Down on the option chosen, Up and Home on the first, End on the last, a character typed on the option
+  it starts. Open: the arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing
+  goes to the option whose text starts with what was typed, the whole of it first. Editable, closed: Down opens on the
+  first, Up on the last, Alt+Down without moving. Open: the arrows and page keys move (from none, Down to the first and
+  Up to the last); Enter and Alt+Up choose; Home, End and the side arrows give the cursor back to the text, no option
+  active, keeping an inline completion as typed text. Escape closes, choosing nothing; with the list closed, it empties
+  an editable field (`clearOnEscape`, on by default). Enter with an editable list closed is left to the page (a form). A
+  key while an input method composes is the input method's (`combobox-field.js`).
+- **Leaving:** the field is the popup's anchor, so it counts as inside its layer. Tab or a press elsewhere dismisses the
+  layer (`focus-outside`, `outside`), and a combobox that selects by itself (select-only, `automatic`, `both`) chooses
+  its active option then, as the APG's select-only example does; Escape never chooses.
+- **Suggestions (`combobox-suggest.js`):** only the answer for the text typed last is shown (`Latest`); none found, or
+  the field emptied, closes the list.
+- **Shared with the palette:** its search field is the same editable combobox field (`combobox-field.js`, with the
+  composition check in one place), its list keys (`field-keys.js`), and its dropping of stale answers (`latest.js`). The
+  palette stays its own behavior: its list is always shown inside a modal dialog, with no layer of its own.
+- **No state machine in core:** the only modes are the layer's open state and the listbox's typeahead timer, and the
+  only timing is that timer; landings and suggestions are answers of which only the latest counts.
+- **View:** `comboboxView()`, `comboboxElement(create)`, `comboboxStyles`. The popup is `popover="manual"`, anchored
+  below the field with `focus: 'stay'`, at least as wide as the field and no taller than its options; a press in it
+  keeps focus in the field. An inline completion shows after what was typed, selected.
+- **A design fix in the viewport:** a viewport made with `focusable: false` now says `tabindex="-1"`. Without it,
+  browsers made the scrolling listbox a Tab stop of its own, and Tab from the field went into it.
+- **Proven** (`combobox-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM, 60 tests): the
+  select-only keys, a character typed, Tab choosing and moving on, choosing by pointer with focus kept in the field,
+  Escape keeping the choice; editable suggestions, Down and Enter choosing, two Escapes closing then emptying; inline
+  completion selected after what was typed and chosen with Enter; ten billion options opening on the one chosen and End
+  going to the last; server markup adopted with its field kept, opening on the option chosen; and axe-core finding
+  nothing closed or open, in a page whose content is in a landmark.
+- **Unverified:** screen readers (only axe); touch; a remote `suggest` under load; input methods composing in the field;
+  Escape with the list closed when the combobox is inside another layer (the document's stack takes Escape in the
+  capture phase, so that layer closes before the field could empty itself).
+
 ### What moves out of keybinds (Derived)
 
 Today keybinds holds six shadow-DOM elements (`palette.js`, `cheatsheet.js`, `settings.js`, `basic-context-menu.js`,
@@ -708,7 +759,8 @@ under Collections, Focus scopes, DOM and Styling. The listbox's API is in Compon
 their stack and placement in core, their binding in dom (see Overlays). Then the menu with submenus, and the command
 bridge (see The menu, and Commands under Components). Then the command palette, with the bridge's search, and three gaps
 the menu left: Tab out of the page, a long menu's size, and a context menu asked for from the keyboard (see The command
-palette, The menu and Overlays). Next: the combobox, then keybinds' menus and palette moved onto them.
+palette, The menu and Overlays). Then the combobox, sharing its field, list keys and stale-answer dropping with the
+palette (see The combobox). Next: keybinds' menus and palette moved onto them.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
