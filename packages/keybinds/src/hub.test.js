@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
+
 import { CommandHub } from './hub.js'
 import { ALL, COMPONENTS } from './test-helpers.js'
 
@@ -7,14 +8,21 @@ describe('CommandHub', () => {
 
   /** @param {Partial<import('./index.js').Command>} extra */
   const cmd = (extra = {}) => ({ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: mock(() => {}), ...extra })
-  const press = (/** @type {EventTarget} */ t) => t.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true }))
+  const press = (/** @type {EventTarget} */ t) =>
+    t.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS', ctrlKey: true }))
 
   test('rebindings can be kept in custom storage, per scope', () => {
     /** @type {Record<string, import('./index.js').BindingOverrides>} */
     const kept = {}
-    const hub = new CommandHub({ ...ALL,
+    const hub = new CommandHub({
+      ...ALL,
       listen: { target: document.createElement('div') },
-      storage: (scope) => ({ load: () => kept[scope] ?? {}, save: (o) => { kept[scope] = o } }),
+      storage: (scope) => ({
+        load: () => kept[scope] ?? {},
+        save: (o) => {
+          kept[scope] = o
+        },
+      }),
     })
     hub.setSource('a', () => [cmd()])
     hub.setScope('game')
@@ -77,7 +85,12 @@ describe('CommandHub', () => {
   test('adapt turns other definitions into commands', () => {
     const target = document.createElement('div')
     const ran = mock(() => {})
-    const hub = new CommandHub({ ...ALL, storageKey: 't', listen: { target }, adapt: (/** @type {any} */ d) => ({ ...d, execute: d.run }) })
+    const hub = new CommandHub({
+      ...ALL,
+      storageKey: 't',
+      listen: { target },
+      adapt: (/** @type {any} */ d) => ({ ...d, execute: d.run }),
+    })
     hub.setSource('a', () => [{ id: 'save', label: 'Save', keys: ['ctrl+s'], run: ran }])
     hub.refresh()
     press(target)
@@ -111,7 +124,13 @@ describe('CommandHub', () => {
   test('with a host, it makes the components and keeps them in step', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const hub = new CommandHub({ ...ALL, components: COMPONENTS, storageKey: 't', host, listen: { target: document.createElement('div') } })
+    const hub = new CommandHub({
+      ...ALL,
+      components: COMPONENTS,
+      storageKey: 't',
+      host,
+      listen: { target: document.createElement('div') },
+    })
     hub.setSource('a', () => [cmd(), cmd({ id: 'secret', label: 'Secret', hidden: true })])
     hub.refresh()
     expect(hub.palette?.commands.map((c) => c.id)).toEqual(['save'])
@@ -124,7 +143,13 @@ describe('CommandHub', () => {
   test('closing the palette gives focus back to where it was', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const hub = new CommandHub({ ...ALL, components: COMPONENTS, storageKey: 't', host, listen: { target: document.createElement('div') } })
+    const hub = new CommandHub({
+      ...ALL,
+      components: COMPONENTS,
+      storageKey: 't',
+      host,
+      listen: { target: document.createElement('div') },
+    })
     const editor = document.createElement('textarea')
     document.body.appendChild(editor)
     editor.focus()
@@ -141,7 +166,13 @@ describe('CommandHub', () => {
   test('an open menu or palette keeps the context it was opened in', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const hub = new CommandHub({ ...ALL, components: COMPONENTS, storageKey: 't', host, listen: { target: document.createElement('div') } })
+    const hub = new CommandHub({
+      ...ALL,
+      components: COMPONENTS,
+      storageKey: 't',
+      host,
+      listen: { target: document.createElement('div') },
+    })
     let editing = true
     hub.addContext(() => ({ editing }))
     hub.setSource('a', () => [cmd({ menu: 'text' })])

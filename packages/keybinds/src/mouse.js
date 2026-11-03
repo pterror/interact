@@ -3,9 +3,7 @@
  * Showing and recording them is keybinds/mouse-ui.
  */
 
-import {
-  NO_MODS, parseMods, modsToPrefix, eventMods, holdsAll, overlayOpen, splitBinding,
-} from './core.js'
+import { NO_MODS, parseMods, modsToPrefix, eventMods, holdsAll, overlayOpen, splitBinding } from './core.js'
 
 /** @typedef {import('./core.js').Modifiers} Modifiers */
 /** @typedef {import('./core.js').Input} Input */
@@ -19,16 +17,35 @@ import {
  */
 
 const VALID_MOUSE = new Set([
-  'click', 'leftclick', 'left',
-  'rightclick', 'right',
-  'middleclick', 'middle',
-  'backclick', 'back',
-  'forwardclick', 'forward',
-  'scrollup', 'scrolldown', 'scrollleft', 'scrollright'
+  'click',
+  'leftclick',
+  'left',
+  'rightclick',
+  'right',
+  'middleclick',
+  'middle',
+  'backclick',
+  'back',
+  'forwardclick',
+  'forward',
+  'scrollup',
+  'scrolldown',
+  'scrollleft',
+  'scrollright',
 ])
 
 // Indexed by parseMouse's button; the first five line up with MouseEvent.button
-const BUTTON_NAMES = ['click', 'middle', 'right', 'back', 'forward', 'scrollup', 'scrolldown', 'scrollleft', 'scrollright']
+const BUTTON_NAMES = [
+  'click',
+  'middle',
+  'right',
+  'back',
+  'forward',
+  'scrollup',
+  'scrolldown',
+  'scrollleft',
+  'scrollright',
+]
 const POINTER_BUTTON_COUNT = 5
 
 /** `MouseEvent.buttons` bit for a `MouseEvent.button` */
@@ -48,7 +65,10 @@ export function parseMouse(binding, suffix = '') {
   }
 
   const body = binding.toLowerCase()
-  const parts = body.split('+').map(p => p.trim()).filter(Boolean)
+  const parts = body
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean)
   if (parts.length === 0) {
     throw new Error(`Empty mouse binding: "${binding}"`)
   }
@@ -63,7 +83,9 @@ export function parseMouse(binding, suffix = '') {
     throw new Error(`Mouse binding has multiple buttons: "${binding}"`)
   }
   if (!VALID_MOUSE.has(btn)) {
-    throw new Error(`Unknown mouse button "${btn}" in binding "${binding}". Valid: Click, RightClick, MiddleClick, BackClick, ForwardClick, ScrollUp, ScrollDown, ScrollLeft, ScrollRight`)
+    throw new Error(
+      `Unknown mouse button "${btn}" in binding "${binding}". Valid: Click, RightClick, MiddleClick, BackClick, ForwardClick, ScrollUp, ScrollDown, ScrollLeft, ScrollRight`,
+    )
   }
 
   if (suffix && btn.startsWith('scroll')) {
@@ -232,7 +254,9 @@ export function mouse(options = {}) {
       function onUp(e) {
         const event = /** @type {MouseEvent} */ (e)
         reconcile(event)
-        const ended = d.up(String(event.button), event, { blocked: overlayOpen(/** @type {Element | null} */ (event.target)) })
+        const ended = d.up(String(event.button), event, {
+          blocked: overlayOpen(/** @type {Element | null} */ (event.target)),
+        })
         // Browsers navigate on a side button's mouseup/auxclick, so cancel both while bound
         if (ended && isSideButton(event.button) && (ended.consumed || ended.press.fired.size > 0)) {
           event.preventDefault()

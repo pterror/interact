@@ -49,7 +49,9 @@ export function parseAxis(binding, syntax = []) {
       return { kind, neg: { ...parsedNeg, mods: NO_MODS }, pos: { ...parsedPos, mods: NO_MODS }, invert }
     }
   }
-  throw new Error(`Unknown axis "${binding}". Valid: mouse:x, mouse:y, pad:${PAD_AXES.join(', pad:')}, keys:<key>/<key>, each with an optional leading "-" to invert`)
+  throw new Error(
+    `Unknown axis "${binding}". Valid: mouse:x, mouse:y, pad:${PAD_AXES.join(', pad:')}, keys:<key>/<key>, each with an optional leading "-" to invert`,
+  )
 }
 
 /**
@@ -78,7 +80,7 @@ function padAxis(source) {
       continue
     }
     const v = pad.axes[PAD_AXES.indexOf(source)] ?? 0
-    if (Math.abs(v) > DEADZONE) sum += Math.sign(v) * (Math.abs(v) - DEADZONE) / (1 - DEADZONE)
+    if (Math.abs(v) > DEADZONE) sum += (Math.sign(v) * (Math.abs(v) - DEADZONE)) / (1 - DEADZONE)
   }
   return sum
 }
@@ -166,12 +168,15 @@ export function axes(...syntax) {
       d.target.addEventListener('mousemove', onMove, opts)
       const focusTarget = typeof window !== 'undefined' ? window : d.target
       focusTarget.addEventListener('blur', onBlur)
-      return Object.assign(() => {
-        d.target.removeEventListener('keydown', onDown, opts)
-        d.target.removeEventListener('keyup', onUp, opts)
-        d.target.removeEventListener('mousemove', onMove, opts)
-        focusTarget.removeEventListener('blur', onBlur)
-      }, { axis })
+      return Object.assign(
+        () => {
+          d.target.removeEventListener('keydown', onDown, opts)
+          d.target.removeEventListener('keyup', onUp, opts)
+          d.target.removeEventListener('mousemove', onMove, opts)
+          focusTarget.removeEventListener('blur', onBlur)
+        },
+        { axis },
+      )
     },
   }
 }

@@ -21,24 +21,22 @@ export default defineConfig({
             { text: 'Context', link: '/guide/context' },
             { text: 'Components', link: '/guide/components' },
             { text: 'Styling', link: '/guide/styling' },
-          ]
+          ],
         },
         {
           text: 'Reference',
           items: [
             { text: 'API', link: '/reference/' },
             { text: 'Components', link: '/reference/components' },
-          ]
+          ],
         },
-      ]
+      ],
     },
 
-    socialLinks: [
-      { icon: 'github', link: 'https://github.com/pterror/keybinds' }
-    ],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/pterror/keybinds' }],
 
     search: {
-      provider: 'local'
+      provider: 'local',
     },
   },
 })

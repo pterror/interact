@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
+
 import { mergeBindings, listBindings, fromBindings, BindingsStore } from './store.js'
 
 describe('mergeBindings', () => {
@@ -85,9 +86,13 @@ describe('fromBindings', () => {
 
   test('applies per-command options', () => {
     const whenFn = () => true
-    const commands = fromBindings(bindings, { save: () => {} }, {
-      save: { when: whenFn, captureInput: true },
-    })
+    const commands = fromBindings(
+      bindings,
+      { save: () => {} },
+      {
+        save: { when: whenFn, captureInput: true },
+      },
+    )
     expect(commands[0]?.when).toBe(whenFn)
     expect(commands[0]?.captureInput).toBe(true)
   })

@@ -1,16 +1,21 @@
 import { describe, test, expect, mock } from 'bun:test'
-import { validateCommands, findConflict } from './core.js'
-import { formatGamepadParts } from './gamepad-ui.js'
-import { mergeBindings, BindingsStore } from './store.js'
-import { CommandHub } from './hub.js'
+
 import { createComponent } from './components/create.js'
 import { KeybindSettings } from './components/settings.js'
+import { validateCommands, findConflict } from './core.js'
+import { formatGamepadParts } from './gamepad-ui.js'
+import { CommandHub } from './hub.js'
+import { mergeBindings, BindingsStore } from './store.js'
 import { INPUT, ALL, keybinds, fakePads } from './test-helpers.js'
 
 describe('gamepad', () => {
   test('parses names and aliases, and rejects unknown buttons', () => {
-    expect(() => validateCommands([{ id: 'j', label: 'J', gamepad: ['a', 'south', 'rt:up', 'dpadUp'], execute: () => {} }], ALL)).not.toThrow()
-    expect(() => validateCommands([{ id: 'j', label: 'J', gamepad: ['shift+a'], execute: () => {} }], ALL)).toThrow(/Unknown gamepad button/)
+    expect(() =>
+      validateCommands([{ id: 'j', label: 'J', gamepad: ['a', 'south', 'rt:up', 'dpadUp'], execute: () => {} }], ALL),
+    ).not.toThrow()
+    expect(() => validateCommands([{ id: 'j', label: 'J', gamepad: ['shift+a'], execute: () => {} }], ALL)).toThrow(
+      /Unknown gamepad button/,
+    )
   })
 
   test('formats for display', () => {
@@ -24,10 +29,16 @@ describe('gamepad', () => {
     /** @type {string[]} */
     const calls = []
     pads.set([])
-    const kb = keybinds([{
-      id: 'jump', label: 'Jump', gamepad: ['a', 'a:up'],
-      execute: (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => { calls.push(/** @type {Event} */ (e).type) },
-    }])
+    const kb = keybinds([
+      {
+        id: 'jump',
+        label: 'Jump',
+        gamepad: ['a', 'a:up'],
+        execute: (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => {
+          calls.push(/** @type {Event} */ (e).type)
+        },
+      },
+    ])
     pads.frame() // first sight
     pads.set([0])
     pads.frame()

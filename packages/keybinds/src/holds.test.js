@@ -1,9 +1,10 @@
 import { describe, test, expect, mock } from 'bun:test'
+
 import { keybinds, validateCommands, formatBinding } from './core.js'
-import { keys } from './keys.js'
-import { keysUI } from './keys-ui.js'
-import { mouse } from './mouse.js'
 import { holds } from './holds.js'
+import { keysUI } from './keys-ui.js'
+import { keys } from './keys.js'
+import { mouse } from './mouse.js'
 import { kbd } from './test-helpers.js'
 
 const DELAY = 30
@@ -58,12 +59,21 @@ describe('holds', () => {
     await wait(DELAY * 2)
     expect(fn).toHaveBeenCalledTimes(1)
     kb()
-    expect(() => validateCommands([{ id: 'z', label: 'Z', mouse: ['scrollup:hold'], execute: () => {} }], { inputs: [mouse()], holds: holds() })).toThrow('Scroll has no ":hold"')
+    expect(() =>
+      validateCommands([{ id: 'z', label: 'Z', mouse: ['scrollup:hold'], execute: () => {} }], {
+        inputs: [mouse()],
+        holds: holds(),
+      }),
+    ).toThrow('Scroll has no ":hold"')
   })
 
   test('holding and tapping need holds()', () => {
-    expect(() => validateCommands([{ id: 'k', label: 'K', keys: ['k:hold'], execute: () => {} }], { inputs: [keys()] })).toThrow('needs holds()')
-    expect(() => validateCommands([{ id: 'k', label: 'K', keys: ['k:tap'], execute: () => {} }], { inputs: [keys()] })).toThrow('needs holds()')
+    expect(() =>
+      validateCommands([{ id: 'k', label: 'K', keys: ['k:hold'], execute: () => {} }], { inputs: [keys()] }),
+    ).toThrow('needs holds()')
+    expect(() =>
+      validateCommands([{ id: 'k', label: 'K', keys: ['k:tap'], execute: () => {} }], { inputs: [keys()] }),
+    ).toThrow('needs holds()')
   })
 
   test('shown with what it waits for', () => {

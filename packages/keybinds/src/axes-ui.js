@@ -3,16 +3,21 @@
  */
 
 import { axes, parseAxis, axisToLookup, hasPads, PAD_AXES } from './axes.js'
-import { keyToLookup } from './keys.js'
 import { formatKeyParts, eventToBindingString } from './keys-ui.js'
+import { keyToLookup } from './keys.js'
 
 /** @typedef {import('./core.js').InputUI} InputUI */
 
 /** @type {Record<string, string>} */
 const AXIS_GLYPHS = {
-  'mouse:x': 'Mouse ↔', 'mouse:y': 'Mouse ↕',
-  'pad:lx': 'Left stick ↔', 'pad:ly': 'Left stick ↕', 'pad:rx': 'Right stick ↔', 'pad:ry': 'Right stick ↕',
-  'pad:lt': 'LT', 'pad:rt': 'RT',
+  'mouse:x': 'Mouse ↔',
+  'mouse:y': 'Mouse ↕',
+  'pad:lx': 'Left stick ↔',
+  'pad:ly': 'Left stick ↕',
+  'pad:rx': 'Right stick ↔',
+  'pad:ry': 'Right stick ↕',
+  'pad:lt': 'LT',
+  'pad:rt': 'RT',
 }
 
 /**
@@ -27,9 +32,10 @@ export function formatAxisParts(binding) {
   } catch {
     return [binding]
   }
-  const parts = parsed.kind === 'keys'
-    ? [...formatKeyParts(keyToLookup(parsed.neg)), '/', ...formatKeyParts(keyToLookup(parsed.pos))]
-    : [AXIS_GLYPHS[axisToLookup(parsed)] ?? binding]
+  const parts =
+    parsed.kind === 'keys'
+      ? [...formatKeyParts(keyToLookup(parsed.neg)), '/', ...formatKeyParts(keyToLookup(parsed.pos))]
+      : [AXIS_GLYPHS[axisToLookup(parsed)] ?? binding]
   if (parsed.invert) parts.push('Inverted')
   return parts
 }

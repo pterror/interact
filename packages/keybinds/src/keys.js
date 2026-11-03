@@ -30,13 +30,15 @@ const MODIFIER_KEYS = ['Shift', 'Control', 'Alt', 'Meta']
  */
 
 // Named keys, by the name a key event reports (event.key, or event.code for physical keys)
-export const NAMED_KEY = /^(f([1-9]|1[0-2])|escape|enter|tab|space|backspace|delete|insert|home|end|page(up|down)|arrow(up|down|left|right)|bracket(left|right)|backslash|semicolon|quote|comma|period|slash|backquote|minus|equal|digit[0-9])$/
+export const NAMED_KEY =
+  /^(f([1-9]|1[0-2])|escape|enter|tab|space|backspace|delete|insert|home|end|page(up|down)|arrow(up|down|left|right)|bracket(left|right)|backslash|semicolon|quote|comma|period|slash|backquote|minus|equal|digit[0-9])$/
 
 /**
  * A letter (in any script) or a digit: what a key types on its own, bindable as itself
  * @param {string} key
  */
-export const isLetterOrDigit = (key) => [...key].length === 1 && (key.toLowerCase() !== key.toUpperCase() || /[0-9]/.test(key))
+export const isLetterOrDigit = (key) =>
+  [...key].length === 1 && (key.toLowerCase() !== key.toUpperCase() || /[0-9]/.test(key))
 
 /**
  * Parse a key string like "Ctrl+Shift+K" into normalized form. Its release suffix, if any, has
@@ -50,7 +52,11 @@ export function parseKey(keyStr, syntax = []) {
   if (!keyStr || typeof keyStr !== 'string') {
     throw new Error(`Invalid key binding: ${keyStr}`)
   }
-  const parts = keyStr.toLowerCase().split('+').map(p => p.trim()).filter(Boolean)
+  const parts = keyStr
+    .toLowerCase()
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean)
   const { mods, remaining } = parseMods(parts)
   const rawKey = remaining[0]
   if (rawKey === undefined) {
@@ -125,10 +131,15 @@ export function keys(...syntax) {
         // break off a sequence
         if (MODIFIER_KEYS.includes(event.key)) return
         /** @type {import('./core.js').Lookups} */
-        const lookups = (suffix, mods) =>
-          [eventToKeyLookups(event, modsToPrefix(mods), suffix, syntax), eventToKeyLookups(event, '', suffix, syntax)]
+        const lookups = (suffix, mods) => [
+          eventToKeyLookups(event, modsToPrefix(mods), suffix, syntax),
+          eventToKeyLookups(event, '', suffix, syntax),
+        ]
         d.down(event.code || event.key, event, {
-          mods: eventMods(event), lookups, repeat: event.repeat, inInput: inInput(event.target),
+          mods: eventMods(event),
+          lookups,
+          repeat: event.repeat,
+          inInput: inInput(event.target),
           extra: { key: event.key, code: event.code },
         })
       }
@@ -136,7 +147,10 @@ export function keys(...syntax) {
       /** @param {Event} e */
       function onUp(e) {
         const event = /** @type {KeyboardEvent} */ (e)
-        d.up(event.code || event.key, event, { blocked: overlayOpen(/** @type {Element | null} */ (event.target)), inInput: inInput(event.target) })
+        d.up(event.code || event.key, event, {
+          blocked: overlayOpen(/** @type {Element | null} */ (event.target)),
+          inInput: inInput(event.target),
+        })
       }
 
       // A key let go after the window lost focus sends its keyup to whatever has focus now, so
@@ -144,7 +158,14 @@ export function keys(...syntax) {
       // auto-repeat starts a new press.
       function onBlur() {
         for (const [id, press] of [...d.presses]) {
-          d.up(id, new KeyboardEvent('keyup', { key: /** @type {string} */ (press['key']), code: /** @type {string} */ (press['code']), cancelable: true }))
+          d.up(
+            id,
+            new KeyboardEvent('keyup', {
+              key: /** @type {string} */ (press['key']),
+              code: /** @type {string} */ (press['code']),
+              cancelable: true,
+            }),
+          )
         }
       }
 

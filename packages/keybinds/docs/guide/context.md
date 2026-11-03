@@ -7,11 +7,15 @@ Context is application state that determines which commands are active. It's eva
 Pass a getter function as the second argument to `keybinds()`:
 
 ```js
-keybinds(commands, () => ({
-  hasSelection: selectedItems.length > 0,
-  isEditing: editMode === true,
-  canUndo: history.length > 0,
-}), { inputs: [keys()] })
+keybinds(
+  commands,
+  () => ({
+    hasSelection: selectedItems.length > 0,
+    isEditing: editMode === true,
+    canUndo: history.length > 0,
+  }),
+  { inputs: [keys()] },
+)
 ```
 
 The function is called on every event, so it always reflects current state.
@@ -89,7 +93,7 @@ Pass context to components to gray out inactive commands:
 ```js
 const palette = document.querySelector('keybinds-command-palette')
 palette.commands = commands
-palette.context = getContext()  // Commands with failing `when` appear disabled
+palette.context = getContext() // Commands with failing `when` appear disabled
 ```
 
 Update context when state changes:

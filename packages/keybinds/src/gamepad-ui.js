@@ -9,8 +9,23 @@ import { gamepad, GAMEPAD_BUTTONS, GAMEPAD_ALIASES, hasPads } from './gamepad.js
 
 /** @type {Record<string, string>} */
 const GAMEPAD_GLYPHS = {
-  a: 'A', b: 'B', x: 'X', y: 'Y', lb: 'LB', rb: 'RB', lt: 'LT', rt: 'RT', back: 'Back', start: 'Start',
-  ls: 'LS', rs: 'RS', up: 'D-pad ↑', down: 'D-pad ↓', left: 'D-pad ←', right: 'D-pad →', home: 'Home',
+  a: 'A',
+  b: 'B',
+  x: 'X',
+  y: 'Y',
+  lb: 'LB',
+  rb: 'RB',
+  lt: 'LT',
+  rt: 'RT',
+  back: 'Back',
+  start: 'Start',
+  ls: 'LS',
+  rs: 'RS',
+  up: 'D-pad ↑',
+  down: 'D-pad ↓',
+  left: 'D-pad ←',
+  right: 'D-pad →',
+  home: 'Home',
 }
 
 /**
@@ -36,7 +51,7 @@ export function gamepadUI() {
     label: 'Gamepad',
     format: formatGamepadParts,
     release: () => true,
-    prompt: (release) => release ? 'Press and release a gamepad button...' : 'Press a gamepad button...',
+    prompt: (release) => (release ? 'Press and release a gamepad button...' : 'Press a gamepad button...'),
     available: () => hasPads() && navigator.getGamepads().some(Boolean),
     watch(onChange) {
       window.addEventListener('gamepadconnected', onChange)
@@ -78,7 +93,9 @@ export function gamepadUI() {
         frame = requestAnimationFrame(read)
       }
       if (hasPads()) frame = requestAnimationFrame(read)
-      return () => { if (frame !== null) cancelAnimationFrame(frame) }
+      return () => {
+        if (frame !== null) cancelAnimationFrame(frame)
+      }
     },
   }
 }

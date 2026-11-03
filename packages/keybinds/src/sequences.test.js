@@ -1,7 +1,8 @@
 import { describe, test, expect, mock } from 'bun:test'
+
 import { keybinds, validateCommands, formatBinding } from './core.js'
-import { keys } from './keys.js'
 import { keysUI } from './keys-ui.js'
+import { keys } from './keys.js'
 import { sequences } from './sequences.js'
 import { kbd } from './test-helpers.js'
 
@@ -89,7 +90,9 @@ describe('sequences', () => {
   })
 
   test('a sequence whose commands are not active does not take its first step', () => {
-    const { press, stop } = listen([{ id: 'inbox', label: 'Inbox', keys: ['g i'], when: () => false, execute: () => {} }])
+    const { press, stop } = listen([
+      { id: 'inbox', label: 'Inbox', keys: ['g i'], when: () => false, execute: () => {} },
+    ])
     expect(press('g').defaultPrevented).toBe(false)
     stop()
   })
@@ -99,8 +102,12 @@ describe('sequences', () => {
       { id: 'go', label: 'Go', keys: ['g'], execute: () => {} },
       { id: 'inbox', label: 'Inbox', keys: ['g i'], execute: () => {} },
     ]
-    expect(() => validateCommands(both, { inputs: [keys()], sequences: sequences() })).toThrow('both a binding and the start of a sequence')
-    expect(() => validateCommands([{ id: 'inbox', label: 'Inbox', keys: ['g i'], execute: () => {} }], { inputs: [keys()] })).toThrow('needs sequences()')
+    expect(() => validateCommands(both, { inputs: [keys()], sequences: sequences() })).toThrow(
+      'both a binding and the start of a sequence',
+    )
+    expect(() =>
+      validateCommands([{ id: 'inbox', label: 'Inbox', keys: ['g i'], execute: () => {} }], { inputs: [keys()] }),
+    ).toThrow('needs sequences()')
   })
 
   test('shown step by step', () => {

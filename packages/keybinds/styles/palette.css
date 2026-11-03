@@ -48,25 +48,25 @@
    Shared: overlays, dialogs, key caps
    ======================================== */
 
-[data-keybinds="command-palette"],
-[data-keybinds="cheatsheet"],
-[data-keybinds="settings"] {
+[data-keybinds='command-palette'],
+[data-keybinds='cheatsheet'],
+[data-keybinds='settings'] {
   position: fixed;
   inset: 0;
   z-index: 9999;
 }
 
-[data-keybinds="command-palette"]::part(backdrop),
-[data-keybinds="cheatsheet"]::part(backdrop),
-[data-keybinds="settings"]::part(backdrop) {
+[data-keybinds='command-palette']::part(backdrop),
+[data-keybinds='cheatsheet']::part(backdrop),
+[data-keybinds='settings']::part(backdrop) {
   position: fixed;
   inset: 0;
   background: var(--kb-backdrop);
 }
 
-[data-keybinds="command-palette"]::part(dialog),
-[data-keybinds="cheatsheet"]::part(dialog),
-[data-keybinds="settings"]::part(dialog) {
+[data-keybinds='command-palette']::part(dialog),
+[data-keybinds='cheatsheet']::part(dialog),
+[data-keybinds='settings']::part(dialog) {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -79,36 +79,42 @@
 }
 
 /* Opening: the backdrop fades in and the dialog rises into place. */
-[data-keybinds="command-palette"]::part(backdrop),
-[data-keybinds="cheatsheet"]::part(backdrop),
-[data-keybinds="settings"]::part(backdrop) {
+[data-keybinds='command-palette']::part(backdrop),
+[data-keybinds='cheatsheet']::part(backdrop),
+[data-keybinds='settings']::part(backdrop) {
   animation: keybinds-fade 140ms ease-out;
 }
-[data-keybinds="command-palette"]::part(dialog),
-[data-keybinds="cheatsheet"]::part(dialog),
-[data-keybinds="settings"]::part(dialog),
-[data-keybinds="basic-context-menu"]::part(list),
-[data-keybinds="context-menu"]::part(context-menu) {
+[data-keybinds='command-palette']::part(dialog),
+[data-keybinds='cheatsheet']::part(dialog),
+[data-keybinds='settings']::part(dialog),
+[data-keybinds='basic-context-menu']::part(list),
+[data-keybinds='context-menu']::part(context-menu) {
   animation: keybinds-rise 160ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
 @keyframes keybinds-fade {
-  from { opacity: 0; }
+  from {
+    opacity: 0;
+  }
 }
 @keyframes keybinds-rise {
-  from { opacity: 0; scale: 0.97; translate: 0 6px; }
+  from {
+    opacity: 0;
+    scale: 0.97;
+    translate: 0 6px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-keybinds],
   [data-keybinds]::part(backdrop),
   [data-keybinds]::part(dialog),
-  [data-keybinds="basic-context-menu"]::part(list),
-  [data-keybinds="context-menu"]::part(context-menu) {
+  [data-keybinds='basic-context-menu']::part(list),
+  [data-keybinds='context-menu']::part(context-menu) {
     animation: none;
   }
 }
 
 [data-keybinds]::part(item-key),
-[data-keybinds="settings"]::part(binding-key) {
+[data-keybinds='settings']::part(binding-key) {
   display: inline-block;
   min-width: 1.6em;
   padding: 1px 6px;
@@ -128,7 +134,7 @@
    Command palette
    ======================================== */
 
-[data-keybinds="command-palette"]::part(dialog) {
+[data-keybinds='command-palette']::part(dialog) {
   top: 14vh;
   width: min(560px, calc(100vw - 24px));
   max-height: 70vh;
@@ -137,7 +143,7 @@
   overflow: hidden;
 }
 
-[data-keybinds="command-palette"]::part(input) {
+[data-keybinds='command-palette']::part(input) {
   width: 100%;
   padding: 14px 16px;
   border: none;
@@ -149,14 +155,14 @@
   outline: none;
 }
 
-[data-keybinds="command-palette"]::part(list) {
+[data-keybinds='command-palette']::part(list) {
   list-style: none;
   margin: 0;
   padding: 6px 0;
   overflow-y: auto;
 }
 
-[data-keybinds="command-palette"]::part(item) {
+[data-keybinds='command-palette']::part(item) {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -164,37 +170,37 @@
   cursor: pointer;
 }
 
-[data-keybinds="command-palette"]::part(item-active) {
+[data-keybinds='command-palette']::part(item-active) {
   background: var(--kb-accent-soft);
 }
 
-[data-keybinds="command-palette"]::part(item-category) {
+[data-keybinds='command-palette']::part(item-category) {
   min-width: 6em;
   font-size: 12px;
   color: var(--kb-muted);
 }
 
-[data-keybinds="command-palette"]::part(item-label) {
+[data-keybinds='command-palette']::part(item-label) {
   flex: 1;
 }
 
-[data-keybinds="command-palette"]::part(item-label-match) {
+[data-keybinds='command-palette']::part(item-label-match) {
   color: var(--kb-accent);
   background: none;
   font-weight: 600;
 }
 
-[data-keybinds="command-palette"]::part(item-description) {
+[data-keybinds='command-palette']::part(item-description) {
   font-size: 12px;
   color: var(--kb-muted);
 }
 
-[data-keybinds="command-palette"]::part(item-keys) {
+[data-keybinds='command-palette']::part(item-keys) {
   display: flex;
   gap: 4px;
 }
 
-[data-keybinds="command-palette"]::part(empty) {
+[data-keybinds='command-palette']::part(empty) {
   padding: 14px 16px;
   color: var(--kb-muted);
 }
@@ -203,7 +209,7 @@
    Cheatsheet
    ======================================== */
 
-[data-keybinds="cheatsheet"]::part(dialog) {
+[data-keybinds='cheatsheet']::part(dialog) {
   bottom: 24px;
   display: flex;
   flex-wrap: wrap;
@@ -214,12 +220,12 @@
   overflow: auto;
 }
 
-[data-keybinds="cheatsheet"]::part(group) {
+[data-keybinds='cheatsheet']::part(group) {
   min-width: 180px;
 }
 
-[data-keybinds="cheatsheet"]::part(group-title),
-[data-keybinds="settings"]::part(group-title) {
+[data-keybinds='cheatsheet']::part(group-title),
+[data-keybinds='settings']::part(group-title) {
   margin: 0 0 6px;
   font-size: 12px;
   font-weight: 600;
@@ -228,7 +234,7 @@
   color: var(--kb-muted);
 }
 
-[data-keybinds="cheatsheet"]::part(list) {
+[data-keybinds='cheatsheet']::part(list) {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -237,15 +243,15 @@
   gap: 5px;
 }
 
-[data-keybinds="cheatsheet"]::part(item) {
+[data-keybinds='cheatsheet']::part(item) {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 14px;
 }
 
-[data-keybinds="cheatsheet"]::part(item-keys),
-[data-keybinds="cheatsheet"]::part(item-binding) {
+[data-keybinds='cheatsheet']::part(item-keys),
+[data-keybinds='cheatsheet']::part(item-binding) {
   display: flex;
   gap: 4px;
 }
@@ -254,7 +260,7 @@
    Settings (rebinding)
    ======================================== */
 
-[data-keybinds="settings"]::part(dialog) {
+[data-keybinds='settings']::part(dialog) {
   top: 6vh;
   width: min(640px, calc(100vw - 24px));
   max-height: 88vh;
@@ -262,7 +268,7 @@
   padding: 0 0 12px;
 }
 
-[data-keybinds="settings"]::part(header) {
+[data-keybinds='settings']::part(header) {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -275,21 +281,21 @@
   border-bottom: 1px solid var(--kb-border);
 }
 
-[data-keybinds="settings"]::part(title) {
+[data-keybinds='settings']::part(title) {
   font-weight: 600;
 }
 
-[data-keybinds="settings"]::part(group) {
+[data-keybinds='settings']::part(group) {
   padding: 8px 18px 0;
 }
 
-[data-keybinds="settings"]::part(list) {
+[data-keybinds='settings']::part(list) {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-[data-keybinds="settings"]::part(item) {
+[data-keybinds='settings']::part(item) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -298,19 +304,19 @@
   border-bottom: 1px solid var(--kb-border);
 }
 
-[data-keybinds="settings"]::part(item-label) {
+[data-keybinds='settings']::part(item-label) {
   flex: 1;
   min-width: 10em;
 }
 
-[data-keybinds="settings"]::part(item-bindings) {
+[data-keybinds='settings']::part(item-bindings) {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
-[data-keybinds="settings"]::part(binding) {
+[data-keybinds='settings']::part(binding) {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -318,32 +324,32 @@
   border-radius: 6px;
 }
 
-[data-keybinds="settings"]::part(binding-keys) {
+[data-keybinds='settings']::part(binding-keys) {
   display: inline-flex;
   gap: 3px;
   cursor: pointer;
 }
 
-[data-keybinds="settings"]::part(binding-recording) {
+[data-keybinds='settings']::part(binding-recording) {
   box-shadow: 0 0 0 2px var(--kb-accent);
 }
 
-[data-keybinds="settings"]::part(recording-overlay) {
+[data-keybinds='settings']::part(recording-overlay) {
   padding: 0 6px;
   font-size: 12px;
   color: var(--kb-accent);
 }
 
-[data-keybinds="settings"]::part(binding-remove),
-[data-keybinds="settings"]::part(item-add),
-[data-keybinds="settings"]::part(add-key),
-[data-keybinds="settings"]::part(add-mouse),
-[data-keybinds="settings"]::part(item-reset),
-[data-keybinds="settings"]::part(reset-all),
-[data-keybinds="settings"]::part(conflict-accept),
-[data-keybinds="settings"]::part(conflict-cancel),
-[data-keybinds="settings"]::part(recording-release),
-[data-keybinds="settings"]::part(binding-release) {
+[data-keybinds='settings']::part(binding-remove),
+[data-keybinds='settings']::part(item-add),
+[data-keybinds='settings']::part(add-key),
+[data-keybinds='settings']::part(add-mouse),
+[data-keybinds='settings']::part(item-reset),
+[data-keybinds='settings']::part(reset-all),
+[data-keybinds='settings']::part(conflict-accept),
+[data-keybinds='settings']::part(conflict-cancel),
+[data-keybinds='settings']::part(recording-release),
+[data-keybinds='settings']::part(binding-release) {
   padding: 2px 8px;
   font: 12px var(--kb-font);
   color: var(--kb-fg);
@@ -353,18 +359,18 @@
   cursor: pointer;
 }
 
-[data-keybinds="settings"]::part(binding-remove) {
+[data-keybinds='settings']::part(binding-remove) {
   padding: 0 6px;
   color: var(--kb-muted);
 }
 
-[data-keybinds="settings"]::part(recording-release-on),
-[data-keybinds="settings"]::part(binding-release-on) {
+[data-keybinds='settings']::part(recording-release-on),
+[data-keybinds='settings']::part(binding-release-on) {
   background: var(--kb-accent-soft);
   border-color: var(--kb-accent);
 }
 
-[data-keybinds="settings"]::part(conflict) {
+[data-keybinds='settings']::part(conflict) {
   flex-basis: 100%;
   display: flex;
   align-items: center;
@@ -377,21 +383,21 @@
    Context menus (basic and scored)
    ======================================== */
 
-[data-keybinds="basic-context-menu"],
-[data-keybinds="context-menu"] {
+[data-keybinds='basic-context-menu'],
+[data-keybinds='context-menu'] {
   position: fixed;
   z-index: 10000;
 }
 
-[data-keybinds="basic-context-menu"]::part(backdrop),
-[data-keybinds="context-menu"]::part(backdrop) {
+[data-keybinds='basic-context-menu']::part(backdrop),
+[data-keybinds='context-menu']::part(backdrop) {
   position: fixed;
   inset: 0;
 }
 
 /* The basic menu's list is the box; the scored menu's box holds a search field and the list */
-[data-keybinds="basic-context-menu"]::part(list),
-[data-keybinds="context-menu"]::part(context-menu) {
+[data-keybinds='basic-context-menu']::part(list),
+[data-keybinds='context-menu']::part(context-menu) {
   min-width: 200px;
   max-width: 320px;
   margin: 0;
@@ -406,14 +412,14 @@
   outline: none;
 }
 
-[data-keybinds="context-menu"]::part(list) {
+[data-keybinds='context-menu']::part(list) {
   margin: 0;
   padding: 0;
   list-style: none;
   outline: none;
 }
 
-[data-keybinds="context-menu"]::part(search) {
+[data-keybinds='context-menu']::part(search) {
   width: 100%;
   margin-bottom: 4px;
   padding: 6px 8px;
@@ -425,15 +431,15 @@
   outline: none;
 }
 
-[data-keybinds="basic-context-menu"]::part(separator),
-[data-keybinds="context-menu"]::part(separator) {
+[data-keybinds='basic-context-menu']::part(separator),
+[data-keybinds='context-menu']::part(separator) {
   height: 1px;
   margin: 4px 0;
   background: var(--kb-border);
 }
 
-[data-keybinds="basic-context-menu"]::part(item),
-[data-keybinds="context-menu"]::part(item) {
+[data-keybinds='basic-context-menu']::part(item),
+[data-keybinds='context-menu']::part(item) {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -443,18 +449,18 @@
   cursor: pointer;
 }
 
-[data-keybinds="basic-context-menu"]::part(item-active),
-[data-keybinds="context-menu"]::part(item-active) {
+[data-keybinds='basic-context-menu']::part(item-active),
+[data-keybinds='context-menu']::part(item-active) {
   background: var(--kb-accent-soft);
 }
 
-[data-keybinds="basic-context-menu"]::part(item-keys),
-[data-keybinds="context-menu"]::part(item-keys) {
+[data-keybinds='basic-context-menu']::part(item-keys),
+[data-keybinds='context-menu']::part(item-keys) {
   display: flex;
   gap: 4px;
 }
 
-[data-keybinds="context-menu"]::part(more-row) {
+[data-keybinds='context-menu']::part(more-row) {
   padding: 4px 10px;
   font-size: 12px;
   color: var(--kb-muted);
@@ -464,15 +470,15 @@
    Radial menu
    ======================================== */
 
-[data-keybinds="radial-menu"] {
+[data-keybinds='radial-menu'] {
   color: var(--kb-fg);
 }
 
-[data-keybinds="radial-menu"]::part(label) {
+[data-keybinds='radial-menu']::part(label) {
   font-family: var(--kb-font);
 }
 
-[data-keybinds="radial-menu"]::part(spoke) {
+[data-keybinds='radial-menu']::part(spoke) {
   stroke: var(--kb-fg);
 }
 
@@ -481,9 +487,9 @@
    ======================================== */
 
 @media (pointer: coarse) {
-  [data-keybinds="command-palette"]::part(item),
-  [data-keybinds="basic-context-menu"]::part(item),
-  [data-keybinds="context-menu"]::part(item) {
+  [data-keybinds='command-palette']::part(item),
+  [data-keybinds='basic-context-menu']::part(item),
+  [data-keybinds='context-menu']::part(item) {
     min-height: 44px;
     display: flex;
     align-items: center;

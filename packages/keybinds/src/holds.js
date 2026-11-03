@@ -16,11 +16,14 @@ export function holds({ delay = 500 } = {}) {
     suffixes: [':hold', ':tap'],
     down(p) {
       if (!p.find(':hold')) return
-      timers.set(p.press, setTimeout(() => {
-        if (!p.held()) return
-        const found = p.find(':hold')
-        if (found) p.fire(found)
-      }, delay))
+      timers.set(
+        p.press,
+        setTimeout(() => {
+          if (!p.held()) return
+          const found = p.find(':hold')
+          if (found) p.fire(found)
+        }, delay),
+      )
     },
     up(p) {
       clearTimeout(timers.get(p.press))

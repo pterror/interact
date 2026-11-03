@@ -142,19 +142,25 @@ export class RadialMenu extends HTMLElement {
     markKind(this, 'radial-menu')
   }
 
-  get commands() { return this._commands }
+  get commands() {
+    return this._commands
+  }
   set commands(val) {
     this._commands = (val || []).slice(0, 8)
     if (this.open) this._buildItems()
   }
 
-  get context() { return this._context }
+  get context() {
+    return this._context
+  }
   set context(val) {
     this._context = val || {}
     if (this.open) this._buildItems()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
@@ -220,8 +226,8 @@ export class RadialMenu extends HTMLElement {
 
   _buildItems() {
     this._items = this._commands
-      .filter(cmd => !cmd.hidden)
-      .map(cmd => ({ ...cmd, active: isActive(cmd, this._context) }))
+      .filter((cmd) => !cmd.hidden)
+      .map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
     this._render()
   }
 
@@ -248,7 +254,6 @@ export class RadialMenu extends HTMLElement {
     const r = this._radius
     const indR = this._indicatorR
     const gap = this._labelGap
-
 
     for (let slot = 0; slot < total; slot++) {
       // Distribute evenly, starting at top (−π/2), clockwise
@@ -342,7 +347,10 @@ export class RadialMenu extends HTMLElement {
     const slot = Number(g.dataset['slot'])
     const enabled = /** @type {Command & { active: boolean }} */ (this._items[slot]).active
     const on = slot === this._activeIndex
-    g.setAttribute('class', `radial-menu__slot${!enabled ? ' radial-menu__slot--disabled' : ''}${on ? ' radial-menu__slot--active' : ''}`)
+    g.setAttribute(
+      'class',
+      `radial-menu__slot${!enabled ? ' radial-menu__slot--disabled' : ''}${on ? ' radial-menu__slot--active' : ''}`,
+    )
     g.setAttribute('part', `slot${on ? ' slot-active' : ''}${!enabled ? ' slot-disabled' : ''}`)
     const dot = /** @type {SVGCircleElement} */ (g.querySelector('.radial-menu__indicator'))
     dot.setAttribute('r', String(on ? this._indicatorR + 2 : this._indicatorR))
@@ -354,7 +362,10 @@ export class RadialMenu extends HTMLElement {
   // Shows which slot is active on the slots already there. Drawing them again would replace the one
   // under the pointer, and a press that began on it would never become a click.
   _markActive() {
-    for (const g of Array.from(/** @type {NodeListOf<SVGGElement>} */ (this._slotsGroup.querySelectorAll('[data-slot]')))) this._paint(g)
+    for (const g of Array.from(
+      /** @type {NodeListOf<SVGGElement>} */ (this._slotsGroup.querySelectorAll('[data-slot]')),
+    ))
+      this._paint(g)
   }
 
   /** @param {KeyboardEvent} e */
@@ -387,8 +398,14 @@ export class RadialMenu extends HTMLElement {
           for (let d = 1; d < 8; d++) {
             const cw = (target + d) % 8
             const ccw = (target - d + 8) % 8
-            if (this._items[cw]) { this._activeIndex = cw; break }
-            if (this._items[ccw]) { this._activeIndex = ccw; break }
+            if (this._items[cw]) {
+              this._activeIndex = cw
+              break
+            }
+            if (this._items[ccw]) {
+              this._activeIndex = ccw
+              break
+            }
           }
         }
         this._render()
@@ -400,7 +417,9 @@ export class RadialMenu extends HTMLElement {
         const filled = this._items.map((_, i) => i)
         if (filled.length === 0) break
         const cur = filled.indexOf(this._activeIndex)
-        const next = e.shiftKey ? filled[cur <= 0 ? filled.length - 1 : cur - 1] : filled[cur >= filled.length - 1 ? 0 : cur + 1]
+        const next = e.shiftKey
+          ? filled[cur <= 0 ? filled.length - 1 : cur - 1]
+          : filled[cur >= filled.length - 1 ? 0 : cur + 1]
         this._activeIndex = next ?? 0
         this._render()
         break

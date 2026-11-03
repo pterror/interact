@@ -68,7 +68,7 @@ export function mouseUI(options = {}) {
     label: 'Mouse',
     format: formatMouseParts,
     release: (binding) => !/(^|\+)scroll(up|down|left|right)$/i.test(splitRelease(binding.toLowerCase()).body),
-    prompt: (release) => release ? 'Press and release a button...' : 'Click or scroll...',
+    prompt: (release) => (release ? 'Press and release a button...' : 'Click or scroll...'),
 
     record({ release, ignore }, done) {
       /** @type {{ button: number, binding: string } | null} */

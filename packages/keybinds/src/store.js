@@ -161,11 +161,12 @@ export class BindingsStore extends EventTarget {
     this.bindings = /** @type {T} */ (mergeBindings(schema, this.overrides))
     // Storage that echoes the store's own saves back would otherwise fire every change twice
     /** @type {(() => void) | null} */
-    this._unsubscribe = this.storage.subscribe?.((overrides) => {
-      if (JSON.stringify(overrides) === JSON.stringify(this.overrides)) return
-      this.overrides = overrides
-      this._changed()
-    }) ?? null
+    this._unsubscribe =
+      this.storage.subscribe?.((overrides) => {
+        if (JSON.stringify(overrides) === JSON.stringify(this.overrides)) return
+        this.overrides = overrides
+        this._changed()
+      }) ?? null
   }
 
   /** Get current bindings (schema merged with overrides) */
@@ -197,8 +198,10 @@ export class BindingsStore extends EventTarget {
   /** @private */
   _changed() {
     this.bindings = /** @type {T} */ (mergeBindings(this.schema, this.overrides))
-    this.dispatchEvent(new CustomEvent('change', {
-      detail: { bindings: this.bindings, overrides: this.overrides }
-    }))
+    this.dispatchEvent(
+      new CustomEvent('change', {
+        detail: { bindings: this.bindings, overrides: this.overrides },
+      }),
+    )
   }
 }

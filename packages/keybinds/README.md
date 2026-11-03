@@ -18,6 +18,7 @@ npm link keybinds
 
 ```js
 import { keybinds, keys, registerComponents } from 'keybinds'
+
 import 'keybinds/styles/palette.css'
 
 const commands = [
@@ -26,8 +27,8 @@ const commands = [
     label: 'Save document',
     category: 'File',
     keys: ['$mod+s'],
-    execute: () => save()
-  }
+    execute: () => save(),
+  },
 ]
 
 keybinds(commands, undefined, { inputs: [keys()] })
@@ -44,7 +45,8 @@ document.querySelector('keybinds-command-palette').commands = commands
 - **Schema-driven** — define bindings as data, separate triggers from handlers
 - **Context-aware** — commands activate based on application state
 - **User-rebindable** — `BindingsStore` persists overrides to localStorage, or to any storage you give it
-- **Discoverable** — built-in `<keybinds-command-palette>`, `<keybinds-cheatsheet>`, `<keybinds-basic-context-menu>`/`<keybinds-context-menu>`, and `<keybinds-settings>` components
+- **Discoverable** — built-in `<keybinds-command-palette>`, `<keybinds-cheatsheet>`,
+  `<keybinds-basic-context-menu>`/`<keybinds-context-menu>`, and `<keybinds-settings>` components
 - **Framework-agnostic** — pure JS core, works anywhere
 
 ## Docs

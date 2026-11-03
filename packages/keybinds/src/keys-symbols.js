@@ -7,8 +7,17 @@
 
 // Punctuation keys, and the name of the physical key that types each on a US layout (event.code)
 export const PUNCTUATION_CODES = /** @type {Record<string, string>} */ ({
-  '[': 'bracketleft', ']': 'bracketright', '\\': 'backslash', ';': 'semicolon', "'": 'quote',
-  ',': 'comma', '.': 'period', '/': 'slash', '`': 'backquote', '-': 'minus', '=': 'equal'
+  '[': 'bracketleft',
+  ']': 'bracketright',
+  '\\': 'backslash',
+  ';': 'semicolon',
+  "'": 'quote',
+  ',': 'comma',
+  '.': 'period',
+  '/': 'slash',
+  '`': 'backquote',
+  '-': 'minus',
+  '=': 'equal',
 })
 
 /**

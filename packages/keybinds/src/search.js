@@ -20,7 +20,7 @@ function dedupeCommands(commands) {
   /** @type {Map<string, Command>} */
   const seen = new Map()
   for (const cmd of commands) {
-    seen.set(cmd.id, cmd)  // last one wins
+    seen.set(cmd.id, cmd) // last one wins
   }
   return Array.from(seen.values())
 }
@@ -45,10 +45,11 @@ export function matchCommands(commands, query, context, matcher) {
 
     // A description or category is found by the words as typed: letters scattered through a
     // sentence match almost anything.
-    const match = matcher(query, cmd.label)
-      ?? matcher(query, cmd.id)
-      ?? (cmd.description ? simpleMatcher(query, cmd.description) : null)
-      ?? (cmd.category ? simpleMatcher(query, cmd.category) : null)
+    const match =
+      matcher(query, cmd.label) ??
+      matcher(query, cmd.id) ??
+      (cmd.description ? simpleMatcher(query, cmd.description) : null) ??
+      (cmd.category ? simpleMatcher(query, cmd.category) : null)
 
     if (!match) continue
 
@@ -109,11 +110,9 @@ export function searchCommands(commands, query, context = {}, options = {}) {
 export function defaultScorer(history) {
   return (command, context) => {
     // Specificity
-    let score = command.when
-      ? (command.when(/** @type {Record<string, unknown>} */ (context)) ? 2 : 0)
-      : 1
+    let score = command.when ? (command.when(/** @type {Record<string, unknown>} */ (context)) ? 2 : 0) : 1
 
-    if (score === 0) return 0  // when present but false — exclude
+    if (score === 0) return 0 // when present but false — exclude
 
     // Frecency
     if (history && history.length > 0) {
@@ -150,12 +149,17 @@ export function groupByCategory(commands, context = {}, fields = ['keys', 'mouse
 
   for (const cmd of dedupeCommands(commands)) {
     if (cmd.hidden) continue
-    if (!fields.some((f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[f])?.length)) continue
+    if (
+      !fields.some(
+        (f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[f])?.length,
+      )
+    )
+      continue
     const cat = cmd.category || 'Other'
     if (!groups[cat]) groups[cat] = []
     groups[cat].push({
       ...cmd,
-      active: isActive(cmd, context)
+      active: isActive(cmd, context),
     })
   }
 

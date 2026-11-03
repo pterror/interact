@@ -10,12 +10,45 @@ import { NO_MODS, anyOverlayOpen } from './core.js'
 
 // The browser's "standard" gamepad layout, by button index. Face buttons are named by position
 // (an Xbox pad's A is "a", a PlayStation pad's cross is too)
-export const GAMEPAD_BUTTONS = ['a', 'b', 'x', 'y', 'lb', 'rb', 'lt', 'rt', 'back', 'start', 'ls', 'rs', 'up', 'down', 'left', 'right', 'home']
+export const GAMEPAD_BUTTONS = [
+  'a',
+  'b',
+  'x',
+  'y',
+  'lb',
+  'rb',
+  'lt',
+  'rt',
+  'back',
+  'start',
+  'ls',
+  'rs',
+  'up',
+  'down',
+  'left',
+  'right',
+  'home',
+]
 /** @type {Record<string, string>} */
 export const GAMEPAD_ALIASES = {
-  south: 'a', east: 'b', west: 'x', north: 'y', l1: 'lb', r1: 'rb', l2: 'lt', r2: 'rt',
-  select: 'back', view: 'back', menu: 'start', l3: 'ls', r3: 'rs', guide: 'home',
-  dpadup: 'up', dpaddown: 'down', dpadleft: 'left', dpadright: 'right',
+  south: 'a',
+  east: 'b',
+  west: 'x',
+  north: 'y',
+  l1: 'lb',
+  r1: 'rb',
+  l2: 'lt',
+  r2: 'rt',
+  select: 'back',
+  view: 'back',
+  menu: 'start',
+  l3: 'ls',
+  r3: 'rs',
+  guide: 'home',
+  dpadup: 'up',
+  dpaddown: 'down',
+  dpadleft: 'left',
+  dpadright: 'right',
 }
 export const hasPads = () => typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function'
 
@@ -64,13 +97,20 @@ export function gamepad() {
       function onButton(pad, button, down) {
         const id = `${pad}:${button}`
         const name = GAMEPAD_BUTTONS[button]
-        const event = new CustomEvent(down ? 'gamepadbuttondown' : 'gamepadbuttonup', { cancelable: true, detail: { gamepad: pad, button: name } })
+        const event = new CustomEvent(down ? 'gamepadbuttondown' : 'gamepadbuttonup', {
+          cancelable: true,
+          detail: { gamepad: pad, button: name },
+        })
         if (!down) {
           d.up(id, event, { blocked: anyOverlayOpen() })
           return
         }
         // Gamepad buttons have no modifiers, so a binding's lookup is its loose lookup too
-        d.down(id, event, { mods: NO_MODS, lookups: (suffix) => [[`${name}${suffix}`], [`${name}${suffix}`]], blocked: anyOverlayOpen() })
+        d.down(id, event, {
+          mods: NO_MODS,
+          lookups: (suffix) => [[`${name}${suffix}`], [`${name}${suffix}`]],
+          blocked: anyOverlayOpen(),
+        })
       }
 
       function poll() {
@@ -93,7 +133,9 @@ export function gamepad() {
         for (const [index, buttons] of padButtons) {
           if (seen.has(index)) continue
           padButtons.delete(index)
-          buttons.forEach((down, i) => { if (down) onButton(index, i, false) })
+          buttons.forEach((down, i) => {
+            if (down) onButton(index, i, false)
+          })
         }
         if (seen.size > 0) pollFrame = requestAnimationFrame(poll)
       }

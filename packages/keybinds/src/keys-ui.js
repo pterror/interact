@@ -3,8 +3,8 @@
  */
 
 import { RELEASE_SUFFIX, eventModParts, formatModPart, formatWithRelease } from './core.js'
-import { keys, NAMED_KEY, isLetterOrDigit } from './keys.js'
 import { PUNCTUATION_CODES, isSymbolKey } from './keys-symbols.js'
+import { keys, NAMED_KEY, isLetterOrDigit } from './keys.js'
 
 /** @typedef {import('./core.js').InputUI} InputUI */
 /** @typedef {import('./keys.js').KeySyntax} KeySyntax */
@@ -13,7 +13,7 @@ import { PUNCTUATION_CODES, isSymbolKey } from './keys-symbols.js'
 const CODE_GLYPHS = /** @type {Record<string, string>} */ ({
   ...Object.fromEntries(Object.entries(PUNCTUATION_CODES).map(([ch, code]) => [code, ch])),
   ...Object.fromEntries(Array.from({ length: 10 }, (_, d) => [`digit${d}`, String(d)])),
-  plus: '+'
+  plus: '+',
 })
 
 /**
@@ -76,13 +76,15 @@ export function eventToBindingString(event, syntax = []) {
   let name = key === ' ' ? 'space' : key
   const code = event.code.toLowerCase()
   // A letter key typing something no binding names (Option+A types "å" on a Mac) is the key itself
-  if (/^key[a-z]$/.test(code) && !ASCII_LETTER_OR_DIGIT.test(name) && !NAMED_KEY.test(name) && !isSymbolKey(name)) name = code.slice(3)
+  if (/^key[a-z]$/.test(code) && !ASCII_LETTER_OR_DIGIT.test(name) && !NAMED_KEY.test(name) && !isSymbolKey(name))
+    name = code.slice(3)
 
   if (isSymbolKey(name)) {
     const symbols = syntax.some((s) => s.name === 'symbols')
     const aliases = syntax.some((s) => s.name === 'aliases')
     // A symbol is recorded as the character typed ("?"), which already says Shift was needed
-    if (symbols && (name !== '+' || aliases)) return [...eventModParts(event, false), name === '+' ? 'plus' : name].join('+') + suffix
+    if (symbols && (name !== '+' || aliases))
+      return [...eventModParts(event, false), name === '+' ? 'plus' : name].join('+') + suffix
     // Otherwise as the physical key that typed it (a letter key, on some layouts)
     if (/^key[a-z]$/.test(code)) name = code.slice(3)
     else if (NAMED_KEY.test(code)) name = code
@@ -107,13 +109,15 @@ export function keysUI(...syntax) {
       /** @param {() => void} onChange */
       watch: (onChange) => {
         const stops = watched.map((s) => /** @type {NonNullable<KeySyntax['watch']>} */ (s.watch)(onChange))
-        return () => { for (const stop of stops) stop() }
+        return () => {
+          for (const stop of stops) stop()
+        }
       },
     }),
     label: 'Key',
     format: (binding) => formatKeyParts(binding, syntax),
     release: () => true,
-    prompt: (release) => release ? 'Press and release a key...' : 'Press a key...',
+    prompt: (release) => (release ? 'Press and release a key...' : 'Press a key...'),
 
     record({ release, ignore }, done) {
       /** @type {{ id: string, binding: string } | null} */

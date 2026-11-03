@@ -1,8 +1,9 @@
 import { describe, test, expect, mock } from 'bun:test'
+
 import { validateCommands, findConflict } from './core.js'
-import { formatKeyParts, eventToBindingString } from './keys-ui.js'
-import { symbols } from './keys-symbols.js'
 import { aliases } from './keys-aliases.js'
+import { symbols } from './keys-symbols.js'
+import { formatKeyParts, eventToBindingString } from './keys-ui.js'
 import { INPUT, ALL, keybinds, keysInput } from './test-helpers.js'
 
 describe('formatKeyParts', () => {
@@ -114,21 +115,27 @@ describe('key aliases', () => {
   })
 
   test('error for an unknown key names what was typed', () => {
-    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['nope'], execute: () => {} }], ALL)).toThrow('Unknown key "nope"')
+    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['nope'], execute: () => {} }], ALL)).toThrow(
+      'Unknown key "nope"',
+    )
   })
 
   test('modifier and mouse aliases fire', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'a', label: 'A', keys: ['control+a'], execute: fn },
-      { id: 'b', label: 'B', keys: ['option+b'], execute: fn },
-      { id: 'c', label: 'C', keys: ['cmd+c'], execute: fn },
-      { id: 'd', label: 'D', keys: ['command+d'], execute: fn },
-      { id: 'l', label: 'L', mouse: ['left'], execute: fn },
-      { id: 'r', label: 'R', mouse: ['rightclick'], execute: fn },
-      { id: 'm', label: 'M', mouse: ['middleclick'], execute: fn },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'a', label: 'A', keys: ['control+a'], execute: fn },
+        { id: 'b', label: 'B', keys: ['option+b'], execute: fn },
+        { id: 'c', label: 'C', keys: ['cmd+c'], execute: fn },
+        { id: 'd', label: 'D', keys: ['command+d'], execute: fn },
+        { id: 'l', label: 'L', mouse: ['left'], execute: fn },
+        { id: 'r', label: 'R', mouse: ['rightclick'], execute: fn },
+        { id: 'm', label: 'M', mouse: ['middleclick'], execute: fn },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', code: 'KeyA', ctrlKey: true }))
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', altKey: true }))
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', code: 'KeyC', metaKey: true }))
@@ -177,25 +184,52 @@ describe('characters and shifted keys', () => {
 
   test('recording a shifted symbol keeps the character, not Shift, with symbols()', () => {
     const syntax = [symbols(), aliases()]
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }), syntax)).toBe('?')
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true, ctrlKey: true }), syntax)).toBe('$mod+plus')
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '1', code: 'Digit1', shiftKey: false }), syntax)).toBe('1')
+    expect(
+      eventToBindingString(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }), syntax),
+    ).toBe('?')
+    expect(
+      eventToBindingString(
+        new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true, ctrlKey: true }),
+        syntax,
+      ),
+    ).toBe('$mod+plus')
+    expect(
+      eventToBindingString(new KeyboardEvent('keydown', { key: '1', code: 'Digit1', shiftKey: false }), syntax),
+    ).toBe('1')
   })
 
   test('without symbols(), a typed character is recorded as the physical key', () => {
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }))).toBe('shift+slash')
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true, ctrlKey: true }))).toBe('$mod+shift+equal')
+    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '?', code: 'Slash', shiftKey: true }))).toBe(
+      'shift+slash',
+    )
+    expect(
+      eventToBindingString(new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true, ctrlKey: true })),
+    ).toBe('$mod+shift+equal')
     // "+" can't be written as itself, so without aliases() it's the physical key even with symbols()
-    expect(eventToBindingString(new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true }), [symbols()])).toBe('shift+equal')
+    expect(
+      eventToBindingString(new KeyboardEvent('keydown', { key: '+', code: 'Equal', shiftKey: true }), [symbols()]),
+    ).toBe('shift+equal')
   })
 
   test('syntax nobody added is an error, naming what to add', () => {
     const keysOnly = { inputs: [keysInput()] }
-    expect(() => validateCommands([{ id: 'q', label: 'Q', keys: ['?'], execute: () => {} }], keysOnly)).toThrow('Unknown key "?"')
-    expect(() => validateCommands([{ id: 'u', label: 'U', keys: ['up'], execute: () => {} }], keysOnly)).toThrow('Unknown key "up"')
-    expect(() => validateCommands([{ id: 'k', label: 'K', keys: ['k:up'], execute: () => {} }], keysOnly)).toThrow('needs releases()')
-    expect(() => validateCommands([{ id: 'w', label: 'W', keys: ['w'], anyModifiers: true, execute: () => {} }], keysOnly)).toThrow('needs anyModifiers()')
-    expect(validateCommands([{ id: 'q', label: 'Q', keys: ['?', 'up', 'shift+slash'], execute: () => {} }], { inputs: [keysInput(symbols(), aliases())] })).toBe(true)
+    expect(() => validateCommands([{ id: 'q', label: 'Q', keys: ['?'], execute: () => {} }], keysOnly)).toThrow(
+      'Unknown key "?"',
+    )
+    expect(() => validateCommands([{ id: 'u', label: 'U', keys: ['up'], execute: () => {} }], keysOnly)).toThrow(
+      'Unknown key "up"',
+    )
+    expect(() => validateCommands([{ id: 'k', label: 'K', keys: ['k:up'], execute: () => {} }], keysOnly)).toThrow(
+      'needs releases()',
+    )
+    expect(() =>
+      validateCommands([{ id: 'w', label: 'W', keys: ['w'], anyModifiers: true, execute: () => {} }], keysOnly),
+    ).toThrow('needs anyModifiers()')
+    expect(
+      validateCommands([{ id: 'q', label: 'Q', keys: ['?', 'up', 'shift+slash'], execute: () => {} }], {
+        inputs: [keysInput(symbols(), aliases())],
+      }),
+    ).toBe(true)
   })
 
   test('physical key names show as the character they type', () => {

@@ -1,10 +1,16 @@
 import { describe, test, expect } from 'bun:test'
+
 import { formatBinding } from './core.js'
-import { keysUI, formatKeyParts } from './keys-ui.js'
 import { layout, loadLayout } from './keys-layout.js'
+import { keysUI, formatKeyParts } from './keys-ui.js'
 
 // A German layout: the key a US layout calls "/" types "-", and the 1 key's Shift is "!"
-const german = new Map([['Slash', '-'], ['Digit1', '1'], ['BracketLeft', 'ü'], ['KeyZ', 'y']])
+const german = new Map([
+  ['Slash', '-'],
+  ['Digit1', '1'],
+  ['BracketLeft', 'ü'],
+  ['KeyZ', 'y'],
+])
 
 describe('keyboard layouts', () => {
   test('physical keys show as the layout types them', () => {
@@ -34,18 +40,27 @@ describe('following the layout', () => {
     Object.defineProperty(navigator, 'keyboard', { value: { getLayoutMap: async () => map }, configurable: true })
     return {
       /** @param {Map<string, string>} next */
-      set: (next) => { map = next },
-      restore: () => { Object.defineProperty(navigator, 'keyboard', { value: undefined, configurable: true }) },
+      set: (next) => {
+        map = next
+      },
+      restore: () => {
+        Object.defineProperty(navigator, 'keyboard', { value: undefined, configurable: true })
+      },
     }
   }
   const settle = () => new Promise((r) => setTimeout(r, 0))
-  const us = new Map([['Slash', '/'], ['KeyZ', 'z']])
+  const us = new Map([
+    ['Slash', '/'],
+    ['KeyZ', 'z'],
+  ])
 
   test('loads the layout, and looks again when the window gets focus back', async () => {
     const keyboard = fakeKeyboard(us)
     const piece = layout()
     let changes = 0
-    piece.watch?.(() => { changes++ })
+    piece.watch?.(() => {
+      changes++
+    })
     await settle()
     expect(piece.glyph?.('slash')).toBe('/')
     keyboard.set(german)
@@ -71,7 +86,9 @@ describe('following the layout', () => {
     const keyboard = fakeKeyboard(us)
     const input = keysUI(layout())
     let changes = 0
-    input.watch?.(() => { changes++ })
+    input.watch?.(() => {
+      changes++
+    })
     await settle()
     expect(changes).toBe(1)
     keyboard.restore()

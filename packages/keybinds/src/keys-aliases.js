@@ -10,7 +10,7 @@ export const KEY_ALIASES = /** @type {Record<string, string>} */ ({
   down: 'arrowdown',
   left: 'arrowleft',
   right: 'arrowright',
-  plus: '+'
+  plus: '+',
 })
 
 /**

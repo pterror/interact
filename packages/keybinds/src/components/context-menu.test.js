@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
-import { ContextMenu } from '../components/context-menu.js'
+
 import { BasicContextMenu } from '../components/basic-context-menu.js'
+import { ContextMenu } from '../components/context-menu.js'
 
 // --- ContextMenu (new scored/searchable component) tests ---
 
@@ -29,7 +30,9 @@ describe('ContextMenu (scored, searchable)', () => {
   }
 
   /** @param {HTMLElement} el */
-  function cleanup(el) { el.remove() }
+  function cleanup(el) {
+    el.remove()
+  }
 
   test('renders top 7 items by default when open', () => {
     const el = createMenu(makeCommands(15))
@@ -102,9 +105,9 @@ describe('ContextMenu (scored, searchable)', () => {
     searchInput.dispatchEvent(new Event('input'))
 
     const items = shadow.querySelectorAll('.context-menu__item')
-    const labels = Array.from(items).map(li => li.querySelector('.context-menu__item-label')?.textContent)
+    const labels = Array.from(items).map((li) => li.querySelector('.context-menu__item-label')?.textContent)
     // Both "Save document" and "Find in document" match "doc" — "redo" etc do not
-    expect(labels.some(l => l?.toLowerCase().includes('doc'))).toBe(true)
+    expect(labels.some((l) => l?.toLowerCase().includes('doc'))).toBe(true)
     cleanup(el)
   })
 
@@ -125,7 +128,7 @@ describe('ContextMenu (scored, searchable)', () => {
     ]
     const el = createMenu(cmds)
     // Scorer that always prioritizes 'b'
-    el.scorer = (cmd) => cmd.id === 'b' ? 10 : 1
+    el.scorer = (cmd) => (cmd.id === 'b' ? 10 : 1)
     el.open = true
     const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
     const items = shadow.querySelectorAll('.context-menu__item')
@@ -151,16 +154,23 @@ describe('BasicContextMenu', () => {
     return el
   }
   /** @param {BasicContextMenu} el */
-  const items = (el) => /** @type {HTMLElement[]} */ (Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.context-menu__item')))
+  const items = (el) =>
+    /** @type {HTMLElement[]} */ (
+      Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.context-menu__item'))
+    )
   /** @param {BasicContextMenu} el @param {string} key */
-  const press = (el, key) => /** @type {ShadowRoot} */ (el.shadowRoot).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  const press = (el, key) =>
+    /** @type {ShadowRoot} */ (el.shadowRoot).dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
 
   test('shows only the commands tagged with its menu, unavailable ones disabled', () => {
-    const el = createMenu([
-      { id: 'cut', label: 'Cut', menu: 'edit', execute: () => {} },
-      { id: 'paste', label: 'Paste', menu: ['edit', 'other'], when: () => false, execute: () => {} },
-      { id: 'zoom', label: 'Zoom', menu: 'view', execute: () => {} },
-    ], 'edit')
+    const el = createMenu(
+      [
+        { id: 'cut', label: 'Cut', menu: 'edit', execute: () => {} },
+        { id: 'paste', label: 'Paste', menu: ['edit', 'other'], when: () => false, execute: () => {} },
+        { id: 'zoom', label: 'Zoom', menu: 'view', execute: () => {} },
+      ],
+      'edit',
+    )
     el.open = true
     const shown = items(el)
     expect(shown.map((li) => li.textContent)).toEqual(['Cut', 'Paste'])
@@ -225,12 +235,18 @@ describe('BasicContextMenu', () => {
 describe('pointing at an item', () => {
   // Building the items again would replace the one under the pointer, and a press that began on it
   // would never become a click.
-  for (const [tag, Menu] of /** @type {const} */ ([['keybinds-context-menu', ContextMenu], ['keybinds-basic-context-menu', BasicContextMenu]])) {
+  for (const [tag, Menu] of /** @type {const} */ ([
+    ['keybinds-context-menu', ContextMenu],
+    ['keybinds-basic-context-menu', BasicContextMenu],
+  ])) {
     test(`${tag} marks it active on the item that's there, which a click then runs`, () => {
       if (!customElements.get(tag)) customElements.define(tag, Menu)
       const run = mock(() => {})
       const el = /** @type {ContextMenu | BasicContextMenu} */ (document.createElement(tag))
-      el.commands = [{ id: 'one', label: 'One', execute: () => {} }, { id: 'two', label: 'Two', execute: run }]
+      el.commands = [
+        { id: 'one', label: 'One', execute: () => {} },
+        { id: 'two', label: 'Two', execute: run },
+      ]
       document.body.appendChild(el)
       el.open = true
       const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)

@@ -21,18 +21,31 @@ export function onModifierHold(modifiers, callback, options = {}) {
   let timer = null
   let isHeld = false
   const stop = () => {
-    if (timer !== null) { clearTimeout(timer); timer = null }
-    if (isHeld) { isHeld = false; callback(false) }
+    if (timer !== null) {
+      clearTimeout(timer)
+      timer = null
+    }
+    if (isHeld) {
+      isHeld = false
+      callback(false)
+    }
   }
   const unwatch = watchModifier(modifiers, target, {
     down: () => {
       stop()
-      timer = setTimeout(() => { timer = null; isHeld = true; callback(true) }, delay)
+      timer = setTimeout(() => {
+        timer = null
+        isHeld = true
+        callback(true)
+      }, delay)
     },
     spoiled: stop,
     up: stop,
   })
-  return () => { unwatch(); if (timer !== null) clearTimeout(timer) }
+  return () => {
+    unwatch()
+    if (timer !== null) clearTimeout(timer)
+  }
 }
 
 /**
@@ -55,8 +68,12 @@ export function onModifierTaps(modifiers, count, callback, options = {}) {
   let taps = []
   let pressed = 0
   return watchModifier(modifiers, target, {
-    down: () => { pressed = performance.now() },
-    spoiled: () => { taps = [] },
+    down: () => {
+      pressed = performance.now()
+    },
+    spoiled: () => {
+      taps = []
+    },
     up: (clean) => {
       const now = performance.now()
       if (!clean || now - pressed > within) return void (taps = [])
@@ -98,7 +115,9 @@ function watchModifier(modifiers, target, on) {
     if (event.repeat || held) return
     held = true
     // Other modifiers already down (Shift then Control) make it a chord, not a bare press
-    clean = !['Control', 'Alt', 'Shift', 'Meta'].some((m) => !modSet.has(m.toLowerCase()) && event.getModifierState?.(m))
+    clean = !['Control', 'Alt', 'Shift', 'Meta'].some(
+      (m) => !modSet.has(m.toLowerCase()) && event.getModifierState?.(m),
+    )
     if (clean) on.down()
   }
   /** @param {Event} e */

@@ -1,6 +1,15 @@
 import { describe, test, expect } from 'bun:test'
-import { fuzzyMatcher, simpleMatcher, matchCommands, searchCommands, groupByCategory, filterByMenu, defaultScorer } from './search.js'
+
 import { CommandPalette } from './components/palette.js'
+import {
+  fuzzyMatcher,
+  simpleMatcher,
+  matchCommands,
+  searchCommands,
+  groupByCategory,
+  filterByMenu,
+  defaultScorer,
+} from './search.js'
 
 describe('fuzzyMatcher', () => {
   test('returns null on no match', () => {
@@ -72,7 +81,7 @@ describe('searchCommands', () => {
 
   test('matches by id', () => {
     const results = searchCommands(commands, 'open')
-    expect(results.some(r => r.id === 'open')).toBe(true)
+    expect(results.some((r) => r.id === 'open')).toBe(true)
   })
 
   test('matches by category', () => {
@@ -81,18 +90,12 @@ describe('searchCommands', () => {
   })
 
   test('excludes hidden commands', () => {
-    const cmds = [
-      ...commands,
-      { id: 'hidden', label: 'Hidden cmd', keys: ['h'], hidden: true, execute: () => {} },
-    ]
+    const cmds = [...commands, { id: 'hidden', label: 'Hidden cmd', keys: ['h'], hidden: true, execute: () => {} }]
     expect(searchCommands(cmds, 'Hidden')).toHaveLength(0)
   })
 
   test('includes unbound commands', () => {
-    const cmds = [
-      ...commands,
-      { id: 'unbound', label: 'Unbound cmd', execute: () => {} },
-    ]
+    const cmds = [...commands, { id: 'unbound', label: 'Unbound cmd', execute: () => {} }]
     expect(searchCommands(cmds, 'Unbound')).toHaveLength(1)
     expect(searchCommands(cmds, 'Unbound')[0]?.id).toBe('unbound')
   })
@@ -109,8 +112,8 @@ describe('searchCommands', () => {
 
   test('sorts active before inactive, then by score', () => {
     const results = searchCommands(commands, 'e')
-    const deleteIdx = results.findIndex(r => r.id === 'delete')
-    const activeResults = results.filter(r => r.active)
+    const deleteIdx = results.findIndex((r) => r.id === 'delete')
+    const activeResults = results.filter((r) => r.active)
     if (deleteIdx >= 0 && activeResults.length > 0) {
       expect(deleteIdx).toBeGreaterThanOrEqual(activeResults.length)
     }
@@ -118,7 +121,7 @@ describe('searchCommands', () => {
 
   test('uses custom matcher', () => {
     /** @type {import('./index.js').Matcher} */
-    const matcher = (_q, t) => t.includes('Save') ? { score: 10, positions: [0] } : null
+    const matcher = (_q, t) => (t.includes('Save') ? { score: 10, positions: [0] } : null)
     const results = searchCommands(commands, 'anything', {}, { matcher })
     expect(results).toHaveLength(1)
     expect(results[0]?.id).toBe('save')
@@ -126,7 +129,7 @@ describe('searchCommands', () => {
 
   test('defaults to fuzzy matching', () => {
     const results = searchCommands(commands, 'svd')
-    expect(results.some(r => r.id === 'save')).toBe(true)
+    expect(results.some((r) => r.id === 'save')).toBe(true)
     expect(results[0]?.positions).toBeDefined()
   })
 })
@@ -171,19 +174,29 @@ describe('groupByCategory', () => {
 
   test('excludes hidden commands', () => {
     const cmds = [...commands, { id: 'h', label: 'H', keys: ['h'], hidden: true, execute: () => {} }]
-    const allIds = Object.values(groupByCategory(cmds)).flat().map(c => c.id)
+    const allIds = Object.values(groupByCategory(cmds))
+      .flat()
+      .map((c) => c.id)
     expect(allIds).not.toContain('h')
   })
 
   test('excludes unbound commands', () => {
     const cmds = [...commands, { id: 'u', label: 'U', execute: () => {} }]
-    const allIds = Object.values(groupByCategory(cmds)).flat().map(c => c.id)
+    const allIds = Object.values(groupByCategory(cmds))
+      .flat()
+      .map((c) => c.id)
     expect(allIds).not.toContain('u')
   })
 
   test('reflects active state from context', () => {
     const cmds = [
-      { id: 'a', label: 'A', keys: ['a'], when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']), execute: () => {} },
+      {
+        id: 'a',
+        label: 'A',
+        keys: ['a'],
+        when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']),
+        execute: () => {},
+      },
     ]
     const groups = groupByCategory(cmds, { ready: false })
     expect(groups['Other']?.[0]?.active).toBe(false)
@@ -222,9 +235,7 @@ describe('filterByMenu', () => {
   })
 
   test('excludes hidden commands', () => {
-    const cmds = [
-      { id: 'a', label: 'A', menu: 'node', hidden: true, execute: () => {} },
-    ]
+    const cmds = [{ id: 'a', label: 'A', menu: 'node', hidden: true, execute: () => {} }]
     expect(filterByMenu(cmds, 'node')).toHaveLength(0)
   })
 
@@ -240,7 +251,13 @@ describe('filterByMenu', () => {
 
   test('returns active state from context', () => {
     const cmds = [
-      { id: 'a', label: 'A', menu: 'node', when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']), execute: () => {} },
+      {
+        id: 'a',
+        label: 'A',
+        menu: 'node',
+        when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']),
+        execute: () => {},
+      },
     ]
     const active = filterByMenu(cmds, 'node', { ready: true })
     expect(active[0]?.active).toBe(true)
@@ -249,9 +266,7 @@ describe('filterByMenu', () => {
   })
 
   test('returns empty when no match', () => {
-    const cmds = [
-      { id: 'a', label: 'A', menu: 'node', execute: () => {} },
-    ]
+    const cmds = [{ id: 'a', label: 'A', menu: 'node', execute: () => {} }]
     expect(filterByMenu(cmds, 'nonexistent')).toHaveLength(0)
   })
 })
@@ -314,8 +329,8 @@ describe('defaultScorer', () => {
   test('frecency: uses best matching history entry', () => {
     const now = Date.now()
     const history = [
-      { id: 'c', timestamp: now - 600_000 },  // 10min → +1
-      { id: 'c', timestamp: now - 30_000 },   // 30s → +3
+      { id: 'c', timestamp: now - 600_000 }, // 10min → +1
+      { id: 'c', timestamp: now - 30_000 }, // 30s → +3
     ]
     const scorer = defaultScorer(history)
     expect(scorer(cmdNoWhen, {})).toBe(1 + 3)
@@ -331,24 +346,31 @@ describe('defaultScorer', () => {
 
 describe('ranking matches', () => {
   test('the query typed whole counts for more than its letters scattered', () => {
-    const found = searchCommands([
-      { id: 'dl', label: 'Download this story', execute: () => {} },
-      { id: 'door', label: 'The red door', execute: () => {} },
-    ], 'door')
-    expect(found.map(c => c.id)).toEqual(['door', 'dl'])
+    const found = searchCommands(
+      [
+        { id: 'dl', label: 'Download this story', execute: () => {} },
+        { id: 'door', label: 'The red door', execute: () => {} },
+      ],
+      'door',
+    )
+    expect(found.map((c) => c.id)).toEqual(['door', 'dl'])
   })
 
   test('rank comes before relevance, and after whether it applies', () => {
-    const found = searchCommands([
-      { id: 'new', label: 'New page “cave”', rank: -1, execute: () => {} },
-      { id: 'off', label: 'Cave', when: () => false, execute: () => {} },
-      { id: 'page', label: 'The caves below', execute: () => {} },
-    ], 'cave')
-    expect(found.map(c => c.id)).toEqual(['page', 'new', 'off'])
+    const found = searchCommands(
+      [
+        { id: 'new', label: 'New page “cave”', rank: -1, execute: () => {} },
+        { id: 'off', label: 'Cave', when: () => false, execute: () => {} },
+        { id: 'page', label: 'The caves below', execute: () => {} },
+      ],
+      'cave',
+    )
+    expect(found.map((c) => c.id)).toEqual(['page', 'new', 'off'])
   })
 
   test('a palette told to hide inactive commands lists only those that apply', () => {
-    if (!customElements.get('keybinds-command-palette')) customElements.define('keybinds-command-palette', CommandPalette)
+    if (!customElements.get('keybinds-command-palette'))
+      customElements.define('keybinds-command-palette', CommandPalette)
     const el = /** @type {CommandPalette} */ (document.createElement('keybinds-command-palette'))
     el.setAttribute('hide-inactive', '')
     document.body.appendChild(el)
@@ -359,15 +381,24 @@ describe('ranking matches', () => {
     el.open = true
     const input = /** @type {HTMLInputElement} */ (/** @type {ShadowRoot} */ (el.shadowRoot).querySelector('input'))
     input.value = 'delete'
-    input.dispatchEvent(new (/** @type {any} */ (input.ownerDocument.defaultView).Event)('input'))
-    const labels = Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.palette__item-label')).map(l => l.textContent)
+    input.dispatchEvent(new /** @type {any} */ (input.ownerDocument.defaultView).Event('input'))
+    const labels = Array.from(/** @type {ShadowRoot} */ (el.shadowRoot).querySelectorAll('.palette__item-label')).map(
+      (l) => l.textContent,
+    )
     expect(labels).toEqual(['Delete this story'])
     el.remove()
   })
 })
 
 test('a description is found by the words as typed, not letters scattered through it', () => {
-  const cmds = [{ id: 'more', label: 'More…', description: 'What can be done with the link or words at the cursor', execute: () => {} }]
+  const cmds = [
+    {
+      id: 'more',
+      label: 'More…',
+      description: 'What can be done with the link or words at the cursor',
+      execute: () => {},
+    },
+  ]
   expect(searchCommands(cmds, 'door').length).toBe(0)
   expect(searchCommands(cmds, 'the cursor').length).toBe(1)
 })

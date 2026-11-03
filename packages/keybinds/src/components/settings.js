@@ -1,4 +1,12 @@
-import { RELEASE_SUFFIX, markKind, findConflict, flipRelease, splitRelease, bindingLookup, formatBinding } from '../core.js'
+import {
+  RELEASE_SUFFIX,
+  markKind,
+  findConflict,
+  flipRelease,
+  splitRelease,
+  bindingLookup,
+  formatBinding,
+} from '../core.js'
 import { keysUI } from '../keys-ui.js'
 
 /** @typedef {import('../core.js').InputUI} Input */
@@ -90,7 +98,9 @@ export class KeybindSettings extends HTMLElement {
     /** @type {((e: Event) => void) | null} */
     this._escapeHandler = null
     // An input that can't be recorded now (no pad connected) gets its add button when it can
-    this._availabilityChanged = () => { if (this.open) this._render() }
+    this._availabilityChanged = () => {
+      if (this.open) this._render()
+    }
 
     const shadow = this.attachShadow({ mode: 'open' })
     shadow.innerHTML = `
@@ -119,7 +129,9 @@ export class KeybindSettings extends HTMLElement {
     this._watchInputs()
   }
 
-  get store() { return this._store }
+  get store() {
+    return this._store
+  }
   set store(val) {
     // Remove old listener
     if (this._store && this._storeListener) {
@@ -134,14 +146,18 @@ export class KeybindSettings extends HTMLElement {
     if (this.open) this._render()
   }
 
-  get inputs() { return this._inputs }
+  get inputs() {
+    return this._inputs
+  }
   set inputs(val) {
     this._inputs = val || []
     if (this.isConnected) this._watchInputs()
     if (this.open) this._render()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
@@ -175,7 +191,7 @@ export class KeybindSettings extends HTMLElement {
 
   _watchInputs() {
     for (const stop of this._unwatch) stop()
-    this._unwatch = this._inputs.flatMap((i) => i.watch ? [i.watch(this._availabilityChanged)] : [])
+    this._unwatch = this._inputs.flatMap((i) => (i.watch ? [i.watch(this._availabilityChanged)] : []))
   }
 
   _close() {
@@ -255,7 +271,9 @@ export class KeybindSettings extends HTMLElement {
     if (!input?.record) return
     /** @param {Event} e */
     const ignore = (e) => this._toggles.some((t) => e.composedPath().includes(t))
-    this._stopRecorder = input.record({ release: this._recordSuffix === RELEASE_SUFFIX, ignore }, (b) => this._recorded(b))
+    this._stopRecorder = input.record({ release: this._recordSuffix === RELEASE_SUFFIX, ignore }, (b) =>
+      this._recorded(b),
+    )
   }
 
   _stopRecording() {
@@ -403,7 +421,9 @@ export class KeybindSettings extends HTMLElement {
     conflictBindings[input.field] = (conflictBindings[input.field] ?? []).filter((b) => {
       try {
         return bindingLookup(input, b) !== lookup
-      } catch { return true }
+      } catch {
+        return true
+      }
     })
     this._saveBindings(conflictCmdId, conflictBindings)
 
@@ -527,9 +547,7 @@ export class KeybindSettings extends HTMLElement {
         }
 
         // Check if recording for this command (add mode)
-        const isRecordingAdd = this._recording &&
-          this._recording.commandId === cmd.id &&
-          this._recording.index === null
+        const isRecordingAdd = this._recording && this._recording.commandId === cmd.id && this._recording.index === null
 
         if (isRecordingAdd) {
           bindingsEl.appendChild(this._renderRecording())
@@ -582,14 +600,19 @@ export class KeybindSettings extends HTMLElement {
     const overlay = document.createElement('span')
     overlay.className = 'settings__recording-overlay'
     overlay.setAttribute('part', 'recording-overlay')
-    overlay.textContent = this._steps.length > 0
-      ? `${formatBinding(input, this._steps.join(' ')).join(' ')} then...`
-      : input.prompt?.(this._recordSuffix === RELEASE_SUFFIX) ?? 'Waiting...'
+    overlay.textContent =
+      this._steps.length > 0
+        ? `${formatBinding(input, this._steps.join(' ')).join(' ')} then...`
+        : (input.prompt?.(this._recordSuffix === RELEASE_SUFFIX) ?? 'Waiting...')
     wrapper.appendChild(overlay)
     this._toggles = []
     const suffix = this._recordSuffix
     if (this.releases && input.release) {
-      wrapper.appendChild(this._renderToggle('release', 'Release', suffix === RELEASE_SUFFIX, () => this._setRecordSuffix(RELEASE_SUFFIX)))
+      wrapper.appendChild(
+        this._renderToggle('release', 'Release', suffix === RELEASE_SUFFIX, () =>
+          this._setRecordSuffix(RELEASE_SUFFIX),
+        ),
+      )
     }
     if (this.holds && input.release) {
       wrapper.appendChild(this._renderToggle('hold', 'Hold', suffix === ':hold', () => this._setRecordSuffix(':hold')))
@@ -612,7 +635,8 @@ export class KeybindSettings extends HTMLElement {
    * @returns {HTMLElement}
    */
   _renderBinding(commandId, input, index, bindingStr) {
-    const isRecording = this._recording &&
+    const isRecording =
+      this._recording &&
       this._recording.commandId === commandId &&
       this._recording.input === input &&
       this._recording.index === index

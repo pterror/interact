@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, mock } from 'bun:test'
-import { BindingsStore } from '../store.js'
+
 import { KeybindSettings } from '../components/settings.js'
+import { BindingsStore } from '../store.js'
 import { ALL, keybinds } from '../test-helpers.js'
 
 // --- KeybindSettings component tests ---
@@ -38,7 +39,7 @@ describe('KeybindSettings', () => {
     el.open = true
     const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
     const groups = shadow.querySelectorAll('.settings__group-title')
-    const titles = Array.from(groups).map(g => g.textContent)
+    const titles = Array.from(groups).map((g) => g.textContent)
     expect(titles).toContain('File')
     expect(titles).toContain('Edit')
     cleanup(el)
@@ -48,7 +49,7 @@ describe('KeybindSettings', () => {
     const { el } = createSettings()
     el.open = true
     const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
-    const labels = Array.from(shadow.querySelectorAll('.settings__item-label')).map(l => l.textContent)
+    const labels = Array.from(shadow.querySelectorAll('.settings__item-label')).map((l) => l.textContent)
     expect(labels).not.toContain('Hidden')
     cleanup(el)
   })
@@ -159,17 +160,15 @@ describe('KeybindSettings', () => {
     store.save({ save: { keys: ['ctrl+shift+s'] } })
 
     const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
-    const keys = Array.from(shadow.querySelectorAll('.settings__binding-key')).map(k => k.textContent)
-    expect(keys.some(k => k === 'S')).toBe(true)
+    const keys = Array.from(shadow.querySelectorAll('.settings__binding-key')).map((k) => k.textContent)
+    expect(keys.some((k) => k === 'S')).toBe(true)
     cleanup(el)
   })
 
   test('does not fire keybinds when settings is open', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn }]
     const kbCleanup = keybinds(commands, undefined, { target })
     document.body.appendChild(target)
 
@@ -178,7 +177,9 @@ describe('KeybindSettings', () => {
     target.appendChild(settings)
 
     const event = new KeyboardEvent('keydown', {
-      key: 's', code: 'KeyS', ctrlKey: true,
+      key: 's',
+      code: 'KeyS',
+      ctrlKey: true,
     })
     Object.defineProperty(event, 'target', { value: settings })
     target.dispatchEvent(event)
@@ -243,13 +244,20 @@ describe('KeybindSettings release recording', () => {
   }
 
   /** @param {ShadowRoot} shadow @param {string} part */
-  const byPart = (shadow, part) => /** @type {HTMLElement[]} */ (Array.from(shadow.querySelectorAll('[part]')).filter(e => (e.getAttribute('part') ?? '').split(' ').includes(part)))
+  const byPart = (shadow, part) =>
+    /** @type {HTMLElement[]} */ (
+      Array.from(shadow.querySelectorAll('[part]')).filter((e) =>
+        (e.getAttribute('part') ?? '').split(' ').includes(part),
+      )
+    )
   /** @param {ShadowRoot} shadow @param {string} part @param {number} [itemIndex] */
   const addButton = (shadow, part, itemIndex = 0) => /** @type {HTMLElement} */ (byPart(shadow, part)[itemIndex])
   /** @param {string} type @param {string} key @param {string} code @param {KeyboardEventInit} [init] */
-  const winKey = (type, key, code, init = {}) => window.dispatchEvent(new KeyboardEvent(type, { key, code, cancelable: true, ...init }))
+  const winKey = (type, key, code, init = {}) =>
+    window.dispatchEvent(new KeyboardEvent(type, { key, code, cancelable: true, ...init }))
   /** @param {string} type @param {number} button @param {MouseEventInit} [init] */
-  const winMouse = (type, button, init = {}) => window.dispatchEvent(new MouseEvent(type, { button, cancelable: true, ...init }))
+  const winMouse = (type, button, init = {}) =>
+    window.dispatchEvent(new MouseEvent(type, { button, cancelable: true, ...init }))
 
   test('overlay has a release toggle that is off by default', () => {
     const { el, shadow } = setup()
@@ -353,7 +361,7 @@ describe('KeybindSettings release recording', () => {
   test('scroll bindings have no chip switch', () => {
     const { el, shadow } = setup()
     const chips = Array.from(shadow.querySelectorAll('.settings__binding'))
-    const scrollChip = chips.find(c => c.textContent?.includes('Scroll'))
+    const scrollChip = chips.find((c) => c.textContent?.includes('Scroll'))
     expect(scrollChip).toBeDefined()
     expect(scrollChip && byPart(/** @type {any} */ (scrollChip), 'binding-release').length).toBe(0)
     el.remove()
@@ -396,14 +404,22 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     el.inputs = ALL.inputs
     el.holds = !!on.holds
     el.sequences = !!on.sequences
-    const store = new BindingsStore({ go: { label: 'Go', keys: ['space'], mouse: ['scrollup'] } }, 'test:steps-settings')
+    const store = new BindingsStore(
+      { go: { label: 'Go', keys: ['space'], mouse: ['scrollup'] } },
+      'test:steps-settings',
+    )
     el.store = store
     el.dispatchEvent = () => true
     document.body.appendChild(el)
     el.open = true
     const shadow = /** @type {ShadowRoot} */ (el.shadowRoot)
     /** @param {string} part */
-    const byPart = (part) => /** @type {HTMLElement[]} */ (Array.from(shadow.querySelectorAll('[part]')).filter(e => (e.getAttribute('part') ?? '').split(' ').includes(part)))
+    const byPart = (part) =>
+      /** @type {HTMLElement[]} */ (
+        Array.from(shadow.querySelectorAll('[part]')).filter((e) =>
+          (e.getAttribute('part') ?? '').split(' ').includes(part),
+        )
+      )
     return { el, store, byPart }
   }
   /** @param {string} key */

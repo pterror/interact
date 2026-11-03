@@ -1,4 +1,5 @@
 import { describe, test, expect, mock } from 'bun:test'
+
 import { validateCommands, findConflict } from './core.js'
 import { formatMouseParts, eventToMouseBindingString } from './mouse-ui.js'
 import { INPUT, ALL, keybinds, mouse } from './test-helpers.js'
@@ -56,12 +57,16 @@ describe('side buttons', () => {
     const up = mock(() => {})
     const down = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'b', label: 'B', mouse: ['Back'], execute: back },
-      { id: 'f', label: 'F', mouse: ['ForwardClick'], execute: fwd },
-      { id: 'u', label: 'U', mouse: ['scrollup'], execute: up },
-      { id: 'd', label: 'D', mouse: ['scrolldown'], execute: down },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'b', label: 'B', mouse: ['Back'], execute: back },
+        { id: 'f', label: 'F', mouse: ['ForwardClick'], execute: fwd },
+        { id: 'u', label: 'U', mouse: ['scrollup'], execute: up },
+        { id: 'd', label: 'D', mouse: ['scrolldown'], execute: down },
+      ],
+      undefined,
+      { target },
+    )
 
     target.dispatchEvent(mouse('mousedown', 3))
     expect(back).toHaveBeenCalledTimes(1)
@@ -76,10 +81,14 @@ describe('side buttons', () => {
     const up = mock(() => {})
     const down = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'u', label: 'U', mouse: ['scrollup'], execute: up },
-      { id: 'd', label: 'D', mouse: ['scrolldown'], execute: down },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'u', label: 'U', mouse: ['scrollup'], execute: up },
+        { id: 'd', label: 'D', mouse: ['scrolldown'], execute: down },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 3))
     target.dispatchEvent(mouse('mousedown', 4))
     expect(up).not.toHaveBeenCalled()
@@ -116,9 +125,11 @@ describe('side buttons', () => {
 
   test('side buttons are left alone when nothing fired', () => {
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'b', label: 'B', mouse: ['Back'], when: () => false, execute: () => {} },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [{ id: 'b', label: 'B', mouse: ['Back'], when: () => false, execute: () => {} }],
+      undefined,
+      { target },
+    )
     const down = mouse('mousedown', 3)
     const up = mouse('mouseup', 3)
     const aux = mouse('auxclick', 3)
@@ -147,7 +158,11 @@ describe('side buttons', () => {
   test('a stale auxclick block does not leak into the next press', () => {
     const target = document.createElement('div')
     let active = true
-    const cleanup = keybinds([{ id: 'b', label: 'B', mouse: ['Back'], when: () => active, execute: () => {} }], undefined, { target })
+    const cleanup = keybinds(
+      [{ id: 'b', label: 'B', mouse: ['Back'], when: () => active, execute: () => {} }],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 3))
     target.dispatchEvent(mouse('mouseup', 3))
     active = false
@@ -159,7 +174,9 @@ describe('side buttons', () => {
   })
 
   test('parse, format and conflict handle back/forward', () => {
-    expect(() => validateCommands([{ id: 'x', label: 'X', mouse: ['Back', 'forward', 'ctrl+BackClick'], execute: () => {} }], ALL)).not.toThrow()
+    expect(() =>
+      validateCommands([{ id: 'x', label: 'X', mouse: ['Back', 'forward', 'ctrl+BackClick'], execute: () => {} }], ALL),
+    ).not.toThrow()
     expect(formatMouseParts('Back')).toEqual(['Back'])
     expect(formatMouseParts('ctrl+ForwardClick')).toEqual(['Ctrl', 'Forward'])
     const schema = { s: { label: 'S', mouse: ['back'] } }
@@ -183,7 +200,9 @@ describe('scroll gestures', () => {
   test('a mouse-wheel notch is one step', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'z', label: 'Zoom out', mouse: ['scrolldown'], execute: fn }], undefined, { target })
+    const cleanup = keybinds([{ id: 'z', label: 'Zoom out', mouse: ['scrolldown'], execute: fn }], undefined, {
+      target,
+    })
     target.dispatchEvent(wheel(100))
     expect(fn).toHaveBeenCalledTimes(1)
     cleanup()
@@ -192,7 +211,9 @@ describe('scroll gestures', () => {
   test("a trackpad's small deltas add up to a step, and the page doesn't scroll in between", () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'z', label: 'Zoom out', mouse: ['scrolldown'], execute: fn }], undefined, { target })
+    const cleanup = keybinds([{ id: 'z', label: 'Zoom out', mouse: ['scrolldown'], execute: fn }], undefined, {
+      target,
+    })
     const events = Array.from({ length: 10 }, () => wheel(12))
     for (const e of events) target.dispatchEvent(e)
     // 120px in 12px events: steps at 48+ and 96+... one per 50px
@@ -215,7 +236,10 @@ describe('scroll gestures', () => {
   test('a pause starts a new gesture', async () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'z', label: 'Z', mouse: ['scrolldown'], execute: fn }], undefined, { target, wheel: { idle: 30 } })
+    const cleanup = keybinds([{ id: 'z', label: 'Z', mouse: ['scrolldown'], execute: fn }], undefined, {
+      target,
+      wheel: { idle: 30 },
+    })
     target.dispatchEvent(wheel(40))
     await Bun.sleep(60)
     target.dispatchEvent(wheel(40))

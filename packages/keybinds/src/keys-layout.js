@@ -11,9 +11,18 @@
 
 // Physical key names as bindings write them, and as KeyboardEvent.code names them
 const CODES = /** @type {Record<string, string>} */ ({
-  bracketleft: 'BracketLeft', bracketright: 'BracketRight', backslash: 'Backslash', semicolon: 'Semicolon',
-  quote: 'Quote', comma: 'Comma', period: 'Period', slash: 'Slash', backquote: 'Backquote', minus: 'Minus',
-  equal: 'Equal', ...Object.fromEntries(Array.from({ length: 10 }, (_, d) => [`digit${d}`, `Digit${d}`])),
+  bracketleft: 'BracketLeft',
+  bracketright: 'BracketRight',
+  backslash: 'Backslash',
+  semicolon: 'Semicolon',
+  quote: 'Quote',
+  comma: 'Comma',
+  period: 'Period',
+  slash: 'Slash',
+  backquote: 'Backquote',
+  minus: 'Minus',
+  equal: 'Equal',
+  ...Object.fromEntries(Array.from({ length: 10 }, (_, d) => [`digit${d}`, `Digit${d}`])),
 })
 
 /**
@@ -22,7 +31,8 @@ const CODES = /** @type {Record<string, string>} */ ({
  */
 export async function loadLayout() {
   const keyboard = /** @type {{ getLayoutMap?: () => Promise<Map<string, string>> } | undefined} */ (
-    typeof navigator !== 'undefined' ? /** @type {any} */ (navigator).keyboard : undefined)
+    typeof navigator !== 'undefined' ? /** @type {any} */ (navigator).keyboard : undefined
+  )
   if (!keyboard?.getLayoutMap) return null
   try {
     return await keyboard.getLayoutMap()
@@ -81,7 +91,9 @@ export function layout(map) {
     ...piece,
     watch(onChange) {
       listeners.add(onChange)
-      return () => { listeners.delete(onChange) }
+      return () => {
+        listeners.delete(onChange)
+      }
     },
   }
 }

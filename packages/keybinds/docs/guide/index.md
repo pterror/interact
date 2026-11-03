@@ -23,6 +23,7 @@ npm link keybinds
 
 <script type="module">
   import { keybinds, keys, registerComponents } from 'keybinds'
+
   import 'keybinds/styles/palette.css'
 
   const commands = [
@@ -32,15 +33,15 @@ npm link keybinds
       category: 'File',
       keys: ['$mod+s'],
       menu: 'editor',
-      execute: () => console.log('save')
+      execute: () => console.log('save'),
     },
     {
       id: 'open',
       label: 'Open file',
       category: 'File',
       keys: ['$mod+o'],
-      execute: () => console.log('open')
-    }
+      execute: () => console.log('open'),
+    },
   ]
 
   // Register keybinds
@@ -48,18 +49,22 @@ npm link keybinds
 
   // Register and connect UI components
   registerComponents()
-  const allComponents = document.querySelectorAll('keybinds-command-palette, keybinds-cheatsheet, keybinds-basic-context-menu')
-  allComponents.forEach(el => el.commands = commands)
+  const allComponents = document.querySelectorAll(
+    'keybinds-command-palette, keybinds-cheatsheet, keybinds-basic-context-menu',
+  )
+  allComponents.forEach((el) => (el.commands = commands))
 </script>
 ```
 
 That's it. You get:
+
 - `$mod+S` / `$mod+O` keybinds working
 - `$mod+K` opens command palette with search
 - Hold `Control` for a second shows cheatsheet
 - Right-click shows context menu (for commands with `menu` tag)
 
 Four web components are available via `registerComponents()`:
+
 - `<keybinds-command-palette>` — search-driven command execution
 - `<keybinds-cheatsheet>` — hold-to-show keybinding reference
 - `<keybinds-basic-context-menu>` — right-click menus driven by commands
@@ -70,9 +75,13 @@ Four web components are available via `registerComponents()`:
 Add context for conditional commands:
 
 ```js
-keybinds(commands, () => ({
-  hasSelection: selection.length > 0
-}), { inputs: [keys()] })
+keybinds(
+  commands,
+  () => ({
+    hasSelection: selection.length > 0,
+  }),
+  { inputs: [keys()] },
+)
 ```
 
 ```js

@@ -1,6 +1,6 @@
 import { markKind, isActive, bindingParts } from '../core.js'
-import { filterByMenu, searchCommands, defaultScorer } from '../search.js'
 import { keysUI } from '../keys-ui.js'
+import { filterByMenu, searchCommands, defaultScorer } from '../search.js'
 
 /** @typedef {import('../core.js').Command} Command */
 /** @typedef {import('../core.js').InputUI} Input */
@@ -144,59 +144,77 @@ export class ContextMenu extends HTMLElement {
       e.preventDefault()
       this._close()
     })
-    this._list.addEventListener('mousemove', () => { this._inputMode = 'pointer' })
+    this._list.addEventListener('mousemove', () => {
+      this._inputMode = 'pointer'
+    })
     this._searchInput.addEventListener('input', () => {
       this._expanded = false
       this._buildItems()
     })
   }
 
-  get commands() { return this._commands }
+  get commands() {
+    return this._commands
+  }
   set commands(val) {
     this._commands = val || []
     if (this.open) this._buildItems()
   }
 
-  get context() { return this._context }
+  get context() {
+    return this._context
+  }
   set context(val) {
     this._context = val || {}
     if (this.open) this._buildItems()
   }
 
-  get menu() { return this._menu }
+  get menu() {
+    return this._menu
+  }
   set menu(val) {
     this._menu = val || ''
     if (this.open) this._buildItems()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
   }
 
-  get position() { return this._position }
+  get position() {
+    return this._position
+  }
   set position(val) {
     this._position = val || { x: 0, y: 0 }
     if (this.open) this._updatePosition()
   }
 
-  get scorer() { return this._scorer }
+  get scorer() {
+    return this._scorer
+  }
   set scorer(val) {
     this._scorer = val || defaultScorer()
     if (this.open) this._buildItems()
   }
 
-  get history() { return this._history }
+  get history() {
+    return this._history
+  }
   set history(val) {
     this._history = val || []
     // Update the scorer to incorporate new history when using default
     if (this.open) this._buildItems()
   }
 
-  get maxVisible() { return this._maxVisible }
+  get maxVisible() {
+    return this._maxVisible
+  }
   set maxVisible(val) {
-    this._maxVisible = (typeof val === 'number' && val > 0) ? val : 7
+    this._maxVisible = typeof val === 'number' && val > 0 ? val : 7
     if (this.open) this._render()
   }
 
@@ -294,14 +312,12 @@ export class ContextMenu extends HTMLElement {
     if (query) {
       // Search mode: fuzzy match + scorer
       const scored = searchCommands(this._commands, query, this._context, { scorer })
-      this._allItems = scored.map(cmd => ({ ...cmd, active: cmd.active }))
+      this._allItems = scored.map((cmd) => ({ ...cmd, active: cmd.active }))
     } else {
       // No query: apply scorer to rank all relevant commands
       let base = this._menu
         ? filterByMenu(this._commands, this._menu, this._context)
-        : this._commands
-            .filter(cmd => !cmd.hidden)
-            .map(cmd => ({ ...cmd, active: isActive(cmd, this._context) }))
+        : this._commands.filter((cmd) => !cmd.hidden).map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
 
       // Score and sort: active first, then by score, preserving original order for ties
       /** @type {Array<Command & { active: boolean, _score: number, _origIdx: number }>} */
@@ -320,7 +336,7 @@ export class ContextMenu extends HTMLElement {
       // Exclude items the scorer excluded (score <= 0) only if they have a `when`
       // (commands without `when` always get score 1 from defaultScorer so they pass)
       this._allItems = withScores
-        .filter(cmd => !cmd.when || cmd._score > 0)
+        .filter((cmd) => !cmd.when || cmd._score > 0)
         .map(({ _score: _s, _origIdx: _o, ...cmd }) => cmd)
     }
 
@@ -380,7 +396,10 @@ export class ContextMenu extends HTMLElement {
       li.className = 'context-menu__item'
       if (i === this._activeIndex) li.className += ' context-menu__item--active'
       if (!cmd.active) li.className += ' context-menu__item--disabled'
-      li.setAttribute('part', `item${i === this._activeIndex ? ' item-active' : ''}${!cmd.active ? ' item-disabled' : ''}`)
+      li.setAttribute(
+        'part',
+        `item${i === this._activeIndex ? ' item-active' : ''}${!cmd.active ? ' item-disabled' : ''}`,
+      )
       li.setAttribute('role', 'menuitem')
       li.dataset['index'] = String(i)
 
@@ -442,7 +461,7 @@ export class ContextMenu extends HTMLElement {
     for (const li of Array.from(/** @type {NodeListOf<HTMLElement>} */ (this._list.querySelectorAll('[data-index]')))) {
       const i = Number(li.dataset['index'])
       const on = i === this._activeIndex
-      const off = !(/** @type {Command & { active: boolean }} */ (this._visibleItems[i])).active
+      const off = !(/** @type {Command & { active: boolean }} */ (this._visibleItems[i]).active)
       li.classList.toggle('context-menu__item--active', on)
       li.setAttribute('part', `item${on ? ' item-active' : ''}${off ? ' item-disabled' : ''}`)
     }
@@ -451,7 +470,13 @@ export class ContextMenu extends HTMLElement {
   /** @param {KeyboardEvent} e */
   _handleKey(e) {
     // Allow typing in search input without intercepting arrow navigation
-    if (e.target === this._searchInput && e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter' && e.key !== 'Escape') {
+    if (
+      e.target === this._searchInput &&
+      e.key !== 'ArrowDown' &&
+      e.key !== 'ArrowUp' &&
+      e.key !== 'Enter' &&
+      e.key !== 'Escape'
+    ) {
       return
     }
 
@@ -459,15 +484,13 @@ export class ContextMenu extends HTMLElement {
       case 'ArrowDown':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._activeIndex = this._activeIndex < this._visibleItems.length - 1
-          ? this._activeIndex + 1 : 0
+        this._activeIndex = this._activeIndex < this._visibleItems.length - 1 ? this._activeIndex + 1 : 0
         this._render()
         break
       case 'ArrowUp':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._activeIndex = this._activeIndex > 0
-          ? this._activeIndex - 1 : this._visibleItems.length - 1
+        this._activeIndex = this._activeIndex > 0 ? this._activeIndex - 1 : this._visibleItems.length - 1
         this._render()
         break
       case 'Home':

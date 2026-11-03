@@ -14,7 +14,10 @@
 export function sequences({ timeout = 1000 } = {}) {
   return {
     steps(binding, suffix) {
-      const steps = binding.replace(/\s*\+\s*/g, '+').split(/\s+/).filter(Boolean)
+      const steps = binding
+        .replace(/\s*\+\s*/g, '+')
+        .split(/\s+/)
+        .filter(Boolean)
       if (steps.length > 1 && suffix) throw new Error(`"${binding}${suffix}": a sequence can't end in "${suffix}"`)
       return steps.length > 0 ? steps : [binding]
     },

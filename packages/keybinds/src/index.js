@@ -5,17 +5,25 @@
  * keybinds/palette, ...) for pages that load them without a bundler.
  */
 
-import { keybinds } from './core.js'
-import { CommandPalette } from './components/palette.js'
-import { KeybindCheatsheet } from './components/cheatsheet.js'
-import { KeybindSettings } from './components/settings.js'
 import { BasicContextMenu } from './components/basic-context-menu.js'
+import { KeybindCheatsheet } from './components/cheatsheet.js'
 import { ContextMenu } from './components/context-menu.js'
+import { CommandPalette } from './components/palette.js'
 import { RadialMenu } from './components/radial-menu.js'
+import { KeybindSettings } from './components/settings.js'
+import { keybinds } from './core.js'
 
 export {
-  keybinds, validateCommands, executeCommand, findConflict, bindingParts, isActive, parseBinding, splitBinding,
-  bindingLookup, formatBinding,
+  keybinds,
+  validateCommands,
+  executeCommand,
+  findConflict,
+  bindingParts,
+  isActive,
+  parseBinding,
+  splitBinding,
+  bindingLookup,
+  formatBinding,
 } from './core.js'
 export { keys, parseKey } from './keys.js'
 export { symbols } from './keys-symbols.js'
@@ -33,10 +41,21 @@ export { gamepadUI, formatGamepadParts } from './gamepad-ui.js'
 export { axes } from './axes.js'
 export { axesUI, formatAxisParts } from './axes-ui.js'
 export {
-  matchCommands, searchCommands, defaultScorer, groupByCategory, filterByMenu, simpleMatcher, fuzzyMatcher,
+  matchCommands,
+  searchCommands,
+  defaultScorer,
+  groupByCategory,
+  filterByMenu,
+  simpleMatcher,
+  fuzzyMatcher,
 } from './search.js'
 export {
-  defineSchema, mergeBindings, fromBindings, listBindings, localStorageBindings, BindingsStore,
+  defineSchema,
+  mergeBindings,
+  fromBindings,
+  listBindings,
+  localStorageBindings,
+  BindingsStore,
 } from './store.js'
 export { onModifierHold, onModifierTaps } from './modifiers.js'
 export { createComponent } from './components/create.js'

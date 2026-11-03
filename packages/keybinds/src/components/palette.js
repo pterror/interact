@@ -1,6 +1,6 @@
 import { markKind, bindingParts } from '../core.js'
-import { searchCommands } from '../search.js'
 import { keysUI } from '../keys-ui.js'
+import { searchCommands } from '../search.js'
 
 /** @typedef {import('../core.js').Command} Command */
 /** @typedef {import('../core.js').Matcher} Matcher */
@@ -116,7 +116,9 @@ export class CommandPalette extends HTMLElement {
     this._backdrop.addEventListener('click', () => this._close())
     this._input.addEventListener('input', () => this._search())
     this._input.addEventListener('keydown', (e) => this._handleKey(e))
-    this._list.addEventListener('mousemove', () => { this._inputMode = 'pointer' })
+    this._list.addEventListener('mousemove', () => {
+      this._inputMode = 'pointer'
+    })
     this._list.addEventListener('click', (e) => {
       const li = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.palette__item'))
       if (li) this._execute(Number(li.dataset['index']))
@@ -130,31 +132,41 @@ export class CommandPalette extends HTMLElement {
     })
   }
 
-  get commands() { return this._commands }
+  get commands() {
+    return this._commands
+  }
   set commands(val) {
     this._commands = val || []
     if (this.open) this._search(false)
   }
 
-  get context() { return this._context }
+  get context() {
+    return this._context
+  }
   set context(val) {
     this._context = val || {}
     if (this.open) this._search(false)
   }
 
-  get matcher() { return this._matcher }
+  get matcher() {
+    return this._matcher
+  }
   set matcher(val) {
     this._matcher = val
     if (this.open) this._search(false)
   }
 
-  get source() { return this._source }
+  get source() {
+    return this._source
+  }
   set source(val) {
     this._source = val
     if (this.open) this._search()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
@@ -236,10 +248,10 @@ export class CommandPalette extends HTMLElement {
   _search(ask = true) {
     const query = this._input.value
     if (ask) this._ask(query)
-    const ids = new Set(this._commands.map(c => c.id))
-    const all = query ? [...this._commands, ...this._sourced.filter(c => !ids.has(c.id))] : this._commands
+    const ids = new Set(this._commands.map((c) => c.id))
+    const all = query ? [...this._commands, ...this._sourced.filter((c) => !ids.has(c.id))] : this._commands
     const found = query ? searchCommands(all, query, this._context, { matcher: this._matcher }) : this._getAllVisible()
-    this._results = this.hasAttribute('hide-inactive') ? found.filter(cmd => cmd.active) : found
+    this._results = this.hasAttribute('hide-inactive') ? found.filter((cmd) => cmd.active) : found
     this._activeIndex = 0
     this._render()
     this._list.scrollTop = 0
@@ -270,11 +282,11 @@ export class CommandPalette extends HTMLElement {
   _getAllVisible() {
     // Show all non-hidden commands when no query
     return this._commands
-      .filter(cmd => !cmd.hidden)
-      .map(cmd => ({
+      .filter((cmd) => !cmd.hidden)
+      .map((cmd) => ({
         ...cmd,
         active: !cmd.when || cmd.when(this._context),
-        score: 0
+        score: 0,
       }))
   }
 
@@ -390,7 +402,10 @@ export class CommandPalette extends HTMLElement {
     }
     if (next) {
       next.classList.add('palette__item--active')
-      next.setAttribute('part', `item item-active${next.classList.contains('palette__item--disabled') ? ' item-disabled' : ''}`)
+      next.setAttribute(
+        'part',
+        `item item-active${next.classList.contains('palette__item--disabled') ? ' item-disabled' : ''}`,
+      )
       next.setAttribute('aria-selected', 'true')
     }
     this._activeIndex = index
@@ -402,15 +417,13 @@ export class CommandPalette extends HTMLElement {
       case 'ArrowDown':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._setActive(this._activeIndex < this._results.length - 1
-          ? this._activeIndex + 1 : 0)
+        this._setActive(this._activeIndex < this._results.length - 1 ? this._activeIndex + 1 : 0)
         this._scrollToActive()
         break
       case 'ArrowUp':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._setActive(this._activeIndex > 0
-          ? this._activeIndex - 1 : this._results.length - 1)
+        this._setActive(this._activeIndex > 0 ? this._activeIndex - 1 : this._results.length - 1)
         this._scrollToActive()
         break
       case 'Home':

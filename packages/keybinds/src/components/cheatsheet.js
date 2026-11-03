@@ -1,7 +1,7 @@
 import { markKind, isMac, bindingParts } from '../core.js'
-import { groupByCategory } from '../search.js'
-import { onModifierHold, onModifierTaps } from '../modifiers.js'
 import { keysUI } from '../keys-ui.js'
+import { onModifierHold, onModifierTaps } from '../modifiers.js'
+import { groupByCategory } from '../search.js'
 
 /** @typedef {import('../core.js').Command} Command */
 /** @typedef {import('../core.js').InputUI} Input */
@@ -81,7 +81,9 @@ export class KeybindCheatsheet extends HTMLElement {
     this._backdrop.addEventListener('click', () => this._close())
   }
 
-  get inputs() { return this._inputs }
+  get inputs() {
+    return this._inputs
+  }
   set inputs(val) {
     this._inputs = val || []
     if (this.isConnected) this._watchInputs()
@@ -91,22 +93,36 @@ export class KeybindCheatsheet extends HTMLElement {
   // An open cheatsheet shows bindings as they look now
   _watchInputs() {
     for (const stop of this._unwatch) stop()
-    this._unwatch = this._inputs.flatMap((i) => i.watch ? [i.watch(() => { if (this.open) this._render() })] : [])
+    this._unwatch = this._inputs.flatMap((i) =>
+      i.watch
+        ? [
+            i.watch(() => {
+              if (this.open) this._render()
+            }),
+          ]
+        : [],
+    )
   }
 
-  get commands() { return this._commands }
+  get commands() {
+    return this._commands
+  }
   set commands(val) {
     this._commands = val || []
     if (this.open) this._render()
   }
 
-  get context() { return this._context }
+  get context() {
+    return this._context
+  }
   set context(val) {
     this._context = val || {}
     if (this.open) this._render()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
@@ -158,9 +174,13 @@ export class KeybindCheatsheet extends HTMLElement {
     // Holding shows it until the key is let go; tapping twice keeps it open (and tapping twice again,
     // Escape or a click outside closes it).
     let pinned = false
-    const unhold = onModifierHold(modifier, (held) => {
-      if (!pinned) this.open = held
-    }, { delay: Number.isFinite(delay) ? delay : 1000 })
+    const unhold = onModifierHold(
+      modifier,
+      (held) => {
+        if (!pinned) this.open = held
+      },
+      { delay: Number.isFinite(delay) ? delay : 1000 },
+    )
     const untap = onModifierTaps(modifier, 2, () => {
       pinned = !this.open
       this.open = pinned
@@ -173,7 +193,9 @@ export class KeybindCheatsheet extends HTMLElement {
       e.stopPropagation()
       this._close()
     }
-    const closed = () => { pinned = false }
+    const closed = () => {
+      pinned = false
+    }
     window.addEventListener('keydown', escape, true)
     this.addEventListener('close', closed)
     this._cleanupTrigger = () => {
@@ -190,7 +212,11 @@ export class KeybindCheatsheet extends HTMLElement {
   }
 
   _render() {
-    const groups = groupByCategory(this._commands, this._context, this.inputs.filter((i) => !i.axis).map((i) => i.field))
+    const groups = groupByCategory(
+      this._commands,
+      this._context,
+      this.inputs.filter((i) => !i.axis).map((i) => i.field),
+    )
     this._dialog.replaceChildren()
 
     for (const [category, cmds] of Object.entries(groups)) {

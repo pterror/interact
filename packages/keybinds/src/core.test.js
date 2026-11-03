@@ -1,49 +1,56 @@
 import { describe, test, expect, mock } from 'bun:test'
+
+import { ContextMenu } from './components/context-menu.js'
+import { createComponent } from './components/create.js'
+import { CommandPalette } from './components/palette.js'
 import { validateCommands, executeCommand, findConflict } from './core.js'
+import { CommandHub } from './hub.js'
 import { formatKeyParts, eventToBindingString } from './keys-ui.js'
 import { formatMouseParts, eventToMouseBindingString } from './mouse-ui.js'
 import { BindingsStore } from './store.js'
-import { CommandHub } from './hub.js'
-import { createComponent } from './components/create.js'
-import { CommandPalette } from './components/palette.js'
-import { ContextMenu } from './components/context-menu.js'
 import { INPUT, ALL, keybinds, listen, keysInput, mouse, kbd } from './test-helpers.js'
 
 describe('validateCommands', () => {
   test('valid commands pass', () => {
-    expect(validateCommands([
-      { id: 'save', label: 'Save', keys: ['$mod+s'], execute: () => {} },
-      { id: 'click', label: 'Click', mouse: ['Click'], execute: () => {} },
-    ], ALL)).toBe(true)
+    expect(
+      validateCommands(
+        [
+          { id: 'save', label: 'Save', keys: ['$mod+s'], execute: () => {} },
+          { id: 'click', label: 'Click', mouse: ['Click'], execute: () => {} },
+        ],
+        ALL,
+      ),
+    ).toBe(true)
   })
 
   test('throws on missing id', () => {
-    expect(() => validateCommands([/** @type {any} */ ({ label: 'X', execute: () => {} })], ALL))
-      .toThrow('Command missing id')
+    expect(() => validateCommands([/** @type {any} */ ({ label: 'X', execute: () => {} })], ALL)).toThrow(
+      'Command missing id',
+    )
   })
 
   test('throws on invalid key', () => {
-    expect(() => validateCommands([
-      { id: 'x', label: 'X', keys: ['$mod+banana'], execute: () => {} },
-    ], ALL)).toThrow('Unknown key "banana"')
+    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['$mod+banana'], execute: () => {} }], ALL)).toThrow(
+      'Unknown key "banana"',
+    )
   })
 
   test('throws on modifier-only key binding', () => {
-    expect(() => validateCommands([
-      { id: 'x', label: 'X', keys: ['$mod'], execute: () => {} },
-    ], ALL)).toThrow('no key (only modifiers)')
+    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['$mod'], execute: () => {} }], ALL)).toThrow(
+      'no key (only modifiers)',
+    )
   })
 
   test('throws on multi-key binding', () => {
-    expect(() => validateCommands([
-      { id: 'x', label: 'X', keys: ['a+b'], execute: () => {} },
-    ], ALL)).toThrow('multiple keys')
+    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['a+b'], execute: () => {} }], ALL)).toThrow(
+      'multiple keys',
+    )
   })
 
   test('throws on invalid mouse binding', () => {
-    expect(() => validateCommands([
-      { id: 'x', label: 'X', mouse: ['DoubleClick'], execute: () => {} },
-    ], ALL)).toThrow('Unknown mouse button')
+    expect(() => validateCommands([{ id: 'x', label: 'X', mouse: ['DoubleClick'], execute: () => {} }], ALL)).toThrow(
+      'Unknown mouse button',
+    )
   })
 })
 
@@ -75,9 +82,16 @@ describe('keybinds', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
     const pad = { id: 'jump', label: 'Jump', gamepad: ['a'], execute: () => {} }
-    expect(() => listen([pad], undefined, { target, inputs: [keysInput()] })).toThrow('Command "jump" has gamepad bindings, but no input reads gamepad')
-    expect(() => listen([], undefined, { target, axes: [{ id: 'x', label: 'X', axes: ['mouse:x'] }] })).toThrow('no input reads them')
-    const cleanup = listen([{ id: 's', label: 'S', keys: ['s'], execute: fn }], undefined, { target, inputs: [keysInput()] })
+    expect(() => listen([pad], undefined, { target, inputs: [keysInput()] })).toThrow(
+      'Command "jump" has gamepad bindings, but no input reads gamepad',
+    )
+    expect(() => listen([], undefined, { target, axes: [{ id: 'x', label: 'X', axes: ['mouse:x'] }] })).toThrow(
+      'no input reads them',
+    )
+    const cleanup = listen([{ id: 's', label: 'S', keys: ['s'], execute: fn }], undefined, {
+      target,
+      inputs: [keysInput()],
+    })
     target.dispatchEvent(new KeyboardEvent('keydown', { key: 's', code: 'KeyS' }))
     expect(fn).toHaveBeenCalledTimes(1)
     cleanup()
@@ -86,14 +100,16 @@ describe('keybinds', () => {
   test('dispatches matching key command', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 's', code: 'KeyS', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 's',
+        code: 'KeyS',
+        ctrlKey: true,
+      }),
+    )
 
     expect(fn).toHaveBeenCalled()
     cleanup()
@@ -102,14 +118,16 @@ describe('keybinds', () => {
   test('does not dispatch for non-matching key', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'a', code: 'KeyA', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'a',
+        code: 'KeyA',
+        ctrlKey: true,
+      }),
+    )
 
     expect(fn).not.toHaveBeenCalled()
     cleanup()
@@ -118,14 +136,16 @@ describe('keybinds', () => {
   test('skips inactive commands', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'x', label: 'X', keys: ['ctrl+x'], when: () => false, execute: fn },
-    ]
+    const commands = [{ id: 'x', label: 'X', keys: ['ctrl+x'], when: () => false, execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'x', code: 'KeyX', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'x',
+        code: 'KeyX',
+        ctrlKey: true,
+      }),
+    )
 
     expect(fn).not.toHaveBeenCalled()
     cleanup()
@@ -134,15 +154,17 @@ describe('keybinds', () => {
   test('cleanup removes listeners', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
     cleanup()
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 's', code: 'KeyS', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 's',
+        code: 'KeyS',
+        ctrlKey: true,
+      }),
+    )
 
     expect(fn).not.toHaveBeenCalled()
   })
@@ -150,9 +172,7 @@ describe('keybinds', () => {
   test('dispatches matching mouse command', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'pan', label: 'Pan', mouse: ['MiddleClick'], execute: fn },
-    ]
+    const commands = [{ id: 'pan', label: 'Pan', mouse: ['MiddleClick'], execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
 
     target.dispatchEvent(new MouseEvent('mousedown', { button: 1 }))
@@ -165,14 +185,16 @@ describe('keybinds', () => {
     const executeFn = mock(() => {})
     const onExecute = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: executeFn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: executeFn }]
     const cleanup = keybinds(commands, undefined, { target, onExecute })
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 's', code: 'KeyS', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 's',
+        code: 'KeyS',
+        ctrlKey: true,
+      }),
+    )
 
     expect(onExecute).toHaveBeenCalledTimes(1)
     const call = /** @type {any[]} */ (onExecute.mock.calls[0])
@@ -183,11 +205,10 @@ describe('keybinds', () => {
   test('does not dispatch when event target is an open keybinds-command-palette', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const commands = [
-      { id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn },
-    ]
+    const commands = [{ id: 'save', label: 'Save', keys: ['ctrl+s'], execute: fn }]
     const cleanup = keybinds(commands, undefined, { target })
-    if (!customElements.get('keybinds-command-palette')) customElements.define('keybinds-command-palette', CommandPalette)
+    if (!customElements.get('keybinds-command-palette'))
+      customElements.define('keybinds-command-palette', CommandPalette)
     document.body.appendChild(target)
 
     const palette = document.createElement('keybinds-command-palette')
@@ -195,7 +216,9 @@ describe('keybinds', () => {
     target.appendChild(palette)
 
     const event = new KeyboardEvent('keydown', {
-      key: 's', code: 'KeyS', ctrlKey: true,
+      key: 's',
+      code: 'KeyS',
+      ctrlKey: true,
     })
     Object.defineProperty(event, 'target', { value: palette })
     target.dispatchEvent(event)
@@ -209,13 +232,23 @@ describe('keybinds', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
     const commands = [
-      { id: 'x', label: 'X', keys: ['ctrl+x'], when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']), execute: fn },
+      {
+        id: 'x',
+        label: 'X',
+        keys: ['ctrl+x'],
+        when: (/** @type {Record<string, unknown>} */ ctx) => /** @type {boolean} */ (ctx['ready']),
+        execute: fn,
+      },
     ]
     const cleanup = keybinds(commands, () => ({ ready: true }), { target })
 
-    target.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'x', code: 'KeyX', ctrlKey: true,
-    }))
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'x',
+        code: 'KeyX',
+        ctrlKey: true,
+      }),
+    )
 
     expect(fn).toHaveBeenCalled()
     const call = /** @type {any[]} */ (fn.mock.calls[0])
@@ -272,10 +305,14 @@ describe('held', () => {
 
   test("a press that didn't fire (inactive, or passed on) isn't held", () => {
     const target = document.createElement('div')
-    const kb = keybinds([
-      { id: 'off', label: 'Off', keys: ['a'], when: () => false, execute: () => {} },
-      { id: 'pass', label: 'Pass', keys: ['b'], execute: () => false },
-    ], undefined, { target })
+    const kb = keybinds(
+      [
+        { id: 'off', label: 'Off', keys: ['a'], when: () => false, execute: () => {} },
+        { id: 'pass', label: 'Pass', keys: ['b'], execute: () => false },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keydown', 'a', 'KeyA'))
     target.dispatchEvent(kbd('keydown', 'b', 'KeyB'))
     expect(kb.held('off')).toBe(false)
@@ -285,10 +322,14 @@ describe('held', () => {
 
   test('mouse buttons, and losing focus', () => {
     const target = document.createElement('div')
-    const kb = keybinds([
-      { id: 'fire', label: 'Fire', mouse: ['Click'], execute: () => {} },
-      { id: 'fwd', label: 'Forward', keys: ['w'], execute: () => {} },
-    ], undefined, { target })
+    const kb = keybinds(
+      [
+        { id: 'fire', label: 'Fire', mouse: ['Click'], execute: () => {} },
+        { id: 'fwd', label: 'Forward', keys: ['w'], execute: () => {} },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 0, { buttons: 1 }))
     target.dispatchEvent(kbd('keydown', 'w', 'KeyW'))
     expect(kb.held('fire')).toBe(true)
@@ -314,13 +355,17 @@ describe('held', () => {
 
 describe('releases that never arrive', () => {
   /** @param {string[]} calls */
-  const recorder = (calls) => (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => { calls.push(/** @type {Event} */ (e).type) }
+  const recorder = (calls) => (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => {
+    calls.push(/** @type {Event} */ (e).type)
+  }
 
   test('held keys are released when the window loses focus', () => {
     /** @type {string[]} */
     const calls = []
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'k', label: 'K', keys: ['k', 'k:up'], execute: recorder(calls) }], undefined, { target })
+    const cleanup = keybinds([{ id: 'k', label: 'K', keys: ['k', 'k:up'], execute: recorder(calls) }], undefined, {
+      target,
+    })
     target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
     window.dispatchEvent(new Event('blur'))
     expect(calls).toEqual(['keydown', 'keyup'])
@@ -334,7 +379,11 @@ describe('releases that never arrive', () => {
     /** @type {string[]} */
     const calls = []
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }], undefined, { target })
+    const cleanup = keybinds(
+      [{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
     window.dispatchEvent(new Event('blur'))
     // still held when the page hears from the mouse again
@@ -349,18 +398,26 @@ describe('releases that never arrive', () => {
     /** @type {string[]} */
     const calls = []
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }], undefined, { target })
+    const cleanup = keybinds(
+      [{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
     target.dispatchEvent(mouse('mousemove', 0, { buttons: 0 }))
     expect(calls).toEqual(['mousedown', 'mouseup'])
     cleanup()
   })
 
-  test('another button going down doesn\'t release one that is still held', () => {
+  test("another button going down doesn't release one that is still held", () => {
     /** @type {string[]} */
     const calls = []
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }], undefined, { target })
+    const cleanup = keybinds(
+      [{ id: 'm', label: 'M', mouse: ['MiddleClick', 'MiddleClick:up'], execute: recorder(calls) }],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 1, { buttons: 4 }))
     target.dispatchEvent(mouse('mousedown', 0, { buttons: 5 }))
     target.dispatchEvent(mouse('mouseup', 0, { buttons: 4 }))
@@ -373,7 +430,9 @@ describe('anyModifiers', () => {
   test('a binding fires whatever other modifiers are held', () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'w', label: 'W', keys: ['w'], anyModifiers: true, execute: fn }], undefined, { target })
+    const cleanup = keybinds([{ id: 'w', label: 'W', keys: ['w'], anyModifiers: true, execute: fn }], undefined, {
+      target,
+    })
     target.dispatchEvent(kbd('keydown', 'w', 'KeyW'))
     target.dispatchEvent(kbd('keydown', 'W', 'KeyW', { shiftKey: true }))
     target.dispatchEvent(kbd('keydown', 'w', 'KeyW', { ctrlKey: true, altKey: true }))
@@ -384,7 +443,9 @@ describe('anyModifiers', () => {
   test("a binding's own modifiers are still required", () => {
     const fn = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'x', label: 'X', keys: ['shift+x'], anyModifiers: true, execute: fn }], undefined, { target })
+    const cleanup = keybinds([{ id: 'x', label: 'X', keys: ['shift+x'], anyModifiers: true, execute: fn }], undefined, {
+      target,
+    })
     target.dispatchEvent(kbd('keydown', 'x', 'KeyX'))
     expect(fn).not.toHaveBeenCalled()
     target.dispatchEvent(kbd('keydown', 'X', 'KeyX', { shiftKey: true, ctrlKey: true }))
@@ -396,10 +457,14 @@ describe('anyModifiers', () => {
     const loose = mock(() => {})
     const exact = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'loose', label: 'Loose', keys: ['x'], anyModifiers: true, execute: loose },
-      { id: 'exact', label: 'Exact', keys: ['shift+x'], execute: exact },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'loose', label: 'Loose', keys: ['x'], anyModifiers: true, execute: loose },
+        { id: 'exact', label: 'Exact', keys: ['shift+x'], execute: exact },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keydown', 'X', 'KeyX', { shiftKey: true }))
     expect(exact).toHaveBeenCalledTimes(1)
     expect(loose).not.toHaveBeenCalled()
@@ -412,10 +477,21 @@ describe('anyModifiers', () => {
     /** @type {string[]} */
     const calls = []
     const target = document.createElement('div')
-    const cleanup = keybinds([{
-      id: 'fwd', label: 'Forward', keys: ['w', 'w:up'], anyModifiers: true,
-      execute: (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => { calls.push(/** @type {Event} */ (e).type) },
-    }], undefined, { target })
+    const cleanup = keybinds(
+      [
+        {
+          id: 'fwd',
+          label: 'Forward',
+          keys: ['w', 'w:up'],
+          anyModifiers: true,
+          execute: (/** @type {unknown} */ _, /** @type {Event | undefined} */ e) => {
+            calls.push(/** @type {Event} */ (e).type)
+          },
+        },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keydown', 'W', 'KeyW', { shiftKey: true }))
     target.dispatchEvent(kbd('keyup', 'w', 'KeyW'))
     expect(calls).toEqual(['keydown', 'keyup'])
@@ -426,10 +502,14 @@ describe('anyModifiers', () => {
     const click = mock(() => {})
     const scroll = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'c', label: 'C', mouse: ['Click'], anyModifiers: true, execute: click },
-      { id: 's', label: 'S', mouse: ['scrolldown'], anyModifiers: true, execute: scroll },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'c', label: 'C', mouse: ['Click'], anyModifiers: true, execute: click },
+        { id: 's', label: 'S', mouse: ['scrolldown'], anyModifiers: true, execute: scroll },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 0, { shiftKey: true }))
     target.dispatchEvent(new WheelEvent('wheel', { deltaY: 100, ctrlKey: true, cancelable: true }))
     expect(click).toHaveBeenCalledTimes(1)
@@ -463,10 +543,14 @@ describe('press and release bindings', () => {
     const open = mock(() => {})
     const close = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'o', label: 'O', mouse: ['MiddleClick'], execute: open },
-      { id: 'c', label: 'C', mouse: ['MiddleClick:up'], execute: close },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'o', label: 'O', mouse: ['MiddleClick'], execute: open },
+        { id: 'c', label: 'C', mouse: ['MiddleClick:up'], execute: close },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(mouse('mousedown', 1))
     expect(open).toHaveBeenCalledTimes(1)
     expect(close).not.toHaveBeenCalled()
@@ -480,10 +564,14 @@ describe('press and release bindings', () => {
     const k = mock(() => {})
     const m = mock(() => {})
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'k', label: 'K', keys: ['k:up'], execute: k },
-      { id: 'm', label: 'M', mouse: ['middle:up'], execute: m },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        { id: 'k', label: 'K', keys: ['k:up'], execute: k },
+        { id: 'm', label: 'M', mouse: ['middle:up'], execute: m },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
     target.dispatchEvent(mouse('mouseup', 1))
     expect(k).not.toHaveBeenCalled()
@@ -519,7 +607,9 @@ describe('press and release bindings', () => {
     const up = mock(() => {})
     let on = true
     const target = document.createElement('div')
-    const cleanup = keybinds([{ id: 'k', label: 'K', keys: ['k:up'], when: () => on, execute: up }], undefined, { target })
+    const cleanup = keybinds([{ id: 'k', label: 'K', keys: ['k:up'], when: () => on, execute: up }], undefined, {
+      target,
+    })
     target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
     on = false
     target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
@@ -531,11 +621,22 @@ describe('press and release bindings', () => {
     const calls = /** @type {string[]} */ ([])
     let on = true
     const target = document.createElement('div')
-    const cleanup = keybinds([{
-      id: 'hold', label: 'Hold', keys: ['space', 'space:up'], mouse: ['middle', 'middle:up'],
-      when: () => on,
-      execute: (_ctx, e) => { calls.push(/** @type {Event} */ (e).type) },
-    }], undefined, { target })
+    const cleanup = keybinds(
+      [
+        {
+          id: 'hold',
+          label: 'Hold',
+          keys: ['space', 'space:up'],
+          mouse: ['middle', 'middle:up'],
+          when: () => on,
+          execute: (_ctx, e) => {
+            calls.push(/** @type {Event} */ (e).type)
+          },
+        },
+      ],
+      undefined,
+      { target },
+    )
 
     target.dispatchEvent(kbd('keydown', ' ', 'Space'))
     on = false
@@ -551,10 +652,28 @@ describe('press and release bindings', () => {
   test('the guarantee holds even when another command consumes the release first', () => {
     const calls = /** @type {string[]} */ ([])
     const target = document.createElement('div')
-    const cleanup = keybinds([
-      { id: 'other', label: 'Other', keys: ['k:up'], execute: () => { calls.push('other') } },
-      { id: 'hold', label: 'Hold', keys: ['k', 'k:up'], execute: (_c, e) => { calls.push(`hold:${/** @type {Event} */ (e).type}`) } },
-    ], undefined, { target })
+    const cleanup = keybinds(
+      [
+        {
+          id: 'other',
+          label: 'Other',
+          keys: ['k:up'],
+          execute: () => {
+            calls.push('other')
+          },
+        },
+        {
+          id: 'hold',
+          label: 'Hold',
+          keys: ['k', 'k:up'],
+          execute: (_c, e) => {
+            calls.push(`hold:${/** @type {Event} */ (e).type}`)
+          },
+        },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
     target.dispatchEvent(kbd('keyup', 'k', 'KeyK'))
     expect(calls).toEqual(['hold:keydown', 'other', 'hold:keyup'])
@@ -565,10 +684,21 @@ describe('press and release bindings', () => {
     const calls = /** @type {string[]} */ ([])
     let on = true
     const target = document.createElement('div')
-    const cleanup = keybinds([{
-      id: 'hold', label: 'Hold', keys: ['k', 'k:up'], when: () => on,
-      execute: (_c, e) => { calls.push(/** @type {Event} */ (e).type) },
-    }], undefined, { target })
+    const cleanup = keybinds(
+      [
+        {
+          id: 'hold',
+          label: 'Hold',
+          keys: ['k', 'k:up'],
+          when: () => on,
+          execute: (_c, e) => {
+            calls.push(/** @type {Event} */ (e).type)
+          },
+        },
+      ],
+      undefined,
+      { target },
+    )
     target.dispatchEvent(kbd('keydown', 'k', 'KeyK'))
     on = false
     target.dispatchEvent(kbd('keydown', 'k', 'KeyK', { repeat: true }))
@@ -583,10 +713,22 @@ describe('press and release bindings', () => {
     const input = document.createElement('input')
     const wrap = document.createElement('div')
     wrap.appendChild(input)
-    const cleanup = keybinds([
-      { id: 'plain', label: 'P', keys: ['j:up'], execute: plain },
-      { id: 'hold', label: 'H', keys: ['k', 'k:up'], captureInput: true, execute: (_c, e) => { held.push(/** @type {Event} */ (e).type) } },
-    ], undefined, { target: wrap })
+    const cleanup = keybinds(
+      [
+        { id: 'plain', label: 'P', keys: ['j:up'], execute: plain },
+        {
+          id: 'hold',
+          label: 'H',
+          keys: ['k', 'k:up'],
+          captureInput: true,
+          execute: (_c, e) => {
+            held.push(/** @type {Event} */ (e).type)
+          },
+        },
+      ],
+      undefined,
+      { target: wrap },
+    )
     input.dispatchEvent(kbd('keydown', 'j', 'KeyJ'))
     input.dispatchEvent(kbd('keyup', 'j', 'KeyJ'))
     expect(plain).not.toHaveBeenCalled()
@@ -616,7 +758,12 @@ describe('press and release bindings', () => {
   })
 
   test('validation accepts :up and rejects scroll release and empty release', () => {
-    expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['ctrl+k:up', 'Escape:UP'], mouse: ['middle:up'], execute: () => {} }], ALL)).not.toThrow()
+    expect(() =>
+      validateCommands(
+        [{ id: 'x', label: 'X', keys: ['ctrl+k:up', 'Escape:UP'], mouse: ['middle:up'], execute: () => {} }],
+        ALL,
+      ),
+    ).not.toThrow()
     expect(() => validateCommands([{ id: 'x', label: 'X', mouse: ['scrollup:up'], execute: () => {} }], ALL)).toThrow()
     expect(() => validateCommands([{ id: 'x', label: 'X', keys: [':up'], execute: () => {} }], ALL)).toThrow()
     expect(() => validateCommands([{ id: 'x', label: 'X', keys: ['ctrl+:up'], execute: () => {} }], ALL)).toThrow()
@@ -658,13 +805,20 @@ describe('capture phase', () => {
     const outer = document.createElement('div')
     const inner = document.createElement('div')
     outer.appendChild(inner)
-    const editor = mock((/** @type {Event} */ e) => { if (!e.defaultPrevented) editorSaw.push(e) })
+    const editor = mock((/** @type {Event} */ e) => {
+      if (!e.defaultPrevented) editorSaw.push(e)
+    })
     /** @type {Event[]} */
     const editorSaw = []
     inner.addEventListener('keydown', editor)
     const bold = mock(() => {})
-    const cleanup = keybinds([{ id: 'b', label: 'Bold', keys: ['ctrl+b'], execute: bold }], undefined, { target: outer, capture: true })
-    inner.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, bubbles: true, cancelable: true }))
+    const cleanup = keybinds([{ id: 'b', label: 'Bold', keys: ['ctrl+b'], execute: bold }], undefined, {
+      target: outer,
+      capture: true,
+    })
+    inner.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, bubbles: true, cancelable: true }),
+    )
     expect(bold).toHaveBeenCalledTimes(1)
     expect(editorSaw.length).toBe(0)
     cleanup()
@@ -676,8 +830,14 @@ describe('capture phase', () => {
     outer.appendChild(inner)
     const editor = mock(() => {})
     inner.addEventListener('keydown', editor)
-    const cleanup = keybinds([{ id: 'b', label: 'Bold', keys: ['ctrl+b'], when: () => false, execute: () => {} }], undefined, { target: outer, capture: true })
-    inner.dispatchEvent(new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, bubbles: true, cancelable: true }))
+    const cleanup = keybinds(
+      [{ id: 'b', label: 'Bold', keys: ['ctrl+b'], when: () => false, execute: () => {} }],
+      undefined,
+      { target: outer, capture: true },
+    )
+    inner.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'b', code: 'KeyB', ctrlKey: true, bubbles: true, cancelable: true }),
+    )
     expect(editor).toHaveBeenCalledTimes(1)
     cleanup()
   })

@@ -1,6 +1,6 @@
 import { markKind, isActive, bindingParts } from '../core.js'
-import { filterByMenu } from '../search.js'
 import { keysUI } from '../keys-ui.js'
+import { filterByMenu } from '../search.js'
 
 /** @typedef {import('../core.js').Command} Command */
 /** @typedef {import('../core.js').InputUI} Input */
@@ -94,34 +94,46 @@ export class BasicContextMenu extends HTMLElement {
       e.preventDefault()
       this._close()
     })
-    this._list.addEventListener('mousemove', () => { this._inputMode = 'pointer' })
+    this._list.addEventListener('mousemove', () => {
+      this._inputMode = 'pointer'
+    })
   }
 
-  get commands() { return this._commands }
+  get commands() {
+    return this._commands
+  }
   set commands(val) {
     this._commands = val || []
     if (this.open) this._buildItems()
   }
 
-  get context() { return this._context }
+  get context() {
+    return this._context
+  }
   set context(val) {
     this._context = val || {}
     if (this.open) this._buildItems()
   }
 
-  get menu() { return this._menu }
+  get menu() {
+    return this._menu
+  }
   set menu(val) {
     this._menu = val || ''
     if (this.open) this._buildItems()
   }
 
-  get open() { return this.hasAttribute('open') }
+  get open() {
+    return this.hasAttribute('open')
+  }
   set open(val) {
     if (val) this.setAttribute('open', '')
     else this.removeAttribute('open')
   }
 
-  get position() { return this._position }
+  get position() {
+    return this._position
+  }
   set position(val) {
     this._position = val || { x: 0, y: 0 }
     if (this.open) this._updatePosition()
@@ -209,9 +221,7 @@ export class BasicContextMenu extends HTMLElement {
   _buildItems() {
     this._items = this._menu
       ? filterByMenu(this._commands, this._menu, this._context)
-      : this._commands
-          .filter(cmd => !cmd.hidden)
-          .map(cmd => ({ ...cmd, active: isActive(cmd, this._context) }))
+      : this._commands.filter((cmd) => !cmd.hidden).map((cmd) => ({ ...cmd, active: isActive(cmd, this._context) }))
     this._render()
   }
 
@@ -255,7 +265,10 @@ export class BasicContextMenu extends HTMLElement {
       li.className = 'context-menu__item'
       if (i === this._activeIndex) li.className += ' context-menu__item--active'
       if (!cmd.active) li.className += ' context-menu__item--disabled'
-      li.setAttribute('part', `item${i === this._activeIndex ? ' item-active' : ''}${!cmd.active ? ' item-disabled' : ''}`)
+      li.setAttribute(
+        'part',
+        `item${i === this._activeIndex ? ' item-active' : ''}${!cmd.active ? ' item-disabled' : ''}`,
+      )
       li.setAttribute('role', 'menuitem')
       li.dataset['index'] = String(i)
 
@@ -297,7 +310,7 @@ export class BasicContextMenu extends HTMLElement {
     for (const li of Array.from(/** @type {NodeListOf<HTMLElement>} */ (this._list.querySelectorAll('[data-index]')))) {
       const i = Number(li.dataset['index'])
       const on = i === this._activeIndex
-      const off = !(/** @type {Command & { active: boolean }} */ (this._items[i])).active
+      const off = !(/** @type {Command & { active: boolean }} */ (this._items[i]).active)
       li.classList.toggle('context-menu__item--active', on)
       li.setAttribute('part', `item${on ? ' item-active' : ''}${off ? ' item-disabled' : ''}`)
     }
@@ -309,15 +322,13 @@ export class BasicContextMenu extends HTMLElement {
       case 'ArrowDown':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._activeIndex = this._activeIndex < this._items.length - 1
-          ? this._activeIndex + 1 : 0
+        this._activeIndex = this._activeIndex < this._items.length - 1 ? this._activeIndex + 1 : 0
         this._render()
         break
       case 'ArrowUp':
         e.preventDefault()
         this._inputMode = 'keyboard'
-        this._activeIndex = this._activeIndex > 0
-          ? this._activeIndex - 1 : this._items.length - 1
+        this._activeIndex = this._activeIndex > 0 ? this._activeIndex - 1 : this._items.length - 1
         this._render()
         break
       case 'Home':

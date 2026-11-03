@@ -2,9 +2,9 @@
  * CommandHub: every command on the page, from every source, with one store of people's rebindings.
  */
 
+import { createComponent } from './components/create.js'
 import { keybinds, isActive, validateCommands, formatBinding } from './core.js'
 import { BindingsStore, localStorageBindings } from './store.js'
-import { createComponent } from './components/create.js'
 
 /** @typedef {import('./core.js').Command} Command */
 /** @typedef {import('./core.js').AxisDef} AxisDef */
@@ -113,14 +113,18 @@ export class CommandHub extends EventTarget {
     if (components.length > 0 && !options.host) throw new Error('CommandHub: components need a host to go in')
     // Components show and record bindings, which is each input's UI half
     const bare = components.length > 0 && this.inputs.find((i) => !('format' in i))
-    if (bare) throw new Error(`CommandHub: components need inputs that can be shown; use ${bare.field}UI() from keybinds/${bare.field}-ui`)
+    if (bare)
+      throw new Error(
+        `CommandHub: components need inputs that can be shown; use ${bare.field}UI() from keybinds/${bare.field}-ui`,
+      )
     if (!options.host) return
     for (const cls of components) {
       const el = /** @type {HTMLElement & { inputs?: Input[] }} */ (createComponent(cls))
       el.inputs = this.inputs
       options.host.append(el)
       if (cls.kind === 'command-palette') this.palette = /** @type {CommandPalette} */ (/** @type {unknown} */ (el))
-      else if (cls.kind === 'cheatsheet') this.cheatsheet = /** @type {KeybindCheatsheet} */ (/** @type {unknown} */ (el))
+      else if (cls.kind === 'cheatsheet')
+        this.cheatsheet = /** @type {KeybindCheatsheet} */ (/** @type {unknown} */ (el))
       else if (cls.kind === 'settings') this.settings = /** @type {KeybindSettings} */ (/** @type {unknown} */ (el))
       else if (cls.kind === 'context-menu') this.menu = /** @type {ContextMenu} */ (/** @type {unknown} */ (el))
       else throw new Error(`CommandHub: no place for a ${cls.kind} component`)
@@ -144,7 +148,12 @@ export class CommandHub extends EventTarget {
     for (const overlay of [this.palette, this.settings, this.menu]) {
       overlay?.addEventListener('close', () => {
         const now = document.activeElement
-        const lost = !now || now === document.body || now === overlay || overlay.contains(now) || now.getRootNode() === overlay.shadowRoot
+        const lost =
+          !now ||
+          now === document.body ||
+          now === overlay ||
+          overlay.contains(now) ||
+          now.getRootNode() === overlay.shadowRoot
         if (lost && this._lastFocus?.isConnected) this._lastFocus.focus({ preventScroll: true })
       })
     }
@@ -179,7 +188,9 @@ export class CommandHub extends EventTarget {
    */
   addContext(get) {
     this._contexts.push(get)
-    return () => { this._contexts = this._contexts.filter((g) => g !== get) }
+    return () => {
+      this._contexts = this._contexts.filter((g) => g !== get)
+    }
   }
 
   /** @returns {C} */
@@ -265,8 +276,15 @@ export class CommandHub extends EventTarget {
     const schema = {}
     for (const d of this._defs.values()) {
       const def = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (d))
-      schema[d.id] = { label: d.label, category: d.category, description: d.description, hidden: d.hidden, keys: d.keys ?? [] }
-      for (const f of fields) if (def[f] !== undefined) /** @type {Record<string, unknown>} */ (schema[d.id])[f] = def[f]
+      schema[d.id] = {
+        label: d.label,
+        category: d.category,
+        description: d.description,
+        hidden: d.hidden,
+        keys: d.keys ?? [],
+      }
+      for (const f of fields)
+        if (def[f] !== undefined) /** @type {Record<string, unknown>} */ (schema[d.id])[f] = def[f]
     }
     this._axes.clear()
     for (const src of this._axisSources) {
@@ -280,14 +298,22 @@ export class CommandHub extends EventTarget {
       for (const a of list) {
         if (this._axes.has(a.id) || this._defs.has(a.id)) continue
         this._axes.set(a.id, a)
-        schema[a.id] = { label: a.label, category: a.category, description: a.description, axes: a.axes, hidden: a.hidden }
+        schema[a.id] = {
+          label: a.label,
+          category: a.category,
+          description: a.description,
+          axes: a.axes,
+          hidden: a.hidden,
+        }
       }
     }
     this._store?.removeEventListener('change', this._storeListener)
     this._store?.dispose()
     this._store = new BindingsStore(schema, this._storage(this._scope))
     this._store.addEventListener('change', this._storeListener)
-    const bound = /** @type {Record<string, Record<string, string[] | undefined>>} */ (/** @type {unknown} */ (this._store.get()))
+    const bound = /** @type {Record<string, Record<string, string[] | undefined>>} */ (
+      /** @type {unknown} */ (this._store.get())
+    )
 
     this._live.clear()
     for (const d of this._defs.values()) {
@@ -319,8 +345,12 @@ export class CommandHub extends EventTarget {
       }
       axes.push(def)
     }
-    const hasBindings = (/** @type {Command} */ c) => fields.some((f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (c)[f])?.length)
-    this._unbind = keybinds(live.filter(hasBindings), () => /** @type {Record<string, unknown>} */ (this.context()), { ...this._options, axes })
+    const hasBindings = (/** @type {Command} */ c) =>
+      fields.some((f) => /** @type {unknown[] | undefined} */ (/** @type {Record<string, unknown>} */ (c)[f])?.length)
+    this._unbind = keybinds(live.filter(hasBindings), () => /** @type {Record<string, unknown>} */ (this.context()), {
+      ...this._options,
+      axes,
+    })
     const visible = live.filter((c) => !c.hidden)
     if (this.palette) this.palette.commands = visible
     if (this.cheatsheet) this.cheatsheet.commands = visible
@@ -378,9 +408,17 @@ export class CommandHub extends EventTarget {
     if (!input) return []
     // A command's are what it's listening with (an unreadable binding was dropped); an axis's are in the store
     const source = input.axis ? this._store?.get()[id] : this._live.get(id)
-    const list = /** @type {string[] | undefined} */ (/** @type {Record<string, unknown> | undefined} */ (source)?.[field])
+    const list = /** @type {string[] | undefined} */ (
+      /** @type {Record<string, unknown> | undefined} */ (source)?.[field]
+    )
     const ui = 'format' in input ? /** @type {import('./core.js').InputUI} */ (input) : null
-    return (list ?? []).map((b) => ui ? formatBinding(ui, b).join(input.axis ? ' ' : '+').replaceAll('+then+', ' then ') : b)
+    return (list ?? []).map((b) =>
+      ui
+        ? formatBinding(ui, b)
+            .join(input.axis ? ' ' : '+')
+            .replaceAll('+then+', ' then ')
+        : b,
+    )
   }
 
   /**

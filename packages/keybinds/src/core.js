@@ -198,8 +198,7 @@ export function parseMods(parts) {
     else if (part === '$mod') {
       if (isMac) mods.meta = true
       else mods.ctrl = true
-    }
-    else remaining.push(part)
+    } else remaining.push(part)
   }
 
   return { mods, remaining }
@@ -306,8 +305,12 @@ export function eventMods(event) {
  * @param {Modifiers} held
  */
 export function holdsAll(required, held) {
-  return (!required.ctrl || held.ctrl) && (!required.alt || held.alt) &&
-    (!required.shift || held.shift) && (!required.meta || held.meta)
+  return (
+    (!required.ctrl || held.ctrl) &&
+    (!required.alt || held.alt) &&
+    (!required.shift || held.shift) &&
+    (!required.meta || held.meta)
+  )
 }
 
 /**
@@ -345,15 +348,22 @@ export function anyOverlayOpen() {
  */
 export function inInput(tgt) {
   const el = /** @type {Element | null} */ (tgt)
-  return el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' ||
+  return (
+    el?.tagName === 'INPUT' ||
+    el?.tagName === 'TEXTAREA' ||
     (typeof HTMLElement !== 'undefined' && el instanceof HTMLElement && el.isContentEditable)
+  )
 }
 
 // Command fields that hold bindings, so a binding no input reads is an error rather than ignored
 const BINDING_FIELDS = /** @type {const} */ (['keys', 'mouse', 'gamepad'])
 
 // Which module reads each binding suffix, for the error when it isn't there
-const SUFFIX_MODULES = /** @type {Record<string, string>} */ ({ ':up': 'releases()', ':hold': 'holds()', ':tap': 'holds()' })
+const SUFFIX_MODULES = /** @type {Record<string, string>} */ ({
+  ':up': 'releases()',
+  ':hold': 'holds()',
+  ':tap': 'holds()',
+})
 
 /**
  * What a phase (releases(), holds()) gets at a press's start or end
@@ -466,8 +476,11 @@ function index(commands, input, options) {
   const loose = options.anyModifiers?.table() ?? null
   const seq = options.sequences?.table() ?? null
   for (const cmd of commands) {
-    for (const binding of /** @type {string[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[input.field]) ?? []) {
-      if (cmd.anyModifiers && !loose) throw new Error(`Command "${cmd.id}" sets anyModifiers, which needs anyModifiers()`)
+    for (const binding of /** @type {string[] | undefined} */ (
+      /** @type {Record<string, unknown>} */ (cmd)[input.field]
+    ) ?? []) {
+      if (cmd.anyModifiers && !loose)
+        throw new Error(`Command "${cmd.id}" sets anyModifiers, which needs anyModifiers()`)
       let parsed
       try {
         parsed = parseBinding(input, binding, options)
@@ -554,7 +567,9 @@ export function keybinds(commands, getContext = () => ({}), options = {}) {
   const handles = []
 
   for (const input of inputs) {
-    const { exact, loose, seq } = input.axis ? { exact: new Map(), loose: null, seq: null } : index(commands, input, options)
+    const { exact, loose, seq } = input.axis
+      ? { exact: new Map(), loose: null, seq: null }
+      : index(commands, input, options)
     /** @type {Map<string, Press>} */
     const presses = new Map()
     allPresses.push(presses)
@@ -684,10 +699,13 @@ export function keybinds(commands, getContext = () => ({}), options = {}) {
     return { position: 0, delta: 0 }
   }
 
-  return Object.assign(() => {
-    for (const h of handles) h()
-    for (const presses of allPresses) presses.clear()
-  }, { held, axis })
+  return Object.assign(
+    () => {
+      for (const h of handles) h()
+      for (const presses of allPresses) presses.clear()
+    },
+    { held, axis },
+  )
 }
 
 /**
@@ -714,7 +732,7 @@ export function validateCommands(commands, options) {
  * @returns {boolean}
  */
 export function executeCommand(commands, id, context = {}) {
-  const cmd = commands.find(c => c.id === id)
+  const cmd = commands.find((c) => c.id === id)
   if (cmd && isActive(cmd, context)) {
     cmd.execute(context)
     return true
@@ -732,14 +750,25 @@ export function splitBinding(binding) {
   let body = binding.trim()
   const suffix = /:(up|hold|tap)$/i.exec(body)?.[0].toLowerCase() ?? ''
   body = body.slice(0, body.length - suffix.length)
-  return { steps: body.replace(/\s*\+\s*/g, '+').split(/\s+/).filter(Boolean), suffix }
+  return {
+    steps: body
+      .replace(/\s*\+\s*/g, '+')
+      .split(/\s+/)
+      .filter(Boolean),
+    suffix,
+  }
 }
 
 /** Every piece of syntax on, for comparing bindings whatever they use */
 const ALL_SYNTAX = /** @type {KeybindsOptions} */ ({
   releases: { suffixes: [':up'] },
   holds: { suffixes: [':hold', ':tap'] },
-  sequences: { steps: (b) => splitBinding(b).steps, table: () => { throw new Error('only for comparing') } },
+  sequences: {
+    steps: (b) => splitBinding(b).steps,
+    table: () => {
+      throw new Error('only for comparing')
+    },
+  },
 })
 
 /**
@@ -790,7 +819,7 @@ const SUFFIX_LABELS = /** @type {Record<string, string>} */ ({ ':up': 'Release',
 export function formatBinding(input, binding) {
   if (input.axis) return input.format(binding)
   const { steps, suffix } = splitBinding(binding)
-  const parts = steps.flatMap((s, i) => i === 0 ? input.format(s) : ['then', ...input.format(s)])
+  const parts = steps.flatMap((s, i) => (i === 0 ? input.format(s) : ['then', ...input.format(s)]))
   const label = SUFFIX_LABELS[suffix]
   if (label) parts.push(label)
   return parts
@@ -807,7 +836,8 @@ export function bindingParts(cmd, inputs) {
   const out = []
   for (const input of inputs) {
     if (input.axis) continue
-    for (const b of /** @type {string[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[input.field]) ?? []) {
+    for (const b of /** @type {string[] | undefined} */ (/** @type {Record<string, unknown>} */ (cmd)[input.field]) ??
+      []) {
       out.push(formatBinding(input, b))
     }
   }
