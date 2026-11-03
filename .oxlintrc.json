@@ -180,9 +180,14 @@
       "rules": { "import/no-relative-parent-imports": "off" }
     },
     {
-      // A preload runs before test files import code that reads globals as it loads (keybinds' core.js reads
-      // navigator), so the globals can't wait for a hook.
-      "files": ["test/dom.js"],
+      // require-hook is about test files: top-level code there runs outside the runner's hooks. In a module that isn't a
+      // test (library source, the preload, the browser harness), top-level code is the module's own initialization,
+      // and the rule flags it anyway: a top-level `map.set()` or `let n = 0` in a library module. An override can't
+      // scope the plugins themselves (oxlint 1.90.0 neither removes plugins in an override nor applies the base
+      // categories to plugins an override adds), and require-hook is the only jest or vitest rule that fires outside
+      // test files across the repo.
+      "files": ["**/*.js"],
+      "excludeFiles": ["**/*.test.js"],
       "rules": { "jest/require-hook": "off", "vitest/require-hook": "off" }
     }
   ]
