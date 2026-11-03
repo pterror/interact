@@ -4,7 +4,7 @@
  * of the virtual rows is at the top.
  */
 
-/** How many rows are ever scrollable: 100,000 rows of 300px is under Chrome's 33,554,428px limit on an element. */
+/** How many rows are ever scrollable: 100,000 rows of 300px is 30,000,000px, under the 32,000,048px Chrome allows. */
 const VIRTUAL_ROWS = 100_000
 const NONE = 0
 const HALF = 2

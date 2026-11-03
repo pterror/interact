@@ -85,6 +85,21 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
+### The listbox (Derived, built)
+
+- `Listbox` (`packages/components/src/listbox.js`) is the behavior, with no DOM. Its state is `active` and `selection`,
+  both `Controllable`. Its parts:
+  - `items` (`items.js`): the source, read through a bounded `BlockCache`, with failed reads reported by `onError`.
+  - `scroll` (`scroll-rows.js`): `top` and `rows`, both `Controllable`, with `window()`, `scrollTo()` and `reveal()`.
+  - `choose` (`chooser.js`): single or multiple mode; `press()`; `all()`, which selects everything as one filter;
+    `isSelected()`; and `count()`, which counts without reading.
+- Also on `Listbox`: `key()` takes keys as DOM-free actions (`listbox-keys.js`); `focus()`; `activate()` and
+  `onActivate()`; `positions()`; and `subscribe()`.
+- Selecting by position reads nothing, because the source makes a filter for the positions. Selecting all ten billion
+  then deselecting one counted 9,999,999,999, with 100 items read in all.
+- `listboxView()` is the default web view, and `listboxElement(create)` is the element class. The app registers the
+  class, and `create(host)` builds each instance's listbox.
+
 ### What moves out of keybinds (Derived)
 
 Today `packages/keybinds/src/components/` holds six shadow-DOM elements, and two of them overlap with the `CommandHub`
@@ -163,9 +178,26 @@ The view keeps only a window of items, plus a bounded cache of fetched blocks. T
   - Tested against a computed source of 10^10 items (`block-cache.test.js`).
 - **Scroll position.** Native scrolling over a capped height is one of the inputs to the virtual window, not the source
   of truth. The source of truth is the position of the item at the top of the view, which keeps keyboard navigation,
-  `scrollTo(position)` and restoring a view exact. **Unverified:** how native scrolling feels near the cap's edges, and
-  how variable item heights interact with the offset. Neither grid was measured scrolling natively, because setting
-  `scrollTop` in headless Chrome triggered no fetch.
+  `scrollTo(position)` and restoring a view exact.
+- **Derived (built, measured in Chrome 156):**
+  - The top position is a `Controllable` in `ScrollRows` (`packages/components/src/scroll-rows.js`), DOM-free, with the
+    rows showing beside it. The web view turns it into pixels after each render and back from each scroll event
+    (`listbox-view.js`, `sync` and `scrolled`), and leaves the scroll position alone when it already shows the top.
+  - At most 100,000 rows are scrollable (`virtual-rows.js`). The offset (the position of the first scrollable row) moves
+    only when the top comes within a quarter of the scrollable rows of an end that isn't a real end, and then centres
+    the top. Moving it under the person keeps how far into the row they had scrolled.
+  - Jumps land exactly: `scrollTo(5e9)` showed 5,000,000,000 through 5,000,000,009 fully visible, and the last jump
+    showed 9,999,999,990 through 9,999,999,999, in both DOM modes (`listbox-view.test.js`).
+  - The cache stayed at or under its 16 blocks over 60 jumps spread across 10^10 items; at most 21 options were in the
+    DOM at once (20 in the window and the active one).
+  - The mouse wheel across an offset move, 20 turns of 100px over 32px rows: the top moved 3 or 4 rows per turn, never
+    back or skipping, while the scroll position fell from 2,399,688 to 1,599,852 px as the offset moved. The wheel stops
+    at the last item (9,999,999,990 at the top, 9,999,999,999 at the bottom).
+  - Rows have one fixed height (a token); variable heights are not supported.
+- **Unverified:** smooth and momentum scrolling across an offset move (headless Chrome delivered each wheel turn as one
+  instant 100px step, so whether setting the scroll position cuts a fling short wasn't seen); other browsers' limits on
+  element height (100,000 rows of 300px is 30,000,000px, under the 32,000,048px AG Grid's probe found Chrome allows, in
+  the evaluation); variable row heights.
 
 ### Selection (Settled model)
 
@@ -202,6 +234,12 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:13
 - Overlays that close (menus, the palette, dialogs) form a stack, so Escape and outside presses close the top one only.
   zag.js has a working stack to read (`@zag-js/dismissable` `dist/layer-stack.mjs`), as do its typeahead and tabbable
   helpers (`@zag-js/dom-query`).
+- **Derived (built, measured in Chrome 156):** focus stays on the listbox's viewport, and the active option is its
+  `aria-activedescendant` (`listbox-view.js`). The active option is always among the positions rendered
+  (`ScrollRows.positions`), hidden but present when it is outside the window. With the active item scrolled 2,000 rows
+  away, focus and the active descendant were still there, and the next ArrowDown brought it back into view, in both DOM
+  modes. Vaadin's keyboard and accessibility mixins were not read; the keys follow the WAI-ARIA listbox pattern
+  (`listbox-keys.js`).
 - What the listbox needs is built (`packages/core/src/focus.js`):
   - `entry(left, count)`: where focus enters a collection. It goes back to where it left, while that's still inside,
     otherwise to the first item, and nowhere when the collection is empty.
@@ -327,20 +365,31 @@ Tokens are named by role, and can be set at five levels:
 | State     | a component or part in one state |
 | Instance  | a single element                 |
 
-**Proposed:**
+**Derived (built, measured in Chrome 156):**
 
-- A component token defaults to a global role token, and a part or state token defaults to the component token. Setting
-  any level overrides everything below it.
-- Web Awesome's grid of role × kind × emphasis is the reference for naming global tokens, for example
-  `--wa-color-brand-fill-quiet|normal|loud` and `-on-*` (`styles/themes/default.css`).
+- A component's structural sheet resolves every visual value on the element itself: an instance's token (set on the
+  element), else the component's (`--interact-listbox-*`), else the theme's global role token (`--interact-color-*`,
+  `--interact-size-*`), else a system color, so a component works with no theme at all (`listbox-styles.js`). Resolving
+  on the element is what makes an instance token work: a custom property that refers to another is resolved where it is
+  declared, so a chain declared on `:root` would ignore anything set on one element.
+- State tokens (`--interact-listbox-option-selected-fill`) stand on their own over the part's. Shown in both DOM modes:
+  with the theme loaded, a component token on the page replaced the global, a part token set the options, the selected
+  option kept its state token, and a token on one element applied to it (`listbox-view.test.js`, tokens).
+- The theme is tokens only (`packages/theme/tokens.css`): the theme's rules can't reach into a shadow root, only its
+  inherited custom properties can, so it sets values and the components' structural sheets use them. Global names follow
+  Web Awesome's role × kind × emphasis grid (`--interact-color-brand-fill-loud`, `-brand-on-loud`,
+  `-neutral-fill-quiet`, `-surface`, `-on-surface`, `-border`, `-focus`), light and dark through `light-dark()`.
 
 ### Selectors and precedence
 
 Every selector has zero specificity, via `:where()`. Precedence comes only from cascade layers. `test/rules.test.js`
 enforces both for every stylesheet outside keybinds.
 
-**Proposed:** the layer order is structure, then theme, then the app's own layer, so an app overrides anything without
-competing on specificity.
+**Derived:** the layer order is `interact.structure`, then `interact.theme`, declared at the top of both the structural
+sheets and the theme (`@layer interact.structure, interact.theme;`), so it holds whichever loads first. The app's own
+styles come after both: by the cascade's rules an unlayered rule or a later layer wins without competing on specificity
+(not measured here). In shadow DOM the order matters only within a component's own sheet, since the theme reaches it
+through tokens.
 
 Web Awesome uses layers too (`styles/layers.css`), but its components barely use `:where()`.
 
@@ -382,7 +431,10 @@ Not verified:
 - Whether AG Grid's select-all is meant to follow the active filter.
 - Native scrolling in either grid.
 
-## Build order (Proposed)
+## Build order
+
+**Done:** the listbox slice, as below. What it settled is under Collections, Focus scopes, DOM and Styling. The
+listbox's API is in Components.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
