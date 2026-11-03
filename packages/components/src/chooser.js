@@ -57,6 +57,14 @@ class Chooser {
   }
 
   /**
+   * The item last chosen without Shift, which Shift selects through from, if any.
+   * @returns {number | undefined} Its position
+   */
+  get anchor() {
+    return this.#anchor
+  }
+
+  /**
    * Forgets the anchor, as when the items are replaced.
    * @returns {void}
    */
@@ -86,20 +94,21 @@ class Chooser {
   }
 
   /**
-   * Moving the active item to a position: in single mode it is selected; in multiple mode with `extend`, everything
-   * from the anchor to it is.
+   * Moving the active item to a position. In single mode it is selected. In multiple mode, moving leaves the
+   * selection and the anchor alone, and with `extend` selects everything from the anchor to it: the item last chosen,
+   * or, before anything was, the item the move started from.
    * @param {number} position - Where the active item went
    * @param {boolean} extend - Whether Shift was held
+   * @param {number} [from] - Where it was, if anywhere
    * @returns {void}
    */
-  moved(position, extend) {
-    if (extend && this.mode === 'multiple') {
-      this.#through(this.#anchor ?? position, position)
-      return
-    }
-    this.#anchor = position
+  moved(position, extend, from = position) {
     if (this.mode === 'single') {
+      this.#anchor = position
       this.#through(position, position)
+    } else if (extend) {
+      this.#anchor ??= from
+      this.#through(this.#anchor, position)
     }
   }
 
@@ -115,6 +124,18 @@ class Chooser {
       this.#through(position, position)
     }
     this.#anchor = position
+  }
+
+  /**
+   * Selects the items from one position through another, either way round, and nothing else; in multiple mode only.
+   * @param {number} from - One end
+   * @param {number} to - The other end
+   * @returns {void}
+   */
+  span(from, to) {
+    if (this.mode === 'multiple') {
+      this.#through(from, to)
+    }
   }
 
   /**

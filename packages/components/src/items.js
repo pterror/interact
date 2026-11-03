@@ -1,6 +1,6 @@
 /** @import { Change, Source } from '@interact/core/source' */
 
-import { BlockCache, Listeners } from '@interact/core'
+import { BlockCache, Listeners, startsWithTyped } from '@interact/core'
 
 const NONE = 0
 
@@ -106,6 +106,27 @@ class Items {
   }
 
   /**
+   * The first position at or after `from` whose item's text starts with `text`, going round to the start if there is
+   * none after it: asked of the source when it can search (`findPrefix`), else looked for among the items read so
+   * far. A failed search is reported as an error, and finds nothing.
+   * @param {string} text - What was typed
+   * @param {number} from - Where to start
+   * @param {(item: T) => string} textOf - An item's text, for looking among the items read
+   * @returns {Promise<number | undefined>} The position, if an item's text starts so
+   */
+  async findPrefix(text, from, textOf) {
+    const { count } = this
+    const start = from < count ? Math.max(from, NONE) : NONE
+    try {
+      const found = await this.#find(text, start, textOf)
+      return found === undefined && start > NONE ? await this.#find(text, NONE, textOf) : found
+    } catch (error) {
+      this.#errors.emit(error)
+      return undefined
+    }
+  }
+
+  /**
    * Calls `listener` with each change in the source, and with each block's positions as it arrives.
    * @param {(change: Change) => void} listener - What to call
    * @returns {() => void} Stops calling it
@@ -121,6 +142,22 @@ class Items {
    */
   onError(listener) {
     return this.#errors.add(listener)
+  }
+
+  /**
+   * The first position at or after `from` whose item's text starts with `text`, with no going round.
+   * @param {string} text - What was typed
+   * @param {number} from - Where to start
+   * @param {(item: T) => string} textOf - An item's text
+   * @returns {Promise<number | undefined>} The position, if any
+   */
+  async #find(text, from, textOf) {
+    const source = this.#source
+    if (source?.findPrefix) {
+      const found = await source.findPrefix(text, from)
+      return found
+    }
+    return this.#cache?.findHere((item) => startsWithTyped(textOf(item), text), from)
   }
 
   /**

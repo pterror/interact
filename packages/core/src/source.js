@@ -19,6 +19,10 @@
  * `start` up to `end`, at once or later. `key` identifies an item. `subscribe` reports every change. A filter (`F`)
  * describes a set of items in the source's own terms: `span` makes one for the items now at some positions, `matches`
  * tests an item against one, and `countMatching` counts its items.
+ *
+ * A source that can search its items' text has `findPrefix`: the first position at or after `from` whose item's text
+ * starts with `text`, compared as `startsWithTyped` compares, or undefined if none does. Typing in a list asks it,
+ * since only the source knows every item; without it, a list searches the items it has read.
  * @template T, F
  * @typedef {Readonly<{
  *   count: () => number,
@@ -28,6 +32,7 @@
  *   span: (start: number, end: number) => F,
  *   matches: (filter: F, item: T) => boolean,
  *   countMatching: (filter: F) => number | Promise<number>,
+ *   findPrefix?: (text: string, from: number) => number | undefined | Promise<number | undefined>,
  * }>} Source
  */
 

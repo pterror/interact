@@ -1,6 +1,7 @@
 /** @import { Change, Key, Source } from './source.js' */
 
 import { Listeners } from './listeners.js'
+import { plainText, startsWithTyped } from './text.js'
 
 /**
  * The items from the one with key `first` to the one with key `last`, wherever they are now.
@@ -13,7 +14,7 @@ const ONE_ITEM = 1
 
 /**
  * A source over items held in memory. Its filters are spans between two keys, so a span keeps meaning the same items
- * as others are inserted or removed around them.
+ * as others are inserted or removed around them. It searches its items' text, as `textOf` gives it.
  * @template T
  * @implements {Source<T, Span>}
  */
@@ -28,6 +29,11 @@ class MemorySource {
    * @type {(item: T) => Key}
    */
   #keyOf
+  /**
+   * @readonly
+   * @type {(item: T) => string}
+   */
+  #textOf
   /** @type {Map<Key, number> | undefined} */
   #positions = undefined
   /**
@@ -39,10 +45,13 @@ class MemorySource {
   /**
    * @param {readonly T[]} items - The items, in order
    * @param {(item: T) => Key} keyOf - What identifies an item
+   * @param {(item: T) => string} [textOf] - What an item is called, for searching (default: a string or number as
+   *   itself, anything else as nothing)
    */
-  constructor(items, keyOf) {
+  constructor(items, keyOf, textOf = plainText) {
     this.#items = [...items]
     this.#keyOf = keyOf
+    this.#textOf = textOf
   }
 
   /**
@@ -116,6 +125,22 @@ class MemorySource {
   countMatching(span) {
     const [low, high] = this.#ends(span)
     return low === NOT_FOUND || high === NOT_FOUND ? NO_ITEMS : high - low + ONE_ITEM
+  }
+
+  /**
+   * The first position at or after `from` whose item's text starts with `text`, ignoring case and accents.
+   * @param {string} text - What was typed
+   * @param {number} from - Where to start
+   * @returns {number | undefined} The position, if an item's text starts so
+   */
+  findPrefix(text, from) {
+    for (let position = Math.max(from, NO_ITEMS); position < this.#items.length; position += ONE_ITEM) {
+      const item = this.#items[position]
+      if (item !== undefined && startsWithTyped(this.#textOf(item), text)) {
+        return position
+      }
+    }
+    return undefined
   }
 
   /**

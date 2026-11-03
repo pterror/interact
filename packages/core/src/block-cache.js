@@ -3,6 +3,7 @@
 import { Listeners } from './listeners.js'
 
 const ONE_BLOCK = 1
+const NOT_FOUND = -1
 
 /**
  * A bounded cache of a source's items, read a block at a time and dropped least recently used first, so memory stays
@@ -110,6 +111,25 @@ class BlockCache {
       }
     }
     await Promise.all(reads)
+  }
+
+  /**
+   * The first position at or after `from` among the items here whose item passes a test, without making any block
+   * more recently used: at most the limit's blocks are looked at, whatever the source's size.
+   * @param {(item: T) => boolean} test - The test
+   * @param {number} from - Where to start
+   * @returns {number | undefined} The position, if an item here passes
+   */
+  findHere(test, from) {
+    const blocks = [...this.#blocks.keys()].filter((block) => (block + ONE_BLOCK) * this.#size > from)
+    for (const block of blocks.toSorted((left, right) => left - right)) {
+      const start = block * this.#size
+      const index = this.#blocks.get(block)?.findIndex((item, at) => start + at >= from && test(item))
+      if (index !== undefined && index !== NOT_FOUND) {
+        return start + index
+      }
+    }
+    return undefined
   }
 
   /**

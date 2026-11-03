@@ -5,16 +5,19 @@
  * @import { KeyAction, Modifiers } from './listbox-keys.js'
  */
 
-import { Controllable, Listeners, entry, move, nothing, shiftPosition } from '@interact/core'
+import { Controllable, Listeners, entry, nothing, plainText, shiftPosition } from '@interact/core'
 
 import { Chooser } from './chooser.js'
 import { Items } from './items.js'
+import { act } from './listbox-act.js'
 import { keyAction } from './listbox-keys.js'
 import { ScrollRows } from './scroll-rows.js'
+import { Typeahead } from './typeahead.js'
 
 /**
  * How a listbox starts. `text` is what an item is called, `rows` how many show at once, `id` what its options' ids
- * start with (unique in the page for light DOM), `label` its accessible name, and `top` the position shown first.
+ * start with (unique in the page for light DOM), `label` its accessible name, `top` the position shown first, and
+ * `now` the clock typing is timed by, in milliseconds.
  * @template T, F
  * @typedef {Readonly<{
  *   source?: Source<T, F>,
@@ -24,6 +27,7 @@ import { ScrollRows } from './scroll-rows.js'
  *   id?: string,
  *   label?: string,
  *   top?: number,
+ *   now?: () => number,
  * }>} ListboxOptions
  */
 
@@ -42,15 +46,6 @@ const ONE = 1
  */
 function nowhere() {
   return undefined
-}
-
-/**
- * What an item is called when the app doesn't say: a string or number as itself, anything else as nothing.
- * @param {unknown} item - The item
- * @returns {string} Its text
- */
-function plainText(item) {
-  return typeof item === 'string' || typeof item === 'number' ? String(item) : ''
 }
 
 /**
@@ -88,6 +83,11 @@ class Listbox {
    * @type {Listeners<number>}
    */
   #activations = new Listeners()
+  /**
+   * @readonly
+   * @type {Typeahead}
+   */
+  #typeahead
 
   /** @param {ListboxOptions<T, F>} [options] - How it starts */
   constructor(options = {}) {
@@ -97,6 +97,7 @@ class Listbox {
     this.label = options.label ?? ''
     /** @readonly */
     this.text = options.text ?? plainText
+    this.#typeahead = new Typeahead(options.now ?? (() => performance.now()))
     const { items } = this
     /** @readonly */
     this.scroll = new ScrollRows({
@@ -154,12 +155,18 @@ class Listbox {
   }
 
   /**
-   * What focus entering the listbox does: the active item stays, or the top one becomes active.
+   * What focus entering the listbox does: the active item stays and is scrolled into view; otherwise the item last
+   * chosen becomes active, or the top one.
    * @returns {void}
    */
   focus() {
-    const position = entry(this.active.get() ?? this.scroll.top.get(), this.items.count)
-    if (position !== undefined && position !== this.active.get()) {
+    const active = this.active.get()
+    if (active !== undefined) {
+      this.scroll.reveal(active)
+      return
+    }
+    const position = entry(this.choose.anchor ?? this.scroll.top.get(), this.items.count)
+    if (position !== undefined) {
       this.active.request(position)
     }
   }
@@ -171,12 +178,43 @@ class Listbox {
    * @returns {boolean} Whether it meant something, so its default should be prevented
    */
   key(key, modifiers) {
-    const action = keyAction(key, modifiers)
+    const typing = key === ' ' && !modifiers.shift && !modifiers.toggle && this.#typeahead.typing
+    /** @type {KeyAction | undefined} */
+    const action = typing ? { character: key, kind: 'type' } : keyAction(key, modifiers)
     if (action === undefined || this.items.count === NONE) {
       return false
     }
-    this.#act(action, modifiers.shift)
+    act(this, action, modifiers.shift)
     return true
+  }
+
+  /**
+   * Makes a position active and shows it, the selection following as moving there does.
+   * @param {number} position - Where to go
+   * @param {boolean} [extend] - Whether to select through from the anchor, as Shift does
+   * @returns {void}
+   */
+  goTo(position, extend = false) {
+    const from = this.active.get()
+    this.active.request(position)
+    this.scroll.reveal(position)
+    this.choose.moved(position, extend, from)
+  }
+
+  /**
+   * Looks for an item by a character typed, with what was typed a moment before it, and goes there when it is found,
+   * unless more was typed meanwhile.
+   * @param {string} character - What was typed
+   * @returns {Promise<void>} When it has been found, or not
+   */
+  async type(character) {
+    const at = { active: this.active.get(), top: this.scroll.top.get() }
+    const found = await this.#typeahead.seek(character, at, async (text, from) =>
+      this.items.findPrefix(text, from, this.text),
+    )
+    if (found !== undefined) {
+      this.goTo(found)
+    }
   }
 
   /**
@@ -225,45 +263,6 @@ class Listbox {
     this.items.subscribe((change) => {
       this.#follow(change)
     })
-  }
-
-  /**
-   * Does what a key asked: moves the active item and shows it, selects everything, activates or toggles.
-   * @param {KeyAction} action - What it asked
-   * @param {boolean} extend - Whether Shift was held, to select through from the anchor
-   * @returns {void}
-   */
-  #act(action, extend) {
-    const active = this.active.get()
-    const target = this.#target(action, active)
-    if (target !== undefined) {
-      this.active.request(target)
-      this.scroll.reveal(target)
-      this.choose.moved(target, extend)
-    } else if (action.kind === 'all' && this.choose.mode === 'multiple') {
-      this.choose.all()
-    } else if (action.kind === 'activate' && active !== undefined) {
-      this.activate(active)
-    } else if (action.kind === 'toggle' && active !== undefined) {
-      this.choose.toggle(active)
-    }
-  }
-
-  /**
-   * Where a key moves the active item, if it moves it.
-   * @param {KeyAction} action - What the key asked
-   * @param {number | undefined} active - The active item now
-   * @returns {number | undefined} Where it goes
-   */
-  #target(action, active) {
-    const { count } = this.items
-    if (action.kind === 'move') {
-      return move(active ?? this.scroll.top.get(), action.rows + action.pages * this.scroll.rows.get(), count)
-    }
-    if (action.kind === 'first') {
-      return NONE
-    }
-    return action.kind === 'last' ? count - ONE : undefined
   }
 
   /**

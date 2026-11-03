@@ -53,3 +53,23 @@ describe('Items', () => {
     expect([items.count, items.blocks, items.item(START)]).toEqual([START, START, undefined])
   })
 })
+
+describe('Items searching', () => {
+  test('reports a failed search, which finds nothing', async () => {
+    const items = new Items(BLOCK, LIMIT)
+    items.source = {
+      ...numbers(TEN_BILLION).source,
+      findPrefix: async () => {
+        await Promise.resolve()
+        throw new Error('offline')
+      },
+    }
+    /** @type {unknown[]} */
+    const problems = []
+    items.onError((problem) => {
+      problems.push(problem)
+    })
+    expect(await items.findPrefix('x', FAR, () => '')).toBeUndefined()
+    expect(problems).toHaveLength(ONE)
+  })
+})

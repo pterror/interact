@@ -72,6 +72,26 @@ describe('Chooser', () => {
     chooser.all()
     expect(await chooser.count()).toBe(TEN_BILLION)
   })
+})
+
+describe('Chooser in multiple mode', () => {
+  test('keeps its anchor while moving in multiple mode, extending from where the move started before any choice', async () => {
+    const { chooser } = choosing('multiple')
+    chooser.moved(TWO, true, ONE)
+    expect([chooser.anchor, await chooser.count()]).toEqual([ONE, TWO])
+    chooser.press(FIVE, PLAIN)
+    chooser.moved(START, false)
+    expect(chooser.anchor).toBe(FIVE)
+  })
+
+  test('selects a span in multiple mode only', async () => {
+    const multiple = choosing('multiple').chooser
+    multiple.span(FIVE, ONE)
+    expect(await multiple.count()).toBe(FIVE)
+    const single = choosing('single').chooser
+    single.span(FIVE, ONE)
+    expect(await single.count()).toBe(START)
+  })
 
   test('forgets its anchor on reset', async () => {
     const { chooser } = choosing('multiple')

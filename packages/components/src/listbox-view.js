@@ -244,7 +244,9 @@ function render(listbox) {
     tabindex="0"
     aria-label=${listbox.label === '' ? undefined : listbox.label}
     aria-multiselectable=${multiple ? 'true' : undefined}
-    aria-activedescendant=${active === undefined ? undefined : optionId(listbox, active)}
+    aria-activedescendant=${
+      active === undefined || listbox.items.item(active) === undefined ? undefined : optionId(listbox, active)
+    }
     style=${viewportStyle(listbox)}
     @focus=${() => {
       listbox.focus()

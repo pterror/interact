@@ -24,6 +24,7 @@ const LIMIT = 10
 const FAR = 8_000_000_000
 const START = 0
 const ONE = 1
+const TWO = 2
 
 /**
  * Ten billion numbered items, made as they are read. Each read is recorded and answers when `release` is called.
@@ -128,6 +129,28 @@ describe('reading', () => {
   test('refuses a range needing more blocks than it keeps', async () => {
     const cache = new BlockCache(numbers().source, SIZE, LIMIT)
     expect(await rejection(cache.ensure(START, SIZE * (LIMIT + ONE)))).toBeInstanceOf(RangeError)
+  })
+})
+
+/**
+ * Whether an item's number is even.
+ * @param {Item} item - The item
+ * @returns {boolean} Whether it is
+ */
+function even(item) {
+  return item.id % TWO === START
+}
+
+describe('finding', () => {
+  test('finds the first item here at or after a position that passes a test, wherever its block is', async () => {
+    const numbered = numbers()
+    const cache = new BlockCache(numbered.source, SIZE, LIMIT)
+    await ensured(cache, numbered, [FAR, FAR + SIZE])
+    await ensured(cache, numbered, [START, SIZE])
+    expect(cache.findHere(even, ONE)).toBe(TWO)
+    expect(cache.findHere(even, SIZE)).toBe(FAR)
+    expect(cache.findHere((item) => item.id === FAR + HALF, START)).toBe(FAR + HALF)
+    expect(cache.findHere(even, FAR + SIZE)).toBeUndefined()
   })
 })
 

@@ -1,3 +1,5 @@
+import { graphemes } from './typeahead.js'
+
 /**
  * Which modifiers were held: Shift, and the platform's toggle modifier (Control, or Command on a Mac).
  * @typedef {Readonly<{ shift: boolean, toggle: boolean }>} Modifiers
@@ -5,7 +7,8 @@
 
 /**
  * What a key asks a listbox to do: move the active item by some rows or pages, or to the first or last item; toggle
- * the active item's selection; activate it; or select everything.
+ * the active item's selection; activate it; select everything; select from the anchor through the active item; select
+ * from the active item to the first or last, moving there; or look for an item by what was typed.
  * @typedef {Readonly<
  *   | { kind: 'move', rows: number, pages: number }
  *   | { kind: 'first' }
@@ -13,12 +16,17 @@
  *   | { kind: 'toggle' }
  *   | { kind: 'activate' }
  *   | { kind: 'all' }
+ *   | { kind: 'through' }
+ *   | { kind: 'toFirst' }
+ *   | { kind: 'toLast' }
+ *   | { kind: 'type', character: string }
  * >} KeyAction
  */
 
 const BACK = -1
 const FORWARD = 1
 const NONE = 0
+const ONE_CHARACTER = 1
 
 /** @type {ReadonlyMap<string, KeyAction>} */
 const KEYS = new Map([
@@ -32,18 +40,47 @@ const KEYS = new Map([
   ['PageUp', { kind: 'move', pages: BACK, rows: NONE }],
 ])
 
+/** @type {ReadonlyMap<string, KeyAction>} */
+const TOGGLE_SHIFT_KEYS = new Map([
+  ['End', { kind: 'toLast' }],
+  ['Home', { kind: 'toFirst' }],
+])
+
 /**
- * What a key does in a listbox, if anything: the arrows, Home, End and the page keys move the active item, Space
- * toggles it, Enter activates it, and the toggle modifier with A selects everything.
+ * What a key does with the toggle modifier: with A, select everything; with Shift and Home or End, select from the
+ * active item to the first or last.
+ * @param {string} key - The key
+ * @param {boolean} shift - Whether Shift was held too
+ * @returns {KeyAction | undefined} What to do
+ */
+function toggleAction(key, shift) {
+  if (shift) {
+    return TOGGLE_SHIFT_KEYS.get(key)
+  }
+  return key.toLowerCase() === 'a' ? { kind: 'all' } : undefined
+}
+
+/**
+ * What a key does in a listbox, if anything, as the WAI-ARIA Authoring Practices listbox pattern has it: the arrows,
+ * Home, End and the page keys move the active item; Space toggles it, and with Shift selects from the anchor through
+ * it; Enter activates it; the toggle modifier with A selects everything, and with Shift and Home or End selects from
+ * the active item to the first or last; any other character looks for an item by what was typed.
  * @param {string} key - The key, as `KeyboardEvent.key` names it
  * @param {Modifiers} modifiers - What was held
  * @returns {KeyAction | undefined} What to do
  */
 function keyAction(key, modifiers) {
   if (modifiers.toggle) {
-    return key.toLowerCase() === 'a' ? { kind: 'all' } : undefined
+    return toggleAction(key, modifiers.shift)
   }
-  return KEYS.get(key)
+  if (key === ' ' && modifiers.shift) {
+    return { kind: 'through' }
+  }
+  const known = KEYS.get(key)
+  if (known !== undefined || graphemes(key).length !== ONE_CHARACTER) {
+    return known
+  }
+  return { character: key, kind: 'type' }
 }
 
 export { keyAction }

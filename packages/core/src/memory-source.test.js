@@ -19,6 +19,7 @@ function withIds(ids) {
   return new MemorySource(items, (item) => item.id)
 }
 
+const FIRST = 0
 const SECOND = 1
 const THIRD = 2
 const FOURTH = 3
@@ -61,5 +62,28 @@ describe('MemorySource', () => {
     source.remove(SECOND, THIRD)
     expect(source.countMatching(span)).toBe(SECOND - SECOND)
     expect(() => source.span(SECOND, SECOND)).toThrow(RangeError)
+  })
+})
+
+describe('MemorySource searching', () => {
+  test('finds the first item at or after a position whose text starts with what was typed', () => {
+    const source = new MemorySource(['Apple', 'banana', 'Ávila', 'blueberry'], (item) => item)
+    expect(source.findPrefix('b', SECOND)).toBe(SECOND)
+    expect(source.findPrefix('b', THIRD)).toBe(FOURTH)
+    expect(source.findPrefix('a', SECOND)).toBe(THIRD)
+    expect(source.findPrefix('blu', FIRST)).toBe(FOURTH)
+    expect(source.findPrefix('c', FIRST)).toBeUndefined()
+  })
+
+  test('searches the text an app gives its items', () => {
+    /** @type {readonly Readonly<{ id: string, name: string }>[]} */
+    const named = [{ id: 'x', name: 'Zed' }]
+    const source = new MemorySource(
+      named,
+      (item) => item.id,
+      (item) => item.name,
+    )
+    expect(source.findPrefix('z', FIRST)).toBe(FIRST)
+    expect(source.findPrefix('x', FIRST)).toBeUndefined()
   })
 })
