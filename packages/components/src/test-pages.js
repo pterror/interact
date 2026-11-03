@@ -169,5 +169,62 @@ async function beforeTheEnd(mode) {
   return middle()
 }
 
+/**
+ * The colors a token set at one level gives: the viewport's fill, an option's, and a selected option's.
+ * @typedef {Readonly<{ fill: string, option: string, selected: string }>} Colors
+ */
+
+/**
+ * The background color of what a selector finds.
+ * @param {HTMLElement | ShadowRoot} root - Where to look
+ * @param {string} selector - What to look for
+ * @returns {string} Its background color, or "missing"
+ */
+function fillOf(root, selector) {
+  const found = root.querySelector(selector)
+  return found ? getComputedStyle(found).backgroundColor : 'missing'
+}
+
+/**
+ * The listbox's colors now.
+ * @returns {Colors} Its viewport's fill, its second option's, and its first (selected) option's
+ */
+function colors() {
+  const { root, viewport } = parts()
+  return {
+    fill: getComputedStyle(viewport).backgroundColor,
+    option: fillOf(root, '[aria-posinset="2"]'),
+    selected: fillOf(root, '[aria-posinset="1"]'),
+  }
+}
+
+/**
+ * Selects the first item of a new listbox under the theme, then sets a token at each level in turn: the colors with
+ * the theme alone, then with a component token, a part token and an instance token set.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ theme: Colors, component: Colors, part: Colors, instance: Colors }>>} The colors
+ */
+async function tokenLevels(mode) {
+  const listbox = await fresh(mode)
+  listbox.choose.press(NONE, { shift: false, toggle: false })
+  await settle()
+  const theme = colors()
+  document.documentElement.style.setProperty('--interact-listbox-fill', 'rgb(1, 2, 3)')
+  const component = colors()
+  document.documentElement.style.setProperty('--interact-listbox-option-fill', 'rgb(4, 5, 6)')
+  const part = colors()
+  document.querySelector('x-listbox')?.setAttribute('style', '--interact-listbox-option-selected-fill: rgb(7, 8, 9)')
+  return { component, instance: colors(), part, theme }
+}
+
 export { seen, settle } from './test-page-listbox.js'
-export { FIVE_BILLION, adoptServerListbox, beforeRecentring, beforeTheEnd, focusAway, jump, selectAllButOne }
+export {
+  FIVE_BILLION,
+  adoptServerListbox,
+  beforeRecentring,
+  beforeTheEnd,
+  focusAway,
+  jump,
+  selectAllButOne,
+  tokenLevels,
+}

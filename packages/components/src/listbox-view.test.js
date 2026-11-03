@@ -20,6 +20,12 @@ const OVERSCAN = 5
 const PRESSED = 3
 const WHEEL = 100
 const WHEELS = 20
+const WHITE = 'rgb(255, 255, 255)'
+const CLEAR = 'rgba(0, 0, 0, 0)'
+const BRAND = 'rgb(47, 95, 208)'
+const COMPONENT = 'rgb(1, 2, 3)'
+const PART = 'rgb(4, 5, 6)'
+const INSTANCE = 'rgb(7, 8, 9)'
 /** @type {DomMode[]} */
 const MODES = ['shadow', 'light']
 
@@ -146,6 +152,20 @@ describe.each(MODES)('the listbox in %s DOM, in Chrome', (mode) => {
     expect(seen.away.top).toBeGreaterThan(ROWS * ROWS)
     expect([seen.back.focused, seen.back.activeThere, seen.back.active]).toEqual([true, true, PRESSED + ONE])
     expect(seen.back.top).toBe(PRESSED + ONE)
+  })
+})
+
+describe.each(MODES)('tokens for the listbox in %s DOM, in Chrome', (mode) => {
+  test('resolve on each element: the theme, then component, part, state and instance tokens over it', async () => {
+    const theme = '<link rel="stylesheet" href="/packages/theme/tokens.css">'
+    const seen = await inPage(mode, theme, async (dom) => {
+      const { tokenLevels } = await import('./test-pages.js')
+      return tokenLevels(dom)
+    })
+    expect(seen.theme).toEqual({ fill: WHITE, option: CLEAR, selected: BRAND })
+    expect(seen.component).toEqual({ fill: COMPONENT, option: CLEAR, selected: BRAND })
+    expect(seen.part).toEqual({ fill: COMPONENT, option: PART, selected: BRAND })
+    expect(seen.instance).toEqual({ fill: COMPONENT, option: PART, selected: INSTANCE })
   })
 })
 
