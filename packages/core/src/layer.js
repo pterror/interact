@@ -25,10 +25,19 @@ const EVERY_WAY = { escape: true, focusOutside: true, outside: true }
  * Something shown over the rest: a menu, a dialog, a popup. Whether it is open is a `Controllable`, so an app that owns
  * it hears every dismissal as a request it can refuse. A dismissal is first an event, with its reason, then a request
  * to close.
+ *
+ * `open` is whether it should show; `shown` is whether a view is showing it, as that view reports: true once it is on
+ * screen, false once it has gone and focus is back where it was. What should happen only after it has gone (running a
+ * command chosen in it, which may move focus) waits for `afterHidden`.
  */
 class Layer {
   /** @readonly */
   open
+  /**
+   * Whether a view is showing the layer now, which only the view knows and sets.
+   * @readonly
+   */
+  shown = new Controllable(false, false)
   /** @readonly */
   modal
   /**
@@ -75,6 +84,25 @@ class Layer {
   dismiss(reason) {
     this.#dismissals.emit(reason)
     this.open.request(false)
+  }
+
+  /**
+   * Calls `run` once no view shows the layer: at once if none does, otherwise once its view has hidden it and given
+   * focus back.
+   * @param {() => void} run - What to call
+   * @returns {void}
+   */
+  afterHidden(run) {
+    if (!this.shown.get()) {
+      run()
+      return
+    }
+    const stop = this.shown.subscribe((shown) => {
+      if (!shown) {
+        stop()
+        run()
+      }
+    })
   }
 
   /**

@@ -40,3 +40,23 @@ describe('Layer', () => {
     expect(layer.open.get()).toBe(true)
   })
 })
+
+describe('a layer shown by a view', () => {
+  test('runs what waits for it to be hidden at once when no view shows it, else once its view says it has gone', () => {
+    const layer = new Layer({ open: true })
+    /** @type {string[]} */
+    const ran = []
+    layer.afterHidden(() => {
+      ran.push('unshown')
+    })
+    layer.shown.set(true)
+    layer.afterHidden(() => {
+      ran.push('shown')
+    })
+    const waiting = [...ran]
+    layer.shown.set(false)
+    layer.shown.set(true)
+    layer.shown.set(false)
+    expect([waiting, ran]).toEqual([['unshown'], ['unshown', 'shown']])
+  })
+})
