@@ -69,6 +69,14 @@ class BlockCache {
   }
 
   /**
+   * How many blocks are here now, never more than the limit.
+   * @returns {number} The count
+   */
+  get blocks() {
+    return this.#blocks.size
+  }
+
+  /**
    * The item at a position, if its block is here.
    * @param {number} position - Where it is
    * @returns {T | undefined} The item, or undefined until its block arrives

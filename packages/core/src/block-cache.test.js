@@ -140,6 +140,7 @@ describe('keeping', () => {
     expect(cache.get(START)).toBeUndefined()
     expect(cache.get(SIZE)).toEqual({ id: SIZE })
     expect(cache.get(SIZE * LIMIT)).toEqual({ id: SIZE * LIMIT })
+    expect(cache.blocks).toBe(LIMIT)
   })
 })
 

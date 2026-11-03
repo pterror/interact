@@ -67,6 +67,10 @@
     // Contradicts typescript/promise-function-async, which needs `async` on a function that returns a promise without
     // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
     "eslint/require-await": "off",
+    // Async work started from a sync event (a read the cache reports on) has to be marked as not awaited:
+    // typescript/no-floating-promises accepts only `void` or `.catch()`, promise/prefer-await-to-then forbids `.catch()`,
+    // and an async listener fails typescript/no-misused-promises. So `void` is allowed as a statement, nowhere else.
+    "eslint/no-void": ["error", { "allowAsStatement": true }],
     "eslint/func-style": ["error", "declaration"],
     // The browser's CSSStyleSheet.replaceSync styles a constructed sheet before the first paint; replace() resolves
     // later. Node's sync methods stay flagged.
@@ -125,7 +129,7 @@
   },
   "overrides": [
     {
-      "files": ["test/**"],
+      "files": ["test/**", "**/*.test.js"],
       "globals": { "Bun": "readonly" }
     },
     {

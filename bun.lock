@@ -21,6 +21,10 @@
     "packages/components": {
       "name": "@interact/components",
       "version": "0.0.0",
+      "dependencies": {
+        "@interact/core": "workspace:*",
+        "@interact/dom": "workspace:*",
+      },
     },
     "packages/core": {
       "name": "@interact/core",
