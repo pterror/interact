@@ -3,6 +3,15 @@ export { Controllable } from './controllable.js'
 export { entry, move } from './focus.js'
 export { Listeners } from './listeners.js'
 export { MemorySource } from './memory-source.js'
-export { countSelected, isSelected, nothing, only, spanning, toggle } from './selection.js'
+export {
+  countSelected,
+  findsSelected,
+  firstSelected,
+  isSelected,
+  nothing,
+  only,
+  spanning,
+  toggle,
+} from './selection.js'
 export { shiftPosition } from './source.js'
 export { plainText, startsWithTyped } from './text.js'

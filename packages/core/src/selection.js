@@ -1,6 +1,7 @@
 /** @import { Key, Source } from './source.js' */
 
 const NONE = 0
+const ONE = 1
 
 /**
  * What is selected: every item `filter` matches, except the keys in `removed`, and the keys in `added` besides. Without
@@ -113,4 +114,75 @@ async function countSelected(selection, source) {
   return matching - selection.removed.size + selection.added.size
 }
 
-export { countSelected, isSelected, nothing, only, spanning, toggle }
+/**
+ * Whether the source can say where a selection starts: it has `firstMatching` if the selection has a filter, and
+ * `positionOf` if it has added keys.
+ * @template T, F
+ * @param {Selection<F>} selection - The selection
+ * @param {Source<T, F>} source - The items' source
+ * @returns {boolean} Whether `firstSelected` can ask it
+ */
+function findsSelected(selection, source) {
+  const matches = selection.filter === undefined || source.firstMatching !== undefined
+  return matches && (selection.added.size === NONE || source.positionOf !== undefined)
+}
+
+/**
+ * The earlier of two positions, either of which may be missing.
+ * @param {number | undefined} left - One position
+ * @param {number | undefined} right - The other
+ * @returns {number | undefined} The earlier, or whichever there is
+ */
+function earlier(left, right) {
+  if (left === undefined) {
+    return right
+  }
+  return right === undefined ? left : Math.min(left, right)
+}
+
+/**
+ * Where an added key's item is, if it is selected. A key added and not removed is selected wherever it is; one both
+ * added and removed is selected only while the filter doesn't match its item, so that item is read to tell.
+ * @template T, F
+ * @param {Selection<F>} selection - The selection
+ * @param {Source<T, F>} source - The items' source
+ * @param {Key} key - The added key
+ * @returns {Promise<number | undefined>} Its position, if it is there and selected
+ */
+async function addedPosition(selection, source, key) {
+  const position = await source.positionOf?.(key)
+  if (position === undefined || !selection.removed.has(key)) {
+    return position
+  }
+  const [item] = await source.read(position, position + ONE)
+  return item !== undefined && isSelected(selection, source, item) ? position : undefined
+}
+
+/**
+ * Where the first selected item is: the first the filter matches whose key wasn't removed, or an added key's item,
+ * whichever comes first, found by the source without reading through the selection. Only for a source that
+ * `findsSelected` says can.
+ * @template T, F
+ * @param {Selection<F>} selection - The selection
+ * @param {Source<T, F>} source - The items' source
+ * @returns {Promise<number | undefined>} The position, or undefined when nothing selected is there
+ * @throws {TypeError} If the source can't say
+ */
+async function firstSelected(selection, source) {
+  if (!findsSelected(selection, source)) {
+    throw new TypeError('The source has no positionOf or firstMatching for this selection')
+  }
+  const { added, filter, removed } = selection
+  const found = await Promise.all([
+    filter === undefined ? undefined : source.firstMatching?.(filter, removed),
+    ...[...added].map(async (key) => addedPosition(selection, source, key)),
+  ])
+  /** @type {number | undefined} */
+  let first = undefined
+  for (const position of found) {
+    first = earlier(first, position)
+  }
+  return first
+}
+
+export { countSelected, findsSelected, firstSelected, isSelected, nothing, only, spanning, toggle }

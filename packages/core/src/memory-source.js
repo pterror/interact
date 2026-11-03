@@ -144,6 +144,36 @@ class MemorySource {
   }
 
   /**
+   * Where the item with a key is now.
+   * @param {Key} key - The key
+   * @returns {number | undefined} Its position, if it is here
+   */
+  positionOf(key) {
+    const position = this.#position(key)
+    return position === NOT_FOUND ? undefined : position
+  }
+
+  /**
+   * The first position in a span whose key isn't in `except`: no more steps than `except` has keys.
+   * @param {Span} span - The span
+   * @param {ReadonlySet<Key>} except - Keys to pass over
+   * @returns {number | undefined} The position, if the span has such an item
+   */
+  firstMatching(span, except) {
+    const [low, high] = this.#ends(span)
+    if (low === NOT_FOUND || high === NOT_FOUND) {
+      return undefined
+    }
+    for (let position = low; position <= high; position += ONE_ITEM) {
+      const item = this.#items[position]
+      if (item !== undefined && !except.has(this.#keyOf(item))) {
+        return position
+      }
+    }
+    return undefined
+  }
+
+  /**
    * Puts items in at a position.
    * @param {number} start - Where the first goes
    * @param {readonly T[]} items - The items

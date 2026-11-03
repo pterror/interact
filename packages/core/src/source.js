@@ -23,6 +23,11 @@
  * A source that can search its items' text has `findPrefix`: the first position at or after `from` whose item's text
  * starts with `text`, compared as `startsWithTyped` compares, or undefined if none does. Typing in a list asks it,
  * since only the source knows every item; without it, a list searches the items it has read.
+ *
+ * A source that can place items has `positionOf`, where the item with a key is now, and `firstMatching`, the first
+ * position a filter matches whose key isn't in `except`; either gives undefined when there is none. With them
+ * `firstSelected` finds where a selection starts without reading through it, so focus entering a list can go to its
+ * first selected item.
  * @template T, F
  * @typedef {Readonly<{
  *   count: () => number,
@@ -33,6 +38,8 @@
  *   matches: (filter: F, item: T) => boolean,
  *   countMatching: (filter: F) => number | Promise<number>,
  *   findPrefix?: (text: string, from: number) => number | undefined | Promise<number | undefined>,
+ *   positionOf?: (key: Key) => number | undefined | Promise<number | undefined>,
+ *   firstMatching?: (filter: F, except: ReadonlySet<Key>) => number | undefined | Promise<number | undefined>,
  * }>} Source
  */
 

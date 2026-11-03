@@ -65,6 +65,25 @@ describe('MemorySource', () => {
   })
 })
 
+describe('MemorySource placing', () => {
+  test('says where a key is, and nothing for one not there', () => {
+    const source = withIds(['a', 'b', 'c'])
+    expect([source.positionOf('c'), source.positionOf('z')]).toEqual([THIRD, undefined])
+    source.insert(FIRST, [{ id: 'x' }])
+    expect(source.positionOf('c')).toBe(FOURTH)
+  })
+
+  test("finds a span's first item whose key isn't passed over", () => {
+    const source = withIds(['a', 'b', 'c', 'd', 'e'])
+    const span = source.span(SECOND, FIFTH)
+    expect(source.firstMatching(span, new Set())).toBe(SECOND)
+    expect(source.firstMatching(span, new Set(['b', 'c']))).toBe(FOURTH)
+    expect(source.firstMatching(span, new Set(['b', 'c', 'd']))).toBeUndefined()
+    source.remove(SECOND, THIRD)
+    expect(source.firstMatching(span, new Set())).toBeUndefined()
+  })
+})
+
 describe('MemorySource searching', () => {
   test('finds the first item at or after a position whose text starts with what was typed', () => {
     const source = new MemorySource(['Apple', 'banana', 'Ávila', 'blueberry'], (item) => item)
