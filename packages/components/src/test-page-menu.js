@@ -260,4 +260,18 @@ function focusButton() {
   }
 }
 
-export { adoptMenu, buttonBox, focusButton, putMenu, rowBox, seen, settle }
+/**
+ * Asks for the context menu from the keyboard as an engine with no point for it would: focus on the box, and a
+ * contextmenu with no point and no press count.
+ * @returns {void}
+ */
+function askFromKeyboard() {
+  const target = document.querySelector('#target')
+  if (!(target instanceof HTMLElement)) {
+    throw new TypeError('There is no box to ask over')
+  }
+  target.focus()
+  target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, composed: true }))
+}
+
+export { adoptMenu, askFromKeyboard, buttonBox, focusButton, putMenu, rowBox, seen, settle }

@@ -200,3 +200,43 @@ describe.each(CASES)('a context menu in %s DOM, in %s', (mode, engine) => {
     expect([closed.open, closed.focus]).toEqual([[false], 'target'])
   })
 })
+
+/** Where the box a context menu opens over has the start of its bottom edge. */
+const BOX_BOTTOM_START = { x: 300, y: 300 }
+
+/**
+ * Where the context menu's first item is once it has opened.
+ * @param {Awaited<ReturnType<typeof look>>} seen - What was seen
+ * @returns {number[]} Its x and y, rounded
+ */
+function firstAt(seen) {
+  const box = boxAt(seen, FIRST)
+  return [Math.round(box.x), Math.round(box.y)]
+}
+
+describe.each(CASES)('a context menu in %s DOM, in %s, asked for from the keyboard', (mode, engine) => {
+  test('opens below what has focus, whatever point the engine reports', async () => {
+    const opened = await withMenu({ engine, kind: 'context', mode }, async (page) => {
+      await page.evaluate(async () => {
+        const pages = await import('./test-page-menu.js')
+        pages.askFromKeyboard()
+      })
+      return look(page)
+    })
+    expect([opened.open, opened.focus, opened.active]).toEqual([[true], ROOT, 'Cut'])
+    expect(firstAt(opened)).toEqual([BOX_BOTTOM_START.x, BOX_BOTTOM_START.y])
+  })
+})
+
+/* Only Chrome fires contextmenu for these keys headless; Firefox and WebKit fire nothing for them there. */
+describe.each(MODES)('a context menu in %s DOM, in chrome, from the Context Menu key and Shift+F10', (mode) => {
+  test.each(['ContextMenu', 'Shift+F10'])('opens below what has focus on %s', async (key) => {
+    const opened = await withMenu({ engine: 'chrome', kind: 'context', mode }, async (page) => {
+      await page.focus('#target')
+      await keys(page, [key])
+      return look(page)
+    })
+    expect([opened.open, opened.focus]).toEqual([[true], ROOT])
+    expect(firstAt(opened)).toEqual([BOX_BOTTOM_START.x, BOX_BOTTOM_START.y])
+  })
+})

@@ -29,8 +29,42 @@ function contextMenuElement(create) {
   return component(contextMenuView(), create)
 }
 
+const NONE = 0
+
 /**
- * Opens a menu where the person asks for a context menu over an element, instead of the browser's own.
+ * Whether a context menu was asked for from the keyboard (the Context Menu key, Shift+F10) rather than the pointer:
+ * Chrome says so with button -1; an engine giving no point and no press count is taken as saying the same.
+ * @param {MouseEvent} event - The request
+ * @returns {boolean} Whether it came from the keyboard
+ */
+function fromKeyboard(event) {
+  return event.button < NONE || (event.detail === NONE && event.clientX === NONE && event.clientY === NONE)
+}
+
+/**
+ * Where a context menu opens: where the pointer asked for it, or, asked for from the keyboard, at the start of the
+ * bottom edge of what has focus, whatever point the engine reports for a key.
+ * @param {MouseEvent} event - The request
+ * @param {EventTarget} target - Where it was heard
+ * @returns {Readonly<{ x: number, y: number }>} The point
+ */
+function pointFor(event, target) {
+  if (!fromKeyboard(event)) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const [origin] = event.composedPath()
+  const element = origin instanceof Element ? origin : target
+  if (!(element instanceof Element)) {
+    return { x: event.clientX, y: event.clientY }
+  }
+  const box = element.getBoundingClientRect()
+  const rtl = getComputedStyle(element).direction === 'rtl'
+  return { x: rtl ? box.right : box.left, y: box.bottom }
+}
+
+/**
+ * Opens a menu where the person asks for a context menu over an element, instead of the browser's own: at the
+ * pointer, or below what has focus when they ask from the keyboard.
  * @template F
  * @param {EventTarget} target - Where they ask
  * @param {Menu<F>} menu - The menu
@@ -44,7 +78,7 @@ function openOnContextMenu(target, menu) {
   function opened(event) {
     if (event instanceof MouseEvent) {
       event.preventDefault()
-      menu.openAt({ x: event.clientX, y: event.clientY })
+      menu.openAt(pointFor(event, target))
     }
   }
   target.addEventListener('contextmenu', opened)
