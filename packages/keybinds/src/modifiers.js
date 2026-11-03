@@ -2,72 +2,220 @@
  * Holding a modifier on its own, or tapping it, as a trigger (the cheatsheet opens this way).
  */
 
+import { windowOf } from './input.js'
+
 /**
- * Trigger callback when a modifier key is held
- *
- * @param {string | string[]} modifiers - Modifier(s) to listen for: 'Control', 'Alt', 'Shift', 'Meta'
- * @param {(held: boolean) => void} callback - Called with true on hold, false on release
- * @param {{ delay?: number, target?: EventTarget }} [options]
- * @returns {() => void} Cleanup function
- *
- * @example
- * const cleanup = onModifierHold('Control', (held) => {
- *   cheatsheet.open = held
- * }, { delay: 300 })
+ * What a modifier on its own does: `down` is a fresh press (not the key's auto-repeat) with no other modifier held;
+ * `spoiled` is anything else happening while it's held (another key, a click, scrolling), after which nothing counts
+ * until it's let go; `up` is it being let go, with whether the press stayed clean
+ * @typedef {Readonly<{ down: () => void, spoiled: () => void, up: (clean: boolean) => void }>} ModifierEvents
  */
-export function onModifierHold(modifiers, callback, options = {}) {
-  const { delay = 200, target = window } = options
-  /** @type {ReturnType<typeof setTimeout> | null} */
-  let timer = null
-  let isHeld = false
-  const stop = () => {
-    if (timer !== null) {
-      clearTimeout(timer)
-      timer = null
+
+/**
+ * Where to listen for a modifier, how long a hold takes, and how many taps in how long
+ * @typedef {Readonly<{ count?: number, delay?: number, target?: EventTarget, within?: number }>} ModifierOptions
+ */
+
+const MODIFIERS = ['Alt', 'Control', 'Meta', 'Shift']
+const SPOILERS = ['pointerdown', 'wheel', 'contextmenu']
+const DEFAULT_DELAY = 200
+const DEFAULT_WITHIN = 400
+const DEFAULT_COUNT = 2
+
+/**
+ * Follows a modifier being pressed and let go on its own. Listens in the capture phase, so editors that stop events
+ * don't hide them
+ */
+class ModifierWatch {
+  /**
+   * @readonly
+   * @type {ReadonlySet<string>}
+   */
+  #modifiers
+  /**
+   * @readonly
+   * @type {EventTarget}
+   */
+  #target
+  /**
+   * @readonly
+   * @type {EventTarget}
+   */
+  #window
+  /**
+   * @readonly
+   * @type {ModifierEvents}
+   */
+  #on
+  #held = false
+  #clean = false
+
+  /**
+   * Starts following
+   * @param {string | readonly string[]} modifiers - The modifier or modifiers: "Control", "Alt", "Shift", "Meta"
+   * @param {EventTarget} target - Where to listen
+   * @param {ModifierEvents} on - What happens
+   */
+  constructor(modifiers, target, on) {
+    this.#modifiers = new Set(
+      (typeof modifiers === 'string' ? [modifiers] : modifiers).map((name) => name.toLowerCase()),
+    )
+    this.#target = target
+    this.#window = windowOf(target)
+    this.#on = on
+    target.addEventListener('keydown', this, true)
+    target.addEventListener('keyup', this, true)
+    for (const type of SPOILERS) {
+      target.addEventListener(type, this, { capture: true, passive: true })
     }
-    if (isHeld) {
-      isHeld = false
-      callback(false)
+    this.#window.addEventListener('blur', this)
+  }
+
+  /**
+   * Hears keys, whatever spoils a press, and the window losing focus
+   * @param {Event} event - The event
+   * @returns {void}
+   */
+  handleEvent(event) {
+    if (event.type === 'blur') {
+      this.#blur()
+    } else if (!(event instanceof KeyboardEvent)) {
+      this.#spoil()
+    } else if (!this.#modifiers.has(event.key.toLowerCase())) {
+      this.#other(event)
+    } else if (event.type === 'keyup') {
+      this.#up()
+    } else {
+      this.#down(event)
     }
   }
-  const unwatch = watchModifier(modifiers, target, {
-    down: () => {
-      stop()
-      timer = setTimeout(() => {
-        timer = null
-        isHeld = true
-        callback(true)
-      }, delay)
-    },
-    spoiled: stop,
-    up: stop,
-  })
-  return () => {
-    unwatch()
-    if (timer !== null) clearTimeout(timer)
+
+  /**
+   * One of the modifiers went down. Other modifiers already down (Shift, then Control) make it a chord, not a press
+   * on its own
+   * @param {KeyboardEvent} event - The keydown
+   * @returns {void}
+   */
+  #down(event) {
+    if (event.repeat || this.#held) {
+      return
+    }
+    this.#held = true
+    this.#clean = !MODIFIERS.some((name) => !this.#modifiers.has(name.toLowerCase()) && event.getModifierState(name))
+    if (this.#clean) {
+      this.#on.down()
+    }
+  }
+
+  /** @returns {void} */
+  #up() {
+    if (this.#held) {
+      this.#held = false
+      this.#on.up(this.#clean)
+    }
+  }
+
+  /**
+   * Another key, which spoils a press going down but not a key going up
+   * @param {KeyboardEvent} event - The key event
+   * @returns {void}
+   */
+  #other(event) {
+    if (event.type === 'keydown') {
+      this.#spoil()
+    }
+  }
+
+  /** @returns {void} */
+  #spoil() {
+    if (this.#held && this.#clean) {
+      this.#clean = false
+      this.#on.spoiled()
+    }
+  }
+
+  /** @returns {void} */
+  #blur() {
+    if (this.#held) {
+      this.#held = false
+      this.#clean = false
+      this.#on.up(false)
+    }
+  }
+
+  /** @returns {void} */
+  stop() {
+    this.#target.removeEventListener('keydown', this, true)
+    this.#target.removeEventListener('keyup', this, true)
+    for (const type of SPOILERS) {
+      this.#target.removeEventListener(type, this, true)
+    }
+    this.#window.removeEventListener('blur', this)
   }
 }
 
 /**
- * Trigger callback when a modifier key is tapped (pressed and released by itself) `count` times in
- * quick succession, as in double-tapping Shift.
- *
- * @param {string | string[]} modifiers - Modifier(s) to listen for: 'Control', 'Alt', 'Shift', 'Meta'
- * @param {number} count - Taps in a row
- * @param {() => void} callback
- * @param {{ within?: number, target?: EventTarget }} [options] - `within`: most ms from one tap's
- *   press to the next tap's release (default 400)
- * @returns {() => void} Cleanup function
- *
+ * Calls back when a modifier is held on its own for a while, and again when it's let go
  * @example
- * onModifierTaps('Control', 2, () => { cheatsheet.open = !cheatsheet.open })
+ *   const stop = onModifierHold('Control', (held) => {
+ *     cheatsheet.open = held
+ *   }, { delay: 300 })
+ * @param {string | readonly string[]} modifiers - The modifier or modifiers: "Control", "Alt", "Shift", "Meta"
+ * @param {(held: boolean) => void} onHeld - Called with true once it's been held `delay` ms, false when let go
+ * @param {ModifierOptions} [options] - `delay` in ms (default 200), and where to listen (default the window)
+ * @returns {() => void} A function that stops
  */
-export function onModifierTaps(modifiers, count, callback, options = {}) {
-  const { within = 400, target = window } = options
-  /** @type {number[]} */
+function onModifierHold(modifiers, onHeld, options = {}) {
+  const { delay = DEFAULT_DELAY, target = globalThis } = options
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer = undefined
+  let held = false
+  /** @returns {void} */
+  function letGo() {
+    clearTimeout(timer)
+    timer = undefined
+    if (held) {
+      held = false
+      onHeld(false)
+    }
+  }
+  const watch = new ModifierWatch(modifiers, target, {
+    down: () => {
+      letGo()
+      timer = setTimeout(() => {
+        timer = undefined
+        held = true
+        onHeld(true)
+      }, delay)
+    },
+    spoiled: letGo,
+    up: letGo,
+  })
+  return () => {
+    watch.stop()
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Calls back when a modifier is tapped (pressed and let go on its own) `count` times in quick succession, as in
+ * double-tapping Shift
+ * @example
+ *   onModifierTaps('Control', () => {
+ *     cheatsheet.open = !cheatsheet.open
+ *   })
+ * @param {string | readonly string[]} modifiers - The modifier or modifiers: "Control", "Alt", "Shift", "Meta"
+ * @param {() => void} onTaps - Called once they've happened
+ * @param {ModifierOptions} [options] - `count`: taps in a row (default 2); `within`: most ms from one tap's press to
+ *   the next tap's release (default 400); and where to listen (default the window)
+ * @returns {() => void} A function that stops
+ */
+function onModifierTaps(modifiers, onTaps, options = {}) {
+  const { count = DEFAULT_COUNT, target = globalThis, within = DEFAULT_WITHIN } = options
+  /** @type {readonly number[]} */
   let taps = []
-  let pressed = 0
-  return watchModifier(modifiers, target, {
+  let pressed = performance.now()
+  const watch = new ModifierWatch(modifiers, target, {
     down: () => {
       pressed = performance.now()
     },
@@ -76,73 +224,16 @@ export function onModifierTaps(modifiers, count, callback, options = {}) {
     },
     up: (clean) => {
       const now = performance.now()
-      if (!clean || now - pressed > within) return void (taps = [])
-      taps = [...taps.filter((t) => now - t <= within * count), now]
+      taps = clean && now - pressed <= within ? [...taps.filter((tap) => now - tap <= within * count), now] : []
       if (taps.length >= count) {
         taps = []
-        callback()
+        onTaps()
       }
     },
   })
-}
-
-/**
- * Follows a modifier being pressed and released by itself. `down` is a fresh press (not the key's
- * auto-repeat) with no other key or button held; `spoiled` is anything else happening while it's
- * held (another key, a click, scrolling), after which nothing counts until it's released; `up`
- * is the release, with whether the press stayed clean. Listens in the capture phase, so editors
- * that stop events don't hide them.
- *
- * @param {string | string[]} modifiers
- * @param {EventTarget} target
- * @param {{ down: () => void, spoiled: () => void, up: (clean: boolean) => void }} on
- * @returns {() => void}
- */
-function watchModifier(modifiers, target, on) {
-  const modSet = new Set((Array.isArray(modifiers) ? modifiers : [modifiers]).map((m) => m.toLowerCase()))
-  let held = false
-  let clean = false
-
-  const spoil = () => {
-    if (!held || !clean) return
-    clean = false
-    on.spoiled()
-  }
-  /** @param {Event} e */
-  const keydown = (e) => {
-    const event = /** @type {KeyboardEvent} */ (e)
-    if (!modSet.has(event.key?.toLowerCase())) return spoil()
-    if (event.repeat || held) return
-    held = true
-    // Other modifiers already down (Shift then Control) make it a chord, not a bare press
-    clean = !['Control', 'Alt', 'Shift', 'Meta'].some(
-      (m) => !modSet.has(m.toLowerCase()) && event.getModifierState?.(m),
-    )
-    if (clean) on.down()
-  }
-  /** @param {Event} e */
-  const keyup = (e) => {
-    const event = /** @type {KeyboardEvent} */ (e)
-    if (!modSet.has(event.key?.toLowerCase()) || !held) return
-    held = false
-    on.up(clean)
-  }
-  const blur = () => {
-    if (!held) return
-    held = false
-    clean = false
-    on.up(false)
-  }
-
-  const others = /** @type {const} */ (['pointerdown', 'wheel', 'contextmenu'])
-  target.addEventListener('keydown', keydown, true)
-  target.addEventListener('keyup', keyup, true)
-  for (const type of others) target.addEventListener(type, spoil, { capture: true, passive: true })
-  window.addEventListener('blur', blur)
   return () => {
-    target.removeEventListener('keydown', keydown, true)
-    target.removeEventListener('keyup', keyup, true)
-    for (const type of others) target.removeEventListener(type, spoil, true)
-    window.removeEventListener('blur', blur)
+    watch.stop()
   }
 }
+
+export { onModifierHold, onModifierTaps }

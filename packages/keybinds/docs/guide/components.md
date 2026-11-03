@@ -319,15 +319,15 @@ import { onModifierTaps } from 'keybinds'
 
 const cleanup = onModifierTaps(
   'Control',
-  2,
   () => {
     cheatsheet.open = !cheatsheet.open
   },
-  { within: 400 },
+  { count: 2, within: 400 },
 )
 ```
 
-`within` is the most milliseconds from one tap's press to the next tap's release (default 400).
+`count` is how many taps in a row (default 2), and `within` the most milliseconds from one tap's press to the next tap's
+release (default 400).
 
 ### Recording releases
 

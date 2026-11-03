@@ -183,7 +183,7 @@ export class KeybindCheatsheet extends HTMLElement {
       },
       { delay: Number.isFinite(delay) ? delay : 1000 },
     )
-    const untap = onModifierTaps(modifier, 2, () => {
+    const untap = onModifierTaps(modifier, () => {
       pinned = !this.open
       this.open = pinned
     })

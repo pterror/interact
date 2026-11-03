@@ -49,7 +49,6 @@
     "packages/keybinds/src/components/settings.test.js",
     "packages/keybinds/src/hub.js",
     "packages/keybinds/src/hub.test.js",
-    "packages/keybinds/src/modifiers.js",
     "packages/keybinds/src/search.js",
     "packages/keybinds/src/search.test.js",
     "packages/keybinds/src/store.js",
