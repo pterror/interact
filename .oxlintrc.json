@@ -59,9 +59,9 @@
     // With unicorn/no-null, eslint/no-void and typescript/consistent-return, nothing could express a missing value.
     // undefined is what optional parameters and properties hold.
     "eslint/no-undefined": "off",
-    // A variable assigned later has no value yet: unicorn/no-useless-undefined forbids `= undefined` and
-    // unicorn/no-null forbids `= null`.
-    "eslint/init-declarations": "off",
+    // Contradicts typescript/consistent-return in a function that returns a value or nothing: `return undefined` is
+    // what this rule forbids, and a bare `return` is what consistent-return forbids.
+    "unicorn/no-useless-undefined": "off",
     // Tests import from bun:test, the runner.
     "vitest/prefer-importing-vitest-globals": "off",
     // Contradicts typescript/promise-function-async, which needs `async` on a function that returns a promise without
@@ -70,10 +70,14 @@
     "eslint/func-style": ["error", "declaration"],
     // oxfmt's sortImports orders declarations by source, which this rule's declaration order rejects.
     "eslint/sort-imports": ["error", { "ignoreDeclarationSort": true }],
-    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule.
+    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule. ReadonlySet and
+    // ReadonlyMap are readonly, yet oxlint 1.90.0 flags them while it passes `readonly T[]`.
+    // Behaviors are classes with methods, which the rule otherwise counts as mutable properties; their fields are
+    // still checked.
     "typescript/prefer-readonly-parameter-types": [
       "error",
       {
+        "treatMethodsAsReadonly": true,
         "allow": [
           {
             "from": "lib",
@@ -92,6 +96,9 @@
               "MouseEvent",
               "Node",
               "PointerEvent",
+              "Promise",
+              "ReadonlyMap",
+              "ReadonlySet",
               "RegExp",
               "ShadowRoot",
               "WheelEvent",
