@@ -5,6 +5,7 @@
 
 import { LayerStack } from '@interact/core'
 
+import { EscapeListener } from './escape-listener.js'
 import { deepActiveElement } from './flat-tree.js'
 import { happenedIn, onScrollbar } from './inside-layer.js'
 import { tabWraps, tabbables } from './tabbable.js'
@@ -17,8 +18,8 @@ const EVENTS = ['pointerdown', 'pointerup', 'pointercancel', 'click', 'focusin',
 
 /**
  * One document's layers: the stack, what each layer is in the page, and the listeners that turn the person's presses,
- * focus moves and keys into dismissals. Escape and outside presses are heard in the capture phase, before anything
- * in the page sees them, so the layer they dismiss takes them.
+ * focus moves and keys into dismissals. Outside presses and Tab are heard in the capture phase, before anything in the
+ * page sees them; Escape after everything inside the page has, so a control that uses it gets it first.
  */
 class DocumentLayers {
   /** @readonly */
@@ -48,6 +49,7 @@ class DocumentLayers {
     for (const type of EVENTS) {
       document.addEventListener(type, this, true)
     }
+    document.addEventListener('keydown', new EscapeListener(this.stack))
   }
 
   /**
@@ -190,8 +192,7 @@ class DocumentLayers {
   }
 
   /**
-   * Escape dismisses the top layer, taking the key from the page; Tab stays inside the top modal layer. A key typed to
-   * compose text (an input method) is the input method's.
+   * Tab stays inside the top modal layer. A key typed to compose text (an input method) is the input method's.
    * @param {Event} event - The keydown
    * @returns {void}
    */
@@ -199,10 +200,7 @@ class DocumentLayers {
     if (!(event instanceof KeyboardEvent) || event.isComposing) {
       return
     }
-    if (event.key === 'Escape' && this.stack.escape()) {
-      event.preventDefault()
-      event.stopPropagation()
-    } else if (event.key === 'Tab') {
+    if (event.key === 'Tab') {
       this.#tabbed()
       this.#trap(event)
     }

@@ -5,11 +5,11 @@
  * @import { PaletteSeen } from './test-page-palette.js'
  */
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
 import { paletteView } from './palette-view.js'
 import { editorPalette } from './test-palettes.js'
 
@@ -26,7 +26,8 @@ const EVERY = ['*Open file', 'Save', 'Undo', 'Reopen file', 'Zoom in']
 /** @type {PaletteSeen['combobox']} */
 const COMBOBOX_ON_OPEN = { active: 'Open file', controls: true, expanded: 'true', role: 'combobox' }
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * Presses keys one after another.

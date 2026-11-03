@@ -5,11 +5,11 @@
  * @import { ComboboxSeen, Variant } from './test-page-combobox.js'
  */
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
 import { comboboxView } from './combobox-view.js'
 import { fruitSelect } from './test-comboboxes.js'
 
@@ -25,7 +25,8 @@ for (const mode of MODES) {
 const TYPED = 2
 const COMPLETED = 9
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * Presses keys one after another.
@@ -220,6 +221,38 @@ describe.each(CASES)('a combobox in %s DOM, in %s, over ten billion options and 
       'field',
       'Banana',
       ['Apple', 'Apricot', '*Banana', 'Blueberry'],
+    ])
+  })
+})
+
+describe.each(CASES)('an editable combobox in a modal dialog, in %s DOM, in %s', (mode, engine) => {
+  test('takes Escape before the dialog: closes its list, empties its field, and only then the dialog closes', async () => {
+    const seen = await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async (domMode) => {
+        const pages = await import('./test-page-layered.js')
+        await pages.putFinder(domMode)
+      }, mode)
+      /** @returns {Promise<Readonly<{ dialog: boolean, list: boolean, text: string, focus: string }>>} What shows */
+      async function finder() {
+        return page.evaluate(async () => {
+          const pages = await import('./test-page-layered.js')
+          return pages.seenFinder()
+        })
+      }
+      await page.keyboard.type('a')
+      const typed = await finder()
+      await keys(page, ['Escape'])
+      const listClosed = await finder()
+      await keys(page, ['Escape'])
+      const emptied = await finder()
+      await keys(page, ['Escape'])
+      return [typed, listClosed, emptied, await finder()]
+    })
+    expect(seen).toEqual([
+      { dialog: true, focus: 'field', list: true, text: 'a' },
+      { dialog: true, focus: 'field', list: false, text: 'a' },
+      { dialog: true, focus: 'field', list: false, text: '' },
+      { dialog: false, focus: 'trigger', list: false, text: '' },
     ])
   })
 })

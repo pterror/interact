@@ -1,6 +1,6 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, inBrowser, startBrowsers, stopBrowsers } from '../../../test/browser.js'
 import { component } from './component.js'
 import { register } from './register.js'
 import { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
@@ -11,7 +11,8 @@ const BLUE = 'rgb(0, 0, 255)'
 const ONE = 1
 const NONE = 0
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * Puts a new element in the page and lets what it asks for after its first render happen.

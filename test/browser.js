@@ -25,6 +25,8 @@ const PAGE = /^\/(?<dir>.*)\/__page-(?<id>\d+)\.html$/u
 const FORBIDDEN = 403
 const MISSING = 404
 const NONE = 0
+/** How long starting or stopping the browsers may take: setup, not part of any test's own time. */
+const BROWSER_SETUP_MS = 60_000
 
 /**
  * The server pages are loaded from, started once per test run, and the test pages' bodies it serves.
@@ -115,18 +117,31 @@ async function launch(engine) {
 }
 
 /**
- * A browser, started the first time it is asked for.
+ * A browser the test file started.
  * @param {Engine} engine - Which
  * @returns {Promise<Browser>} It
+ * @throws {Error} If the file didn't start its browsers with useBrowsers()
  */
 async function browserFor(engine) {
-  const known = launched.get(engine)
-  if (known) {
-    return known
+  const started = launched.get(engine)
+  if (started === undefined) {
+    throw new Error(
+      'A browser test file starts its browsers in its beforeAll: beforeAll(startBrowsers, BROWSER_SETUP_MS)',
+    )
   }
-  const started = launch(engine)
-  launched.set(engine, started)
   return started
+}
+
+/**
+ * Starts every browser, for a test file's `beforeAll` with `BROWSER_SETUP_MS`: setup with its own time, so how long a
+ * browser takes to start is never counted against the test that happens to open the first page.
+ * @returns {Promise<void>} When they have started
+ */
+async function startBrowsers() {
+  for (const engine of BROWSERS) {
+    launched.set(engine, launch(engine))
+  }
+  await Promise.all(launched.values())
 }
 
 /**
@@ -219,7 +234,7 @@ async function audit(page, selector) {
  * Stops the browsers and the page server, if they started.
  * @returns {Promise<void>} When they have stopped
  */
-async function closeBrowser() {
+async function stopBrowsers() {
   const browsers = [...launched.values()]
   launched.clear()
   const started = serving
@@ -236,4 +251,4 @@ async function closeBrowser() {
   }
 }
 
-export { BROWSERS, audit, closeBrowser, inBrowser, withPage }
+export { BROWSERS, BROWSER_SETUP_MS, audit, inBrowser, startBrowsers, stopBrowsers, withPage }

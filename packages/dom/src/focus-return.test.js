@@ -1,8 +1,9 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, inBrowser, startBrowsers, stopBrowsers } from '../../../test/browser.js'
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 describe.each(BROWSERS)('giving focus back, in %s', (engine) => {
   test('returns it to where it came from when it is still inside the hidden overlay', async () => {

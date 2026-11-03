@@ -3,11 +3,11 @@
 /** @import { Engine } from '../../../test/browser.js' */
 /** @import { Seen } from './test-page-listbox.js' */
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 import { MAX_SCROLL_PIXELS, rowCap } from './virtual-rows.js'
@@ -40,7 +40,8 @@ for (const mode of MODES) {
   }
 }
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * The listbox rendered on the server at `top`, as a page body: in shadow DOM with its stylesheet inline, in light DOM

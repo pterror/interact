@@ -5,9 +5,9 @@
  * @import { DomMode } from './css.js'
  */
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
 import { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
 import {
   adoptServer,
@@ -41,7 +41,8 @@ for (const mode of MODES) {
   }
 }
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * Opens a page in a browser with a button after whatever markup it is given, registers the fixtures unless it is to

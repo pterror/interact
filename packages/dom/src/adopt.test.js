@@ -1,10 +1,11 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, inBrowser, startBrowsers, stopBrowsers } from '../../../test/browser.js'
 
 const ONE = 1
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 describe.each(BROWSERS)('adoptStyles, in %s', (engine) => {
   test('adopts one constructed sheet per root, however many instances there are', async () => {

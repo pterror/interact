@@ -288,9 +288,9 @@ A component is its behavior, written once as a plain API, plus a default view an
   completion selected after what was typed and chosen with Enter; ten billion options opening on the one chosen and End
   going to the last; server markup adopted with its field kept, opening on the option chosen; and axe-core finding
   nothing closed or open, in a page whose content is in a landmark.
-- **Unverified:** screen readers (only axe); touch; a remote `suggest` under load; input methods composing in the field;
-  Escape with the list closed when the combobox is inside another layer (the document's stack takes Escape in the
-  capture phase, so that layer closes before the field could empty itself).
+- **Unverified:** screen readers (only axe); touch; a remote `suggest` under load; input methods composing in the field.
+- **Inside another layer (Derived):** Escape with the list closed empties the field and leaves the layer open; the next
+  Escape closes the layer. Shown in a modal dialog in all three engines, both DOM modes (`combobox-view.test.js`).
 
 ### What moves out of keybinds (Derived)
 
@@ -523,6 +523,11 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
     overlay changing size, once per frame (`Following`). An anchor moving without any of those isn't followed.
   - Opening an overlay over an open modal one when it isn't inside the modal's dialog is an error, not an overlay that
     can't be reached.
+- **Escape is heard after the page (Derived):** the stack takes outside presses and Tab in the capture phase, but Escape
+  in the bubble phase, and only when nothing in the page prevented its default (`escape-listener.js`). A control inside
+  a layer with its own use for Escape (a combobox emptying its field) takes it first; a layer dismissed by it then takes
+  the key from the rest of the page. Hearing it in the capture phase closed a modal dialog before a closed combobox in
+  it could empty its field, in all three engines.
 - **Edge cases taken from zag.js** (`@zag-js/dismissable`, `@zag-js/interact-outside`, `@zag-js/dom-query`, read in the
   evaluation's install): Escape is ignored while an input method composes; a press is judged on the composed path's
   first target in shadow DOM; a press on a scrollbar of the element pressed isn't outside (only where scrollbars take

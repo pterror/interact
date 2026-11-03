@@ -1,6 +1,6 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, inBrowser, startBrowsers, stopBrowsers } from '../../../test/browser.js'
 
 const GAP = 4
 const MARGIN = 8
@@ -8,7 +8,8 @@ const WIDTH = 120
 const FROM_BOTTOM = 30
 const SCROLLED_ANCHOR_BOTTOM = 220
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 describe.each(BROWSERS)('anchored positioning, in %s', (engine) => {
   test('places an overlay below an element in the page, lined up with its start', async () => {

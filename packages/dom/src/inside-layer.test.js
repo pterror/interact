@@ -1,6 +1,6 @@
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { BROWSERS, closeBrowser, inBrowser } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, inBrowser, startBrowsers, stopBrowsers } from '../../../test/browser.js'
 
 const NONE = 0
 /**
@@ -10,7 +10,8 @@ const NONE = 0
  */
 const SCROLLBAR_TAKES_ROOM = { chrome: true, firefox: false, webkit: true }
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 describe.each(BROWSERS)('what is inside a layer, in %s', (engine) => {
   test('a press on its element, inside its shadow root, or on its anchor; not one elsewhere', async () => {

@@ -5,11 +5,11 @@
  * @import { MenuSeen } from './test-page-menu.js'
  */
 
-import { afterAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
-import { BROWSERS, audit, closeBrowser, withPage } from '../../../test/browser.js'
+import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
 import { menuButtonView } from './menu-view.js'
 import { besideMenu, boxAt, crossToSubmenu, keys, look, strayFromSubmenu } from './test-menu-driver.js'
 import { editMenu } from './test-menus.js'
@@ -29,7 +29,8 @@ for (const mode of MODES) {
   }
 }
 
-afterAll(closeBrowser)
+beforeAll(startBrowsers, BROWSER_SETUP_MS)
+afterAll(stopBrowsers, BROWSER_SETUP_MS)
 
 /**
  * Where a menu test runs: the browser, the DOM mode, and the kind of menu.
