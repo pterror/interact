@@ -42,14 +42,14 @@ The five packages are settled, and each is usable on its own.
 Dependencies only point down this list. So far each new package is a manifest only; its first module comes with the
 first build step.
 
-| Package                | Holds                                                                                                             | DOM        |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------- |
-| `@interact/core`       | Controllable state, events, state machines, data sources, selection, focus scopes                                 | none       |
-| `@interact/dom`        | Templates with holes; DOM renderer, string renderer, hydration; custom element base; registration; style adoption | yes        |
-| `@interact/components` | Each component's behavior and default web view, its structural CSS, and the command bridge                        | yes        |
-| `@interact/theme`      | The default visual theme: tokens and their values                                                                 | CSS only   |
-| `@interact/codegen`    | Development tool: generates typed declarations and framework wrappers from a Custom Elements Manifest             | build time |
-| `keybinds`             | The standalone command and binding engine                                                                         | yes        |
+| Package                | Holds                                                                                                                       | DOM        |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| `@interact/core`       | Controllable state, events, state machines, data sources, selection, focus scopes, layers, placement                        | none       |
+| `@interact/dom`        | Templates with holes; DOM renderer, string renderer, hydration; custom element base; registration; style adoption; overlays | yes        |
+| `@interact/components` | Each component's behavior and default web view, its structural CSS, and the command bridge                                  | yes        |
+| `@interact/theme`      | The default visual theme: tokens and their values                                                                           | CSS only   |
+| `@interact/codegen`    | Development tool: generates typed declarations and framework wrappers from a Custom Elements Manifest                       | build time |
+| `keybinds`             | The standalone command and binding engine                                                                                   | yes        |
 
 keybinds depends on none of the others, and none of the others depend on it (**Settled**: "Keybinds' core stays
 standalone"). The bridge in `@interact/components` meets keybinds through two operations and imports nothing from it.
@@ -301,8 +301,97 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:13
     otherwise to the first item, and nowhere when the collection is empty.
   - `move(position, by, count)`: moves the active position and keeps it inside.
 
-  The active position follows changes through `shiftPosition`. Trapping, restoring focus and the overlay stack come with
-  the first overlay (the menu), since the listbox needs none of them.
+  The active position follows changes through `shiftPosition`. Trapping, restoring focus and the overlay stack are built
+  with the overlays (see Overlays).
+
+## Overlays (Derived, built)
+
+Menus, the palette and the combobox's popup are overlays: shown over the rest of the page, dismissed by the person,
+placed against something. The model is in `@interact/core`, with no DOM; its binding to the page is in `@interact/dom`.
+
+### The model (`@interact/core`)
+
+- **`Layer`** (`layer.js`): something shown over the rest. Its open state is a `Controllable`, so an app that owns it
+  hears every dismissal as a request it can refuse: that is the veto, with no mechanism of its own. A dismissal is first
+  an event with its reason (`onDismiss`: `escape`, `outside`, `focus-outside`, `beneath`), then `open.request(false)`.
+  Each layer says whether it is modal and which ways out close it (`closesOn`).
+- **`LayerStack`** (`layer-stack.js`): the open layers in the order they opened (`track(layer)` follows one). A press or
+  focus outside dismisses the layers above the highest one it was inside, from the top down, never those beneath the top
+  modal layer, which can't be reached; focus moving outside never dismisses a modal layer; Escape dismisses only the top
+  layer, if it closes on Escape; a layer closing dismisses every layer above it (`beneath`). Every layer above another
+  counts as inside it, which is what makes a submenu inside its menu (zag.js's `layerStack` does the same).
+- **`place(wanted)`** (`placement.js`): where something goes beside an anchor's rectangle (a point is one of no size):
+  on the side wanted, in logical terms (`block-end`, `inline-end`, ...), or its opposite when only that fits, or the
+  roomier one when neither does; lined up at the start, centre or end, with `start` at the right in right-to-left text;
+  moved along the side as little as it takes to stay in the area, by a margin; with the room it has on that side, so it
+  can shrink instead of overlapping. Vertical writing modes aren't handled.
+
+### The binding (`@interact/dom`)
+
+- **`syncOverlay(element, layer, options)`** (`overlay.js`), called from a view's `rendered`, brings an overlay element
+  in line with its layer; **`releaseOverlay(element)`**, from the view's new `disconnected` hook, takes its layer out of
+  the stack when the element leaves the page (the layer stays open, so it shows again if it comes back). Options:
+  `anchor` (an element in any tree, or a point; none leaves placement to CSS), `placement`, `focus` (`move`: focus goes
+  in on open and comes back on close; `stay`: it stays where it is, as in a combobox), and `initialFocus` (by default
+  the first Tab stop, else the overlay).
+- **Each document has one stack** (`document-layers.js`), made the first time an overlay asks, with capture-phase
+  listeners on the document: pointerdown, click, focusin, keydown, pointerup/cancel. What counts as inside a layer
+  (`inside-layer.js`) is judged on the event's composed path, so shadow roots and slots hide nothing.
+- **Platform support, measured in Chrome 156, Firefox 157 and WebKit 27.2** (scripts in the session's scratchpad):
+  - Same in all three: CSS anchor positioning (`anchor-name`, `position-anchor`, `anchor()`, `position-area`,
+    `position-try-fallbacks: flip-block`, which flipped correctly), the popover API with the top layer above any
+    `z-index`, `popover="hint"`, `<dialog>` `closedby`, `inert`, and `showModal()` making everything outside the dialog
+    inert, from inside a shadow root too.
+  - Hiding a popover can't be refused: `beforetoggle` on hide isn't cancelable in any of them. Preventing a modal
+    dialog's `cancel` holds once; a second Escape closes it anyway. With `closedby="none"`, Escape neither closes it nor
+    fires `cancel`.
+  - CSS anchor positioning doesn't reach across trees: a name on an element in the page didn't reach a positioned
+    element in a shadow root, nor the other way, in any engine; a name set on a shadow host from outside reached its
+    shadow root in Firefox and WebKit but not Chrome; `showPopover({ source })` and `popovertarget` gave no implicit
+    anchor in any. Only an anchor in the same tree (or the host, named by a `:host` rule) worked everywhere.
+  - A popover shown over a modal dialog but outside the dialog's subtree is inert in all three: it can't be focused or
+    pressed. Inside the dialog's subtree it works.
+- **What that chose:**
+  - A modal layer is a `<dialog closedby="none">` shown with `showModal()`: the platform makes the rest of the page
+    inert (and the backdrop), and `closedby="none"` leaves Escape to the stack, where an app can refuse it. Any other
+    layer is a `popover="manual"`, in the top layer, which the platform never dismisses by itself. Light dismiss is the
+    stack's, not `popover="auto"`'s, because hiding can't be refused.
+  - Positioning is by script (`anchored.js`), measuring the anchor and writing `--interact-overlay-x`/`-y` and the room
+    available, which `overlayStyles` (joined into a view's stylesheet with `joinStyles`) turns into `left`, `top` and
+    `max-width`/`max-height`. CSS anchor positioning can't serve an anchor in another tree (an app's button, a
+    component's overlay in its own shadow root) or a point. It is placed at its natural size, then again at the size it
+    shrank to, all before paint; it follows the page scrolling (any scroller), the window resizing, and the anchor or
+    overlay changing size, once per frame (`Following`). An anchor moving without any of those isn't followed.
+  - Opening an overlay over an open modal one when it isn't inside the modal's dialog is an error, not an overlay that
+    can't be reached.
+- **Edge cases taken from zag.js** (`@zag-js/dismissable`, `@zag-js/interact-outside`, `@zag-js/dom-query`, read in the
+  evaluation's install): Escape is ignored while an input method composes; a press is judged on the composed path's
+  first target in shadow DOM; a press on a scrollbar of the element pressed isn't outside (only where scrollbars take
+  room: the test shows it in Chrome and WebKit; Firefox 157 headless keeps overlay scrollbars, which leave no such
+  place); a press on a modal dialog's backdrop is outside although its target is the dialog (zag's point-in-rectangle
+  check); a touch counts only once it becomes a click, so a finger scrolling dismisses nothing; focus moving while the
+  pointer is down is left to the press; elements the layer is anchored to count as inside (zag's branches and its
+  `aria-controls` trigger). Tab stops are gathered across shadow roots and slots, positive `tabindex` first, one radio
+  per group, and never the container itself (`tabbable.js`; Firefox makes a `<dialog>` a stop).
+- **Focus (the APG dialog, menu button, menu and combobox patterns, fetched):** focus goes into an overlay that moves
+  it, and comes back to where it came from on close, unless something else took it meanwhile; a return target that has
+  since hidden (a closed parent menu's item) passes to that overlay's own return target. A modal layer keeps Tab inside
+  it, going round both ways (each engine's own `showModal` trap differed: Chrome and WebKit let Tab reach the page body,
+  Firefox stuck on the last element). Tab out of a non-modal overlay closes it and leaves focus where Tab put it (the
+  APG menu pattern). A press that dismisses waits for the pointer to come up before giving focus back, so a press on
+  something focusable keeps focus there, and only a press on nothing loses it to the overlay's opener (a backdrop press
+  on a modal returns to its button).
+- **Proven in Chrome 156, Firefox 157 and WebKit 27.2, in shadow and light DOM** (`overlay.test.js` and the module tests
+  beside it): opening below its button in the top layer with focus inside; Escape closing it and returning focus; a
+  press outside closing it, and a press on its own button closing it without reopening; Tab out closing it; nested
+  popups (a press in the outer closes only the inner, Escape closes one at a time, a press outside closes both); the
+  modal trap, the rest of the page unreachable, a backdrop press closing it, and the error for an overlay outside it; an
+  app-owned popup hearing `escape` and `outside` and staying open; leaving the page and coming back; the closed popup
+  from the server adopted with the same nodes, taking no room and moving nothing; axe-core finding nothing in the
+  server's popup, an open popup or an open modal. Placement (`anchored.test.js`): below an element, at a point, flipped
+  above at the bottom of the window, shifted at its right edge, shrunk to the room it has, following a scroll.
+- **Unverified:** an anchor moving without a scroll, resize or size change; overlays in an `<iframe>`; touch input on a
+  real device (only dispatched touch events); screen readers announcing the overlays (only axe-core).
 
 ## DOM (Settled)
 
@@ -356,7 +445,9 @@ the page.
     server's nodes.
   - A view that has to read layout or drive the page has `rendered(behavior, root)`, called after the first render or
     adoption and after every render since. The listbox needs it to measure its rows and set its scroll position after
-    each change; menus will need it for anchor geometry.
+    each change; overlays need it to show, hide and place themselves.
+  - A view that took part of the page (an overlay in its document's stack) has `disconnected(behavior, root)`, called
+    when the element leaves the page. A render scheduled before it left doesn't run.
 - `register(classes, { prefix, mode })` (`register.js`) defines `<prefix>-<kind>` for each class. It defines a subclass
   of its own each time, so one class can be registered under two prefixes, which Web Awesome's classes can't.
 - Every instance carries `data-interact="<kind>"`.
@@ -499,7 +590,9 @@ Not verified:
 **Done:** the listbox slice, as below, then its gaps: every browser proof point in Firefox and WebKit as well as Chrome,
 with the row cap set from the smallest measured limit; the listbox checked against the APG pattern, Vaadin's keyboard
 and a11y code and axe-core; typeahead with a source capability; behaviors readonly to their views. What it settled is
-under Collections, Focus scopes, DOM and Styling. The listbox's API is in Components.
+under Collections, Focus scopes, DOM and Styling. The listbox's API is in Components. Then the overlay layer: layers,
+their stack and placement in core, their binding in dom (see Overlays). Next: the menu with submenus and the command
+bridge, the palette, the combobox, then keybinds' menus and palette moved onto them.
 
 The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
 DOM modes. It takes these pieces:
