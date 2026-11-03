@@ -11,6 +11,7 @@
 
 import { html, releaseOverlay, repeat, syncOverlay } from '@interact/dom'
 
+import { comboboxInput } from './combobox-field.js'
 import { paletteStyles } from './palette-styles.js'
 import { syncRows } from './rows-place.js'
 import { activeDescendant, rowsViewport } from './rows-view.js'
@@ -114,30 +115,19 @@ function statusOf(palette) {
 function render(palette) {
   const listId = `${palette.id}-results`
   return html`<dialog part="overlay dialog" closedby="none" aria-label=${palette.label}
-    ><input
-      part="search"
-      type="text"
-      role="combobox"
-      autocomplete="off"
-      spellcheck="false"
-      aria-label=${palette.searchLabel}
-      aria-autocomplete="list"
-      aria-expanded="true"
-      aria-controls=${listId}
-      aria-activedescendant=${activeDescendant(palette.list)}
-      .value=${palette.query.get()}
-      @input=${(event) => {
-        const field = event.currentTarget
-        if (field instanceof HTMLInputElement) {
-          palette.type(field.value)
-        }
-      }}
-      @keydown=${(event) => {
-        if (event instanceof KeyboardEvent && !event.isComposing && palette.key(event.key)) {
-          event.preventDefault()
-        }
-      }}
-    /><div part="results"
+    >${comboboxInput({
+      active: activeDescendant(palette.list),
+      autocomplete: 'list',
+      controls: listId,
+      expanded: true,
+      input: (text) => {
+        palette.type(text)
+      },
+      key: (event) => palette.key(event.key),
+      label: palette.searchLabel,
+      part: 'search',
+      value: palette.query.get(),
+    })}<div part="results"
       >${rowsViewport(palette.list, {
         focusable: false,
         id: listId,

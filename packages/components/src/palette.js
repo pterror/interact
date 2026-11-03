@@ -2,12 +2,13 @@
  * @import { Span } from '@interact/core/memory-source'
  * @import { CommandBridge } from './command-bridge.js'
  * @import { FoundCommand } from './command-match.js'
- * @import { Modifiers } from './listbox-keys.js'
  */
 
 import { Controllable, Layer, Listeners, MemorySource } from '@interact/core'
 
+import { fieldListKey } from './field-keys.js'
 import { landing } from './landing.js'
+import { Latest } from './latest.js'
 import { Listbox } from './listbox.js'
 
 /**
@@ -29,10 +30,6 @@ import { Listbox } from './listbox.js'
 const DEFAULT_ROWS = 10
 const START = 0
 const FORWARD = 1
-/** Keys the results take from the search field; the rest (Home, End, the left and right arrows) edit the query. */
-const LIST_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'])
-/** @type {Modifiers} */
-const PLAIN = { shift: false, toggle: false }
 
 /**
  * Whether a command can't run now, so focus passes over it.
@@ -97,8 +94,11 @@ class Palette {
    * @type {C | undefined}
    */
   #at = undefined
-  /** How many searches were asked for, so an answer to one before the last is dropped. */
-  #asked = START
+  /**
+   * The searches asked for, of which only the latest is shown.
+   * @readonly
+   */
+  #searches = new Latest()
   /**
    * Stops hearing the bridge's changes.
    * @readonly
@@ -181,7 +181,7 @@ class Palette {
       }
       return true
     }
-    return LIST_KEYS.has(key) && this.list.key(key, PLAIN)
+    return fieldListKey(this.list, key)
   }
 
   /**
@@ -223,11 +223,10 @@ class Palette {
     if (at === undefined) {
       return
     }
-    this.#asked += FORWARD
-    const asked = this.#asked
-    const found = await this.#options.bridge.search(this.query.get(), at)
-    if (asked === this.#asked && this.layer.open.get()) {
-      this.#show(found)
+    const query = this.query.get()
+    const found = await this.#searches.ask(async () => this.#options.bridge.search(query, at))
+    if (found !== undefined && this.layer.open.get()) {
+      this.#show(found.answer)
     }
   }
 
@@ -257,7 +256,7 @@ class Palette {
     })
     this.layer.open.subscribe((open) => {
       if (!open) {
-        this.#asked += FORWARD
+        this.#searches.drop()
         this.list.source.set(undefined)
       }
       this.#changes.emit(undefined)
