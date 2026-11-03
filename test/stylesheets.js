@@ -3,7 +3,7 @@
  * layer, in stylesheets and in modules' css templates alike.
  */
 
-import { fenced, paths } from './repo.js'
+import { paths, unfenced } from './repo.js'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const OPEN = '('
@@ -152,7 +152,7 @@ async function fileViolations(path) {
  */
 async function stylesheetViolations() {
   const all = await paths('packages/*/{**/*.css,src/**/*.js}')
-  const files = all.filter((path) => !fenced(path) && !path.includes('/node_modules/'))
+  const files = await unfenced(all.filter((path) => !path.includes('/node_modules/')))
   const found = await Promise.all(files.map(async (path) => fileViolations(path)))
   return found.flat()
 }

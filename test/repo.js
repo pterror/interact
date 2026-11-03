@@ -3,9 +3,7 @@
  */
 
 const ROOT = new URL('..', import.meta.url).pathname
-
-// The keybinds package predates these rules; packages/keybinds/TODO.md tracks bringing it under them.
-const FENCED = 'packages/keybinds/'
+const FENCE_PREFIX = 'packages/keybinds/'
 
 /**
  * A package's manifest: its npm name, what it depends on at runtime, and its `sideEffects` field as written
@@ -23,12 +21,41 @@ async function paths(pattern) {
 }
 
 /**
- * Whether a path is in code that predates the rules
- * @param {string} path - From the repo root
- * @returns {boolean} Whether the rules skip it
+ * Whether a value is a string
+ * @param {unknown} value - Anything
+ * @returns {value is string} Whether it is a string
  */
-function fenced(path) {
-  return path.startsWith(FENCED)
+function isString(value) {
+  return typeof value === 'string'
+}
+
+/**
+ * The files not yet under the repo's rules: the keybinds entries in `.oxlintrc.json`'s ignorePatterns, its one list
+ * @returns {Promise<ReadonlySet<string>>} Their paths, from the repo root
+ */
+async function fence() {
+  /** @type {unknown} */
+  const config = Bun.JSONC.parse(await Bun.file(`${ROOT}.oxlintrc.json`).text())
+  if (typeof config !== 'object' || config === null || !('ignorePatterns' in config)) {
+    throw new TypeError('.oxlintrc.json has no ignorePatterns')
+  }
+  const { ignorePatterns } = config
+  if (!Array.isArray(ignorePatterns)) {
+    throw new TypeError('.oxlintrc.json ignorePatterns is not a list')
+  }
+  /** @type {unknown[]} */
+  const patterns = ignorePatterns
+  return new Set(patterns.filter((pattern) => isString(pattern)).filter((pattern) => pattern.startsWith(FENCE_PREFIX)))
+}
+
+/**
+ * Leaves out what is still fenced
+ * @param {readonly string[]} all - Paths from the repo root
+ * @returns {Promise<string[]>} Those under the repo's rules
+ */
+async function unfenced(all) {
+  const fenced = await fence()
+  return all.filter((path) => !fenced.has(path))
 }
 
 /**
@@ -157,13 +184,14 @@ async function escapesIn(path) {
  */
 async function typeEscapes() {
   const all = await paths('{packages/*/src,test}/**/*.js')
-  const found = await Promise.all(all.filter((path) => !fenced(path)).map(async (path) => escapesIn(path)))
+  const checked = await unfenced(all)
+  const found = await Promise.all(checked.map(async (path) => escapesIn(path)))
   return found.flat()
 }
 
 export {
   escapes,
-  fenced,
+  unfenced,
   paths,
   importEveryModule,
   manifests,
