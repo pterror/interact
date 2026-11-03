@@ -8,7 +8,7 @@
  * @import { Keybinds, KeybindsOptions } from './core.js'
  * @import { Adapt, CommandDefinition, Report, Source } from './hub-commands.js'
  * @import { Input } from './input.js'
- * @import { BindingsStorage } from './store.js'
+ * @import { BindingsStorage } from './bindings-storage.js'
  */
 
 import { formatBinding } from './binding-format.js'
@@ -49,7 +49,7 @@ class HubBindings {
   #commands = new Map()
   /** @type {ReadonlyMap<string, Command>} */
   #live = new Map()
-  /** @type {BindingsStore | undefined} */
+  /** @type {BindingsStore<Schema> | undefined} */
   #store
   /** @type {Keybinds | undefined} */
   #unbind
@@ -73,7 +73,7 @@ class HubBindings {
     return { holds: holds !== undefined, releases: releases !== undefined, sequences: sequences !== undefined }
   }
 
-  /** @returns {BindingsStore | undefined} The store of people's rebindings */
+  /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings */
   get store() {
     return this.#store
   }
@@ -101,7 +101,7 @@ class HubBindings {
       axes.delete(id)
     }
     const fields = this.#fields()
-    const bound = this.#newStore(schemaOf(commands, axes, fields), scope).get()
+    const bound = this.#newStore(schemaOf(commands, axes, fields), scope)
     this.#commands = commands
     this.#live = liveCommands(commands, bound, { adapt, fields, options, report })
     this.#listen(liveAxes(axes, bound, { input: this.inputs.find((input) => input.axis === true), report }), context)
@@ -145,7 +145,7 @@ class HubBindings {
     if (input === undefined) {
       return []
     }
-    const bindings = (input.axis === true ? this.#store?.get()[id]?.axes : this.#live.get(id)?.[input.field]) ?? []
+    const bindings = (input.axis === true ? this.#store?.lookup(id)?.axes : this.#live.get(id)?.[input.field]) ?? []
     if (!isInputUI(input)) {
       return [...bindings]
     }
@@ -183,7 +183,7 @@ class HubBindings {
    * Replaces the store with one over a new schema
    * @param {Schema} schema - The schema
    * @param {string} scope - The scope rebindings are kept in
-   * @returns {BindingsStore} The new store
+   * @returns {BindingsStore<Schema>} The new store
    */
   #newStore(schema, scope) {
     this.stop()

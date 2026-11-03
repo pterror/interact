@@ -279,14 +279,14 @@ that doesn't scroll, give `undefined`.
 
 ---
 
-## findConflict(schema, { binding, input, except? })
+## findConflict(bindings, { binding, input, except? })
 
-Check if a binding string conflicts with any command in a schema. `except` is a command not to check, usually the one
-being rebound.
+Check if a binding string conflicts with any command in a schema, or in a list of entries such as `store.entries()`.
+`except` is a command not to check, usually the one being rebound.
 
 ```ts
 function findConflict(
-  schema: Schema,
+  bindings: Schema | readonly { binding: BindingSchema; id: string }[],
   candidate: { binding: string; input: Input; except?: string },
 ): { commandId: string; label: string } | undefined
 ```

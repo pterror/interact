@@ -7,6 +7,7 @@
  * @import { AxisDef, BindingField, BindingSchema, Command, Schema } from './command.js'
  * @import { KeybindsOptions } from './core.js'
  * @import { AxisInput } from './input.js'
+ * @import { BindingsStore } from './store.js'
  */
 
 import { validateCommands } from './core.js'
@@ -157,7 +158,7 @@ function commandOf(definition) {
  * can't be adapted is left out; one whose bindings can't be read listens to none
  * @template {CommandDefinition} D
  * @param {ReadonlyMap<string, D>} definitions - The definitions
- * @param {Schema} bound - The bindings in effect
+ * @param {BindingsStore<Schema>} bound - The bindings in effect
  * @param {Readonly<{ adapt: Adapt<D>, fields: readonly BindingField[], options: KeybindsOptions, report: Report }>}
  *   how - How definitions become commands, the inputs' fields, the syntax that's on, and where failures go
  * @returns {Map<string, Command>} The commands, by id
@@ -178,13 +179,13 @@ function liveCommands(definitions, bound, { adapt, fields, options, report }) {
 /**
  * A command with people's rebindings laid over it, or listening to none if they can't be read
  * @param {Command} command - The command
- * @param {Schema} bound - The bindings in effect
+ * @param {BindingsStore<Schema>} bound - The bindings in effect
  * @param {Readonly<{ fields: readonly BindingField[], options: KeybindsOptions, report: Report }>} how - The inputs'
  *   fields, the syntax that's on, and where failures go
  * @returns {Command} The command as it listens
  */
 function listening(command, bound, { fields, options, report }) {
-  const rebinding = rebound(command, bound[command.id], fields)
+  const rebinding = rebound(command, bound.lookup(command.id), fields)
   try {
     validateCommands([rebinding], options)
     return rebinding
@@ -197,13 +198,13 @@ function listening(command, bound, { fields, options, report }) {
 /**
  * The axes as they're read: each with people's rebindings, and one whose sources can't be read reading none
  * @param {ReadonlyMap<string, AxisDef>} axes - The axes
- * @param {Schema} bound - The bindings in effect
+ * @param {BindingsStore<Schema>} bound - The bindings in effect
  * @param {Readonly<{ input: AxisInput | undefined, report: Report }>} how - What reads axes, and where failures go
  * @returns {AxisDef[]} The axes
  */
 function liveAxes(axes, bound, { input, report }) {
   return [...axes.values()].map((axis) => {
-    const sources = bound[axis.id]?.axes ?? axis.axes
+    const sources = bound.lookup(axis.id)?.axes ?? axis.axes
     try {
       for (const source of sources) {
         input?.parse(source, '')

@@ -9,17 +9,7 @@ import type { KeybindsOptions, Phase } from './core.js';
 import type { ComponentClasses } from './hub-components.js';
 import type { Input } from './input.js';
 import type { Sequences } from './sequences.js';
-import type { BindingsStorage } from './store.js';
-/**
- * @import { AnyModifiers } from './any-modifiers.js'
- * @import { Context } from './command.js'
- * @import { Adapt, CommandDefinition } from './hub-commands.js'
- * @import { KeybindsOptions, Phase } from './core.js'
- * @import { ComponentClasses } from './hub-components.js'
- * @import { Input } from './input.js'
- * @import { Sequences } from './sequences.js'
- * @import { BindingsStorage } from './store.js'
- */
+import type { BindingsStorage } from './bindings-storage.js';
 import { HubComponents } from './hub-components.js';
 export type CommandHubFields = {
     /**

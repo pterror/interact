@@ -5,6 +5,7 @@
 import type { AxisDef, BindingField, Command, Schema } from './command.js';
 import type { KeybindsOptions } from './core.js';
 import type { AxisInput } from './input.js';
+import type { BindingsStore } from './store.js';
 export type Source<T extends Readonly<{
     id: string;
 }>> = Readonly<{
@@ -80,12 +81,12 @@ declare function commandOf(definition: CommandDefinition): Command;
  * can't be adapted is left out; one whose bindings can't be read listens to none
  * @template {CommandDefinition} D
  * @param {ReadonlyMap<string, D>} definitions - The definitions
- * @param {Schema} bound - The bindings in effect
+ * @param {BindingsStore<Schema>} bound - The bindings in effect
  * @param {Readonly<{ adapt: Adapt<D>, fields: readonly BindingField[], options: KeybindsOptions, report: Report }>}
  *   how - How definitions become commands, the inputs' fields, the syntax that's on, and where failures go
  * @returns {Map<string, Command>} The commands, by id
  */
-declare function liveCommands<D extends CommandDefinition>(definitions: ReadonlyMap<string, D>, bound: Schema, { adapt, fields, options, report }: Readonly<{
+declare function liveCommands<D extends CommandDefinition>(definitions: ReadonlyMap<string, D>, bound: BindingsStore<Schema>, { adapt, fields, options, report }: Readonly<{
     adapt: Adapt<D>;
     fields: readonly BindingField[];
     options: KeybindsOptions;
@@ -94,11 +95,11 @@ declare function liveCommands<D extends CommandDefinition>(definitions: Readonly
 /**
  * The axes as they're read: each with people's rebindings, and one whose sources can't be read reading none
  * @param {ReadonlyMap<string, AxisDef>} axes - The axes
- * @param {Schema} bound - The bindings in effect
+ * @param {BindingsStore<Schema>} bound - The bindings in effect
  * @param {Readonly<{ input: AxisInput | undefined, report: Report }>} how - What reads axes, and where failures go
  * @returns {AxisDef[]} The axes
  */
-declare function liveAxes(axes: ReadonlyMap<string, AxisDef>, bound: Schema, { input, report }: Readonly<{
+declare function liveAxes(axes: ReadonlyMap<string, AxisDef>, bound: BindingsStore<Schema>, { input, report }: Readonly<{
     input: AxisInput | undefined;
     report: Report;
 }>): AxisDef[];

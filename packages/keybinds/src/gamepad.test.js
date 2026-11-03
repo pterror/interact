@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { findConflict } from './binding.js'
 import { validateCommands } from './core.js'
 import { parseGamepad } from './gamepad.js'
-import { mergeBindings } from './store.js'
+import { withOverride } from './schema.js'
 import { ALL, INPUT } from './test-inputs.js'
 
 describe('gamepad bindings', () => {
@@ -30,6 +30,6 @@ describe('gamepad bindings', () => {
       commandId: 'jump',
       label: 'Jump',
     })
-    expect(mergeBindings(schema, { jump: { gamepad: ['b'] } })['jump']?.gamepad).toEqual(['b'])
+    expect(withOverride(schema.jump, { gamepad: ['b'] }).gamepad).toEqual(['b'])
   })
 })

@@ -5,7 +5,7 @@
 
 /**
  * @import { Modifiers } from './binding-mods.js'
- * @import { Schema } from './command.js'
+ * @import { BindingSchema, Schema } from './command.js'
  * @import { Input } from './input.js'
  */
 
@@ -173,22 +173,51 @@ function tryLookup(input, binding) {
  */
 
 /**
- * The first command or axis in a schema that a binding would conflict with
- * @param {Readonly<Schema>} schema - The bindings to check against
+ * Each id with its bindings, as a store lists them (BindingsStore#entries())
+ * @typedef {Readonly<{ binding: BindingSchema, id: string }>} BindingEntry
+ */
+
+/**
+ * Whether bindings to check against are a list of entries rather than a schema; a schema is never an array
+ * @param {Readonly<Schema> | readonly BindingEntry[]} bindings - The bindings
+ * @returns {bindings is readonly BindingEntry[]} Whether they are a list of entries
+ */
+function isEntries(bindings) {
+  return Array.isArray(bindings)
+}
+
+/**
+ * A schema's ids with their bindings
+ * @param {Readonly<Schema>} schema - The schema
+ * @returns {BindingEntry[]} Each id with its bindings, in the schema's order
+ */
+function schemaEntries(schema) {
+  /** @type {BindingEntry[]} */
+  const entries = []
+  for (const [id, binding] of Object.entries(schema)) {
+    entries.push({ binding, id })
+  }
+  return entries
+}
+
+/**
+ * The first command or axis that a binding would conflict with
+ * @param {Readonly<Schema> | readonly BindingEntry[]} bindings - The bindings to check against: a schema, or each id
+ *   with its bindings
  * @param {Candidate} candidate - The binding, whose it is, and which command to leave out
  * @returns {Readonly<{ commandId: string, label: string }> | undefined} What it conflicts with, if anything
  */
-function findConflict(schema, { binding, except, input }) {
+function findConflict(bindings, { binding, except, input }) {
   const lookup = tryLookup(input, binding)
   if (lookup === undefined) {
     return undefined
   }
-  for (const [commandId, entry] of Object.entries(schema)) {
-    if (commandId !== except && (entry[input.field] ?? []).some((each) => tryLookup(input, each) === lookup)) {
-      return { commandId, label: entry.label }
-    }
-  }
-  return undefined
+  const entries = isEntries(bindings) ? bindings : schemaEntries(bindings)
+  const found = entries.find(
+    (entry) =>
+      entry.id !== except && (entry.binding[input.field] ?? []).some((each) => tryLookup(input, each) === lookup),
+  )
+  return found === undefined ? undefined : { commandId: found.id, label: found.binding.label }
 }
 
 export { RELEASE_SUFFIX, bindingLookup, findConflict, flipRelease, parseBinding, splitBinding, splitRelease }

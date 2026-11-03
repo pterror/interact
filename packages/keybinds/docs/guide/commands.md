@@ -351,9 +351,11 @@ Use `BindingsStore` for localStorage-persisted user overrides:
 ```js
 const store = new BindingsStore(schema, 'myapp:keybinds')
 
-// Get merged bindings (schema + user overrides)
-const bindings = store.get()
-const commands = fromBindings(bindings, handlers)
+// Commands with the user's overrides applied; a misspelled handler id is a type error
+const commands = fromBindings(store, handlers)
+
+// One command's bindings in effect
+store.get('save').keys
 
 // Save user changes
 store.save({ save: { keys: ['$mod+Shift+s'] } })

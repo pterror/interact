@@ -3,7 +3,7 @@
  * context, and giving focus back when an overlay closes.
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
-import type { Command, Context } from './command.js';
+import type { Command, Context, Schema } from './command.js';
 import type { ContextMenu } from './components/context-menu.js';
 import type { KeybindSettings } from './components/settings.js';
 import type { Input } from './input.js';
@@ -55,14 +55,14 @@ declare class HubComponents {
     }>);
     /**
      * Gives each component the commands, store and syntax as they are now
-     * @param {Readonly<{ live: ReadonlyMap<string, Command>, store: BindingsStore | undefined, syntax: Readonly<{ holds:
+     * @param {Readonly<{ live: ReadonlyMap<string, Command>, store: BindingsStore<Schema> | undefined, syntax: Readonly<{ holds:
      *   boolean, releases: boolean, sequences: boolean }> }>} bindings - The hub's commands as they listen, its store, and
      *   which binding syntax is on
      * @returns {void}
      */
     show({ live, store, syntax }: Readonly<{
         live: ReadonlyMap<string, Command>;
-        store: BindingsStore | undefined;
+        store: BindingsStore<Schema> | undefined;
         syntax: Readonly<{
             holds: boolean;
             releases: boolean;

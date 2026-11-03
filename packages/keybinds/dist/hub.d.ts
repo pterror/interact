@@ -3,7 +3,7 @@
  * its components and buttons in step. What fails is left out and reported as an `error` event, or to reportError().
  */
 import type { KeybindCheatsheet } from './cheatsheet.js';
-import type { AxisDef, AxisValue, Command, Context } from './command.js';
+import type { AxisDef, AxisValue, Command, Context, Schema } from './command.js';
 import type { ContextMenu } from './components/context-menu.js';
 import type { KeybindSettings } from './components/settings.js';
 import type { CommandDefinition } from './hub-commands.js';
@@ -37,8 +37,8 @@ declare class CommandHub<D extends CommandDefinition = Command, C extends Contex
     get settings(): KeybindSettings | undefined;
     /** @returns {ContextMenu | undefined} The context menu it made */
     get menu(): ContextMenu | undefined;
-    /** @returns {BindingsStore | undefined} The store of people's rebindings, as the settings panel edits it */
-    get store(): BindingsStore | undefined;
+    /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings, as the settings panel edits it */
+    get store(): BindingsStore<Schema> | undefined;
     /**
      * Replaces the commands owned by `owner` (undefined removes them), from refresh() on. Earlier sources win an id
      * @param {string} owner - Which part of the app they're from

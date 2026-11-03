@@ -11,11 +11,11 @@
  * @import { ComponentClasses } from './hub-components.js'
  * @import { Input } from './input.js'
  * @import { Sequences } from './sequences.js'
- * @import { BindingsStorage } from './store.js'
+ * @import { BindingsStorage } from './bindings-storage.js'
  */
 
+import { localStorageBindings } from './bindings-storage.js'
 import { HubComponents } from './hub-components.js'
-import { localStorageBindings } from './store.js'
 
 const NONE = 0
 

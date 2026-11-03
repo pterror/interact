@@ -2,11 +2,11 @@
  * A CommandHub's bindings: the commands and axes its sources give, the store of people's rebindings over them, and
  * keybinds() listening with the result.
  */
-import type { AxisDef, AxisValue, Command, Context } from './command.js';
+import type { AxisDef, AxisValue, Command, Context, Schema } from './command.js';
 import type { KeybindsOptions } from './core.js';
 import type { Adapt, CommandDefinition, Report, Source } from './hub-commands.js';
 import type { Input } from './input.js';
-import type { BindingsStorage } from './store.js';
+import type { BindingsStorage } from './bindings-storage.js';
 import { BindingsStore } from './store.js';
 export type Rebuild<D extends CommandDefinition> = Readonly<{
     axisSources: readonly Source<AxisDef>[];
@@ -53,8 +53,8 @@ declare class HubBindings<D extends CommandDefinition> {
         releases: boolean;
         sequences: boolean;
     }>;
-    /** @returns {BindingsStore | undefined} The store of people's rebindings */
-    get store(): BindingsStore | undefined;
+    /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings */
+    get store(): BindingsStore<Schema> | undefined;
     /** @returns {ReadonlyMap<string, D>} Every definition, as its source gave it, by id */
     get commands(): ReadonlyMap<string, D>;
     /** @returns {ReadonlyMap<string, Command>} Every command as it listens, with people's rebindings, by id */

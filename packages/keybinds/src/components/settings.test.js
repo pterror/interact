@@ -74,8 +74,7 @@ describe('KeybindSettings', () => {
     expect(removeBtn).not.toBeNull()
     removeBtn.click()
     // After removing, the save command should have no keys
-    const bindings = store.get()
-    expect(bindings['save']?.keys).toEqual([])
+    expect(store.get('save').keys).toEqual([])
     cleanup(el)
   })
 
@@ -89,7 +88,7 @@ describe('KeybindSettings', () => {
     resetBtn.click()
 
     // save should be back to schema default
-    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
+    expect(store.get('save').keys).toEqual(['$mod+s'])
     cleanup(el)
   })
 
@@ -103,7 +102,7 @@ describe('KeybindSettings', () => {
     resetAllBtn.click()
 
     expect(store.getOverrides()).toEqual({})
-    expect(store.get()['save']?.keys).toEqual(['$mod+s'])
+    expect(store.get('save').keys).toEqual(['$mod+s'])
     cleanup(el)
   })
 
@@ -278,9 +277,9 @@ describe('KeybindSettings release recording', () => {
     addButton(shadow, 'add-key').click()
     byPart(shadow, 'recording-release')[0]?.click()
     winKey('keydown', 'k', 'KeyK')
-    expect(store.get()['hold']?.keys).toEqual(['space'])
+    expect(store.get('hold').keys).toEqual(['space'])
     winKey('keyup', 'k', 'KeyK')
-    expect(store.get()['hold']?.keys).toEqual(['space', 'k:up'])
+    expect(store.get('hold').keys).toEqual(['space', 'k:up'])
     el.remove()
   })
 
@@ -290,7 +289,7 @@ describe('KeybindSettings release recording', () => {
     byPart(shadow, 'recording-release')[0]?.click()
     winKey('keydown', 'k', 'KeyK', { ctrlKey: true })
     winKey('keyup', 'k', 'KeyK')
-    expect(store.get()['hold']?.keys).toEqual(['space', '$mod+k:up'])
+    expect(store.get('hold').keys).toEqual(['space', '$mod+k:up'])
     el.remove()
   })
 
@@ -299,7 +298,7 @@ describe('KeybindSettings release recording', () => {
     addButton(shadow, 'add-key').click()
     byPart(shadow, 'recording-release')[0]?.click()
     winKey('keyup', 'k', 'KeyK')
-    expect(store.get()['hold']?.keys).toEqual(['space'])
+    expect(store.get('hold').keys).toEqual(['space'])
     el.remove()
   })
 
@@ -307,7 +306,7 @@ describe('KeybindSettings release recording', () => {
     const { el, store, shadow } = setup()
     addButton(shadow, 'add-key').click()
     winKey('keydown', 'k', 'KeyK')
-    expect(store.get()['hold']?.keys).toEqual(['space', 'k'])
+    expect(store.get('hold').keys).toEqual(['space', 'k'])
     el.remove()
   })
 
@@ -316,9 +315,9 @@ describe('KeybindSettings release recording', () => {
     addButton(shadow, 'add-mouse').click()
     byPart(shadow, 'recording-release')[0]?.click()
     winMouse('mousedown', 3)
-    expect(store.get()['hold']?.mouse).toEqual(['middle', 'scrollup'])
+    expect(store.get('hold').mouse).toEqual(['middle', 'scrollup'])
     winMouse('mouseup', 3)
-    expect(store.get()['hold']?.mouse).toEqual(['middle', 'scrollup', 'back:up'])
+    expect(store.get('hold').mouse).toEqual(['middle', 'scrollup', 'back:up'])
     el.remove()
   })
 
@@ -327,7 +326,7 @@ describe('KeybindSettings release recording', () => {
     addButton(shadow, 'add-mouse').click()
     byPart(shadow, 'recording-release')[0]?.click()
     window.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, cancelable: true }))
-    expect(store.get()['hold']?.mouse).toEqual(['middle', 'scrollup'])
+    expect(store.get('hold').mouse).toEqual(['middle', 'scrollup'])
     el.remove()
   })
 
@@ -336,7 +335,7 @@ describe('KeybindSettings release recording', () => {
     addButton(shadow, 'add-mouse').click()
     const toggle = /** @type {HTMLElement} */ (byPart(shadow, 'recording-release')[0])
     toggle.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, composed: true, cancelable: true }))
-    expect(store.get()['hold']?.mouse).toEqual(['middle', 'scrollup'])
+    expect(store.get('hold').mouse).toEqual(['middle', 'scrollup'])
     el.remove()
   })
 
@@ -347,17 +346,17 @@ describe('KeybindSettings release recording', () => {
     byPart(shadow, 'recording-release')[0]?.click()
     winKey('keydown', 'j', 'KeyJ')
     winKey('keyup', 'j', 'KeyJ')
-    expect(store.get()['hold']?.keys).toEqual(['j:up'])
+    expect(store.get('hold').keys).toEqual(['j:up'])
     el.remove()
   })
 
   test('chip switch flips a press to a release and back', () => {
     const { el, store, shadow } = setup()
     byPart(shadow, 'binding-release')[0]?.click()
-    expect(store.get()['hold']?.keys).toEqual(['space:up'])
+    expect(store.get('hold').keys).toEqual(['space:up'])
     expect(byPart(shadow, 'binding-release-on').length).toBeGreaterThan(0)
     byPart(shadow, 'binding-release-on')[0]?.click()
-    expect(store.get()['hold']?.keys).toEqual(['space'])
+    expect(store.get('hold').keys).toEqual(['space'])
     el.remove()
   })
 
@@ -375,11 +374,11 @@ describe('KeybindSettings release recording', () => {
     // hold has "space"; other already has "o:up". Make hold's first key "o" so flipping would collide.
     store.save({ hold: { keys: ['o'] } })
     byPart(shadow, 'binding-release')[0]?.click()
-    expect(store.get()['hold']?.keys).toEqual(['o'])
+    expect(store.get('hold').keys).toEqual(['o'])
     expect(byPart(shadow, 'conflict').length).toBe(1)
     byPart(shadow, 'conflict-accept')[0]?.click()
-    expect(store.get()['hold']?.keys).toEqual(['o:up'])
-    expect(store.get()['other']?.keys).toEqual([])
+    expect(store.get('hold').keys).toEqual(['o:up'])
+    expect(store.get('other').keys).toEqual([])
     el.remove()
   })
 
@@ -388,7 +387,7 @@ describe('KeybindSettings release recording', () => {
     store.save({ hold: { keys: ['o'] } })
     byPart(shadow, 'binding-release')[0]?.click()
     byPart(shadow, 'conflict-cancel')[0]?.click()
-    expect(store.get()['hold']?.keys).toEqual(['o'])
+    expect(store.get('hold').keys).toEqual(['o'])
     expect(byPart(shadow, 'conflict').length).toBe(0)
     expect(byPart(shadow, 'recording-overlay').length).toBe(0)
     el.remove()
@@ -453,7 +452,7 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     byPart('add-key')[0]?.click()
     byPart('recording-tap')[0]?.click()
     tap('j')
-    expect(store.get()['go']?.keys).toEqual(['space', 'k:hold', 'j:tap'])
+    expect(store.get('go').keys).toEqual(['space', 'k:hold', 'j:tap'])
     el.remove()
   })
 
@@ -462,9 +461,9 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     byPart('add-mouse')[0]?.click()
     byPart('recording-hold')[0]?.click()
     window.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, cancelable: true }))
-    expect(store.get()['go']?.mouse).toEqual(['scrollup'])
+    expect(store.get('go').mouse).toEqual(['scrollup'])
     window.dispatchEvent(new MouseEvent('mousedown', { button: 1, cancelable: true }))
-    expect(store.get()['go']?.mouse).toEqual(['scrollup', 'middle:hold'])
+    expect(store.get('go').mouse).toEqual(['scrollup', 'middle:hold'])
     el.remove()
   })
 
@@ -476,7 +475,7 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     tap('i')
     expect(byPart('recording-overlay')[0]?.textContent).toBe('G then I then...')
     byPart('recording-done')[0]?.click()
-    expect(store.get()['go']?.keys).toEqual(['space', 'g i'])
+    expect(store.get('go').keys).toEqual(['space', 'g i'])
 
     const pause = KeybindSettings.SEQUENCE_PAUSE
     KeybindSettings.SEQUENCE_PAUSE = 10
@@ -485,7 +484,7 @@ describe('KeybindSettings recording holds, taps and sequences', () => {
     tap('j')
     tap('j')
     await new Promise((r) => setTimeout(r, 30))
-    expect(store.get()['go']?.keys).toEqual(['space', 'g i', 'j j'])
+    expect(store.get('go').keys).toEqual(['space', 'g i', 'j j'])
     KeybindSettings.SEQUENCE_PAUSE = pause
     el.remove()
   })
@@ -523,10 +522,11 @@ describe('KeybindSettings recording gamepads and axes', () => {
   test('the settings panel records two keys as an axis, and inverts it', () => {
     const el = /** @type {import('../index.js').KeybindSettings} */ (createComponent(KeybindSettings))
     el.inputs = ALL.inputs
-    el.store = new BindingsStore(
+    const store = new BindingsStore(
       { strafe: { label: 'Strafe', axes: ['keys:a/d'] } },
       { load: () => ({}), save: () => {} },
     )
+    el.store = store
     document.body.appendChild(el)
     el.open = true
     const add = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part="add-axis"]'))
@@ -534,10 +534,10 @@ describe('KeybindSettings recording gamepads and axes', () => {
     add.click()
     window.dispatchEvent(kbd('keydown', { code: 'KeyJ', key: 'j' }))
     window.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
-    expect(el.store?.get()['strafe']?.axes).toEqual(['keys:a/d', 'keys:j/l'])
+    expect(store.get('strafe').axes).toEqual(['keys:a/d', 'keys:j/l'])
     const invert = /** @type {HTMLElement} */ (el.shadowRoot?.querySelector('[part~="binding-invert"]'))
     invert.click()
-    expect(el.store?.get()['strafe']?.axes).toEqual(['-keys:a/d', 'keys:j/l'])
+    expect(store.get('strafe').axes).toEqual(['-keys:a/d', 'keys:j/l'])
     el.remove()
   })
 })

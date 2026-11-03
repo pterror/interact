@@ -5,7 +5,7 @@
 
 /**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
- * @import { Command, Context } from './command.js'
+ * @import { Command, Context, Schema } from './command.js'
  * @import { ContextMenu } from './components/context-menu.js'
  * @import { KeybindSettings } from './components/settings.js'
  * @import { Input, InputUI } from './input.js'
@@ -125,7 +125,7 @@ class HubComponents {
 
   /**
    * Gives each component the commands, store and syntax as they are now
-   * @param {Readonly<{ live: ReadonlyMap<string, Command>, store: BindingsStore | undefined, syntax: Readonly<{ holds:
+   * @param {Readonly<{ live: ReadonlyMap<string, Command>, store: BindingsStore<Schema> | undefined, syntax: Readonly<{ holds:
    *   boolean, releases: boolean, sequences: boolean }> }>} bindings - The hub's commands as they listen, its store, and
    *   which binding syntax is on
    * @returns {void}

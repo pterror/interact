@@ -1,9 +1,9 @@
 export type Input = import('../input.js').InputUI;
 export type BindingSchema = import('../command.js').BindingSchema;
-export type AnyStore = import('../store.js').BindingsStore;
+export type AnyStore = import('../store.js').AnyBindingsStore;
 /** @typedef {import('../input.js').InputUI} Input */
 /** @typedef {import('../command.js').BindingSchema} BindingSchema */
-/** @typedef {import('../store.js').BindingsStore} AnyStore */
+/** @typedef {import('../store.js').AnyBindingsStore} AnyStore */
 /**
  * <keybinds-settings> - Keybinding settings panel
  *
@@ -100,8 +100,8 @@ export declare class KeybindSettings extends HTMLElement {
     static get observedAttributes(): string[];
     constructor();
     connectedCallback(): void;
-    get store(): import("../store.js").BindingsStore | null;
-    set store(val: import("../store.js").BindingsStore | null);
+    get store(): import("../store.js").AnyBindingsStore | null;
+    set store(val: import("../store.js").AnyBindingsStore | null);
     get inputs(): import("../input.js").InputUI[];
     set inputs(val: import("../input.js").InputUI[]);
     get open(): boolean;

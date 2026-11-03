@@ -186,55 +186,68 @@ const schema = defineSchema({
 
 ---
 
-## mergeBindings(schema, overrides)
+## withOverride(binding, override)
 
-Merge schema with user overrides.
+One command's or axis's bindings with a person's override laid over them. The fields an override can set (`keys`,
+`mouse`, `gamepad`, `axes`) come back typed as any list of bindings, since an override can hold any binding.
 
 ```ts
-function mergeBindings(schema: Schema, overrides: BindingOverrides): Schema
+function withOverride<B extends BindingSchema>(binding: B, override: BindingOverride | undefined): Bound<B>
+type Bound<B> = Readonly<Omit<B, 'axes' | 'gamepad' | 'keys' | 'mouse'>> & Rebindable
 ```
 
 ---
 
 ## fromBindings(bindings, handlers, options?)
 
-Create commands from bindings + handlers.
+Create commands from a schema, or from a store (its overrides apply), and handlers. Handler and option ids are the
+schema's ids, so a misspelled one is a type error.
 
 ```ts
-function fromBindings(
-  bindings: Schema,
-  handlers: Record<string, (ctx, event?) => unknown>,
-  options?: Record<string, { when?: (ctx) => boolean; captureInput?: boolean; anyModifiers?: boolean }>,
+function fromBindings<T extends Schema>(
+  bindings: T | BindingsStore<T>,
+  handlers: Partial<Record<Id<T>, (ctx, event?) => unknown>>,
+  options?: Partial<Record<Id<T>, { when?: (ctx) => boolean; captureInput?: boolean; anyModifiers?: boolean }>>,
 ): Command[]
 ```
 
-Throws if a handler has no bindings, since it would never run.
+Throws if a handler has no bindings, since it would never run (for a schema whose ids aren't known to the types).
 
 ---
 
-## listBindings(schema)
+## listBindings(bindings) and entriesOf(bindings)
 
-Every binding not hidden, with its id, for a settings UI.
+Each id with its bindings, in the schema's order: from a store as they are in effect, from a schema as given.
+`listBindings` leaves out hidden ones, for a settings UI.
 
 ```ts
-function listBindings(schema: Schema): { binding: BindingSchema; id: string }[]
+function entriesOf<T extends Schema>(bindings: T | BindingsStore<T>): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
+function listBindings<T extends Schema>(bindings: T | BindingsStore<T>): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
 ```
 
 ---
 
 ## BindingsStore
 
-Reactive store of people's overrides, kept in localStorage or anywhere else.
+Reactive store of people's overrides, kept in localStorage or anywhere else. The schema and the overrides stay apart:
+each id's bindings in effect are read one id at a time, typed by that id's own schema entry.
 
 ```ts
-class BindingsStore extends EventTarget {
-  constructor(schema: Schema, storage: string | BindingsStorage)
-  readonly schema: Schema
-  get(): Schema
+class BindingsStore<T extends Schema> extends EventTarget {
+  constructor(schema: T, storage: string | BindingsStorage)
+  readonly schema: T
+  ids(): Id<T>[]
+  get<K extends Id<T>>(id: K): Bound<T[K]> // a misspelled id is a type error
+  entries(): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
+  has(id: string): id is Id<T>
+  lookup(id: string): Bound<T[Id<T>]> | undefined // for ids from elsewhere
+  defaults(id: string): T[Id<T>] | undefined
   getOverrides(): BindingOverrides
   save(overrides: BindingOverrides): void
   dispose(): void
 }
+
+type AnyBindingsStore // what code taking a store over any schema reads: everything but get(id), whose ids are T's
 
 type BindingsStorage = {
   load(): BindingOverrides
@@ -250,12 +263,13 @@ anything stored that isn't a list of bindings is left out. Any other storage onl
 change from elsewhere (another tab, an undo, sync), give it `subscribe` too and the store follows it; `dispose()` stops
 following.
 
-Dispatches `'change'` event when bindings are saved, or when the storage changes.
+Dispatches a `BindingsChangeEvent` (`'change'`, with the `overrides` now) when overrides are saved, or when the storage
+changes. Read the bindings in effect from the store.
 
 ```js
 const store = new BindingsStore(schema, 'app:keybinds')
-store.addEventListener('change', (e) => {
-  console.log(e.detail.bindings)
+store.addEventListener('change', () => {
+  console.log(store.get('save').keys)
 })
 store.save({ save: { keys: ['$mod+Shift+s'] } })
 ```
@@ -300,14 +314,14 @@ eventToMouseBindingString(mouseupEvent) // e.g. "middle:up"
 
 ---
 
-## findConflict(schema, { binding, input, except? })
+## findConflict(bindings, { binding, input, except? })
 
-Check if a binding conflicts with any command in a schema. `except` is a command not to check, usually the one being
-rebound.
+Check if a binding conflicts with any command in a schema, or in a list of entries such as `store.entries()` (the
+bindings in effect). `except` is a command not to check, usually the one being rebound.
 
 ```ts
 function findConflict(
-  schema: Schema,
+  bindings: Schema | readonly { binding: BindingSchema; id: string }[],
   candidate: { binding: string; input: Input; except?: string },
 ): { commandId: string; label: string } | undefined
 ```

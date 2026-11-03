@@ -17,7 +17,8 @@ export type Modifiers = import('./binding-mods.js').Modifiers;
 export type KeybindsOptions = import('./core.js').KeybindsOptions;
 export type Matcher = import('./search.js').Matcher;
 export type ScoredCommand = import('./search.js').ScoredCommand;
-export type BindingsStorage = import('./store.js').BindingsStorage;
+export type BindingsStorage = import('./bindings-storage.js').BindingsStorage;
+export type AnyBindingsStore = import('./store.js').AnyBindingsStore;
 /** @typedef {import('./command.js').Command} Command */
 /** @typedef {import('./command.js').AxisDef} AxisDef */
 /** @typedef {import('./command.js').AxisValue} AxisValue */
@@ -33,7 +34,8 @@ export type BindingsStorage = import('./store.js').BindingsStorage;
 /** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
 /** @typedef {import('./search.js').Matcher} Matcher */
 /** @typedef {import('./search.js').ScoredCommand} ScoredCommand */
-/** @typedef {import('./store.js').BindingsStorage} BindingsStorage */
+/** @typedef {import('./bindings-storage.js').BindingsStorage} BindingsStorage */
+/** @typedef {import('./store.js').AnyBindingsStore} AnyBindingsStore */
 export { anyModifiers } from './any-modifiers.js';
 export { axes } from './axes.js';
 export { axesUI, formatAxisParts } from './axes-ui.js';
@@ -59,7 +61,10 @@ export { fuzzyMatcher, simpleMatcher } from './matchers.js';
 export { defaultScorer } from './scorer.js';
 export { filterByMenu, groupByCategory, searchCommands } from './search.js';
 export { sequences } from './sequences.js';
-export { BindingsStore, defineSchema, fromBindings, listBindings, localStorageBindings, mergeBindings, } from './store.js';
+export { BindingsChangeEvent } from './bindings-change.js';
+export { localStorageBindings } from './bindings-storage.js';
+export { defineSchema, withOverride } from './schema.js';
+export { BindingsStore, entriesOf, fromBindings, listBindings } from './store.js';
 export { BasicContextMenu } from './components/basic-context-menu.js';
 export { KeybindCheatsheet } from './cheatsheet.js';
 export { ContextMenu } from './components/context-menu.js';

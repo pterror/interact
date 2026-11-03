@@ -3,7 +3,7 @@
  * and each step goes to its input to parse. Syntax whose module isn't on is an error naming it.
  */
 import type { Modifiers } from './binding-mods.js';
-import type { Schema } from './command.js';
+import type { BindingSchema, Schema } from './command.js';
 import type { Input } from './input.js';
 export type ParsedBinding = Readonly<{
     lookup: string;
@@ -23,7 +23,7 @@ export type BindingSyntax = Readonly<{
 }>;
 /**
  * @import { Modifiers } from './binding-mods.js'
- * @import { Schema } from './command.js'
+ * @import { BindingSchema, Schema } from './command.js'
  * @import { Input } from './input.js'
  */
 /**
@@ -91,18 +91,18 @@ export type Candidate = Readonly<{
     except?: string | undefined;
     input: Input;
 }>;
+export type BindingEntry = Readonly<{
+    binding: BindingSchema;
+    id: string;
+}>;
 /**
- * A binding someone might give a command, to check for conflicts
- * @typedef {Readonly<{ binding: string, except?: string | undefined, input: Input }>} Candidate
- * `except` is a command not to check, usually the one being rebound
- */
-/**
- * The first command or axis in a schema that a binding would conflict with
- * @param {Readonly<Schema>} schema - The bindings to check against
+ * The first command or axis that a binding would conflict with
+ * @param {Readonly<Schema> | readonly BindingEntry[]} bindings - The bindings to check against: a schema, or each id
+ *   with its bindings
  * @param {Candidate} candidate - The binding, whose it is, and which command to leave out
  * @returns {Readonly<{ commandId: string, label: string }> | undefined} What it conflicts with, if anything
  */
-declare function findConflict(schema: Readonly<Schema>, { binding, except, input }: Candidate): Readonly<{
+declare function findConflict(bindings: Readonly<Schema> | readonly BindingEntry[], { binding, except, input }: Candidate): Readonly<{
     commandId: string;
     label: string;
 }> | undefined;

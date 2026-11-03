@@ -5,7 +5,7 @@ import { markKind } from '../modal.js'
 
 /** @typedef {import('../input.js').InputUI} Input */
 /** @typedef {import('../command.js').BindingSchema} BindingSchema */
-/** @typedef {import('../store.js').BindingsStore} AnyStore */
+/** @typedef {import('../store.js').AnyBindingsStore} AnyStore */
 
 /**
  * <keybinds-settings> - Keybinding settings panel
@@ -200,7 +200,7 @@ export class KeybindSettings extends HTMLElement {
    * @returns {Record<string, string[]>}
    */
   _getBindings(commandId) {
-    const binding = /** @type {Record<string, unknown> | undefined} */ (this._store?.get()[commandId])
+    const binding = /** @type {Record<string, unknown> | undefined} */ (this._store?.lookup(commandId))
     /** @type {Record<string, string[]>} */
     const out = {}
     for (const input of this._inputs) {
@@ -217,7 +217,7 @@ export class KeybindSettings extends HTMLElement {
    */
   _saveBindings(commandId, newBindings) {
     if (!this._store) return
-    const schemaDef = /** @type {Record<string, unknown> | undefined} */ (this._store.schema[commandId])
+    const schemaDef = /** @type {Record<string, unknown> | undefined} */ (this._store.defaults(commandId))
     if (!schemaDef) return
 
     const overrides = { ...this._store.getOverrides() }
@@ -343,7 +343,7 @@ export class KeybindSettings extends HTMLElement {
    */
   _flip(commandId, input, index, flipped) {
     if (this._store) {
-      const conflict = findConflict(this._store.get(), { binding: flipped, except: commandId, input })
+      const conflict = findConflict(this._store.entries(), { binding: flipped, except: commandId, input })
       if (conflict) {
         this._stopRecording()
         this._recording = { commandId, input, index }
@@ -379,7 +379,7 @@ export class KeybindSettings extends HTMLElement {
     if (!this._recording || !this._store) return
     const { commandId, input, index } = this._recording
 
-    const conflict = findConflict(this._store.get(), { binding: bindingStr, except: commandId, input })
+    const conflict = findConflict(this._store.entries(), { binding: bindingStr, except: commandId, input })
     if (conflict) {
       this._conflict = { ...conflict, bindingStr, input, index }
       this._render()
@@ -464,7 +464,6 @@ export class KeybindSettings extends HTMLElement {
     }
 
     const schema = this._store.schema
-    const merged = this._store.get()
     this._dialog.replaceChildren()
 
     // Header
@@ -514,7 +513,7 @@ export class KeybindSettings extends HTMLElement {
       list.setAttribute('part', 'list')
 
       for (const cmd of cmds) {
-        const bindings = /** @type {Record<string, unknown> | undefined} */ (merged[cmd.id])
+        const bindings = /** @type {Record<string, unknown> | undefined} */ (this._store.lookup(cmd.id))
         const li = document.createElement('li')
         li.className = 'settings__item'
         li.setAttribute('part', 'item')

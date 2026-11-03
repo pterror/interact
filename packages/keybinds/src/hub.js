@@ -5,7 +5,7 @@
 
 /**
  * @import { KeybindCheatsheet } from './cheatsheet.js'
- * @import { AxisDef, AxisValue, Command, Context } from './command.js'
+ * @import { AxisDef, AxisValue, Command, Context, Schema } from './command.js'
  * @import { ContextMenu } from './components/context-menu.js'
  * @import { KeybindSettings } from './components/settings.js'
  * @import { CommandDefinition, Source } from './hub-commands.js'
@@ -101,7 +101,7 @@ class CommandHub extends EventTarget {
     return this.#components?.menu
   }
 
-  /** @returns {BindingsStore | undefined} The store of people's rebindings, as the settings panel edits it */
+  /** @returns {BindingsStore<Schema> | undefined} The store of people's rebindings, as the settings panel edits it */
   get store() {
     return this.#bindings.store
   }

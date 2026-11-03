@@ -1,14 +1,21 @@
 /**
- * Binding schemas, and the store of people's rebindings laid over them.
+ * The store of people's rebindings over a schema, read one id at a time, and commands and lists made from it.
  */
 
 /**
- * @import { BindingOverrides, BindingSchema, Command, Context, Schema } from './command.js'
+ * @import { BindingsStorage } from './bindings-storage.js'
+ * @import { BindingOverrides, Command, Context, Schema } from './command.js'
+ * @import { Bound, BoundEntry, Id, SchemaOf } from './schema.js'
  */
 
+import { BindingsChangeEvent } from './bindings-change.js'
+import { localStorageBindings } from './bindings-storage.js'
+import { idsOf, isId, withOverride } from './schema.js'
+
 /**
- * The fields of a person's rebinding of one command or axis
- * @typedef {BindingOverrides[string]} BindingOverride
+ * A store as code that takes any store reads it: by ids it holds as strings. A store over any schema is one
+ * @typedef {Pick<BindingsStore<Schema>, 'addEventListener' | 'defaults' | 'dispatchEvent' | 'entries' | 'getOverrides'
+ *   | 'has' | 'ids' | 'lookup' | 'removeEventListener' | 'save' | 'schema'>} AnyBindingsStore
  */
 
 /**
@@ -18,208 +25,20 @@
  */
 
 /**
- * Where a BindingsStore keeps people's overrides. `subscribe` is for storage that can change from elsewhere (another
- * tab, an undo, sync): the store follows it
- * @typedef {object} BindingsStorageFields
- * @property {() => BindingOverrides} load - The current overrides
- * @property {(overrides: BindingOverrides) => void} save - Keeps new overrides
- * @property {(onChange: (overrides: BindingOverrides) => void) => () => void} [subscribe] - Follows changes made
- *   elsewhere; returns a function that stops
- */
-
-/**
- * Where a BindingsStore keeps people's overrides
- * @typedef {Readonly<BindingsStorageFields>} BindingsStorage
- */
-
-/**
- * What a BindingsStore's 'change' event carries: the bindings now, and the overrides they came from
- * @typedef {CustomEvent<Readonly<{ bindings: Schema, overrides: BindingOverrides }>>} BindingsChangeEvent
- */
-
-/**
- * The fields an override can set
- * @type {readonly (keyof BindingOverride)[]}
- */
-const OVERRIDE_FIELDS = ['axes', 'gamepad', 'keys', 'mouse']
-
-/**
- * A binding schema as given, for type inference and autocomplete
- * @template {Schema} T
- * @param {T} schema - The schema
- * @returns {T} The same schema
- */
-function defineSchema(schema) {
-  return schema
-}
-
-/**
- * One command's or axis's bindings with a person's override laid over them: each field the override sets
- * @param {BindingSchema} binding - The defaults
- * @param {BindingOverride | undefined} override - The person's changes
- * @returns {BindingSchema} The bindings in effect
- */
-function overridden(binding, override) {
-  if (override === undefined) {
-    return binding
-  }
-  return {
-    ...binding,
-    ...(override.axes === undefined ? {} : { axes: override.axes }),
-    ...(override.gamepad === undefined ? {} : { gamepad: override.gamepad }),
-    ...(override.keys === undefined ? {} : { keys: override.keys }),
-    ...(override.mouse === undefined ? {} : { mouse: override.mouse }),
-  }
-}
-
-/**
- * A schema with people's overrides laid over it. Overrides for ids the schema doesn't have are left out
- * @param {Readonly<Schema>} schema - The default bindings
- * @param {BindingOverrides} overrides - People's changes
- * @returns {Schema} The bindings in effect
- */
-function mergeBindings(schema, overrides) {
-  /** @type {Record<string, BindingSchema>} */
-  const merged = {}
-  for (const [id, binding] of Object.entries(schema)) {
-    merged[id] = overridden(binding, overrides[id])
-  }
-  return merged
-}
-
-/**
- * Commands from bindings and handlers: one per handler, each with its bindings and options
- * @param {Readonly<Schema>} bindings - The bindings in effect (from mergeBindings(), say)
- * @param {Readonly<Record<string, Command['execute']>>} handlers - What each command does, by id
- * @param {Readonly<Record<string, CommandOptions>>} [options] - More for each command, by id
- * @returns {Command[]} The commands
- * @throws {Error} If a handler has no bindings, which would otherwise never run
- */
-function fromBindings(bindings, handlers, options = {}) {
-  /** @type {Command[]} */
-  const commands = []
-  for (const [id, execute] of Object.entries(handlers)) {
-    const binding = bindings[id]
-    if (binding === undefined) {
-      throw new Error(`keybinds: handler "${id}" has no matching binding`)
-    }
-    commands.push({ id, ...binding, execute, ...options[id] })
-  }
-  return commands
-}
-
-/**
- * Every binding not hidden, with its id, for the settings panel
- * @param {Readonly<Schema>} schema - The bindings
- * @returns {Readonly<{ binding: BindingSchema, id: string }>[]} Them, in the schema's order
- */
-function listBindings(schema) {
-  /** @type {Readonly<{ binding: BindingSchema, id: string }>[]} */
-  const listed = []
-  for (const [id, binding] of Object.entries(schema)) {
-    if (binding.hidden !== true) {
-      listed.push({ binding, id })
-    }
-  }
-  return listed
-}
-
-/**
- * Whether a value is a list of strings
- * @param {unknown} value - The value
- * @returns {value is readonly string[]} Whether it is
- */
-function isStrings(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string')
-}
-
-/**
- * A field of something parsed from storage, if it has one of its own
- * @param {object} stored - What was parsed
- * @param {string} field - The field
- * @returns {unknown} Its value, or undefined if it has none
- */
-function ownField(stored, field) {
-  return Object.hasOwn(stored, field) ? Reflect.get(stored, field) : undefined
-}
-
-/**
- * One stored override, its fields that hold lists of bindings
- * @param {unknown} stored - What was stored for one id
- * @returns {BindingOverride} The fields it sets
- */
-function overrideOf(stored) {
-  if (typeof stored !== 'object' || stored === null) {
-    return {}
-  }
-  /** @type {Record<string, readonly string[]>} */
-  const fields = {}
-  for (const field of OVERRIDE_FIELDS) {
-    const value = ownField(stored, field)
-    if (isStrings(value)) {
-      fields[field] = value
-    }
-  }
-  return fields
-}
-
-/**
- * Overrides as stored: every id's override, its fields read as lists of bindings, anything else left out
- * @param {string} text - The JSON stored
- * @returns {BindingOverrides} The overrides; none if the text isn't an object of them
- */
-function parseOverrides(text) {
-  /** @type {unknown} */
-  const parsed = JSON.parse(text)
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    return {}
-  }
-  /** @type {Record<string, BindingOverride>} */
-  const overrides = {}
-  for (const id of Object.keys(parsed)) {
-    overrides[id] = overrideOf(ownField(parsed, id))
-  }
-  return overrides
-}
-
-/**
- * Storage that keeps overrides in localStorage under one key. Unreadable or unavailable storage (private browsing, a
- * full quota) reads as no overrides, and overrides saved then still apply until the page reloads
- * @param {string} key - The key
- * @returns {BindingsStorage} The storage
- */
-function localStorageBindings(key) {
-  return {
-    load() {
-      try {
-        return parseOverrides(localStorage.getItem(key) ?? '{}')
-      } catch {
-        return {}
-      }
-    },
-    save(overrides) {
-      try {
-        localStorage.setItem(key, JSON.stringify(overrides))
-      } catch {
-        // The overrides still apply in this page; they just aren't kept
-      }
-    },
-  }
-}
-
-/**
- * People's rebindings laid over a schema, kept in localStorage or any BindingsStorage. Dispatches 'change' when they
- * are saved, or when the storage changes from elsewhere
+ * People's rebindings over a schema, kept in localStorage or any BindingsStorage. The schema and the overrides stay
+ * apart: each id's bindings in effect are read with get(id). Dispatches a BindingsChangeEvent when the overrides are
+ * saved, or when the storage changes from elsewhere
  * @example
  *   const store = new BindingsStore(schema, 'myapp:keybinds')
  *   const elsewhere = new BindingsStore(schema, { load: () => prefs.keys ?? {}, save: (o) => { prefs.keys = o } })
- *   store.addEventListener('change', (event) => render(event.detail.bindings))
+ *   store.addEventListener('change', () => render(store.get('save')))
  *   store.save({ delete: { keys: ['$mod+d'] } })
+ * @template {SchemaOf<T>} T
  */
 class BindingsStore extends EventTarget {
   /**
    * @readonly
-   * @type {Readonly<Schema>}
+   * @type {T}
    */
   #schema
   /**
@@ -229,14 +48,12 @@ class BindingsStore extends EventTarget {
   #storage
   /** @type {BindingOverrides} */
   #overrides
-  /** @type {Schema} */
-  #bindings
   /** @type {(() => void) | undefined} */
   #unsubscribe
 
   /**
    * Reads the overrides kept so far, and follows the storage if it can change from elsewhere
-   * @param {Readonly<Schema>} schema - The default bindings
+   * @param {T} schema - The default bindings
    * @param {string | BindingsStorage} storage - A localStorage key, or where to keep overrides
    */
   constructor(schema, storage) {
@@ -244,24 +61,65 @@ class BindingsStore extends EventTarget {
     this.#schema = schema
     this.#storage = typeof storage === 'string' ? localStorageBindings(storage) : storage
     this.#overrides = this.#storage.load()
-    this.#bindings = mergeBindings(schema, this.#overrides)
     this.#unsubscribe = this.#storage.subscribe?.((overrides) => {
       // Storage that echoes the store's own saves back would otherwise make every change twice
       if (JSON.stringify(overrides) !== JSON.stringify(this.#overrides)) {
         this.#overrides = overrides
-        this.#changed()
+        this.dispatchEvent(new BindingsChangeEvent(overrides))
       }
     })
   }
 
-  /** @returns {Readonly<Schema>} The default bindings */
+  /** @returns {T} The default bindings */
   get schema() {
     return this.#schema
   }
 
-  /** @returns {Schema} The bindings in effect: the schema with the overrides laid over it */
-  get() {
-    return this.#bindings
+  /** @returns {Id<T>[]} The schema's ids, in its order */
+  ids() {
+    return idsOf(this.#schema)
+  }
+
+  /**
+   * Whether a string is one of the schema's ids, for ids that come from elsewhere (an element, an event)
+   * @param {string} id - The string
+   * @returns {id is Id<T>} Whether the schema has it
+   */
+  has(id) {
+    return isId(this.#schema, id)
+  }
+
+  /**
+   * One id's bindings in effect: its schema entry with the person's override laid over it
+   * @template {Id<T>} K
+   * @param {K} id - The command or axis
+   * @returns {Bound<T[K]>} Its bindings now
+   */
+  get(id) {
+    return withOverride(this.#schema[id], this.#overrides[id])
+  }
+
+  /**
+   * The bindings in effect for an id that comes from elsewhere (an element, an event, a list of commands)
+   * @param {string} id - Maybe one of the schema's ids
+   * @returns {Bound<T[Id<T>]> | undefined} Its bindings now, or undefined if the schema hasn't the id
+   */
+  lookup(id) {
+    return this.has(id) ? this.get(id) : undefined
+  }
+
+  /**
+   * The schema's own bindings for an id that comes from elsewhere, without the person's override
+   * @param {string} id - Maybe one of the schema's ids
+   * @returns {T[Id<T>] | undefined} Its default bindings, or undefined if the schema hasn't the id
+   */
+  defaults(id) {
+    return this.has(id) ? this.#schema[id] : undefined
+  }
+
+  /** @returns {BoundEntry<T>[]} Every id's bindings in effect, in the schema's order */
+  entries() {
+    return this.ids().map((id) => ({ binding: this.get(id), id }))
   }
 
   /** @returns {BindingOverrides} The overrides alone */
@@ -270,14 +128,14 @@ class BindingsStore extends EventTarget {
   }
 
   /**
-   * Keeps new overrides, and dispatches 'change'
+   * Keeps new overrides, and dispatches a BindingsChangeEvent
    * @param {BindingOverrides} overrides - The overrides, in place of the ones before
    * @returns {void}
    */
   save(overrides) {
     this.#overrides = overrides
     this.#storage.save(overrides)
-    this.#changed()
+    this.dispatchEvent(new BindingsChangeEvent(overrides))
   }
 
   /**
@@ -288,12 +146,55 @@ class BindingsStore extends EventTarget {
     this.#unsubscribe?.()
     this.#unsubscribe = undefined
   }
-
-  /** @returns {void} */
-  #changed() {
-    this.#bindings = mergeBindings(this.#schema, this.#overrides)
-    this.dispatchEvent(new CustomEvent('change', { detail: { bindings: this.#bindings, overrides: this.#overrides } }))
-  }
 }
 
-export { BindingsStore, defineSchema, fromBindings, listBindings, localStorageBindings, mergeBindings }
+/**
+ * Every id's bindings: from a store, as they are in effect; from a schema, as given
+ * @template {SchemaOf<T>} T
+ * @param {T | BindingsStore<T>} bindings - A schema, or a store over one
+ * @returns {BoundEntry<T>[]} Each id with its bindings, in the schema's order
+ */
+function entriesOf(bindings) {
+  if (bindings instanceof BindingsStore) {
+    return bindings.entries()
+  }
+  return idsOf(bindings).map((id) => ({ binding: withOverride(bindings[id], undefined), id }))
+}
+
+/**
+ * Commands from bindings and handlers: one per handler, each with its bindings and options
+ * @template {SchemaOf<T>} T
+ * @param {T | BindingsStore<T>} bindings - A schema, or a store whose overrides apply
+ * @param {Readonly<Partial<Record<Id<T>, Command['execute']>>>} handlers - What each command does, by id
+ * @param {Readonly<Partial<Record<Id<T>, CommandOptions>>>} [options] - More for each command, by id
+ * @returns {Command[]} The commands
+ * @throws {Error} If a handler has no bindings, which would otherwise never run
+ */
+function fromBindings(bindings, handlers, options) {
+  const schema = bindings instanceof BindingsStore ? bindings.schema : bindings
+  /** @type {Command[]} */
+  const commands = []
+  for (const id of Object.keys(handlers)) {
+    if (!isId(schema, id)) {
+      throw new Error(`keybinds: handler "${id}" has no matching binding`)
+    }
+    const execute = handlers[id]
+    if (execute !== undefined) {
+      const binding = bindings instanceof BindingsStore ? bindings.get(id) : schema[id]
+      commands.push({ id, ...binding, execute, ...options?.[id] })
+    }
+  }
+  return commands
+}
+
+/**
+ * Every binding not hidden, with its id, for the settings panel
+ * @template {SchemaOf<T>} T
+ * @param {T | BindingsStore<T>} bindings - A schema, or a store whose overrides apply
+ * @returns {BoundEntry<T>[]} Them, in the schema's order
+ */
+function listBindings(bindings) {
+  return entriesOf(bindings).filter(({ binding }) => binding.hidden !== true)
+}
+
+export { BindingsStore, entriesOf, fromBindings, listBindings }
