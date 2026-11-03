@@ -22,17 +22,17 @@ describe('Typeahead', () => {
   test('looks after the active item for a first character, and at it for more of the same word', () => {
     const time = clock()
     const typeahead = new Typeahead(time.now)
-    expect(typeahead.type('b')).toEqual({ after: true, text: 'b' })
+    expect(typeahead.type('b')).toEqual({ after: true, cycle: undefined, text: 'b' })
     time.pass(QUICK)
-    expect(typeahead.type('l')).toEqual({ after: false, text: 'bl' })
+    expect(typeahead.type('l')).toEqual({ after: false, cycle: undefined, text: 'bl' })
   })
 
-  test('moves on through items starting with a character typed again and again', () => {
+  test('looks for a character typed again and again as it was typed, then for the character alone', () => {
     const time = clock()
     const typeahead = new Typeahead(time.now)
     typeahead.type('b')
     time.pass(QUICK)
-    expect(typeahead.type('b')).toEqual({ after: true, text: 'b' })
+    expect(typeahead.type('b')).toEqual({ after: false, cycle: 'b', text: 'bb' })
   })
 
   test('forgets what was typed after a pause, and only then lets a space mean itself', () => {
@@ -43,6 +43,6 @@ describe('Typeahead', () => {
     expect(typeahead.typing).toBe(true)
     time.pass(WAIT)
     expect(typeahead.typing).toBe(false)
-    expect(typeahead.type('l')).toEqual({ after: true, text: 'l' })
+    expect(typeahead.type('l')).toEqual({ after: true, cycle: undefined, text: 'l' })
   })
 })

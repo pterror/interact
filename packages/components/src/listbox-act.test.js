@@ -50,6 +50,18 @@ function fruit() {
 }
 
 /**
+ * A listbox over some names, focused on the first, timed by a clock the test moves.
+ * @param {readonly string[]} names - The names
+ * @returns {Readonly<{ listbox: Listbox<string, Span>, time: ReturnType<typeof clock> }>} The listbox and its clock
+ */
+function named(names) {
+  const time = clock()
+  const listbox = new Listbox({ now: time.now, rows: ROWS, source: new MemorySource(names, (item) => item) })
+  listbox.focus()
+  return { listbox, time }
+}
+
+/**
  * A multiple-selection listbox over items with spaces in them, focused on the first, timed by a clock the test moves.
  * @returns {Readonly<{ listbox: Listbox<string, Span>, time: ReturnType<typeof clock> }>} The listbox and its clock
  */
@@ -105,6 +117,16 @@ function searching() {
     },
   }
 }
+
+describe('typing a letter twice', () => {
+  test('goes to an item starting with a letter typed twice when there is one, such as "Aaron"', async () => {
+    expect(await typeEach(named(['Abe', 'Adam', 'Ann', 'Aaron']), ['a', 'a'], [])).toEqual([ONE, THREE])
+  })
+
+  test('goes on to the next item starting with a letter typed twice when none starts with it twice', async () => {
+    expect(await typeEach(named(['Abe', 'Adam', 'Ann', 'Bob']), ['a', 'a'], [])).toEqual([ONE, TWO])
+  })
+})
 
 describe('typing', () => {
   test('goes to the next item starting with a letter, on through them as it is typed again, and round', async () => {
