@@ -25,12 +25,14 @@ One module per part, JSDoc types checked via `tsconfig.json`; `src/index.js` re-
   and sequences hook in there
 - `src/search.js`, `src/store.js`, `src/modifiers.js`
 - `src/hub.js` — CommandHub: sources and context; `hub-bindings.js` (store and listening), `hub-commands.js` (building
-  schema and live commands), `hub-components.js` (making and syncing components), `hub-buttons.js`, `hub-focus.js`,
+  schema and live commands), `hub-components.js` (making and syncing the cheatsheet and settings panel), `hub-focus.js`,
   `hub-options.js`
-- Components: `palette.js` (with `palette-list.js`, `palette-parts.js`, `palette-search.js`, `palette-source.js`),
-  `cheatsheet.js` (with `cheatsheet-groups.js`, `cheatsheet-trigger.js`), `radial-menu.js` (with `radial-keys.js`,
-  `radial-layout.js`, `radial-slots.js`), built with `component-dom.js` and made by `create-component.js`; the context
-  menus and settings panel are still in `src/components/`
+- `src/command-system.js` (with `command-search.js`) — the hub as a command system (`hub.commandSystem()`), for
+  `@interact/components`' CommandBridge: listing, searching and ranking its commands, running one, hearing changes. The
+  palette, context menus and command buttons are `@interact/components'`, driven through it
+- Components: `cheatsheet.js` (with `cheatsheet-groups.js`, `cheatsheet-trigger.js`), `settings.js` (with its
+  `settings-*.js`), `radial-menu.js` (with `radial-keys.js`, `radial-layout.js`, `radial-slots.js`), built with
+  `component-dom.js` and made by `create-component.js`
 
 Key concepts:
 
@@ -38,13 +40,14 @@ Key concepts:
 - **Inputs** — passed to `keybinds()` and the hub (`inputs: [keys(), mouse()]`); an app ships only the ones it uses.
   Each has a UI half (`keysUI()` in `src/keys-ui.js`, ...) that formats and records bindings, which only the components
   need
-- **Modals** — an element with `data-keybinds-modal` and `open` takes the keyboard: bindings don't fire inside it
+- **Modals** — an open `<dialog>`, an open popover, or an element with `data-keybinds-modal` and `open` takes the
+  keyboard: bindings don't fire inside it (found along the event's composed path, so inside shadow roots too)
 - **Schema/Handlers split** — `defineSchema` for binding data, `fromBindings` to attach handlers
 - **BindingsStore** — reactive user overrides, kept in localStorage or any `BindingsStorage`
-- **Web components** — palette, cheatsheet, settings, context menus, radial menu (shadow DOM; each marks itself
-  `data-keybinds="<kind>"`; `styles/palette.css` themes them from `--keybinds-*` variables)
-- **CommandHub** — commands from many sources, one rebindable store, keys, components and `data-command` buttons kept in
-  step
+- **Web components** — cheatsheet, settings, radial menu (shadow DOM; each marks itself `data-keybinds="<kind>"`;
+  `styles/palette.css` themes them from `--keybinds-*` variables)
+- **CommandHub** — commands from many sources, one rebindable store, keys and its components kept in step; as a command
+  system, a palette, menus and `data-command` buttons from `@interact/components` too
 
 ## Development
 

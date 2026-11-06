@@ -2,7 +2,9 @@
 
 ## registerComponents()
 
-Register all web components. Call once at startup.
+Register keybinds' own web components: the cheatsheet, the settings panel and the radial menu. Call once at startup. The
+palette and context menus come from `@interact/components` (see
+[Components](../guide/components.md#palette-context-menus-and-buttons)).
 
 ```ts
 function registerComponents(): void
@@ -12,68 +14,6 @@ function registerComponents(): void
 import { registerComponents } from 'keybinds'
 registerComponents()
 ```
-
----
-
-## CommandPalette
-
-Custom element: `<keybinds-command-palette>`
-
-### Properties
-
-| Property      | Type                                                 | Description                                                                                                                                          |
-| ------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `commands`    | `Command[]`                                          | Commands to display and execute                                                                                                                      |
-| `inputs`      | `InputUI[]`                                          | How bindings are shown: an item shows its first (default: keys only)                                                                                 |
-| `context`     | `object`                                             | Context for `when` evaluation                                                                                                                        |
-| `source`      | `(query: string) => Command[] \| Promise<Command[]>` | Further commands for a typed query, merged with `commands` (same `id` keeps the one in `commands`); an answer for a query no longer typed is dropped |
-| `sourceDelay` | `number`                                             | Milliseconds of typing pause before `source` is asked (default 200)                                                                                  |
-| `open`        | `boolean`                                            | Visibility state                                                                                                                                     |
-
-### Attributes
-
-| Attribute      | Type    | Description                                           |
-| -------------- | ------- | ----------------------------------------------------- |
-| `open`         | boolean | When present, palette is visible                      |
-| `auto-trigger` | boolean | Enable `$mod+K` keyboard trigger                      |
-| `placeholder`  | string  | Input placeholder text (default: "Type a command...") |
-
-### Events
-
-| Event     | Detail                 | Description           |
-| --------- | ---------------------- | --------------------- |
-| `execute` | `{ command: Command }` | Command was executed  |
-| `close`   | -                      | Palette was dismissed |
-
-### CSS Parts
-
-| Part               | Element               |
-| ------------------ | --------------------- |
-| `palette`          | Root `.palette` div   |
-| `backdrop`         | Overlay div           |
-| `dialog`           | Main dialog container |
-| `input`            | Search input          |
-| `list`             | Results ul            |
-| `item`             | Result li             |
-| `item-active`      | Selected result       |
-| `item-disabled`    | Inactive result       |
-| `item-label`       | Label span            |
-| `item-description` | Description span      |
-| `item-category`    | Category span         |
-| `item-key`         | Shortcut kbd          |
-| `empty`            | No results message    |
-
-### Keyboard Navigation
-
-| Key            | Action                          |
-| -------------- | ------------------------------- |
-| `↑` / `↓`      | Navigate results (wraps around) |
-| `Home` / `End` | Jump to first / last result     |
-| `Enter`        | Execute selected                |
-| `Escape`       | Close palette                   |
-
-Keyboard and pointer input are tracked separately — moving the mouse won't hijack an in-progress keyboard selection
-until the pointer deliberately moves again.
 
 ---
 
@@ -193,85 +133,6 @@ Custom element: `<keybinds-settings>`, from `keybinds/settings`
 
 ---
 
-## BasicContextMenu
-
-Custom element: `<keybinds-basic-context-menu>`, from `keybinds/basic-context-menu`
-
-### Properties
-
-| Property   | Type                       | Description                                                          |
-| ---------- | -------------------------- | -------------------------------------------------------------------- |
-| `commands` | `Command[]`                | Commands to display and execute                                      |
-| `inputs`   | `InputUI[]`                | How bindings are shown: an item shows its first (default: keys only) |
-| `context`  | `object`                   | Context for `when` evaluation                                        |
-| `menu`     | `string`                   | Filter to commands with matching `menu` tag                          |
-| `position` | `{ x: number, y: number }` | Menu position in viewport coordinates                                |
-| `open`     | `boolean`                  | Visibility state                                                     |
-
-### Attributes
-
-| Attribute      | Type    | Description                                            |
-| -------------- | ------- | ------------------------------------------------------ |
-| `open`         | boolean | When present, menu is visible                          |
-| `auto-trigger` | boolean | Listen for `contextmenu` on parent or `target` element |
-| `menu`         | string  | Filter commands by menu tag                            |
-| `target`       | string  | CSS selector for trigger element (defaults to parent)  |
-
-### Events
-
-| Event     | Detail                 | Description          |
-| --------- | ---------------------- | -------------------- |
-| `execute` | `{ command: Command }` | Command was executed |
-| `close`   | -                      | Menu was dismissed   |
-
-### CSS Parts
-
-| Part            | Element             |
-| --------------- | ------------------- |
-| `context-menu`  | Root div            |
-| `backdrop`      | Overlay div         |
-| `list`          | Menu ul             |
-| `item`          | Menu item li        |
-| `item-active`   | Highlighted item    |
-| `item-disabled` | Inactive item       |
-| `separator`     | Category separator  |
-| `item-label`    | Label span          |
-| `item-keys`     | Keys container span |
-| `item-key`      | Individual kbd      |
-
-### Keyboard Navigation
-
-| Key            | Action                        |
-| -------------- | ----------------------------- |
-| `↑` / `↓`      | Navigate items (wraps around) |
-| `Home` / `End` | Jump to first / last item     |
-| `Enter`        | Execute selected              |
-| `Escape`       | Close menu                    |
-
-Keyboard and pointer input are tracked separately — moving the mouse won't hijack an in-progress keyboard selection
-until the pointer deliberately moves again.
-
-The `execute` event's `command` is the command as given, not a copy.
-
----
-
-## ContextMenu
-
-Custom element: `<keybinds-context-menu>`, from `keybinds/context-menu`
-
-A context menu like `BasicContextMenu`, with a search field above its commands, which it ranks. It shows the top
-`maxVisible`, and a "▾ N more" row (part `more-row`) shows the rest when it's pointed at, focused or clicked. Its
-attributes, events, parts and keys are the basic menu's, plus the part `search`; in the search field, only `↑`, `↓`,
-`Enter` and `Escape` are the menu's, and the rest type.
-
-| Property     | Type             | Description                                                                         |
-| ------------ | ---------------- | ----------------------------------------------------------------------------------- |
-| `scorer`     | `Scorer`         | How commands rank with nothing typed; `undefined` for the default                   |
-| `history`    | `HistoryEntry[]` | When commands were run: the default scorer, `defaultScorer(history)`, ranks by them |
-| `maxVisible` | `number`         | How many show before "N more" (default 7)                                           |
-
----
-
 ## eventToBindingString(event)
 
 Convert a KeyboardEvent to a canonical binding string.
@@ -356,23 +217,16 @@ formatAxisParts('keys:a/d') // ["A", "/", "D"]
 
 ---
 
-## filterByMenu(commands, menu, context?)
+## inMenu(command, menu)
 
-Filter commands by their `menu` tag for context menu display.
+Whether a command is in a menu, by its `menu` tag: with `menu` undefined, every command is.
 
 ```ts
-function filterByMenu(
-  commands: Command[],
-  menu: string,
-  context?: Record<string, unknown>,
-): { command: Command; active: boolean }[]
+function inMenu(command: Command, menu: string | undefined): boolean
 ```
 
-Returns commands whose `menu` property matches (string match or array includes), each wrapped with `active` from its
-`when`. Hidden commands are excluded.
-
 ```js
-const items = filterByMenu(commands, 'editor', { hasSelection: true })
+const items = commands.filter((command) => inMenu(command, 'editor'))
 ```
 
 ---
@@ -437,5 +291,5 @@ function onModifierTaps(
 **Returns:** Cleanup function.
 
 ```js
-onModifierTaps('Shift', () => (palette.open = true))
+onModifierTaps('Shift', () => (cheatsheet.open = true))
 ```

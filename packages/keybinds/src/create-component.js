@@ -1,5 +1,5 @@
 /**
- * Making a component from its class (CommandPalette, KeybindSettings, ...).
+ * Making a component from its class (KeybindCheatsheet, KeybindSettings, ...).
  *
  * A custom element name stays bound to the first class defined for it, so a second copy of the library on the same
  * page (a script loaded again after a deploy, two bundles) can't use the other copy's elements. Each copy gets its own

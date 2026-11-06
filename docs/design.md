@@ -294,20 +294,45 @@ A component is its behavior, written once as a plain API, plus a default view an
 
 ### What moves out of keybinds (Derived)
 
-Today keybinds holds six shadow-DOM elements (`palette.js`, `cheatsheet.js`, `settings.js`, `basic-context-menu.js`,
-`context-menu.js`, `radial-menu.js`), and the `CommandHub` overlaps with them:
+The palette, both context menus and `data-command` buttons have moved: keybinds' `CommandPalette`, `BasicContextMenu`
+and `ContextMenu`, their shared menu modules, the hub's wiring for them (`palette`, `menu`, `openPalette`, `openMenu`,
+`bindButtons`) and their part of `styles/palette.css` are deleted. A `CommandHub` drives `@interact/components`'
+`Palette`, `Menu` and `bindCommandButtons` through `hub.commandSystem()` and the `CommandBridge`, and neither package
+imports the other (`test/keybinds-components.test.js`: keys opening the palette, keybinds' scorer ranking what is typed,
+a context menu and a button following the hub's context live, axe clean; Chrome, Firefox and WebKit, both DOM modes).
 
-- `CommandHub` makes those elements and pushes its commands, store and context into them (`hub-components.js`), and
-  paints `data-command` buttons (`hub-buttons.js`). That is the bridge's job, and it moves to `@interact/components`:
-  `hub.commandSystem()` and the bridge now do it from the outside, so what is left is deleting keybinds' own.
-- keybinds keeps its sources, store, listening, `held` and `axis`.
-- keybinds' `TODO.md` named the three menus as 880 lines that each carry their own rendering, keyboard navigation and
-  dismissal. The two context menus now share one list (`menu-list.js`); the radial menu still has its own. Rebuilding
-  them as one menu behavior over shared collection and focus models removes what's left of that duplication.
+- **Ranking stays keybinds'.** `hub.commandSystem({ matcher, scorer, source, sourceDelay })` lists a menu's commands
+  (ranked by a scorer if given, as the old scored menu did) and searches with `searchCommands`, its matcher and scorer;
+  a `source` of further commands is asked once typing pauses, as the old palette's was, and its commands run from its
+  answer (`command-system.js`, `command-search.js`).
+- **Overlays take the keyboard by the platform's own signal.** keybinds' components marked themselves
+  `data-keybinds-modal`; overlays made elsewhere know nothing of keybinds. An open `<dialog>` or popover on an event's
+  composed path now keeps bindings from firing as a marked element does (`modal.js`). This also applies to a page's own
+  open dialogs and popovers, which before took the keyboard only when marked.
+- keybinds keeps its sources, store, listening, `held` and `axis`, and still has the cheatsheet, the settings panel and
+  the radial menu as its own web components (`packages/keybinds/TODO.md`).
 
-The elements are rewritten from the requirements, not ported. Once their replacements exist, the old modules and
-`styles/palette.css` are deleted from keybinds in the same change, so the old and new versions never sit side by side.
-Until then they are kept under the repo's rules like everything else: there is no fence (`packages/keybinds/TODO.md`).
+What the deleted components did, and where it is now:
+
+| Feature                                          | Now                                                                                               |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Palette opened with `$mod+K` (`auto-trigger`)    | A hub command whose `execute` opens the `Palette` (guide, root test)                              |
+| `placeholder`                                    | `Palette`'s `placeholder` option (none unless given)                                              |
+| `hide-inactive`                                  | `Palette`'s `inactive: 'hide'`                                                                    |
+| `matcher`, `source`, `sourceDelay`               | `hub.commandSystem()` options                                                                     |
+| Bindings shown through `inputs`                  | Each listed command's `shortcut`: its first binding through any of the hub's inputs               |
+| Matched letters highlighted                      | Search results' `positions`, now only from the label (a match on the id marked the wrong letters) |
+| `execute` event                                  | Wrapping the command system's `run` (guide)                                                       |
+| `close` event                                    | The component's `layer.open`                                                                      |
+| Menus' `auto-trigger` on `contextmenu`, `target` | `openOnContextMenu(target, menu)`                                                                 |
+| `menu` tag, `position`                           | `showCommands(menu, bridge, () => tag)`, `menu.openAt(point)`                                     |
+| Scored menu's `scorer`, `history`                | `hub.commandSystem({ scorer: defaultScorer(history) })`                                           |
+| Scored menu's search field                       | **Open:** not built (below)                                                                       |
+| Scored menu's "▾ N more" row, `maxVisible`       | **Open:** not built (below)                                                                       |
+
+**Open (the owner's):** whether a context menu gets a search field above its items, as keybinds' scored menu had, and
+whether a menu shows its top few (seven by default) with a row revealing the rest, as that menu did. Menus here follow
+the APG menu pattern, which has neither: typing moves to an item by its first letters, and a long menu scrolls.
 
 These users still install keybinds from its own repository (`"keybinds": "github:pterror/keybinds"`):
 

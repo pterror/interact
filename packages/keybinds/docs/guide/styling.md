@@ -4,8 +4,8 @@ Components use Shadow DOM with `::part()` selectors and BEM class names for styl
 
 ## Quick Start
 
-Import the optional stylesheet, which styles every component (palette, cheatsheet, settings, context menus, radial
-menu):
+Import the optional stylesheet, which styles keybinds' own components (cheatsheet, settings, radial menu). The palette
+and menus from `@interact/components` take their look from its theme (`@interact/theme`):
 
 ```js
 import 'keybinds/styles/palette.css'
@@ -45,46 +45,29 @@ your page:
 
 ## Selecting Components
 
-Each component marks itself with `data-keybinds="<kind>"` when it's added to the page: `command-palette`, `cheatsheet`,
-`settings`, `basic-context-menu`, `context-menu` or `radial-menu`. Select by that rather than by tag name, so styles
-still apply if the component is registered under another name.
+Each component marks itself with `data-keybinds="<kind>"` when it's added to the page: `cheatsheet`, `settings` or
+`radial-menu`. Select by that rather than by tag name, so styles still apply if the component is registered under
+another name.
 
 ## Custom Styles with ::part()
 
 Target shadow DOM elements using CSS `::part()`:
 
 ```css
-[data-keybinds='command-palette']::part(dialog) {
+[data-keybinds='settings']::part(dialog) {
   background: #fff;
   border-radius: 12px;
 }
 
-[data-keybinds='command-palette']::part(input) {
+[data-keybinds='cheatsheet']::part(group-title) {
   font-size: 18px;
 }
 
-[data-keybinds='command-palette']::part(item-active) {
+[data-keybinds='settings']::part(binding-recording) {
   background: #0066cc;
   color: white;
 }
 ```
-
-## Command Palette Parts
-
-| Part            | Description                       |
-| --------------- | --------------------------------- |
-| `palette`       | Root container                    |
-| `backdrop`      | Overlay behind dialog             |
-| `dialog`        | Main dialog box                   |
-| `input`         | Search input field                |
-| `list`          | Results list (`<ul>`)             |
-| `item`          | Individual result (`<li>`)        |
-| `item-active`   | Currently selected item           |
-| `item-disabled` | Inactive command (failing `when`) |
-| `item-label`    | Command label text                |
-| `item-category` | Category badge                    |
-| `item-key`      | Keyboard shortcut (`<kbd>`)       |
-| `empty`         | "No results" message              |
 
 ## Cheatsheet Parts
 
@@ -136,34 +119,17 @@ Target shadow DOM elements using CSS `::part()`:
 | `conflict-accept`   | Replace button                                                                 |
 | `conflict-cancel`   | Cancel button                                                                  |
 
-## Context Menu Parts
-
-| Part            | Description                           |
-| --------------- | ------------------------------------- |
-| `context-menu`  | Root container                        |
-| `backdrop`      | Overlay behind menu (covers viewport) |
-| `list`          | Menu list (`<ul>`)                    |
-| `item`          | Individual menu item (`<li>`)         |
-| `item-active`   | Currently highlighted item            |
-| `item-disabled` | Inactive command (failing `when`)     |
-| `separator`     | Category separator between groups     |
-| `item-label`    | Command label text                    |
-| `item-keys`     | Container for shortcut keys           |
-| `item-key`      | Individual key (`<kbd>`)              |
-
 ## BEM Classes
 
 Inside shadow DOM, elements have BEM class names matching their parts:
 
 ```
-.palette
-.palette__backdrop
-.palette__dialog
-.palette__input
-.palette__list
-.palette__item
-.palette__item--active
-.palette__item--disabled
+.cheatsheet
+.cheatsheet__backdrop
+.cheatsheet__dialog
+.cheatsheet__group
+.cheatsheet__item
+.cheatsheet__item--disabled
 ...
 ```
 
@@ -172,30 +138,17 @@ These are useful if you're styling via JavaScript or inspecting elements.
 ## Example: Light Theme
 
 ```css
-keybinds-command-palette::part(backdrop) {
+[data-keybinds='settings']::part(backdrop) {
   background: rgba(0, 0, 0, 0.3);
 }
 
-keybinds-command-palette::part(dialog) {
+[data-keybinds='settings']::part(dialog) {
   background: #ffffff;
   border: 1px solid #e0e0e0;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-keybinds-command-palette::part(input) {
-  color: #333;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-keybinds-command-palette::part(item) {
-  color: #333;
-}
-
-keybinds-command-palette::part(item-active) {
-  background: #f0f0f0;
-}
-
-keybinds-command-palette::part(item-key) {
+[data-keybinds='settings']::part(binding-key) {
   background: #f5f5f5;
   border-color: #ddd;
   color: #666;
@@ -205,7 +158,7 @@ keybinds-command-palette::part(item-key) {
 ## Example: Glassmorphic
 
 ```css
-keybinds-command-palette::part(dialog) {
+[data-keybinds='cheatsheet']::part(dialog) {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -217,15 +170,9 @@ keybinds-command-palette::part(dialog) {
 Override default positioning:
 
 ```css
-/* Center vertically */
-keybinds-command-palette::part(dialog) {
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-
 /* Bottom sheet on mobile */
 @media (max-width: 600px) {
-  keybinds-command-palette::part(dialog) {
+  [data-keybinds='settings']::part(dialog) {
     top: auto;
     bottom: 0;
     left: 0;

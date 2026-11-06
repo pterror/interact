@@ -1,73 +1,115 @@
 # Components
 
-keybinds provides four web components for discoverability and customization:
+keybinds has three web components of its own for discoverability and customization:
 
-- **`<keybinds-command-palette>`** - Search-driven command execution (like VS Code's Ctrl+Shift+P)
 - **`<keybinds-cheatsheet>`** - Glanceable reference (like ChatGPT's hold-Ctrl overlay)
 - **`<keybinds-settings>`** - Rebindable keyboard shortcuts panel
-- **`<keybinds-basic-context-menu>`** - Right-click context menus driven by commands
+- **`<keybinds-radial-menu>`** - Up to eight commands around a point
+
+A command palette, context menus and command buttons come from `@interact/components`, kept in step with keybinds
+through the hub as a command system: see [Palette, Context Menus and Buttons](#palette-context-menus-and-buttons).
 
 ## Setup
 
 ```js
 import { registerComponents } from 'keybinds'
 
-registerComponents() // Defines all custom elements
+registerComponents() // Defines keybinds' own custom elements
 ```
 
 Then use in HTML:
 
 ```html
-<keybinds-command-palette></keybinds-command-palette>
-<keybinds-cheatsheet></keybinds-cheatsheet>
-<keybinds-settings></keybinds-settings>
-<keybinds-basic-context-menu></keybinds-basic-context-menu>
+<keybinds-cheatsheet></keybinds-cheatsheet> <keybinds-settings></keybinds-settings>
 ```
 
-## Command Palette
+## Palette, Context Menus and Buttons
 
-Search and execute commands by name.
-
-```html
-<keybinds-command-palette auto-trigger></keybinds-command-palette>
-```
-
-### Properties
-
-| Property   | Type        | Description                  |
-| ---------- | ----------- | ---------------------------- |
-| `commands` | `Command[]` | Array of command definitions |
-| `context`  | `object`    | Context for `when` checks    |
-| `open`     | `boolean`   | Show/hide the palette        |
-
-### Attributes
-
-| Attribute      | Description                                           |
-| -------------- | ----------------------------------------------------- |
-| `open`         | When present, palette is visible                      |
-| `auto-trigger` | Enable default `$mod+K` trigger                       |
-| `placeholder`  | Input placeholder text (default: "Type a command...") |
-
-### Events
-
-| Event     | Detail        | Description                      |
-| --------- | ------------- | -------------------------------- |
-| `execute` | `{ command }` | Fired when a command is executed |
-| `close`   | -             | Fired when palette is dismissed  |
-
-### Usage
+`hub.commandSystem()` is a `CommandHub` as a command system: what `@interact/components`' `CommandBridge` asks for.
+Through the bridge, its `Palette`, its menus and any `data-command` buttons list, search and run the hub's commands, and
+follow its context as it changes. Neither package imports the other.
 
 ```js
-const palette = document.querySelector('keybinds-command-palette')
-palette.commands = commands
-palette.context = { hasSelection: true }
+import {
+  CommandBridge,
+  Menu,
+  Palette,
+  bindCommandButtons,
+  contextMenuElement,
+  openOnContextMenu,
+  paletteElement,
+  showCommands,
+} from '@interact/components'
+import { register } from '@interact/dom'
+import { CommandHub, defaultScorer, keysUI } from 'keybinds'
 
-// Manual trigger
-button.onclick = () => (palette.open = true)
+const hub = new CommandHub({ context: () => ({ selection: editor.hasSelection() }), inputs: [keysUI()] })
+hub.setSource('editor', () => editorCommands)
+hub.refresh()
 
-// Listen for execution
-palette.addEventListener('execute', (e) => {
-  console.log('Executed:', e.detail.command.id)
+const bridge = new CommandBridge(hub.commandSystem({ scorer: defaultScorer(history) }))
+
+// The palette lists every command (its context is no menu's tag), and searches and ranks through keybinds
+const palette = new Palette({ bridge, context: () => undefined })
+hub.setSource('palette', () => [
+  {
+    id: 'palette',
+    label: 'Commands',
+    keys: ['$mod+k'],
+    hidden: true,
+    captureInput: true,
+    execute: () => palette.open(),
+  },
+])
+
+// A context menu over the editor, with the commands tagged 'editor'
+const menu = new Menu({ label: 'Edit' })
+showCommands(menu, bridge, () => 'editor')
+openOnContextMenu(editorElement, menu)
+
+register([paletteElement(() => palette), contextMenuElement(() => menu)], { prefix: 'app' })
+document.body.append(document.createElement('app-command-palette'), document.createElement('app-context-menu'))
+
+// <button data-command="save">Save</button> runs Save, and is disabled while it doesn't apply
+bindCommandButtons(toolbar, bridge, () => undefined)
+```
+
+The hub tells the bridge whenever its context syncs (`hub.syncContext()`, which `refresh()` also does), so menus, the
+palette and buttons follow it live.
+
+### What the command system does
+
+| Call                  | Does                                                                            |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `list(tag)`           | The commands tagged `tag` (every command for `undefined`), hidden ones left out |
+| `search(query, tag)`  | The commands matching what was typed, best first, with where each label matched |
+| `run(id)`             | Runs a command if it applies now                                                |
+| `subscribe(listener)` | Hears whenever which commands apply may have changed                            |
+
+Each command is listed with whether it applies now and its first binding through any of the hub's inputs, as people read
+it ("Ctrl+S").
+
+### Options
+
+`hub.commandSystem(options)`:
+
+| Option        | Type                                         | Description                                                                                                                                                                                                                       |
+| ------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `matcher`     | `Matcher`                                    | How labels and ids match what was typed (default `fuzzyMatcher`)                                                                                                                                                                  |
+| `scorer`      | `Scorer`                                     | Ranks a menu's commands, and is added to each search result's score. `defaultScorer(history)` ranks by specificity and by what ran recently; with a scorer, a command whose `when` fails scores nothing and is left out of a menu |
+| `source`      | `(query) => Command[] \| Promise<Command[]>` | Further commands for a query, from elsewhere (a server), asked once typing pauses; a command found only there runs from its answer, and a source that fails adds none                                                             |
+| `sourceDelay` | `number`                                     | Milliseconds typing must pause before `source` is asked (default 200)                                                                                                                                                             |
+
+To hear a command run, wrap the system:
+
+```js
+const system = hub.commandSystem()
+const bridge = new CommandBridge({
+  ...system,
+  run: (id) => {
+    log(id)
+    return system.run(id)
+  },
 })
 ```
 
@@ -179,103 +221,6 @@ settings.addEventListener('change', (e) => {
 - Per-command and global reset buttons
 - Escape cancels recording or closes the panel
 
-## Context Menu
-
-Right-click context menus populated from your commands.
-
-```html
-<keybinds-basic-context-menu auto-trigger></keybinds-basic-context-menu>
-```
-
-### Properties
-
-| Property   | Type                       | Description                           |
-| ---------- | -------------------------- | ------------------------------------- |
-| `commands` | `Command[]`                | Array of command definitions          |
-| `context`  | `object`                   | Context for `when` checks             |
-| `menu`     | `string`                   | Filter commands by `menu` tag         |
-| `position` | `{ x: number, y: number }` | Menu position in viewport coordinates |
-| `open`     | `boolean`                  | Show/hide the menu                    |
-
-### Attributes
-
-| Attribute      | Description                                                            |
-| -------------- | ---------------------------------------------------------------------- |
-| `open`         | When present, menu is visible                                          |
-| `auto-trigger` | Listen for `contextmenu` events on the parent (or `target`)            |
-| `menu`         | Filter commands to those with a matching `menu` tag                    |
-| `target`       | CSS selector for the element to listen on (defaults to parent element) |
-
-### Events
-
-| Event     | Detail        | Description                      |
-| --------- | ------------- | -------------------------------- |
-| `execute` | `{ command }` | Fired when a command is executed |
-| `close`   | -             | Fired when the menu is dismissed |
-
-### Usage
-
-Commands opt into context menus via the `menu` property:
-
-```js
-const commands = [
-  {
-    id: 'cut',
-    label: 'Cut',
-    category: 'Edit',
-    keys: ['$mod+x'],
-    menu: 'editor',
-    execute: () => cut(),
-  },
-  {
-    id: 'paste',
-    label: 'Paste',
-    category: 'Edit',
-    keys: ['$mod+v'],
-    menu: ['editor', 'sidebar'], // Appears in multiple menus
-    execute: () => paste(),
-  },
-]
-```
-
-Basic right-click menu on the parent element:
-
-```html
-<div class="editor">
-  <keybinds-basic-context-menu auto-trigger></keybinds-basic-context-menu>
-</div>
-```
-
-```js
-const menu = document.querySelector('keybinds-basic-context-menu')
-menu.commands = commands
-menu.menu = 'editor' // Only show commands tagged with 'editor'
-```
-
-Target a specific element instead of the parent:
-
-```html
-<keybinds-basic-context-menu auto-trigger target="#canvas" menu="canvas"></keybinds-basic-context-menu>
-```
-
-Manual positioning:
-
-```js
-const menu = document.querySelector('keybinds-basic-context-menu')
-menu.commands = commands
-menu.position = { x: event.clientX, y: event.clientY }
-menu.open = true
-```
-
-### Behavior
-
-- Items are grouped by category with separators between groups
-- Inactive commands (failing `when`) are shown but disabled
-- Hidden commands are excluded
-- The menu auto-clamps to viewport edges
-- Keyboard navigation with Arrow keys (wrap-around), Home/End, Enter to execute, Escape to close
-- Clicking the backdrop or right-clicking outside closes the menu
-
 ## onModifierHold Utility
 
 For custom hold-to-show behavior:
@@ -337,9 +282,10 @@ binding also has a **Release** switch that flips it between its press and releas
 
 ## Your Own Dialogs
 
-While the palette, settings panel or a menu is open, bindings don't fire inside it: they carry `data-keybinds-modal`,
-and an element with that attribute and `open` takes the keyboard. A page's own dialog can do the same:
+Bindings don't fire inside an open overlay: an open `<dialog>`, an open popover (the palette, a menu, a combobox's
+list), or any element with `data-keybinds-modal` and `open`, found along the event's path, inside shadow roots too. A
+page's own overlay that is neither a dialog nor a popover can take the keyboard the same way:
 
 ```html
-<dialog data-keybinds-modal open>...</dialog>
+<div data-keybinds-modal open>...</div>
 ```

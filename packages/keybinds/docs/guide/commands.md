@@ -187,8 +187,9 @@ function frame(dt) {
 
 `axis(id)` returns `{ position, delta }`. `position` is where sticks, triggers and keys are, -1 to 1. `delta` is mouse
 movement in pixels since that axis was last read. They're separate because they're different kinds of number: a position
-is scaled by a speed and the frame's time, a delta by a sensitivity. An axis whose `when` is false, or read while the
-palette or settings are open, reads zero.
+is scaled by a speed and the frame's time, a delta by a sensitivity. An axis whose `when` is false reads zero, and so
+does one read while an overlay (a dialog, a popover such as a palette or menu, or the settings panel) holds focus, or is
+open outside any shadow root.
 
 With `CommandHub`, `hub.setAxes(owner, () => axes)` adds them; they're rebindable in the settings panel (where each
 source has an Invert switch) and read with `hub.axis(id)`.
@@ -272,7 +273,8 @@ command returns `false`, the rest of that gesture goes to the page.
 
 ## Context Menu Tags
 
-The `menu` property tags commands for use with `<keybinds-basic-context-menu>`:
+The `menu` property tags commands for context menus: a hub's command system lists a menu's commands by its tag
+(`list('editor')`):
 
 ```js
 {
@@ -291,7 +293,8 @@ The `menu` property tags commands for use with `<keybinds-basic-context-menu>`:
 }
 ```
 
-See [Components > Context Menu](./components.md#context-menu) for rendering these with `<keybinds-basic-context-menu>`.
+See [Components > Palette, Context Menus and Buttons](./components.md#palette-context-menus-and-buttons) for showing
+these in an `@interact/components` menu.
 
 ## Execution
 
@@ -382,19 +385,11 @@ const store = new BindingsStore(schema, {
 
 When commands come from several parts of an app, and come and go with its state, `CommandHub` does all of the above in
 one place: it collects commands from every source, derives the schema from them, keeps each person's rebindings, listens
-for keys, and keeps the components and any command buttons up to date.
+for keys, and keeps its components up to date. As a command system (`hub.commandSystem()`), it keeps a palette, menus
+and command buttons from `@interact/components` up to date too.
 
 ```js
-import {
-  CommandHub,
-  keysUI,
-  mouseUI,
-  releases,
-  CommandPalette,
-  KeybindCheatsheet,
-  KeybindSettings,
-  ContextMenu,
-} from 'keybinds'
+import { CommandHub, keysUI, mouseUI, releases, KeybindCheatsheet, KeybindSettings } from 'keybinds'
 
 import 'keybinds/styles/palette.css'
 
@@ -402,7 +397,7 @@ const hub = new CommandHub({
   context: () => ({ editing: editor.hasFocus() }), // the app's state, which `when` conditions see
   inputs: [keysUI(), mouseUI()], // what it listens to; the UI halves, since its components show and record them
   releases: releases(), // and anyModifiers: anyModifiers(), as for keybinds()
-  components: { palette: CommandPalette, cheatsheet: KeybindCheatsheet, settings: KeybindSettings, menu: ContextMenu },
+  components: { cheatsheet: KeybindCheatsheet, settings: KeybindSettings },
   host: document.body, // where the components go
   storageKey: 'myapp:keys', // rebindings are kept under "myapp:keys:<scope>"; or pass
   // storage: (scope) => ({ load, save }) to keep them elsewhere
@@ -414,17 +409,17 @@ hub.setSource('file', () => fileCommands)
 hub.addContext(() => ({ selection: editor.selection() })) // parts laid over the context, from elsewhere in the app
 hub.refresh() // call again whenever the sources' commands change
 
-hub.palette.open = true // or hub.openPalette()
 hub.settings.open = true // rebinding: changes take effect immediately
 hub.bindingsFor('save', 'keys') // ["Ctrl+S"], after any rebinding
 hub.held('forward') // whether that command is held down right now
 hub.syncContext() // when state changes, so unavailable commands gray out
+hub.commandSystem() // for @interact/components' CommandBridge: a palette, menus and command buttons
 ```
 
 ### Command Buttons
 
 Any element with `data-command` becomes a button for that command: clicking runs it, and it's disabled while the command
-isn't available.
+isn't available. `@interact/components`' `bindCommandButtons` does this through the hub as a command system:
 
 ```html
 <nav id="toolbar">
@@ -434,7 +429,9 @@ isn't available.
 ```
 
 ```js
-hub.bindButtons(document.getElementById('toolbar'))
+import { CommandBridge, bindCommandButtons } from '@interact/components'
+
+bindCommandButtons(document.getElementById('toolbar'), new CommandBridge(hub.commandSystem()), () => undefined)
 ```
 
 ### Definitions That Aren't Commands
@@ -468,7 +465,7 @@ A custom element name stays bound to the first class defined for it. `createComp
 each copy of keybinds on a page its own names, so two bundles, or a script reloaded after a deploy, don't clash:
 
 ```js
-const palette = createComponent(CommandPalette)
+const settings = createComponent(KeybindSettings)
 ```
 
 ### Without a Bundler

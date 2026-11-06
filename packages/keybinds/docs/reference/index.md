@@ -52,8 +52,8 @@ kb()
 ## Inputs
 
 Each kind of input is its own module, so an app only ships the ones it uses. Each also has a UI half, which shows and
-records its bindings for the settings panel, cheatsheet, palette and menus; an app without those components doesn't ship
-it.
+records its bindings for the settings panel, the cheatsheet, and a command system's menus and palette; an app without
+those components doesn't ship it.
 
 | Input                                     | With its UI half                         | Bindings                                                      |
 | ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- |
@@ -102,7 +102,7 @@ sequences do their part. `lookups(suffix, mods)` gives the event's lookups. See 
 
 ## searchCommands(commands, query, options?)
 
-Search commands for palette display.
+Search commands, as a hub's command system does for a palette.
 
 ```ts
 function searchCommands(
@@ -346,30 +346,35 @@ if (conflict) {
 turns the sources' definitions into commands when they aren't commands already. `inputs` are what it listens to and what
 its components show and record (with components, their UI halves); `releases`, `holds`, `sequences` and `anyModifiers`
 are as for `keybinds()`, and with `releases` the settings panel offers release bindings; `components` are the classes to
-make inside `host`, by slot:
-`{ palette?: CommandPalette, cheatsheet?: KeybindCheatsheet, settings?: KeybindSettings, menu?: ContextMenu }` (or
-subclasses). `storage` is `(scope) => BindingsStorage`, for keeping rebindings somewhere other than localStorage. See
+make inside `host`, by slot: `{ cheatsheet?: KeybindCheatsheet, settings?: KeybindSettings }` (or subclasses). `storage`
+is `(scope) => BindingsStorage`, for keeping rebindings somewhere other than localStorage. See
 [Commands From Many Places](../guide/commands.md#commands-from-many-places-commandhub).
 
-| Method                                 | Description                                                                                        |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `setSource(owner, get \| undefined)`   | Set or remove the commands owned by `owner`                                                        |
-| `addContext(get)`                      | Lay a part over the context `when` sees; returns a remover                                         |
-| `setScope(scope)`                      | Keep rebindings separately per scope                                                               |
-| `refresh()`                            | Re-read sources, rebuild bindings, update components (fires `refresh`)                             |
-| `syncContext()`                        | Push the current context to components and buttons                                                 |
-| `run(id, event?)`                      | Run a command if it's available; returns whether it ran                                            |
-| `get(id)`, `all()`                     | The definitions as the sources gave them                                                           |
-| `bindingsFor(id, field)`               | Current bindings through one input (`'keys'`, `'mouse'`, `'gamepad'`, `'axes'`) as shown to people |
-| `held(id)`                             | Whether a command is held down right now                                                           |
-| `setAxes(owner, get)`                  | Add axes, rebindable like commands                                                                 |
-| `axis(id)`                             | An axis's value                                                                                    |
-| `matches(id, event)`                   | Whether an event is one of the command's press bindings (a mouse press, say)                       |
-| `bindButtons(root)`                    | Make `[data-command]` elements under `root` run and gray out; returns a stopper                    |
-| `openPalette()`, `openMenu(tag, x, y)` | Open the components                                                                                |
-| `destroy()`                            | Stop listening                                                                                     |
+| Method                               | Description                                                                                        |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `setSource(owner, get \| undefined)` | Set or remove the commands owned by `owner`                                                        |
+| `addContext(get)`                    | Lay a part over the context `when` sees; returns a remover                                         |
+| `setScope(scope)`                    | Keep rebindings separately per scope                                                               |
+| `refresh()`                          | Re-read sources, rebuild bindings, update components (fires `refresh`)                             |
+| `syncContext()`                      | Push the current context to the cheatsheet, and tell the command system's bridge                   |
+| `run(id, event?)`                    | Run a command if it's available; returns whether it ran                                            |
+| `get(id)`, `all()`                   | The definitions as the sources gave them                                                           |
+| `bindingsFor(id, field)`             | Current bindings through one input (`'keys'`, `'mouse'`, `'gamepad'`, `'axes'`) as shown to people |
+| `held(id)`                           | Whether a command is held down right now                                                           |
+| `setAxes(owner, get)`                | Add axes, rebindable like commands                                                                 |
+| `axis(id)`                           | An axis's value                                                                                    |
+| `matches(id, event)`                 | Whether an event is one of the command's press bindings (a mouse press, say)                       |
+| `commandSystem(options?)`            | The hub as a command system, for `@interact/components`' `CommandBridge`: see below                |
+| `destroy()`                          | Stop listening                                                                                     |
 
-Properties: `palette`, `cheatsheet`, `settings`, `menu` (when made with `host`; otherwise undefined), `store`, `inputs`.
+Properties: `cheatsheet`, `settings` (when made with `host`; otherwise undefined), `store`, `inputs`.
+
+`commandSystem({ matcher?, scorer?, source?, sourceDelay? })` gives
+`{ list(tag), search(query, tag), run(id), subscribe(listener) }`: a menu's commands by tag (every command for
+`undefined`), each with whether it applies and its first binding; a search by keybinds' matcher and scorer, with where
+each label matched; and further commands from `source`, asked once typing pauses for `sourceDelay` ms (200). With a
+`scorer`, a menu's commands are ranked, and one whose `when` fails scores nothing and is left out. See
+[Palette, Context Menus and Buttons](../guide/components.md#palette-context-menus-and-buttons).
 
 Events: `refresh` after each refresh; `error` (an `ErrorEvent`) when a source throws or a binding can't be read and is
 left out. An `error` nobody prevents goes to `reportError()`.
@@ -378,8 +383,8 @@ left out. An `error` nobody prevents goes to `reportError()`.
 
 ## createComponent(cls)
 
-Creates a component from its class (`CommandPalette`, `KeybindCheatsheet`, `KeybindSettings`, `BasicContextMenu`,
-`ContextMenu`, `RadialMenu`) under a tag name this copy of the library owns.
+Creates a component from its class (`KeybindCheatsheet`, `KeybindSettings`, `RadialMenu`) under a tag name this copy of
+the library owns.
 
 ---
 

@@ -17,9 +17,7 @@ npm link keybinds
 ## Minimal Setup
 
 ```html
-<keybinds-command-palette auto-trigger></keybinds-command-palette>
 <keybinds-cheatsheet auto-trigger></keybinds-cheatsheet>
-<keybinds-basic-context-menu auto-trigger target="#editor" menu="editor"></keybinds-basic-context-menu>
 
 <script type="module">
   import { keybinds, keys, registerComponents } from 'keybinds'
@@ -32,7 +30,6 @@ npm link keybinds
       label: 'Save document',
       category: 'File',
       keys: ['$mod+s'],
-      menu: 'editor',
       execute: () => console.log('save'),
     },
     {
@@ -47,28 +44,25 @@ npm link keybinds
   // Register keybinds
   keybinds(commands, undefined, { inputs: [keys()] })
 
-  // Register and connect UI components
+  // Register and connect the cheatsheet
   registerComponents()
-  const allComponents = document.querySelectorAll(
-    'keybinds-command-palette, keybinds-cheatsheet, keybinds-basic-context-menu',
-  )
-  allComponents.forEach((el) => (el.commands = commands))
+  document.querySelector('keybinds-cheatsheet').commands = commands
 </script>
 ```
 
 That's it. You get:
 
 - `$mod+S` / `$mod+O` keybinds working
-- `$mod+K` opens command palette with search
 - Hold `Control` for a second shows cheatsheet
-- Right-click shows context menu (for commands with `menu` tag)
 
-Four web components are available via `registerComponents()`:
+keybinds' own web components, via `registerComponents()`:
 
-- `<keybinds-command-palette>` — search-driven command execution
 - `<keybinds-cheatsheet>` — hold-to-show keybinding reference
-- `<keybinds-basic-context-menu>` — right-click menus driven by commands
 - `<keybinds-settings>` — rebindable keyboard shortcuts panel
+- `<keybinds-radial-menu>` — up to eight commands around a point
+
+A command palette, context menus and command buttons come from `@interact/components`, driven by a `CommandHub`: see
+[Components](/guide/components#palette-context-menus-and-buttons).
 
 ## Going Further
 

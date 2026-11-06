@@ -88,18 +88,13 @@ const getContext = () => ({
 
 ## Components and Context
 
-Pass context to components to gray out inactive commands:
+Give the cheatsheet the context to gray out inactive commands:
 
 ```js
-const palette = document.querySelector('keybinds-command-palette')
-palette.commands = commands
-palette.context = getContext() // Commands with failing `when` appear disabled
+const cheatsheet = document.querySelector('keybinds-cheatsheet')
+cheatsheet.commands = commands
+cheatsheet.context = getContext() // Commands with failing `when` appear disabled
 ```
 
-Update context when state changes:
-
-```js
-function updatePaletteContext() {
-  palette.context = getContext()
-}
-```
+With a `CommandHub`, `hub.syncContext()` does that whenever state changes, and tells its command system's bridge, so a
+palette, menus and command buttons from `@interact/components` follow too.

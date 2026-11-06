@@ -44,14 +44,15 @@
 - [x] Axes: continuous inputs read every frame (`keybinds(..., { axes })`, `kb.axis(id)` → `{ position, delta }`), from
       mouse movement, sticks, triggers or key pairs, with a leading `-` to invert. Rebindable in the settings panel;
       `hub.setAxes`, `hub.axis`, `hub.axesFor`.
-- [ ] The cheatsheet and palette don't list axes.
+- [ ] The cheatsheet and the command system (so a palette) don't list axes.
 - [x] Everything was one 5,400-line file and `keybinds()` handled every kind of input in one closure, so a keyboard-only
       app shipped gamepad polling and axis code too. Each input (`keys()`, `mouse()`, `gamepad()`, `axes()`) is now its
       own module passed in as `inputs`; a binding no input reads is an error. Components and the hub are separate
       modules too, and the hub takes the component classes it should make. Keyboard-only `keybinds()` went from 5.1 KB
       to 3.6 KB gzipped.
-- [ ] The three menus (basic context menu, searchable context menu, radial menu) are about 880 lines between them, each
-      with its own rendering, keyboard navigation and dismissal. Sharing that is the most likely place to cut real size.
+- [x] The three menus (basic context menu, searchable context menu, radial menu) were about 880 lines between them, each
+      with its own rendering, keyboard navigation and dismissal. The two context menus are gone: menus are
+      `@interact/components'`, driven through `hub.commandSystem()`. The radial menu is still keybinds' own.
 - [x] `src/index.test.js` was one file covering every module, and a test could pass only because another registered a
       component first. Each module has its own test file now, importing only that module and `src/test-helpers.js`, and
       each passes run alone.
@@ -71,15 +72,17 @@
 - [x] The settings panel couldn't record a sequence or a hold, and a layout was read once. Recording now has Hold, Tap
       and Steps switches (with `holds`/`sequences` on), and `layout()` follows the person switching layouts, updating
       the settings panel and an open cheatsheet.
-- [ ] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime (how they show bindings, and `CommandHub` assigns
-      it), but their generated declarations don't have the property, so a page creating them with `createComponent` has
-      to cast to set it (seen in pteraworld's src/input.ts). `KeybindCheatsheet` declares it as a getter/setter.
+- [x] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime, but their generated declarations didn't have the
+      property, so a page creating them with `createComponent` had to cast to set it (seen in pteraworld's
+      src/input.ts). Both are gone; a command system shows each command's first binding through the hub's inputs.
 - [x] keybinds wasn't under the repo's rules: lint, the no-casts rule and the stylesheet rule skipped it behind a fence.
       Now nothing is fenced, and `bun run check` and the rule tests cover all of it. Its JSDoc casts are gone, the menus
       share one list, and the settings panel is split by what each part owns.
 - [x] `styles/palette.css` selectors had specificity and sat outside cascade layers. Every selector is now `:where()`
       inside `@layer keybinds.theme`, so a page's own unlayered rules win over it; the components' computed styles are
       the same as before in Chrome, Firefox and WebKit.
-- [ ] The components and `CommandHub`'s component wiring (`hub.js` making elements, pushing context into them, painting
-      `data-command` buttons) move to `@interact/components`, rewritten there; the old modules are deleted in the same
-      change. See `docs/design.md`, "What moves out of keybinds".
+- [ ] The components move to `@interact/components`, rewritten there; the old modules are deleted in the same change.
+      Done for the palette, both context menus and `data-command` buttons, with the hub's wiring for them: they run
+      through `hub.commandSystem()`. Left: the cheatsheet, the settings panel and the radial menu, still keybinds' own
+      web components, and the hub's wiring for the cheatsheet and settings panel. See `docs/design.md`, "What moves out
+      of keybinds".

@@ -21,5 +21,5 @@ features:
   - title: Framework-agnostic
     details: Core library is pure JS. Optional web components work anywhere.
   - title: Discoverable
-    details: Built-in command palette, cheatsheet, context menu, and settings components.
+    details: Built-in cheatsheet, settings and radial menu components; a palette and menus through @interact/components.
 ---
