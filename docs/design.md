@@ -44,21 +44,176 @@ deeply uncomfortable" (owner, 2026-11-04T13:27:42). Each package is usable on it
 Dependencies only point down this list. So far each new package is a manifest only; its first module comes with the
 first build step.
 
-| Package                | Holds                                                                                                                       | DOM        |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| `@interact/core`       | Controllable state, events, state machines, data sources, selection, focus scopes, layers, placement                        | none       |
-| `@interact/dom`        | Templates with holes; DOM renderer, string renderer, hydration; custom element base; registration; style adoption; overlays | yes        |
-| `@interact/components` | Each component's behavior and default web view, its structural CSS, and the command bridge                                  | yes        |
-| `@interact/theme`      | The default visual theme: tokens and their values                                                                           | CSS only   |
-| `@interact/codegen`    | Development tool: generates typed declarations and framework wrappers from a Custom Elements Manifest                       | build time |
-| `keybinds`             | The standalone command and binding engine                                                                                   | yes        |
+| Package                | Holds                                                                                                                                                                    | DOM        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- |
+| `@interact/core`       | The extension mechanism and the list pipeline; controllable state, events, data sources, selection, focus, layers, placement                                             | none       |
+| `@interact/dom`        | Templates with holes; DOM renderer, string renderer, hydration; custom element base; registration; style adoption; overlays; view plugins and the default list rendering | yes        |
+| `@interact/components` | Each component's behavior and default web view, its structural CSS, and the command bridge                                                                               | yes        |
+| `@interact/theme`      | The default visual theme: tokens and their values                                                                                                                        | CSS only   |
+| `@interact/codegen`    | Development tool: generates typed declarations and framework wrappers from a Custom Elements Manifest                                                                    | build time |
+| `keybinds`             | The standalone command and binding engine                                                                                                                                | yes        |
 
 keybinds depends on none of the others, and none of the others depend on it (**Settled**: "Keybinds' core stays
 standalone"). The bridge in `@interact/components` meets keybinds through two operations and imports nothing from it.
 
+## Extensions
+
+### The model (Settled with the owner, as good enough for now)
+
+The library was monolithic: virtualization was built into the listbox, the menu, the palette and the combobox
+(`virtual-rows.js`, `scroll-rows.js`, `rows-view.js`, row measuring, `rows-styles.js`, with core's block cache), so
+every list carried it and every new feature needed support built in. The owner's definition: "if you have to build
+support for every feature in then it's wrong." Virtualization came from a requirement that every collection component
+work the same from ten items to ten billion; the owner never decided it for this library (it was another app's), and it
+is dropped. The model that replaces it, with CodeMirror 6's facets, state fields, view plugins and transactions with
+effects as prior art:
+
+- A component is a small core plus extension points. Extensions read and change its state, handle its input, transform
+  its items and wrap its rendering, without the core anticipating them.
+- The built-in features (keyboard navigation, typeahead, selection, the default rendering, windowing) are extensions
+  written against the same API an app uses. A feature that can't be written as an extension means the API has a gap, and
+  the API is fixed; the feature is never built into a core.
+- Rendering is a pipeline extensions step into: a list stage, then an item stage. The default rendering is the last
+  extension, and replaceable.
+- The list stage works on a lazy source, never on materialized items: a count, items by range, the position of an item.
+  An array is a trivial source. List-stage extensions turn a source into a source. Filtering, sorting and grouping that
+  can't be done lazily are pushed down to the source as a query, which it answers with its own indexes.
+- Changes go through transactions carrying effects ("reveal item i", "selection moved"). Extensions send and handle
+  them; the core only delivers them.
+- Windowing is one extension: its own state (scroll offset, measured sizes), watching the scroll container, mapping the
+  list stage to the visible slice plus spacers, handling "reveal item i". Neither the menu nor keyboard navigation knows
+  it exists. Without it, "reveal" falls back to scrolling the element into view.
+
+### The mechanism (Proposed, built)
+
+DOM-free in `@interact/core`; what needs the page in `@interact/dom`.
+
+- **State** (`state.js`). `defineField({ create, update })` is a state field: a value made with the state, and changed
+  only by `update(value, transaction)`. `defineFacet(combine)` (or `listFacet()`) is a facet: extensions each give it an
+  input with `facet.of(input)`, and `state.facet(facet)` is their combination. `defineEffect()` is an effect type;
+  `type.of(value)` is an effect, `effect.is(type)` narrows one, and `transaction.effectsOf(type)` gives a transaction's
+  values of a type. An extension is a field, a facet input, a plugin, or any nesting of lists of them; the same part
+  given twice counts once, so extensions include what they depend on. `precedence(level, extension)` orders parts
+  (`highest` to `lowest`, then the order given). `State.create(extensions)` makes a state, and
+  `state.update({ effects, filter })` a `Transaction` with `startState`, `state` and `effects`. Fields work out their
+  new value the first time it is asked for, so one field's update can read another's new value in any order; a field
+  needing its own value is an error. Every field is worked out before the transaction is done, and the new state keeps
+  no link to the old.
+- **Controlled state.** `transactionFilter` filters every transaction's effects unless it says `filter: false`.
+  `controlled(type, heard)` hands a piece of state to the app: effects of that type are dropped and heard as requests,
+  and the app applies what it decides with `filter: false`. That is the settled controlled/uncontrolled model (see
+  Components) on transactions; `Controllable` stays for the components until they are rebuilt.
+- **Store** (`store.js`). `new Store(extensions)` is a component's live state: `state`, `dispatch(spec)` (a transaction
+  dispatched while another applies goes right after it, in order), `handle(input)`, `subscribe(listener)` (after the
+  plugins), `plugin(plugin)` and `destroy()`. An input is an effect (`keyInput`, `inputs.js`; a list's `press`);
+  `handle` offers it to the `inputHandler` facet's handlers in precedence order until one returns true, which tells the
+  page to prevent the default. `definePlugin(store => ({ update, destroy }))` is a plugin: a life beside the state (a
+  timer, a subscription) that hears every transaction and may dispatch its own. A `Store` is a behavior in the sense of
+  Components: it has `subscribe`, so `component()` renders it.
+- **Queries** (`query.js`). `defineQuery()` is a kind of question with input `Q` and answer `A`:
+  `query.ask(source, input)` gives `{ answer }` (at once or a promise) or undefined when the source doesn't know the
+  query. A source answers through its optional `ask(question)`: `query.input(question)` reads a question that is the
+  query's, and `query.answer(value)` makes the answer. Only the query can read its own questions and answers, so this is
+  typed with no casts.
+- **Sources** (`source.js`). `ItemSource<T>` is the lazy source: `count`, `read(start, end)` (at once or later), `key`,
+  `subscribe` for changes, and optional `positionOf(key)` and `ask(question)`. `Source<T, F>`, which the components read
+  now, is an `ItemSource` with the selection filters and `findPrefix` named in it; when the components are rebuilt those
+  become queries of the extensions that ask them.
+- **The list pipeline** (`list-pipeline.js`). `listPipeline(source)` makes one list's pipeline, `ListPipeline<T, R>`,
+  where `R` is what it renders as (a template in the page, a string in tests, a terminal's lines later). Its `extension`
+  holds the source (`source`, set by `setSource`), the list, and a plugin dispatching each change the list reports as
+  `changed`. A component with two lists has two pipelines, and an extension is written against the one it is given.
+  - The list stage. `transform` steps each make a source from the one before, in precedence order from the source: a
+    step is `{ depends, apply }`, and `apply` runs again only when its input source or what `depends(state)` gives
+    changes (`Object.is`). `listOf(state)` is the list; every position in an effect is a position in it. `rows` steps
+    choose what renders: from every position, rows of `{ kind: 'item', position }` or `{ kind: 'gap', from, to }`
+    (positions not rendered), read one at a time so a step over a long list makes only what it keeps. `keep` gives
+    positions that must render (the active item, so focus never falls out); `visible` says which positions show, from
+    whichever extension knows.
+  - Positions in fields: `mapPosition(position, transaction)` moves a position through the `changed` effects a
+    transaction carries, and gives undefined when its item went or the list was replaced (a new source, a step applied
+    again). An extension that keeps an item across a replacement keeps its key and asks `positionOf`.
+  - The item stage: `item` steps are `(row, next, state) => R`, outermost first; a step decorates by calling `next` and
+    replaces what comes after by not calling it. The container stage: `container` steps render the rendered rows (each
+    with its key) together, the same way. Rows and the container take attributes from every extension (`attributes`,
+    `containerAttributes`; `part`, `class` and `style` joined, otherwise the first in precedence order).
+  - `render(state)` reads the items of the rows rendered, a run of positions at a time; an item a source gives only
+    later renders as not read yet (`item: undefined`), and the source reports it as `changed` when it arrives.
+  - `reveal` asks for a position to be shown; `reveals` says an extension shows revealed items itself.
+- **In the page** (`@interact/dom`). A hole standing alone in a tag, `<div ${attributes(values)}>`, takes attributes by
+  name, so a rendering can carry attributes it never names (`template.js`, rendered, written on the server and adopted
+  like any hole). `viewPlugin((store, root) => ({ rendered, destroy }))` is a view plugin: made when the view first
+  renders, given the element the view is in, told after each render of the transactions applied since the one before,
+  and destroyed when the element leaves the page (`store-view.js`). `storeView({ kind, styles, render })` is a `View` of
+  a store for `component()`. `defaultRendering(list, { text, role, rowRole, label })` is the last step of the item and
+  container stages, at `lowest`: the list as an element with every extension's container attributes, an item row as an
+  element with its text and every extension's row attributes (`data-position`, `role`, `part="row"`), a gap as an empty
+  element whose size the extension making it sets through attributes. Its view plugin hands keys to the store as
+  `keyInput`s and presses on rows as the list's `press`, and, unless `reveals`, brings a revealed row's element into
+  view (`scrollIntoView({ block: 'nearest' })`).
+- **Tests:** `state.test.js`, `store.test.js`, `query.test.js`, `list-pipeline.test.js` in core (among them a keyboard
+  navigation and a windowing written as two extensions that name neither each other nor anything the core knows of them,
+  meeting only through `reveal`, `keep` and `reveals`); `store-view.test.js`, `default-rendering.test.js` and the spread
+  hole's in the template modules' tests in dom. Not tested in a browser yet: the store view and default rendering ran in
+  happy-dom only.
+
+### The features on it (Proposed, not built yet)
+
+What the next steps build, each as an extension of a list pipeline (`list` below), with no change to the mechanism. The
+components are then a source, a pipeline and a set of these.
+
+- **The active item** (`active(list)`, the same extension for the same list, so everything depending on it shares one
+  field): a field of a position, set by an `activeMoved` effect and moved by `mapPosition`; `keep` of it; the
+  container's `aria-activedescendant` and the active row's `part` through attributes, with row ids from a row attribute
+  step.
+- **Keyboard navigation:** includes `active(list)`; an `inputHandler` for the arrows, Home, End and the page keys that
+  dispatches `activeMoved` and `reveal` together; a page is what `visible` says shows, or a fixed number without it;
+  `skip(item)` passed in (separators, commands that can't run) is honored by reading the items it passes. Focus entering
+  is its own view plugin listening for focus on the container.
+- **Typeahead:** includes `active(list)`; an `inputHandler` at `high` for printable keys (and Space while typing, so it
+  is taken before selection's Space); a field of what was typed and when, the time carried in the effect; it asks a
+  `findPrefix` query of the list and, unanswered, reads the items near the active one; an answer arriving later is
+  dispatched as `activeMoved` and `reveal`, and dropped if a later search started (a counter in its field).
+- **Selection:** a field of the selection, set by a `selectionMoved` effect; handles the list's `press` and Space, Shift
+  and Ctrl+A keys; in single mode its update follows `activeMoved` in the same transaction, so no second one;
+  `aria-selected` and `part` through row attributes, `aria-multiselectable` through the container's; the app owns it
+  with `controlled(selectionMoved, ...)`.
+- **The default rendering:** built (above). A component's own (a menu item with its shortcut and check mark) is an
+  `item` step above it that calls `next` for the attributes it doesn't set, or replaces it.
+- **Windowing:** a field of the top position, the offset and the measured row sizes, changed by `reveal` (scroll just
+  enough), and by `scrolled` and `measured` effects its view plugin dispatches from the scroll container's scroll events
+  and from measuring rows after a render, setting the scroll position after one; a `rows` step giving a gap before, the
+  window's items, the `keep` positions outside it, and a gap after; gap sizes, row placement and, for a partial set,
+  `aria-setsize`/`aria-posinset` through attributes; `reveals.of(true)` and `visible`.
+- **Drag to reorder:** a view plugin listening for pointer events on the view's element (rows found by `data-position`),
+  a field of the drag (from, over), a `rows` step showing the dragged row where it would land (reordering rows, not the
+  list, so no position anyone holds moves), `part` through attributes; the drop is the app's to make on its source,
+  whose `removed` and `inserted` changes move every position held.
+- **Load as you scroll:** the app's source grows, reporting an insertion at its end; a view plugin watching the last row
+  (an `IntersectionObserver` on `[data-position]` of the last position, or `visible` with windowing) calls the app's
+  `loadMore`; a field of whether it is loading, and a `container` step wrapping the list with a status after it while it
+  is.
+- **Grouped sections:** the list's items are entries, an item or a group's heading; a `transform` step puts headings in
+  lazily from where groups start, which it asks of the source as a query (an in-memory source answers by scanning once);
+  headings are passed over by navigation's `skip`, never selected, and rendered by an `item` step.
+
+### Open
+
+- Grouped sections in ARIA: the APG groups a listbox's options in `role="group"` elements, which a flat item stage can't
+  nest. Flat headings are the first build; whether rows need a nested container stage is open.
+- Reconfiguring a running store (CodeMirror's compartments: switching a list from single to multiple selection) has no
+  mechanism yet; nothing in the four proofs needs it.
+- Several lists in one view element: the default rendering's view plugin listens on the view's element and finds rows by
+  `data-position`, so two lists in one element would both hear each other's presses.
+- The names of the features above (`activeMoved`, `selectionMoved`, `scrolled`, `measured`, `loadMore`) are the next
+  steps' to choose.
+
 ## Components (Settled, with the derived parts marked)
 
-A component is its behavior, written once as a plain API, plus a default view anyone can replace.
+A component is its behavior, written once as a plain API, plus a default view anyone can replace. What is being built
+(see Extensions): the behavior is a store configured with extensions, and its features (keyboard navigation, typeahead,
+selection, windowing) are extensions of it. The listbox, menu, palette and combobox below are described as built now, on
+the monolithic model, until they are rebuilt.
 
 - **The behavior** is a class with no DOM in it. It has methods, observable state and events, and uses a state machine
   only where modes and timing call for one: a menu opening and closing with pointer intent, a combobox, a tooltip's
@@ -117,12 +272,13 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
-### The listbox (Derived, built)
+### The listbox (Derived, built; to be rebuilt on extensions)
 
 - `Listbox` (`packages/components/src/listbox.js`) is the behavior, with no DOM. Its state is `active` and `selection`,
   both `Controllable`. Its parts:
   - `items` (`items.js`): the source, read through a bounded `BlockCache`, with failed reads reported by `onError`.
-  - `scroll` (`scroll-rows.js`): `top` and `rows`, both `Controllable`, with `window()`, `scrollTo()` and `reveal()`.
+  - `scroll` (`scroll-rows.js`): `top` and `rows`, both `Controllable`, with `window()`, `scrollTo()` and `reveal()`:
+    the windowing built into it, which becomes the windowing extension.
   - `choose` (`chooser.js`): single or multiple mode; `press()`; `all()`, which selects everything as one filter;
     `isSelected()`; and `count()`, which counts without reading.
 - Also on `Listbox`: `source`, a `Controllable` (a new source starts over); `key()`, which takes keys as DOM-free
@@ -137,7 +293,7 @@ A component is its behavior, written once as a plain API, plus a default view an
   goes to the first selected item and shows it, when the source can place items (`findsSelected`, below); the answer is
   dropped if a key made something active first, or the source changed. Without that capability, or with nothing
   selected, it goes to the item last chosen, or the top item (`Listbox.focus()`; tested in all three browsers in both
-  DOM modes, with the first selected item five billion down).
+  DOM modes).
 - **Typeahead (Derived, settled with the owner):** a character goes to the next item whose text starts with it, and
   characters typed within 500ms (the APG example's wait) to the next whose text starts with all of them, going round to
   the start. The whole of what was typed is always looked for first, so "aa" reaches "Aaron"; only when nothing starts
@@ -158,12 +314,11 @@ A component is its behavior, written once as a plain API, plus a default view an
   (`__updateItemsFocusable`) have no counterpart to need: the active item is a position that moves with the source's
   changes, and options are keyed by position. Its page keys (the active row ends at the edge it moved toward) are what
   `reveal` already does.
-- Selecting by position reads nothing, because the source makes a filter for the positions. Selecting all ten billion
-  then deselecting one counted 9,999,999,999, with 100 items read in all.
+- Selecting by position reads nothing, because the source makes a filter for the positions.
 - `listboxView()` is the default web view, and `listboxElement(create)` is the element class. The app registers the
   class, and `create(host)` builds each instance's listbox.
 
-### The menu (Derived, built)
+### The menu (Derived, built; to be rebuilt on extensions)
 
 - **The listbox, changed for it rather than copied:** a selection mode of `none` (items are activated, never selected;
   select-all does nothing), `skip` for items focus passes over, honored by every move, Home, End, typing and focus
@@ -180,9 +335,10 @@ A component is its behavior, written once as a plain API, plus a default view an
   Whether an item is checked is the app's; activating one is reported. The APG doesn't define a `group` role for menus,
   so radio items that go together sit between separators, as its examples do. `menuEntries(list)` is an in-memory source
   that typing searches by label.
-- **Collections:** a menu's entries come through a source, like the listbox's, and its rows are the listbox's
-  virtualized rows; a menu of any length costs the same. It shows as many rows as it has entries, up to `rows` (10).
-  Rows don't size a virtualized list, so a menu is `--interact-menu-width` wide at least.
+- **Collections:** a menu's entries come through a source, like the listbox's, and its rows are the listbox's windowed
+  rows, built in under the dropped requirement (see Extensions). It shows as many rows as it has entries, up to `rows`
+  (10). Windowed rows don't size the list, so a menu is `--interact-menu-width` wide at least. Rebuilt, a menu renders
+  its entries through the default rendering, and windowing is an extension it can include.
 - **Keys (the APG menu and menu button patterns):** on the button, Enter and Space open on the first item, Down on the
   first, Up on the last. In the menu, the arrows, Home, End and typing move, passing over separators, without wrapping
   (optional in the APG); Enter runs an item, or opens its submenu with focus on its first item, and closes the menus
@@ -206,13 +362,14 @@ A component is its behavior, written once as a plain API, plus a default view an
   element's centre with `button` -1; an engine giving no point would have put it at 0,0. A request is taken as from the
   keyboard by `button` -1, or by no point and no press count (`menu-element.js`). Headless Firefox and WebKit fire no
   `contextmenu` for those keys at all, so the keys are tested in Chrome and a keyboard-style request in all three.
-- **A long menu's size:** when only some rows are rendered, each item says its place and the menu's size
-  (`aria-posinset`, `aria-setsize`), as ARIA asks for a partial set. Both count separators, since which entries before
-  an item are separators isn't known without reading them. A menu rendered whole leaves the counting to the browser,
-  which gets separators right. The listbox numbers its options always; it has no separators, so its numbers are exact.
+- **A long menu's size** (the windowing extension's, once it is one): when only some rows are rendered, each item says
+  its place and the menu's size (`aria-posinset`, `aria-setsize`), as ARIA asks for a partial set. Both count
+  separators, since which entries before an item are separators isn't known without reading them. A menu rendered whole
+  leaves the counting to the browser, which gets separators right. The listbox numbers its options always; it has no
+  separators, so its numbers are exact.
 - **Unverified:** screen readers (only axe); touch; a long menu's numbers when it has separators (they count them).
 
-### The command palette (Derived, built)
+### The command palette (Derived, built; to be rebuilt on extensions)
 
 - **Pattern (the APG combobox and modal dialog pages, fetched):** a modal dialog holding an editable combobox (the
   search field, `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded="true"` since its list always shows,
@@ -243,7 +400,7 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Unverified:** screen readers (only axe); a remote `search` under load (only a slow in-page one, whose late answer is
   dropped); input methods composing in the field (Enter while composing is left to the input method, untested).
 
-### The combobox (Derived, built)
+### The combobox (Derived, built; to be rebuilt on extensions)
 
 - **Pattern (the APG combobox page and its select-only and list-autocomplete examples, fetched):** a field with
   `role="combobox"` controlling a listbox popup; DOM focus stays in the field, which names the active option as its
@@ -257,9 +414,8 @@ A component is its behavior, written once as a plain API, plus a default view an
   field's), `value` (the option chosen, a `Controllable`), `text` (an editable field's, a `Controllable` that follows
   the option chosen), `kind`, `suggestions`, `open(at)`, `close()`, `toggle()`, `choose(position)`, `chooseActive()`,
   `clear()`, `type(text, deleting)`, `key(key, { alt, shift, toggle })`, `point(position)`, `completion`,
-  `keepCompletion()`, `subscribe`. Options come from a source, so ten billion cost what ten do: opening a select-only
-  one over 10^10 numbers lands on the one chosen, five billion in, through the source's `positionOf`; without it, on the
-  first.
+  `keepCompletion()`, `subscribe`. Options come from a source: opening a select-only one lands on the option chosen
+  through the source's `positionOf`; without it, on the first.
 - **Keys (`Combobox.key`, the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else the
   first), Alt+Down on the option chosen, Up and Home on the first, End on the last, a character typed on the option it
   starts. Open: the arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing goes
@@ -287,9 +443,9 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Proven** (`combobox-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM, 60 tests): the
   select-only keys, a character typed, Tab choosing and moving on, choosing by pointer with focus kept in the field,
   Escape keeping the choice; editable suggestions, Down and Enter choosing, two Escapes closing then emptying; inline
-  completion selected after what was typed and chosen with Enter; ten billion options opening on the one chosen and End
-  going to the last; server markup adopted with its field kept, opening on the option chosen; and axe-core finding
-  nothing closed or open, in a page whose content is in a landmark.
+  completion selected after what was typed and chosen with Enter; opening on the option chosen through `positionOf`;
+  server markup adopted with its field kept, opening on the option chosen; and axe-core finding nothing closed or open,
+  in a page whose content is in a landmark.
 - **Unverified:** screen readers (only axe); touch; a remote `suggest` under load; input methods composing in the field.
 - **Inside another layer (Derived):** Escape with the list closed empties the field and leaves the layer open; the next
   Escape closes the layer. Shown in a modal dialog in all three engines, both DOM modes (`combobox-view.test.js`).
@@ -343,10 +499,10 @@ These users still install keybinds from its own repository (`"keybinds": "github
 
 That repository is untouched.
 
-## Collections (Settled models; mechanics Derived from the evaluation)
+## Collections (Settled models; mechanics Derived)
 
-Every collection component works the same from ten items to ten billion, with no cost per item. Lists, menus, grids and
-trees all take the same kind of data source.
+Lists, menus, grids and trees all take the same kind of data source (**Open:** whether the owner decided this; see
+Questions for the owner).
 
 ### Data source
 
@@ -354,18 +510,20 @@ trees all take the same kind of data source.
 
 **Derived:**
 
-- Positions are plain numbers, since 10^10 is well below 2^53.
+- Positions are plain numbers, exact to 2^53.
 - Fetching is by range and may be asynchronous. Items not yet fetched render as placeholders whose size is known in
   advance, so nothing shifts when they arrive.
 - Change notifications say what changed: a range inserted, a range removed, a range changed, or a reset. A view can then
   shift or refetch exactly what's affected. A count that grows (a remote source learning more) is an insertion at the
   end, so it needs no kind of its own.
 - Selection and focus need to refer to items whose positions move, so a source also gives each item a key.
-- The contract is `Source<T, F>` (`packages/core/src/source.js`): `count()`, `read(start, end)` (the items at once, or a
-  promise of them), `key(item)`, `subscribe(listener)` for changes, and filters of the source's own type `F`.
-  `span(start, end)` makes a filter for the items now at those positions, `matches(filter, item)` tests one, and
-  `countMatching(filter)` counts one, at once or later. `shiftPosition(position, change)` says where a position is after
-  a change.
+- The contract is `ItemSource<T>` (`packages/core/src/source.js`): `count()`, `read(start, end)` (the items at once, or
+  a promise of them), `key(item)`, `subscribe(listener)` for changes, and optionally `positionOf(key)` and
+  `ask(question)` (see Extensions). `shiftPosition(position, change)` says where a position is after a change. The
+  components read `Source<T, F>`, an `ItemSource` with filters of the source's own type `F`: `span(start, end)` makes a
+  filter for the items now at those positions, `matches(filter, item)` tests one, and `countMatching(filter)` counts
+  one, at once or later. Rebuilt on extensions, these and `findPrefix` and `firstMatching` below become queries of the
+  extensions that ask them.
 - A source that can search its items' text has `findPrefix(text, from)`: the first position at or after `from` whose
   item's text starts with `text`, compared as `startsWithTyped` compares, at once or later. Typing in a list asks it,
   since only the source knows every item; without it, a list searches the items it has read (`BlockCache.findHere`,
@@ -384,65 +542,35 @@ trees all take the same kind of data source.
   the same items as others are inserted around it. Its key-to-position index is the only thing it keeps per item besides
   the items themselves, rebuilt lazily after a change.
 
-### Virtualization
+### Reading sources that answer later (Derived, built)
 
-The view keeps only a window of items, plus a bounded cache of fetched blocks. The evaluation ran both grids against
-10^10 rows, and the failure modes show what this design must avoid:
-
-- **Mapping scroll pixels linearly onto rows lands on the wrong row.** AG Grid 36.2.0 caps its scroll height at
-  32,000,048 px and maps it linearly. At 10^10 rows one pixel covers about 13,000 rows, and `ensureIndexVisible` landed
-  tens to hundreds of rows off. Asked for 8e9, it showed 7,999,999,733. Source:
-  `ag-grid-community/dist/package/main.esm.mjs:34809-34900`.
-- **A capped virtual count with a moving index offset lands exactly.** Vaadin Grid 25.3.5 caps the virtual count at
-  100,000 and shifts an index offset as you scroll. Every jump landed on the right row: asked for 5e9, it showed
-  5,000,000,000. Source: `component-base/src/virtualizer-iron-list-adapter.js:12-13,820-858`. This is the approach to
-  take.
-- **A cache indexed by position breaks past 2^32.** Vaadin keeps items in a JS array (`cache.js:23`). Indices above
-  2^32−2 become string-keyed properties, and `length = 1e10` throws. AG Grid's block cache (`cacheBlockSize`,
-  `maxBlocksInCache`) stayed level at about 1,000 nodes. The cache here is therefore a bounded map of blocks keyed by
-  block number, with least-recently-used eviction.
-- **Derived:** the cache is `BlockCache` in `@interact/core` (`packages/core/src/block-cache.js`), not part of the web
-  virtualizer. Every collection view needs it, a future terminal view included, and none of it touches the DOM.
-  - Views read items (`get`) and follow changes through the cache, never the source directly. It drops whatever a change
-    made stale, including reads still on their way, before passing the change on, so a view can't re-read stale items.
-  - A block arriving is reported as `changed` over its positions, so arrivals and edits are handled the same way.
+- `BlockCache` (`packages/core/src/block-cache.js`) reads a source a block at a time and keeps a bounded number of
+  blocks, least recently used dropped first. The components read every source through it now; on the extension model it
+  is a list-stage step for a source that answers later, which a list over an array doesn't include.
+  - Whatever reads through it follows changes through it too, never the source directly. It drops whatever a change made
+    stale, including reads still on their way, before passing the change on, so nothing re-reads stale items.
+  - A block arriving is reported as `changed` over its positions, so arrivals and edits are handled the same way; that
+    is the contract the list pipeline renders by (see Extensions).
   - A source that answers at once (`MemorySource`) has its block in the cache before `ensure` returns, so in-memory
     lists never show placeholders.
-  - Tested against a computed source of 10^10 items (`block-cache.test.js`).
-- **Scroll position.** Native scrolling over a capped height is one of the inputs to the virtual window, not the source
-  of truth. The source of truth is the position of the item at the top of the view, which keeps keyboard navigation,
-  `scrollTo(position)` and restoring a view exact.
-- **Derived (built; measured in Chrome 156, Firefox 157 and WebKit 27.2):**
-  - The top position is a `Controllable` in `ScrollRows` (`packages/components/src/scroll-rows.js`), DOM-free, with the
-    rows showing beside it. The web view turns it into pixels after each render and back from each scroll event
-    (`rows-view.js`, `syncRows` and `scrolled`), and leaves the scroll position alone when it already shows the top.
-  - The tallest scrollable area: Chrome and WebKit 33,554,428px, clamping anything taller; Firefox 17,895,696px,
-    collapsing anything taller to nothing. Device pixel ratio doesn't change these; CSS `zoom` divides them in CSS
-    pixels (Firefox at zoom 2: 8,947,848). So the cap is in pixels on screen: one row fewer than 17,895,696px holds at
-    the rows' pitch times the element's zoom (`virtual-rows.js`, `rowCap`; zoom from `currentCSSZoom`, or the product of
-    computed `zoom` where WebKit lacks it, `zoomOf` in `rows-view.js`). Until a row is measured, and on the server, the
-    cap is 10,000 rows, under the limit for rows up to 1,789px on screen.
-  - The pitch is measured from a row once and handed back to CSS (`--interact-listbox-pitch`), which lays out the spacer
-    and every row from it, so script and layout multiply the same number. Chrome snaps a 27.3px row to 27.296875px;
-    multiplying the unsnapped value drifted about 2,000px over the cap. Rows are placed with `inset-block-start`, not a
-    transform: with transforms, Firefox showed the last row out of place near the cap.
-  - The offset (the position of the first scrollable row) moves only when the top comes within a quarter of the
-    scrollable rows of an end that isn't a real end, and then centres the top. Moving it under the person keeps how far
-    into the row they had scrolled.
-  - In all three browsers and both DOM modes (`listbox-view.test.js`): `scrollTo(5e9)` shows 5,000,000,000 through
-    5,000,000,009 fully visible; the last jump shows 9,999,999,990 through 9,999,999,999; the same with rows 27.3px
-    tall, and with 600px rows at zoom 2 (cap 14,912 rows, the area under the limit). The cache stays at or under its 16
-    blocks over 60 jumps, with at most 21 options in the DOM. The wheel across an offset move goes forward 3 or 4 rows
-    per turn, never back or skipping, and stops at the last item.
-  - Rows have one fixed height (a token); variable heights wait.
-- **Unverified:** smooth and momentum scrolling across an offset move (headless browsers delivered each wheel turn as
-  one instant step); Safari itself (WebKit 27.2 is playwright's Linux build) and mobile browsers; browser zoom from its
-  own controls (only CSS `zoom` was measured); variable row heights.
+
+### Windowing (built into the components now; to be an extension)
+
+- The listbox's viewport (`scroll-rows.js`, `virtual-rows.js`, `rows-view.js`, `rows-styles.js`) windows every list,
+  menu, palette and combobox: it renders a window of rows, and the position of the item at the top is the source of
+  truth for where the list is scrolled, turned into pixels after each render and back from each scroll event, so
+  keyboard navigation, `scrollTo(position)` and restoring a view stay exact. It is written to land exactly in a list of
+  ten billion rows (a capped scroll height with a moving offset, after Vaadin Grid, under each browser's measured
+  tallest scroll area), which served the dropped requirement; those measurements and their tests are history, in this
+  file's log. Which of it the windowing extension keeps is open (see Questions for the owner).
+- Rows have one fixed height (a token); variable heights wait (Settled with the owner, below).
 
 ### Selection (Settled model)
 
 A selection is a filter plus exceptions: "everything matching F, except these keys", or "nothing, except these keys".
-Selecting all of ten billion items then costs nothing, and so does deselecting one of them.
+Selecting all of ten billion items then costs nothing, and so does deselecting one of them. **Open:** this was marked
+settled in the first draft beside the dropped requirement, which is its reason here; whether it is the owner's decision
+is a question for the owner (below).
 
 **Derived:**
 
@@ -469,8 +597,8 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:29
 
 **Derived:**
 
-- In a virtual collection, the focused item may be scrolled out of the window. The view keeps the focused item rendered
-  whatever the window holds, so focus never falls back to the page.
+- In a windowed list, the focused item may be scrolled out of the window. The windowing renders the positions `keep`
+  gives (the active item's) whatever the window holds, so focus never falls back to the page.
 - Overlays that close (menus, the palette, dialogs) form a stack, so Escape and outside presses close the top one only.
   zag.js has a working stack to read (`@zag-js/dismissable` `dist/layer-stack.mjs`), as do its typeahead and tabbable
   helpers (`@zag-js/dom-query`).
@@ -772,8 +900,8 @@ be a dependency. Each serves as a reference for specific parts.
 | ----------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Web Awesome | 3.14.0, MIT                                             | Token naming grid; manifest shape; layer list                                                                                            | Registers on import with fixed names; shadow DOM only; server render inlines all styles per instance; no collections     |
 | FAST        | fast-element 3.1.2, MIT                                 | Hydration markers and repeat reconciliation; per-registry `define({ name, registry })`                                                   | No component layer for v3 (fast-foundation needs fast-element 1.x); shadow/light chosen per definition only; no manifest |
-| AG Grid     | 36.2.0; server-side row model is Enterprise, commercial | Block cache API; select-all-except state shape; max-height probe                                                                         | Commercial; not a custom element; lands off by hundreds of rows at 10^10; 528 KB gzipped core                            |
-| Vaadin Grid | 25.3.5, Apache-2.0                                      | Virtual count plus offset (lands exactly); part names; keyboard navigation and accessibility mixins                                      | Registers on import; array cache breaks past 2^32; selection holds items, no select-all with a provider                  |
+| AG Grid     | 36.2.0; server-side row model is Enterprise, commercial | Block cache API; select-all-except state shape; max-height probe                                                                         | Commercial; not a custom element; 528 KB gzipped core                                                                    |
+| Vaadin Grid | 25.3.5, Apache-2.0                                      | Virtual count plus offset (lands exactly); part names; keyboard navigation and accessibility mixins                                      | Registers on import; selection holds items, no select-all with a provider                                                |
 | zag.js      | 1.47.0, MIT                                             | Interaction state machines (menu with pointer intent, combobox); controllable state triple; dismissable layer stack; typeahead; tabbable | Collections in memory only; selection a full `Set`; needs `process` shimmed unbundled                                    |
 
 Not verified:
@@ -793,32 +921,11 @@ their stack and placement in core, their binding in dom (see Overlays). Then the
 bridge (see The menu, and Commands under Components). Then the command palette, with the bridge's search, and three gaps
 the menu left: Tab out of the page, a long menu's size, and a context menu asked for from the keyboard (see The command
 palette, The menu and Overlays). Then the combobox, sharing its field, list keys and stale-answer dropping with the
-palette (see The combobox). Next: keybinds' menus and palette moved onto them.
+palette (see The combobox). Then keybinds' menus and palette moved onto them (see What moves out of keybinds).
 
-The first step is one vertical slice: a listbox over a ten-billion-item source, server-rendered and hydrated, in both
-DOM modes. It takes these pieces:
-
-- **`@interact/core`:** controllable state, the data source interface and the in-memory source, selection, and focus
-  scopes.
-- **`@interact/dom`:** templates with holes, the DOM renderer, the string renderer, hydration, registration with a
-  prefix, and style adoption in both DOM modes.
-- **`@interact/components`:** a listbox, meaning its behavior, its default view with virtualization, and its structural
-  CSS.
-- **`@interact/theme`:** the global tokens it uses.
-
-It comes first because it is the smallest component that touches every settled decision at once. It also covers every
-point the evaluation flagged as unverified or broken elsewhere:
-
-- one stylesheet working in both DOM modes;
-- sharing styles across declarative shadow roots;
-- landing exactly at 10^10;
-- a bounded cache;
-- selection as a filter plus exceptions;
-- keeping focus on a virtualized item.
-
-Its pieces are also what comes next is made of. The menu, the palette and the combobox are listbox behavior plus a focus
-scope and an overlay, and the command bridge feeds the menu and palette. After that, keybinds' elements can be replaced
-and deleted.
+**Now:** the extension mechanism (see Extensions). **Next**, done by others: the listbox, menu, palette and combobox
+rebuilt on it, with their features as extensions, proved by typeahead, drag to reorder, load as you scroll and grouped
+sections written as extensions with no change to the mechanism.
 
 ## Settled with the owner after the first draft
 
@@ -833,3 +940,22 @@ and deleted.
    readonly types instead). Variable row heights wait.
 5. **Order.** The listbox slice comes first. Bringing keybinds under the repo's rules (its 5,369 lint diagnostics and
    206 casts) is its own task after that. Done: keybinds passes every check with no fence.
+
+## Questions for the owner
+
+Decisions the first draft marked settled, or that rest on the dropped requirement, which this file and its log can't
+tell were the owner's:
+
+1. **Selection as a filter plus exceptions** (see Selection): settled in the first draft with "selecting all of ten
+   billion items then costs nothing" as its reason. Yours, or the dropped requirement's? If the latter, a selection
+   extension could hold keys only.
+2. **One kind of data source for lists, menus, grids and trees** (see Collections), and the data source and focus scope
+   models marked settled in the first draft: yours? The model you accepted (a lazy source: a count, items by range, an
+   item's position) agrees with the data source one.
+3. **Windowing's reach:** should the windowing extension land exactly in billions of rows (the capped scroll height with
+   a moving offset, and the row cap from the smallest browser limit you settled as one of the slice's gaps), or only
+   window long lists?
+4. **A menu and windowing:** does a menu include windowing (a long menu scrolls, as the APG has it), or render whole?
+   This meets the open question of a "▾ N more" row (see What moves out of keybinds).
+5. **Grouped sections in ARIA:** flat headings among the options, or options nested in `role="group"` elements as the
+   APG's grouped listbox has them, which needs a nested container stage (see Extensions, Open)?
