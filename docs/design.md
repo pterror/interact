@@ -204,24 +204,76 @@ the gap rows it doesn't render itself, and reads every extension's attributes (`
 they found: the active item following the pointer (`followPointer`), submenus (`submenus`), each component's core, and
 the default set each is made of (`menuExtensions`, `paletteExtensions`, `comboboxExtensions`).
 
-**Proposed, not built yet:**
+**Derived, built** as the proof that features an app wants are extensions (`reorder.js`, `load-as-you-scroll.js`,
+`grouped-sections.js`), each importing only the packages' public modules, with no change to core, dom or any component
+or extension: each composes with navigation, focus entering and the default rendering, windowed and not. Typeahead was
+already such an extension: it imports `@interact/core` and `readNow` (`active-item.js`, public as
+`@interact/components/active-item`) and uses only the active item's public members, nothing of the listbox core.
 
-- **Drag to reorder:** a view plugin listening for pointer events on the view's element (rows found by `data-position`),
-  a field of the drag (from, over), a `rows` step showing the dragged row where it would land (reordering rows, not the
-  list, so no position anyone holds moves), `part` through attributes; the drop is the app's to make on its source,
-  whose `removed` and `inserted` changes move every position held.
-- **Load as you scroll:** the app's source grows, reporting an insertion at its end; a view plugin watching the last row
-  (an `IntersectionObserver` on `[data-position]` of the last position, or `visible` with windowing) calls the app's
-  `loadMore`; a field of whether it is loading, and a `container` step wrapping the list with a status after it while it
-  is.
-- **Grouped sections:** the list's items are entries, an item or a group's heading; a `transform` step puts headings in
-  lazily from where groups start, which it asks of the source as a query (an in-memory source answers by scanning once);
-  headings are passed over by navigation's `skip`, never selected, and rendered by an `item` step.
+- **Drag to reorder** (`reorder(current, { move })`): a field of the drag (from, over); a view plugin on the view's
+  element turning a press on a row (found by `data-position`) into a drag once the pointer has moved 4px, so a press
+  stays a press, with the pointer captured by the list, followed as it moves and as the list or page scrolls, dropped on
+  letting go and put back on Escape or a cancelled pointer; the click ending a drag is no press. The dragged row is
+  drawn where it would land and the rows between make room, by `translate` in the rows' attributes (`part="dragging"` on
+  the dragged row). Not the `rows` step first planned: windowing places each row by its position (`--interact-row`), so
+  reordering rows moves nothing on screen in a windowed list, while a translation shows the same in both. Rows are taken
+  to be one height, as a windowed list's are. The drop is the app's to make on its source (`move`, given the position,
+  the key and where it goes), whose `removed` and `inserted` changes move every position held; the active item, when it
+  is the one moved, goes with it, found by its key (`positionOf`) or else at `to`, also when the app moves later. Alt
+  with the up or down arrow moves the active item a row the same way, as the keyboard's way to reorder. Tested in
+  happy-dom (`reorder.test.js`: what the rows show while dragging, the drop, the active item staying on its own item or
+  going with the one dragged, the keys, Escape, a drag following its item as the list changes, a move the app makes
+  later, a list that can't place items) and in Chrome, Firefox and WebKit, both DOM modes, windowed and not
+  (`listbox-extensions-view.test.js`: a real mouse drag landing exactly on the row's new place, the active item and
+  focus kept, then dragging the active item, then a plain press still pressing; axe-core finding nothing).
+- **Load as you scroll** (`loadAsYouScroll(list, { load, ahead })`): the app's `load` puts more at the end of its source
+  (an insertion there, so every position held stays) and answers whether there may be more. A field of whether it is
+  loading (`idle`, `loading`, `done`, `failed`) and which load it is, so the answer to a load for a replaced source is
+  dropped. A plugin starts a load once the row `ahead` (5) before the last shows, as `visible` says (windowing), or for
+  an empty list; without `visible`, a view plugin watches that row with an `IntersectionObserver`. One load at a time; a
+  load that says there is more without the list growing is taken as the end; one that fails stops loading until the app
+  dispatches `resume`. A `container` step puts a status after the list (`role="status"`, `part="status"`), always there
+  so it is announced, saying "Loading more…" while loading and "Could not load more" after a failure (`text`). Tested in
+  happy-dom (`load-as-you-scroll.test.js`) and in all three engines, both DOM modes, windowed and not (the real wheel
+  loading more, the status said while loading, the active item, its active descendant and focus kept; axe-core finding
+  nothing).
+- **Grouped sections** (`groupedSections(current, { heading, groupOf })`): a `transform` step puts headings in lazily:
+  it keeps only where groups start (one entry per group), which it asks the source (the `groupStarts` query) or finds by
+  reading an in-memory source through once with `groupOf`; items are read from the source by range, and each change the
+  source reports becomes the list's own changes (an insertion, removal or change within a group, or one that starts or
+  ends a group, keeping a heading that stays), so every position held moves with them. A group must be contiguous. A
+  heading is an item of the list made by the app's `heading`, named by the app's `text`; navigation's `skip` passes over
+  it and a press on it does nothing. Typing asks the source and places the answer in the list, so it lands on items,
+  never headings. Headings are flat among the options (below), not rendered by an `item` step of their own: the default
+  rendering with their attributes was enough. Tested in happy-dom (`grouped-sections.test.js`) and in all three engines,
+  both DOM modes, windowed and not (the keys passing over headings both ways; axe-core finding nothing with an option
+  active).
+- **What these found:** no gap in the mechanism. Two limits of existing extensions: grouped sections can't be given with
+  selection, which selects in the source and throws once a list-stage step makes another list of it
+  (`list-selection.js:185-190`; the first move in single mode, Space in multiple) (see Open); and an extension can't
+  bring its own stylesheet (see Open), so a heading is styled as an option (its `part` has `heading` beside `option`,
+  and it takes an option's hover fill) until a component's stylesheet or the app's styles `heading`.
 
 ### Open
 
-- Grouped sections in ARIA: the APG groups a listbox's options in `role="group"` elements, which a flat item stage can't
-  nest. Flat headings are the first build; whether rows need a nested container stage is open.
+- Grouped sections in ARIA: the APG groups a listbox's options in `role="group"` elements. Built: flat headings, each
+  row `role="presentation"` among the options, the options numbered among options alone (`aria-posinset`,
+  `aria-setsize`, over windowing's, which counted headings), and the active option described by its group's heading
+  (`aria-describedby`), which stays rendered while it is active (`keep`); axe-core finds nothing in all three engines.
+  Nesting, not built: a `container` step is given the rendered rows with their keys and could wrap each group's rows in
+  a `role="group"` element with no API change, but only without windowing, whose structure places and measures rows as
+  the list's own children (`windowing-styles.js`, `[data-windowed] > *`; `windowing.js:304`). Nested groups with
+  windowing need an API change: a nested container stage windowing knows how to place, or windowing placing rows that
+  aren't the list's children. Screen readers are unverified either way (only axe).
+- Grouped sections and selection: selection selects in the source, so it can't be given beside a list-stage step that
+  puts headings in (below, and `list-selection.js:185-190`). Headings never being selected comes with asking the
+  selection's filters as queries of the list.
+- Reordering from the keyboard is Alt with the up or down arrow, chosen here; the keys, and whether a move is announced
+  (it isn't: no live region says where the item went), are the owner's. Dragging by touch, and scrolling the list by
+  itself while dragging near its edge, aren't built.
+- Load as you scroll: what the status says and how it looks (a line after the list, which grows a list rendered whole
+  but moves a windowed list's surroundings by a line while loading), and how the person retries a failed load (the app
+  can dispatch `resume`; nothing in the list offers it), are the owner's.
 - Reconfiguring a running store (CodeMirror's compartments: switching a list from single to multiple selection) has no
   mechanism yet; nothing in the four proofs needs it.
 - Several lists of one store in one view: a view inside another's is its own (`mountStore`), but two pipelines of one
@@ -1049,8 +1101,8 @@ palette (see The combobox). Then keybinds' menus and palette moved onto them (se
 **Then:** the extension mechanism (see Extensions), and the listbox rebuilt on it: a core and its features as
 extensions, with the API gaps it found fixed in the mechanism. Then the menu (with submenus, context menus and the menu
 button), the palette and the combobox rebuilt on it, with the gaps they found fixed in the mechanism, and the legacy
-listbox and the block cache deleted. **Next**, done by others: drag to reorder, load as you scroll and grouped sections
-written as extensions with no change to the mechanism.
+listbox and the block cache deleted. Then drag to reorder, load as you scroll and grouped sections written as extensions
+with no change to the mechanism or to any existing extension (see The features on it, under Extensions).
 
 ## Settled with the owner after the first draft
 
@@ -1084,5 +1136,6 @@ tell were the owner's:
    This meets the open question of a "▾ N more" row (see What moves out of keybinds). `menuExtensions()` includes it, as
    menus did before the rebuild; the menu itself works either way.
 5. **Names changed by the rebuild** (yours to approve): the parts and public names listed under Names, below.
-6. **Grouped sections in ARIA:** flat headings among the options, or options nested in `role="group"` elements as the
-   APG's grouped listbox has them, which needs a nested container stage (see Extensions, Open)?
+6. **Grouped sections in ARIA:** flat headings among the options (built, axe-clean), or options nested in `role="group"`
+   elements as the APG's grouped listbox has them, which a container step could do without windowing and which with
+   windowing needs an API change (see Extensions, Open)?
