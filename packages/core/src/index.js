@@ -1,4 +1,3 @@
-export { BlockCache } from './block-cache.js'
 export { Controllable } from './controllable.js'
 export { findPrefix } from './find-prefix.js'
 export { entry, move } from './focus.js'
