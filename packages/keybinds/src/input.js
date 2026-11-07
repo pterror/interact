@@ -97,6 +97,12 @@
  */
 
 /**
+ * How recording goes: whether it records a release, what events to leave alone, and where to listen (the window
+ * recording happens in; default the global one)
+ * @typedef {Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: Window }>} RecordOptions
+ */
+
+/**
  * @typedef {object} InputUIFields
  * @property {true} ui - It can be shown and recorded: only a UI half (keysUI(), ...) says so, having every field below
  * @property {string} label - What one binding is called ("Key", for "+ Key")
@@ -106,9 +112,9 @@
  * @property {boolean} [invert] - Bindings can be inverted with a leading "-"
  * @property {() => boolean} [available] - Whether it can be recorded now (a pad is connected)
  * @property {(onChange: () => void) => () => void} [watch] - Follows `available`, or how bindings are shown, changing
- * @property {(options: Readonly<{ ignore: (event: Event) => boolean, release: boolean, target?: Window }>,
- *   done: (binding: string) => void) => () => void} [record] - Records a binding from what's done next, listening on
- *   `target` (the window recording happens in; default the global one); returns a function that stops
+ * @property {(options: RecordOptions, done: (binding: string) => void) => () => void} [record] - Records a binding
+ *   from what's done next, listening on `target` (the window recording happens in; default the global one); returns a
+ *   function that stops
  * @property {(release: boolean) => string} [prompt] - What to do to record one
  */
 

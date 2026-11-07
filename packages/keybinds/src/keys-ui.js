@@ -1,23 +1,18 @@
 /**
- * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus.
+ * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus. Recording takes what's
+ * pressed next: a press, or with `release` the press and its release.
  */
 
 /**
- * @import { InputUI } from './input.js'
+ * @import { InputUI, RecordOptions } from './input.js'
  * @import { KeySyntax } from './keys.js'
  */
 
 import { formatWithRelease } from './binding-format.js'
 import { eventModParts, formatModPart } from './binding-mods.js'
 import { RELEASE_SUFFIX } from './binding.js'
-import { KeyRecorder } from './keys-recorder.js'
 import { PUNCTUATION_CODES, isSymbolKey } from './keys-symbols.js'
-import { NAMED_KEY, isLetterOrDigit, keys } from './keys.js'
-
-const DIGITS = 10
-const FIRST = 0
-const NONE = 0
-const ONE = 1
+import { NAMED_KEY, isLetterOrDigit, keyId, keys } from './keys.js'
 
 /**
  * How each physical key name is shown: the character it types on a US layout
@@ -29,7 +24,7 @@ function codeGlyphs() {
   for (const [typed, code] of PUNCTUATION_CODES) {
     glyphs.set(code, typed)
   }
-  for (let digit = FIRST; digit < DIGITS; digit += ONE) {
+  for (let digit = 0; digit < 10; digit += 1) {
     glyphs.set(`digit${digit}`, String(digit))
   }
   return glyphs
@@ -167,6 +162,107 @@ function eventToBindingString(event, syntax = []) {
   return parts === undefined ? undefined : `${parts.join('+')}${suffix}`
 }
 
+/** One recording of a key binding */
+class KeyRecorder {
+  /**
+   * @readonly
+   * @type {RecordOptions}
+   */
+  #options
+  /**
+   * @readonly
+   * @type {readonly KeySyntax[]}
+   */
+  #syntax
+  /**
+   * @readonly
+   * @type {(binding: string) => void}
+   */
+  #done
+  /**
+   * @readonly
+   * @type {Window}
+   */
+  #target
+  /**
+   * The press being held until its keyup, for a release: the press-time modifiers are what the release binds to
+   * @type {Readonly<{ binding: string, id: string }> | undefined}
+   */
+  #held
+
+  /**
+   * Starts listening for the next key
+   * @param {RecordOptions} options - How recording goes
+   * @param {readonly KeySyntax[]} syntax - The syntax bindings are written in
+   * @param {(binding: string) => void} done - Gets the binding
+   */
+  constructor(options, syntax, done) {
+    this.#options = options
+    this.#syntax = syntax
+    this.#done = done
+    this.#target = options.target ?? globalThis.window
+    this.#target.addEventListener('keydown', this, true)
+    this.#target.addEventListener('keyup', this, true)
+  }
+
+  /**
+   * Hears the keyboard
+   * @param {Event} event - A keydown or keyup
+   * @returns {void}
+   */
+  handleEvent(event) {
+    if (!(event instanceof KeyboardEvent) || this.#options.ignore(event)) {
+      return
+    }
+    if (event.type === 'keyup') {
+      this.#up(event)
+    } else {
+      this.#down(event)
+    }
+  }
+
+  /**
+   * A key went down: recorded at once, or held until it comes up
+   * @param {KeyboardEvent} event - The keydown
+   * @returns {void}
+   */
+  #down(event) {
+    const binding = event.key === 'Escape' ? undefined : eventToBindingString(event, this.#syntax)
+    if (binding === undefined) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    if (!this.#options.release) {
+      this.#done(binding)
+    } else if (!event.repeat) {
+      this.#held = { binding, id: keyId(event) }
+    }
+  }
+
+  /**
+   * A key came up: the held press's release is recorded
+   * @param {KeyboardEvent} event - The keyup
+   * @returns {void}
+   */
+  #up(event) {
+    const held = this.#held
+    if (held === undefined || held.id !== keyId(event)) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    this.#held = undefined
+    this.#done(`${held.binding}${RELEASE_SUFFIX}`)
+  }
+
+  /** @returns {void} */
+  stop() {
+    this.#target.removeEventListener('keydown', this, true)
+    this.#target.removeEventListener('keyup', this, true)
+  }
+}
+
 /**
  * Follows every piece of syntax that can change how keys are shown (a layout() following the person's layout)
  * @param {readonly KeySyntax[]} syntax - The syntax on
@@ -174,7 +270,7 @@ function eventToBindingString(event, syntax = []) {
  */
 function watching(syntax) {
   const watchers = syntax.flatMap((each) => (each.watch === undefined ? [] : [each.watch]))
-  if (watchers.length === NONE) {
+  if (watchers.length === 0) {
     return {}
   }
   return {
@@ -202,7 +298,7 @@ function keysUI(...syntax) {
     label: 'Key',
     prompt: (release) => (release ? 'Press and release a key...' : 'Press a key...'),
     record: (options, done) => {
-      const recorder = new KeyRecorder(options, { done, toBinding: (event) => eventToBindingString(event, syntax) })
+      const recorder = new KeyRecorder(options, syntax, done)
       return () => {
         recorder.stop()
       }

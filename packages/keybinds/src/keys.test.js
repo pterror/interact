@@ -1,4 +1,6 @@
-/** @import { Command } from './command.js' */
+/**
+ * @import { Command } from './command.js'
+ */
 
 import { describe, expect, mock, test } from 'bun:test'
 
@@ -7,7 +9,7 @@ import { validateCommands } from './core.js'
 import { aliases } from './keys-aliases.js'
 import { symbols } from './keys-symbols.js'
 import { keys as keysInput } from './keys.js'
-import { kbd, keybinds, mouse } from './test-helpers.js'
+import { kbd, keybinds, mouse, recording } from './test-helpers.js'
 import { ALL, INPUT } from './test-inputs.js'
 
 const ONCE = 1
@@ -143,5 +145,21 @@ describe('key binding errors', () => {
     )
     const withSyntax = { inputs: [keysInput(symbols(), aliases())] }
     expect(validateCommands([bound('q', ['?', 'up', 'shift+slash'])], withSyntax)).toBe(true)
+  })
+})
+
+describe('keys whose release never arrives', () => {
+  test('are released when the window loses focus, and the real keyup later has nothing left to release', () => {
+    const fired = recording()
+    const target = document.createElement('div')
+    const stop = keybinds([{ execute: fired.execute, id: 'k', keys: ['k', 'k:up'], label: 'K' }], undefined, {
+      target,
+    })
+    target.dispatchEvent(kbd('keydown', { code: 'KeyK', key: 'k' }))
+    target.ownerDocument.defaultView?.dispatchEvent(new Event('blur'))
+    expect(fired.types).toEqual(['keydown', 'keyup'])
+    target.dispatchEvent(kbd('keyup', { code: 'KeyK', key: 'k' }))
+    expect(fired.types).toEqual(['keydown', 'keyup'])
+    stop()
   })
 })

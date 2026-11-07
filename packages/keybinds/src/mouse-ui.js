@@ -1,19 +1,17 @@
 /**
- * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus.
+ * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus. Recording takes what's
+ * done next: a click or a scroll, or with `release` a button's press and its release. Scrolling has no release.
  */
 
 /**
- * @import { InputUI } from './input.js'
- * @import { WheelOptions } from './mouse-listener.js'
+ * @import { InputUI, RecordOptions } from './input.js'
+ * @import { WheelOptions } from './mouse.js'
  */
 
 import { formatWithRelease } from './binding-format.js'
 import { eventModParts, formatModPart } from './binding-mods.js'
 import { RELEASE_SUFFIX, splitRelease } from './binding.js'
-import { pointerButtonName } from './mouse-listener.js'
-import { MouseRecorder } from './mouse-recorder.js'
-import { wheelDirection } from './mouse-wheel.js'
-import { mouse } from './mouse.js'
+import { mouse, pointerButtonName, wheelDirection } from './mouse.js'
 
 /**
  * How each button name a binding can use is shown
@@ -38,6 +36,8 @@ const SHOWN = new Map([
 ])
 
 const SCROLL = /(?:^|\+)scroll(?:up|down|left|right)$/u
+
+const TYPES = ['mousedown', 'mouseup', 'wheel']
 
 /**
  * One part of a mouse binding as shown
@@ -75,6 +75,125 @@ function eventToMouseBindingString(event) {
 }
 
 /**
+ * Keeps an event from reaching anything else: it is the recording's
+ * @param {Event} event - The event
+ * @returns {void}
+ */
+function take(event) {
+  event.preventDefault()
+  event.stopPropagation()
+}
+
+/** One recording of a mouse binding */
+class MouseRecorder {
+  /**
+   * @readonly
+   * @type {RecordOptions}
+   */
+  #options
+  /**
+   * @readonly
+   * @type {(binding: string) => void}
+   */
+  #done
+  /**
+   * @readonly
+   * @type {Window}
+   */
+  #target
+  /**
+   * The press being held until its mouseup, for a release
+   * @type {Readonly<{ binding: string, button: number }> | undefined}
+   */
+  #held
+
+  /**
+   * Starts listening for the next click or scroll
+   * @param {RecordOptions} options - How recording goes
+   * @param {(binding: string) => void} done - Gets the binding
+   */
+  constructor(options, done) {
+    this.#options = options
+    this.#done = done
+    this.#target = options.target ?? globalThis.window
+    for (const type of TYPES) {
+      this.#target.addEventListener(type, this, true)
+    }
+  }
+
+  /**
+   * Hears the mouse
+   * @param {Event} event - A mousedown, mouseup or wheel
+   * @returns {void}
+   */
+  handleEvent(event) {
+    if (event instanceof WheelEvent) {
+      this.#wheel(event)
+    } else if (event instanceof MouseEvent && !this.#options.ignore(event)) {
+      if (event.type === 'mouseup') {
+        this.#up(event)
+      } else {
+        this.#down(event)
+      }
+    }
+  }
+
+  /**
+   * A button went down: recorded at once, or held until it comes up
+   * @param {MouseEvent} event - The mousedown
+   * @returns {void}
+   */
+  #down(event) {
+    const binding = eventToMouseBindingString(event)
+    if (binding === undefined) {
+      return
+    }
+    take(event)
+    if (this.#options.release) {
+      this.#held = { binding, button: event.button }
+    } else {
+      this.#done(binding)
+    }
+  }
+
+  /**
+   * A button came up: the held press's release is recorded
+   * @param {MouseEvent} event - The mouseup
+   * @returns {void}
+   */
+  #up(event) {
+    const held = this.#held
+    if (held === undefined || held.button !== event.button) {
+      return
+    }
+    take(event)
+    this.#held = undefined
+    this.#done(`${held.binding}${RELEASE_SUFFIX}`)
+  }
+
+  /**
+   * The wheel moved: recorded, unless a release is being recorded
+   * @param {WheelEvent} event - The scroll
+   * @returns {void}
+   */
+  #wheel(event) {
+    const binding = this.#options.release ? undefined : eventToMouseBindingString(event)
+    if (binding === undefined) {
+      return
+    }
+    take(event)
+    this.#done(binding)
+  }
+
+  /** @returns {void} */
+  stop() {
+    for (const type of TYPES) {
+      this.#target.removeEventListener(type, this, true)
+    }
+  }
+}
+
+/**
  * The mouse, shown and recorded as well as listened to
  * @param {Readonly<{ wheel?: WheelOptions }>} [options] - As for mouse()
  * @returns {InputUI} The mouse, as an input that can be shown and recorded
@@ -86,7 +205,7 @@ function mouseUI(options = {}) {
     label: 'Mouse',
     prompt: (release) => (release ? 'Press and release a button...' : 'Click or scroll...'),
     record: (recordOptions, done) => {
-      const recorder = new MouseRecorder(recordOptions, { done, toBinding: eventToMouseBindingString })
+      const recorder = new MouseRecorder(recordOptions, done)
       return () => {
         recorder.stop()
       }
