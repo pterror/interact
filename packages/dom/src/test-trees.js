@@ -1,10 +1,10 @@
 /**
- * Pages for the flat-tree, tabbable and inside-layer browser tests: a host with a shadow root, a slot, and content
+ * Pages for the flat-tree, tabbable and document-layers browser tests: a host with a shadow root, a slot, and content
  * assigned to it, and what each module says about them.
  */
 
+import { happenedIn, onScrollbar } from './document-layers.js'
 import { deepActiveElement, flatChildren, flatContains } from './flat-tree.js'
-import { happenedIn, onScrollbar } from './inside-layer.js'
 import { tabWraps, tabbables } from './tabbable.js'
 
 const HALF = 2

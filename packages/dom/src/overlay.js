@@ -6,7 +6,6 @@
 import { follow, position, unposition } from './anchored.js'
 import { layersOf } from './document-layers.js'
 import { deepActiveElement, flatContains } from './flat-tree.js'
-import { giveFocusBack } from './focus-return.js'
 import { tabbables } from './tabbable.js'
 
 /**
@@ -29,9 +28,45 @@ import { tabbables } from './tabbable.js'
 
 /** @type {Placement} */
 const DEFAULT_PLACEMENT = { align: 'start', gap: 4, margin: 8, side: 'block-end' }
-const FIRST = 0
 /** @type {WeakMap<HTMLElement, BoundOverlay>} */
 const bound = new WeakMap()
+
+/**
+ * Where focus can go back to: the element focus came from, if it can still take it; if it is inside an overlay that
+ * closed, where that overlay's focus came from; otherwise nowhere.
+ * @param {Element | undefined} target - Where focus came from
+ * @param {Document} document - The document
+ * @returns {HTMLElement | undefined} Where it can go back to
+ */
+function usableReturn(target, document) {
+  if (target === undefined || !target.isConnected) {
+    return undefined
+  }
+  if (target instanceof HTMLElement && target.checkVisibility()) {
+    return target
+  }
+  const holder = layersOf(document)
+    .allParts()
+    .find((parts) => flatContains(parts.element, target))
+  return holder === undefined ? undefined : usableReturn(bound.get(holder.element)?.returnTo, document)
+}
+
+/**
+ * Gives focus back to where it came from once an overlay has hidden, if hiding lost it: it is nowhere, on the page
+ * itself, or still inside the overlay. Hidden by a press, it waits for the press to end: a press on something that
+ * takes focus gives it focus, and only a press on nothing loses it.
+ * @param {HTMLElement} element - The overlay, hidden
+ * @param {Element} returnTo - Where focus came from when it showed
+ * @returns {Promise<void>} When focus is back, or stays where it is
+ */
+async function giveFocusBack(element, returnTo) {
+  const document = element.ownerDocument
+  await layersOf(document).pressEnded()
+  const active = deepActiveElement(document)
+  if (active === undefined || active === document.body || flatContains(element, active)) {
+    usableReturn(returnTo, document)?.focus({ preventScroll: true })
+  }
+}
 
 /**
  * Whether an overlay is showing: a dialog open, or a popover open.
@@ -119,7 +154,8 @@ class BoundOverlay {
   }
 
   /**
-   * Shows the overlay: in the top layer, placed against its anchor, with focus taken into it if it moves focus.
+   * Shows the overlay: in the top layer, placed against its anchor, with focus taken into it if it moves focus: where
+   * its options say, or its first Tab stop, or the overlay itself.
    * @returns {void}
    */
   show() {
@@ -133,19 +169,10 @@ class BoundOverlay {
     }
     this.place()
     if (options.focus !== 'stay') {
-      this.#focusIn()
+      const target = options.initialFocus?.(element) ?? tabbables(element).at(0) ?? element
+      target.focus({ preventScroll: true })
     }
     this.layer.shown.set(true)
-  }
-
-  /**
-   * Takes focus into the overlay: where its options say, or its first Tab stop, or the overlay itself.
-   * @returns {void}
-   */
-  #focusIn() {
-    const { element, options } = this
-    const target = options.initialFocus?.(element) ?? tabbables(element).at(FIRST) ?? element
-    target.focus({ preventScroll: true })
   }
 
   /**
@@ -189,7 +216,7 @@ class BoundOverlay {
    */
   async #gone(returnTo) {
     if (returnTo !== undefined) {
-      await giveFocusBack(this.element, returnTo, (overlay) => bound.get(overlay)?.returnTo)
+      await giveFocusBack(this.element, returnTo)
     }
     this.layer.shown.set(false)
   }
@@ -219,27 +246,6 @@ class BoundOverlay {
 }
 
 /**
- * The binding of an overlay element to its layer, made the first time.
- * @param {HTMLElement} element - The overlay
- * @param {Layer} layer - Its layer
- * @param {OverlayOptions} options - How it behaves now
- * @returns {BoundOverlay} The binding
- */
-function bindingOf(element, layer, options) {
-  const known = bound.get(element)
-  if (known === undefined) {
-    const fresh = new BoundOverlay(element, layer, options)
-    bound.set(element, fresh)
-    return fresh
-  }
-  if (known.layer !== layer) {
-    throw new Error('An overlay element is bound to one layer for as long as it is in the page')
-  }
-  known.options = options
-  return known
-}
-
-/**
  * Brings an overlay element in line with its layer, after every render of the view it is in: shows it when its layer
  * is open and it isn't showing, hides it when its layer is closed, and places it again while it shows. The first call
  * puts the layer in its document's stack, where Escape, presses and focus outside dismiss it. The view has to render
@@ -251,7 +257,15 @@ function bindingOf(element, layer, options) {
  * @returns {void}
  */
 function syncOverlay(element, layer, options = {}) {
-  const binding = bindingOf(element, layer, options)
+  let binding = bound.get(element)
+  if (binding === undefined) {
+    binding = new BoundOverlay(element, layer, options)
+    bound.set(element, binding)
+  } else if (binding.layer === layer) {
+    binding.options = options
+  } else {
+    throw new Error('An overlay element is bound to one layer for as long as it is in the page')
+  }
   const open = layer.open.get()
   const shown = isShown(element)
   if (open && !shown) {
@@ -274,4 +288,4 @@ function releaseOverlay(element) {
   bound.delete(element)
 }
 
-export { releaseOverlay, syncOverlay }
+export { giveFocusBack, releaseOverlay, syncOverlay }

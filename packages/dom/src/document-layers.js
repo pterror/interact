@@ -1,20 +1,113 @@
 /**
  * @import { Layer } from '@interact/core/layer'
- * @import { LayerParts } from './inside-layer.js'
  */
 
 import { LayerStack } from '@interact/core'
 
-import { EscapeListener } from './escape-listener.js'
 import { deepActiveElement } from './flat-tree.js'
-import { happenedIn, onScrollbar } from './inside-layer.js'
 import { tabWraps, tabbables } from './tabbable.js'
 
-const FIRST = 0
-const LAST = -1
-/** A timer's delay that runs it in the next task. */
-const NEXT_TASK = 0
+/**
+ * What a layer is in the page: the element shown, and the element it is anchored to, if any, which counts as inside
+ * it (pressing a menu's button is pressing the menu's own control, not outside it).
+ * @typedef {Readonly<{ element: HTMLElement, anchor: () => Element | undefined }>} LayerParts
+ */
+
 const EVENTS = ['pointerdown', 'pointerup', 'pointercancel', 'click', 'focusin', 'focusout', 'keydown']
+
+/**
+ * Whether an event's path passes through a node.
+ * @param {readonly EventTarget[]} path - The event's composed path
+ * @param {Element | undefined} node - The node
+ * @returns {boolean} Whether it does
+ */
+function passesThrough(path, node) {
+  return node !== undefined && path.includes(node)
+}
+
+/**
+ * Whether a press on a modal dialog was on its backdrop: the dialog is the target, but the point is outside its box.
+ * @param {Event} event - The press
+ * @param {HTMLElement} element - The layer's element
+ * @returns {boolean} Whether it was
+ */
+function onBackdrop(event, element) {
+  const target = event.composedPath().at(0)
+  if (!(element instanceof HTMLDialogElement) || !(event instanceof MouseEvent) || target !== element) {
+    return false
+  }
+  const box = element.getBoundingClientRect()
+  const { clientX: across, clientY: down } = event
+  return across < box.left || across > box.right || down < box.top || down > box.bottom
+}
+
+/**
+ * Whether a press was on a scrollbar of the element it targets, which is scrolling, not pressing outside: inside the
+ * element's box, beyond its client area. A scrollbar that takes no room (an overlay scrollbar) leaves no such place.
+ * @param {Event} event - The press
+ * @returns {boolean} Whether it was
+ */
+function onScrollbar(event) {
+  const target = event.composedPath().at(0)
+  if (!(event instanceof MouseEvent) || !(target instanceof Element)) {
+    return false
+  }
+  const root = target === target.ownerDocument.documentElement
+  const box = target.getBoundingClientRect()
+  const across = event.clientX - (root ? 0 : box.left + target.clientLeft)
+  const down = event.clientY - (root ? 0 : box.top + target.clientTop)
+  const scrolls = target.scrollHeight > target.clientHeight || target.scrollWidth > target.clientWidth
+  const within = root || (across < box.width - target.clientLeft && down < box.height - target.clientTop)
+  return scrolls && within && (across >= target.clientWidth || down >= target.clientHeight)
+}
+
+/**
+ * Whether an event happened inside a layer: in its element, unless on a modal dialog's backdrop, or in its anchor.
+ * Shadow roots and slots don't hide it: the event's composed path goes through them.
+ * @param {Event} event - The event
+ * @param {LayerParts} parts - The layer's parts
+ * @returns {boolean} Whether it did
+ */
+function happenedIn(event, parts) {
+  const path = event.composedPath()
+  const inElement = passesThrough(path, parts.element) && !onBackdrop(event, parts.element)
+  return inElement || passesThrough(path, parts.anchor())
+}
+
+/**
+ * Hears Escape once everything inside the page has: a control that has its own use for it (a combobox emptying its
+ * field) takes it by preventing its default, and the top layer is dismissed only when nothing did.
+ */
+class EscapeListener {
+  /**
+   * @readonly
+   * @type {LayerStack}
+   */
+  #stack
+
+  /** @param {LayerStack} stack - The document's layers */
+  constructor(stack) {
+    this.#stack = stack
+  }
+
+  /**
+   * Escape that nothing in the page took dismisses the top layer, and is then the layer's.
+   * @param {Event} event - A keydown
+   * @returns {void}
+   */
+  handleEvent(event) {
+    if (
+      event instanceof KeyboardEvent &&
+      event.key === 'Escape' &&
+      !event.isComposing &&
+      !event.defaultPrevented &&
+      this.#stack.escape()
+    ) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }
+}
 
 /**
  * One document's layers: the stack, what each layer is in the page, and the listeners that turn the person's presses,
@@ -94,7 +187,7 @@ class DocumentLayers {
   }
 
   /**
-   * Hears the person: presses, focus moving, Escape and Tab.
+   * Hears the person: presses, focus moving, Escape and Tab. While no layer is open, only the end of a press.
    * @param {Event} event - What happened
    * @returns {void}
    */
@@ -104,17 +197,9 @@ class DocumentLayers {
       this.#press = undefined
       return
     }
-    if (this.stack.top() !== undefined) {
-      this.#heard(event)
+    if (this.stack.top() === undefined) {
+      return
     }
-  }
-
-  /**
-   * What the person did while a layer is open, passed to what handles it.
-   * @param {Event} event - What happened
-   * @returns {void}
-   */
-  #heard(event) {
     if (event.type === 'keydown') {
       this.#key(event)
     } else if (event.type === 'focusin') {
@@ -181,37 +266,20 @@ class DocumentLayers {
   }
 
   /**
-   * Notes that a Tab is moving focus, until the task it does that in is over.
-   * @returns {void}
-   */
-  #tabbed() {
-    this.#tabbing = true
-    setTimeout(() => {
-      this.#tabbing = false
-    }, NEXT_TASK)
-  }
-
-  /**
-   * Tab stays inside the top modal layer. A key typed to compose text (an input method) is the input method's.
+   * Tab: notes that it is moving focus, until the task it does that in is over, and keeps it inside the top modal
+   * layer, going round from the last element to the first and back. A key typed to compose text (an input method) is
+   * the input method's.
    * @param {Event} event - The keydown
    * @returns {void}
    */
   #key(event) {
-    if (!(event instanceof KeyboardEvent) || event.isComposing) {
+    if (!(event instanceof KeyboardEvent) || event.isComposing || event.key !== 'Tab') {
       return
     }
-    if (event.key === 'Tab') {
-      this.#tabbed()
-      this.#trap(event)
-    }
-  }
-
-  /**
-   * Keeps Tab inside the top modal layer, going round from the last element to the first and back.
-   * @param {KeyboardEvent} event - The Tab keydown
-   * @returns {void}
-   */
-  #trap(event) {
+    this.#tabbing = true
+    setTimeout(() => {
+      this.#tabbing = false
+    }, 0)
     const modal = this.stack.topModal()
     const parts = modal === undefined ? undefined : this.#parts.get(modal)
     if (parts === undefined) {
@@ -220,7 +288,7 @@ class DocumentLayers {
     const stops = tabbables(parts.element)
     if (tabWraps(stops, deepActiveElement(this.#document), event.shiftKey)) {
       event.preventDefault()
-      const next = event.shiftKey ? stops.at(LAST) : stops.at(FIRST)
+      const next = event.shiftKey ? stops.at(-1) : stops.at(0)
       next?.focus()
     }
   }
@@ -259,4 +327,4 @@ function layersOf(document) {
   return fresh
 }
 
-export { layersOf }
+export { EscapeListener, happenedIn, layersOf, onScrollbar }

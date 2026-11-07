@@ -1,23 +1,15 @@
 /**
- * The page for the focus-return browser tests: a button that opened an overlay, the overlay with a button in it, and
+ * The page for the overlay browser tests of giving focus back: a button that opened an overlay, the overlay with a button in it, and
  * another button.
  */
 
-import { giveFocusBack } from './focus-return.js'
+import { giveFocusBack } from './overlay.js'
 
 /**
  * What happened before the overlay hid: focus stayed inside it, something else took it, or the button that opened it
  * left the page.
  * @typedef {'stays inside' | 'taken elsewhere' | 'opener gone'} Before
  */
-
-/**
- * Where no overlay's focus came from.
- * @returns {undefined} Nowhere
- */
-function nowhere() {
-  return undefined
-}
 
 /**
  * Focus goes to the overlay's button, then what happened before it hid happens.
@@ -48,7 +40,7 @@ async function focusBack(before) {
     throw new TypeError('The page is missing its parts')
   }
   happenBefore(before, opener)
-  await giveFocusBack(overlay, opener, nowhere)
+  await giveFocusBack(overlay, opener)
   return document.activeElement?.id ?? 'nowhere'
 }
 

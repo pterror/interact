@@ -3,8 +3,6 @@
  * an element assigned to a slot is inside the slot.
  */
 
-const NONE = 0
-
 /**
  * A node's parent as rendered: the slot it is assigned to, else its parent, else, for a shadow root, its host.
  * @param {Node} node - The node
@@ -53,7 +51,7 @@ function flatChildren(element) {
   }
   if (element instanceof HTMLSlotElement) {
     const assigned = element.assignedElements({ flatten: true })
-    return assigned.length > NONE ? assigned : [...element.children]
+    return assigned.length > 0 ? assigned : [...element.children]
   }
   return [...element.children]
 }

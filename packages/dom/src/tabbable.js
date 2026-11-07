@@ -1,10 +1,5 @@
 import { flatChildren } from './flat-tree.js'
 
-const SEQUENTIAL = 0
-const FIRST = 0
-const LAST = -1
-const NOWHERE = -1
-
 /**
  * Whether an element is a radio button that Tab skips: one in a named group, unless it is the checked one, or the
  * group has none checked and it is the group's first.
@@ -21,7 +16,7 @@ function skippedRadio(element) {
   }
   const group = [...root.querySelectorAll(`input[type="radio"][name="${CSS.escape(element.name)}"]`)]
   const checked = group.find((radio) => radio instanceof HTMLInputElement && radio.checked)
-  return checked === undefined ? group.at(SEQUENTIAL) !== element : true
+  return checked === undefined ? group.at(0) !== element : true
 }
 
 /**
@@ -33,7 +28,7 @@ function skippedRadio(element) {
 function isTabbable(element) {
   return (
     element instanceof HTMLElement &&
-    element.tabIndex >= SEQUENTIAL &&
+    element.tabIndex >= 0 &&
     !element.matches(':disabled') &&
     element.closest('[inert]') === null &&
     element.checkVisibility({ visibilityProperty: true }) &&
@@ -42,11 +37,13 @@ function isTabbable(element) {
 }
 
 /**
- * The elements Tab can stop at inside a root, as rendered across shadow roots and slots, in tree order.
- * @param {Element} root - Where to look, not itself one of them
+ * The elements Tab stops at inside a root, as rendered across shadow roots and slots, in the order Tab visits them:
+ * positive `tabindex` first, by value, then the rest in tree order. The root itself is never one: a dialog is a stop
+ * in Firefox (`tabIndex` 0), but not one inside itself.
+ * @param {Element} root - Where to look
  * @returns {HTMLElement[]} The elements
  */
-function inTreeOrder(root) {
+function tabbables(root) {
   /** @type {HTMLElement[]} */
   const found = []
   /** @type {Element[]} */
@@ -59,21 +56,9 @@ function inTreeOrder(root) {
     pending.push(...flatChildren(next).toReversed())
     next = pending.pop()
   }
-  return found
-}
-
-/**
- * The elements Tab stops at inside a root, as rendered across shadow roots and slots, in the order Tab visits them:
- * positive `tabindex` first, by value, then the rest in tree order. The root itself is never one: a dialog is a stop
- * in Firefox (`tabIndex` 0), but not one inside itself.
- * @param {Element} root - Where to look
- * @returns {HTMLElement[]} The elements
- */
-function tabbables(root) {
-  const found = inTreeOrder(root)
-  const positive = found.filter((element) => element.tabIndex > SEQUENTIAL)
+  const positive = found.filter((element) => element.tabIndex > 0)
   const ordered = positive.toSorted((first, second) => first.tabIndex - second.tabIndex)
-  return [...ordered, ...found.filter((element) => element.tabIndex === SEQUENTIAL)]
+  return [...ordered, ...found.filter((element) => element.tabIndex === 0)]
 }
 
 /**
@@ -85,9 +70,9 @@ function tabbables(root) {
  * @returns {boolean} Whether it goes round
  */
 function tabWraps(stops, active, backwards) {
-  const at = active instanceof HTMLElement ? stops.indexOf(active) : NOWHERE
-  const edge = backwards ? FIRST : stops.length + LAST
-  return at === NOWHERE || at === edge
+  const at = active instanceof HTMLElement ? stops.indexOf(active) : -1
+  const edge = backwards ? 0 : stops.length - 1
+  return at === -1 || at === edge
 }
 
 export { tabWraps, tabbables }

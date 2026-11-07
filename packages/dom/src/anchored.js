@@ -1,4 +1,4 @@
-/** @import { Align, Direction, Rect, Side } from '@interact/core/placement' */
+/** @import { Align, Rect, Side } from '@interact/core/placement' */
 
 import { place } from '@interact/core'
 
@@ -28,8 +28,6 @@ const PLACED = {
   y: '--interact-overlay-y',
 }
 
-const NONE = 0
-
 /**
  * Where an anchor is on the screen.
  * @param {Anchor} anchor - The anchor
@@ -40,16 +38,7 @@ function rectOf(anchor) {
     const box = anchor.getBoundingClientRect()
     return { height: box.height, width: box.width, x: box.left, y: box.top }
   }
-  return { height: NONE, width: NONE, x: anchor.x, y: anchor.y }
-}
-
-/**
- * The direction inline text runs in an element.
- * @param {Element} element - The element
- * @returns {Direction} The direction
- */
-function directionOf(element) {
-  return getComputedStyle(element).direction === 'rtl' ? 'rtl' : 'ltr'
+  return { height: 0, width: 0, x: anchor.x, y: anchor.y }
 }
 
 /**
@@ -65,8 +54,8 @@ function placeOnce(element, anchor, placement) {
   const placed = place({
     ...placement,
     anchor,
-    bounds: { height: root.clientHeight, width: root.clientWidth, x: NONE, y: NONE },
-    direction: directionOf(element),
+    bounds: { height: root.clientHeight, width: root.clientWidth, x: 0, y: 0 },
+    direction: getComputedStyle(element).direction === 'rtl' ? 'rtl' : 'ltr',
     size: { height: box.height, width: box.width },
   })
   element.style.setProperty(PLACED.x, `${String(placed.x)}px`)
@@ -118,26 +107,29 @@ class Following {
   /** @readonly */
   #element
   /** @readonly */
-  #sources
+  #anchor
+  /** @readonly */
+  #placement
   /** @readonly */
   #sizes = new ResizeObserver(() => {
     this.handleEvent()
   })
-  #frame = NONE
+  #frame = 0
 
   /**
    * Starts following.
    * @param {Window} view - The overlay's window
    * @param {HTMLElement} element - The overlay, shown
-   * @param {Readonly<{ anchor: () => Anchor | undefined, placement: () => Placement }>} sources - What it is placed
-   *   against now, and how
+   * @param {() => Anchor | undefined} anchor - What it is placed against now
+   * @param {() => Placement} placement - How it is placed now
    */
-  constructor(view, element, sources) {
+  constructor(view, element, anchor, placement) {
     this.#view = view
     this.#element = element
-    this.#sources = sources
+    this.#anchor = anchor
+    this.#placement = placement
     this.#sizes.observe(element)
-    const first = sources.anchor()
+    const first = anchor()
     if (first instanceof Element) {
       this.#sizes.observe(first)
     }
@@ -150,14 +142,14 @@ class Following {
    * @returns {void}
    */
   handleEvent() {
-    if (this.#frame !== NONE) {
+    if (this.#frame !== 0) {
       return
     }
     this.#frame = this.#view.requestAnimationFrame(() => {
-      this.#frame = NONE
-      const now = this.#sources.anchor()
+      this.#frame = 0
+      const now = this.#anchor()
       if (now !== undefined) {
-        position(this.#element, now, this.#sources.placement())
+        position(this.#element, now, this.#placement())
       }
     })
   }
@@ -183,7 +175,7 @@ class Following {
  */
 function follow(element, anchor, placement) {
   const view = element.ownerDocument.defaultView
-  return view === null ? undefined : new Following(view, element, { anchor, placement })
+  return view === null ? undefined : new Following(view, element, anchor, placement)
 }
 
 export { Following, PLACED, follow, position, unposition }

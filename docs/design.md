@@ -522,7 +522,7 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
   the first Tab stop, else the overlay).
 - **Each document has one stack** (`document-layers.js`), made the first time an overlay asks, with capture-phase
   listeners on the document: pointerdown, click, focusin, keydown, pointerup/cancel. What counts as inside a layer
-  (`inside-layer.js`) is judged on the event's composed path, so shadow roots and slots hide nothing.
+  (`happenedIn`) is judged on the event's composed path, so shadow roots and slots hide nothing.
 - **Platform support, measured in Chrome 156, Firefox 157 and WebKit 27.2** (scripts in the session's scratchpad):
   - Same in all three: CSS anchor positioning (`anchor-name`, `position-anchor`, `anchor()`, `position-area`,
     `position-try-fallbacks: flip-block`, which flipped correctly), the popover API with the top layer above any
@@ -551,10 +551,10 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
   - Opening an overlay over an open modal one when it isn't inside the modal's dialog is an error, not an overlay that
     can't be reached.
 - **Escape is heard after the page (Derived):** the stack takes outside presses and Tab in the capture phase, but Escape
-  in the bubble phase, and only when nothing in the page prevented its default (`escape-listener.js`). A control inside
-  a layer with its own use for Escape (a combobox emptying its field) takes it first; a layer dismissed by it then takes
-  the key from the rest of the page. Hearing it in the capture phase closed a modal dialog before a closed combobox in
-  it could empty its field, in all three engines.
+  in the bubble phase, and only when nothing in the page prevented its default (`EscapeListener`, `document-layers.js`).
+  A control inside a layer with its own use for Escape (a combobox emptying its field) takes it first; a layer dismissed
+  by it then takes the key from the rest of the page. Hearing it in the capture phase closed a modal dialog before a
+  closed combobox in it could empty its field, in all three engines.
 - **Edge cases taken from zag.js** (`@zag-js/dismissable`, `@zag-js/interact-outside`, `@zag-js/dom-query`, read in the
   evaluation's install): Escape is ignored while an input method composes; a press is judged on the composed path's
   first target in shadow DOM; a press on a scrollbar of the element pressed isn't outside (only where scrollbars take
@@ -574,9 +574,9 @@ placed against something. The model is in `@interact/core`, with no DOM; its bin
   when a Tab caused it; focus then goes back to the opener, where the person finds it on coming back to the page. Focus
   leaving because the window did (another window or tab) is no Tab and closes nothing. Headless Firefox moves focus
   nowhere on a Tab past the page's last element, so its overlay stays open with focus in it, which is right there.
-  Giving focus back is `focus-return.js`, and the binding sets the layer's `shown` once it is done. A press that
-  dismisses waits for the pointer to come up before giving focus back, so a press on something focusable keeps focus
-  there, and only a press on nothing loses it to the overlay's opener (a backdrop press on a modal returns to its
+  Giving focus back is `giveFocusBack` (`overlay.js`), and the binding sets the layer's `shown` once it is done. A press
+  that dismisses waits for the pointer to come up before giving focus back, so a press on something focusable keeps
+  focus there, and only a press on nothing loses it to the overlay's opener (a backdrop press on a modal returns to its
   button).
 - **Proven in Chrome 156, Firefox 157 and WebKit 27.2, in shadow and light DOM** (`overlay.test.js` and the module tests
   beside it): opening below its button in the top layer with focus inside; Escape closing it and returning focus; a
