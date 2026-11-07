@@ -13,7 +13,6 @@ const KIND_ATTRIBUTE = 'data-interact'
 /** The attribute on the element a shadow-DOM component's view is rendered in, the one child of its shadow root. */
 const VIEW_ATTRIBUTE = 'data-interact-view'
 const KIND = /^[a-z][a-z0-9-]*$/u
-const NONE = 0
 
 /**
  * A stylesheet. It takes no holes, so what it says can be checked where it is written; values that change are custom
@@ -23,7 +22,7 @@ const NONE = 0
  * @returns {Stylesheet} The stylesheet
  */
 function css(strings, ...holes) {
-  if (holes.length !== NONE) {
+  if (holes.length > 0) {
     throw new TypeError('css`` takes no holes: use custom properties for values that change')
   }
   return { kind: 'stylesheet', text: strings.raw.join('') }

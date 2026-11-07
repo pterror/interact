@@ -9,19 +9,6 @@ const STYLES_ATTRIBUTE = 'data-interact-styles'
 const constructed = new WeakMap()
 
 /**
- * The sheets constructed from one stylesheet, by scope.
- * @param {Stylesheet} sheet - The stylesheet
- * @returns {Map<string, CSSStyleSheet>} Its constructed sheets
- */
-function scopesOf(sheet) {
-  /** @type {Map<string, CSSStyleSheet>} */
-  const empty = new Map()
-  const byScope = constructed.get(sheet) ?? empty
-  constructed.set(sheet, byScope)
-  return byScope
-}
-
-/**
  * A stylesheet scoped to one component, constructed once and shared by every root that adopts it.
  * @param {Stylesheet} sheet - The stylesheet
  * @param {string} kind - The component's kind
@@ -29,7 +16,10 @@ function scopesOf(sheet) {
  * @returns {CSSStyleSheet} The constructed sheet
  */
 function constructedSheet(sheet, kind, mode) {
-  const byScope = scopesOf(sheet)
+  /** @type {Map<string, CSSStyleSheet>} */
+  const empty = new Map()
+  const byScope = constructed.get(sheet) ?? empty
+  constructed.set(sheet, byScope)
   const key = `${mode} ${kind}`
   const known = byScope.get(key)
   if (known) {

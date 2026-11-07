@@ -57,21 +57,6 @@ function setDefaultMode(registered, mode) {
 }
 
 /**
- * The DOM mode an attribute asks for, if any.
- * @param {string | null} value - The attribute's value
- * @returns {DomMode | undefined} The mode
- */
-function modeOf(value) {
-  if (value === 'shadow' || value === 'light') {
-    return value
-  }
-  if (value !== null) {
-    throw new TypeError(`${MODE_ATTRIBUTE} is "shadow" or "light", not "${value}"`)
-  }
-  return undefined
-}
-
-/**
  * Where an element lives: shadow DOM if it has a shadow root, else what its `dom-mode` attribute asks for, else the
  * default its class was registered with.
  * @param {HTMLElement} element - The element
@@ -81,26 +66,28 @@ function elementMode(element) {
   if (element.shadowRoot) {
     return 'shadow'
   }
-  return modeOf(element.getAttribute(MODE_ATTRIBUTE)) ?? defaultModes.get(element.constructor) ?? 'shadow'
+  const asked = element.getAttribute(MODE_ATTRIBUTE)
+  if (asked === 'shadow' || asked === 'light') {
+    return asked
+  }
+  if (asked !== null) {
+    throw new TypeError(`${MODE_ATTRIBUTE} is "shadow" or "light", not "${asked}"`)
+  }
+  return defaultModes.get(element.constructor) ?? 'shadow'
 }
 
 /**
- * Where an element's view goes: in shadow DOM, the one element in its shadow root that the view is rendered in (made
- * if the server didn't), so its stylesheet can scope to it; else the element itself.
+ * Where an element's view goes: in shadow DOM, the one element in its shadow root that the view is rendered in (the
+ * server's, or one made now), so its stylesheet can scope to it; else the element itself.
  * @param {HTMLElement} element - The element
  * @param {DomMode} mode - Where it lives
  * @returns {HTMLElement} Where its view goes
  */
 function viewRoot(element, mode) {
-  return mode === 'light' ? element : shadowView(element.shadowRoot ?? element.attachShadow({ mode: 'open' }))
-}
-
-/**
- * The element a shadow root's view is rendered in: the server's, or one made now.
- * @param {ShadowRoot} shadow - The shadow root
- * @returns {HTMLElement} The element
- */
-function shadowView(shadow) {
+  if (mode === 'light') {
+    return element
+  }
+  const shadow = element.shadowRoot ?? element.attachShadow({ mode: 'open' })
   const found = [...shadow.children].find((child) => child.hasAttribute(VIEW_ATTRIBUTE))
   if (found instanceof HTMLElement) {
     return found
@@ -110,28 +97,6 @@ function shadowView(shadow) {
   made.setAttribute('style', 'display: contents')
   shadow.append(made)
   return made
-}
-
-/**
- * Styles an element, and renders its view or adopts the server's.
- * @template {Behavior} B
- * @param {HTMLElement} root - Where its view goes
- * @param {View<B>} view - The view
- * @param {Readonly<{ behavior: B, mode: DomMode, again: () => void }>} instance - Its behavior, where it lives, and how
- *   to render it again
- * @returns {void}
- */
-function show(root, view, instance) {
-  const styleRoot = root.getRootNode()
-  if (styleRoot instanceof Document || styleRoot instanceof ShadowRoot) {
-    adoptStyles(styleRoot, view.styles, { kind: view.kind, mode: instance.mode })
-  }
-  if (hasServerMarkup(root)) {
-    hydrate(view.render(instance.behavior), root)
-  } else {
-    render(view.render(instance.behavior), root)
-  }
-  view.rendered?.(instance.behavior, root, instance.again)
 }
 
 /**
@@ -163,8 +128,8 @@ function scheduler(root, view, behavior) {
 }
 
 /**
- * An element coming into the page: marked with its kind, its view rendered or the server's adopted, and following its
- * behavior from then on.
+ * An element coming into the page: marked with its kind, styled, its view rendered or the server's adopted, and
+ * following its behavior from then on.
  * @template {Behavior} B
  * @param {HTMLElement} element - The element
  * @param {View<B>} view - Its view
@@ -176,7 +141,16 @@ function connect(element, view, behavior) {
   const mode = elementMode(element)
   const root = viewRoot(element, mode)
   const again = scheduler(root, view, behavior)
-  show(root, view, { again, behavior, mode })
+  const styleRoot = root.getRootNode()
+  if (styleRoot instanceof Document || styleRoot instanceof ShadowRoot) {
+    adoptStyles(styleRoot, view.styles, { kind: view.kind, mode })
+  }
+  if (hasServerMarkup(root)) {
+    hydrate(view.render(behavior), root)
+  } else {
+    render(view.render(behavior), root)
+  }
+  view.rendered?.(behavior, root, again)
   return { root, stop: behavior.subscribe(again) }
 }
 
