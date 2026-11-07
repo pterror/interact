@@ -1,12 +1,12 @@
 /**
  * Comboboxes for the tests, the same on the server and in the page: a handful of fruit as fixed options or suggested
  * by what is typed, and ten billion numbered items.
- * @import { Span } from '@interact/core/memory-source'
- * @import { Numbered, Range } from './test-helpers.js'
+ * @import { Numbered } from './test-helpers.js'
  */
 
 import { MemorySource, startsWithTyped } from '@interact/core'
 
+import { comboboxExtensions } from './combobox-extensions.js'
 import { Combobox } from './combobox.js'
 import { TEN_BILLION, numberText, numbers } from './test-helpers.js'
 
@@ -43,7 +43,7 @@ function suggestFruit(text) {
 /**
  * A select-only combobox over the fruit.
  * @param {string} [value] - The fruit chosen to start with
- * @returns {Combobox<string, Span>} The combobox
+ * @returns {Combobox<string>} The combobox
  */
 function fruitSelect(value) {
   return new Combobox({
@@ -51,7 +51,7 @@ function fruitSelect(value) {
     kind: 'select-only',
     label: 'Fruit',
     placeholder: 'Choose a fruit',
-    rows: ROWS,
+    extensions: comboboxExtensions({ rows: ROWS }),
     source: fruitSource(),
     ...(value === undefined ? {} : { value }),
   })
@@ -61,7 +61,7 @@ function fruitSelect(value) {
  * An editable combobox suggesting fruit by what is typed.
  * @param {'list' | 'both'} autocomplete - How it autocompletes
  * @param {'manual' | 'automatic'} [selection] - How list autocomplete selects
- * @returns {Combobox<string, Span>} The combobox
+ * @returns {Combobox<string>} The combobox
  */
 function fruitSearch(autocomplete, selection = 'manual') {
   return new Combobox({
@@ -69,7 +69,7 @@ function fruitSearch(autocomplete, selection = 'manual') {
     id: 'fruit',
     kind: 'editable',
     label: 'Fruit',
-    rows: ROWS,
+    extensions: comboboxExtensions({ rows: ROWS }),
     selection,
     suggest: suggestFruit,
   })
@@ -78,14 +78,14 @@ function fruitSearch(autocomplete, selection = 'manual') {
 /**
  * A select-only combobox over ten billion numbered items.
  * @param {number} [chosen] - The number chosen to start with
- * @returns {Combobox<Numbered, Range>} The combobox
+ * @returns {Combobox<Numbered>} The combobox
  */
 function numberSelect(chosen) {
   return new Combobox({
     id: 'number',
     kind: 'select-only',
     label: 'Number',
-    rows: ROWS,
+    extensions: comboboxExtensions({ rows: ROWS }),
     source: numbers(TEN_BILLION).source,
     text: numberText,
     ...(chosen === undefined ? {} : { value: { id: chosen } }),

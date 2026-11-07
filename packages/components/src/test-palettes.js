@@ -5,6 +5,7 @@
  */
 
 import { CommandBridge } from './command-bridge.js'
+import { paletteExtensions } from './palette-extensions.js'
 import { Palette } from './palette.js'
 
 /** @type {readonly BridgeCommand[]} */
@@ -37,7 +38,12 @@ function editorSystem(ran) {
  * @returns {Palette<string>} The palette
  */
 function editorPalette(ran) {
-  return new Palette({ bridge: new CommandBridge(editorSystem(ran)), context: () => 'editor', id: 'commands' })
+  return new Palette({
+    bridge: new CommandBridge(editorSystem(ran)),
+    context: () => 'editor',
+    extensions: paletteExtensions(),
+    id: 'commands',
+  })
 }
 
 export { EDITOR_COMMANDS, editorPalette }

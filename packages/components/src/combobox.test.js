@@ -5,6 +5,9 @@
 
 import { describe, expect, test } from 'bun:test'
 
+import { controlled } from '@interact/core'
+
+import { comboboxExtensions } from './combobox-extensions.js'
 import { Combobox } from './combobox.js'
 import { fruitSearch, fruitSelect, fruitSource, numberSelect } from './test-comboboxes.js'
 import { TEN_BILLION } from './test-helpers.js'
@@ -30,8 +33,8 @@ async function settle() {
 
 /**
  * Presses keys in a combobox's field one after another, letting each settle.
- * @template T, F
- * @param {Combobox<T, F>} box - The combobox
+ * @template T
+ * @param {Combobox<T>} box - The combobox
  * @param {readonly string[]} keys - The keys
  * @param {ComboboxModifiers} [modifiers] - What is held
  * @returns {Promise<boolean[]>} Whether each was used
@@ -48,8 +51,8 @@ async function press(box, keys, modifiers = PLAIN) {
 
 /**
  * Where each key opens a closed combobox's list: the active option once it opens, closing it again after.
- * @template T, F
- * @param {Combobox<T, F>} box - The combobox
+ * @template T
+ * @param {Combobox<T>} box - The combobox
  * @param {readonly string[]} keys - The keys
  * @returns {Promise<(number | undefined)[]>} Where each opened it
  */
@@ -59,33 +62,31 @@ async function openings(box, keys) {
     return []
   }
   await press(box, [key])
-  const landed = box.list.active.get()
+  const landed = box.active
   box.close()
   return [landed, ...(await openings(box, rest))]
 }
 
 /**
  * The options showing, the active one in brackets.
- * @template F
- * @param {Combobox<string, F>} box - The combobox
+ * @param {Combobox<string>} box - The combobox
  * @returns {string[]} The options
  */
 function options(box) {
-  const { active, items } = box.list
-  return Array.from({ length: items.count }, (_unused, position) => {
-    const text = items.item(position) ?? '?'
-    return active.get() === position ? `[${text}]` : text
+  return Array.from({ length: box.count }, (_unused, position) => {
+    const text = box.option(position) ?? '?'
+    return box.active === position ? `[${text}]` : text
   })
 }
 
 /**
  * What a combobox's state is: whether its list is open, and what is chosen.
- * @template T, F
- * @param {Combobox<T, F>} box - The combobox
+ * @template T
+ * @param {Combobox<T>} box - The combobox
  * @returns {readonly [boolean, T | undefined]} The state
  */
 function state(box) {
-  return [box.layer.open.get(), box.value.get()]
+  return [box.layer.open.get(), box.value]
 }
 
 describe('a select-only combobox', () => {
@@ -131,7 +132,7 @@ describe('a select-only combobox closing', () => {
   test('opens without moving with Alt+Down, and chooses with Alt+Up', async () => {
     const box = fruitSelect()
     await press(box, ['ArrowDown'], ALT)
-    const opened = [box.layer.open.get(), box.list.active.get()]
+    const opened = [box.layer.open.get(), box.active]
     await press(box, ['ArrowDown', 'ArrowDown'])
     await press(box, ['ArrowUp'], ALT)
     expect([opened, state(box)]).toEqual([
@@ -141,15 +142,21 @@ describe('a select-only combobox closing', () => {
   })
 
   test('asks the app for its choice when the app owns it, which decides', async () => {
-    const box = fruitSelect('Apple')
-    box.value.control(true)
     /** @type {(string | undefined)[]} */
     const asked = []
-    box.value.onRequest((next) => {
-      asked.push(next)
+    const box = new Combobox({
+      extensions: (core) => [
+        comboboxExtensions()(core),
+        controlled(core.chosen, (next) => {
+          asked.push(next)
+        }),
+      ],
+      kind: 'select-only',
+      source: fruitSource(),
+      value: 'Apple',
     })
     await press(box, ['ArrowDown', 'ArrowDown', 'Enter'])
-    expect([asked, box.value.get()]).toEqual([['Apricot'], 'Apple'])
+    expect([asked, box.value]).toEqual([['Apricot'], 'Apple'])
   })
 })
 
@@ -157,9 +164,9 @@ describe('a select-only combobox over ten billion options', () => {
   test('opens on the one chosen, and goes to the last with End', async () => {
     const box = numberSelect(FIVE_BILLION)
     await press(box, ['ArrowDown'])
-    const opened = box.list.active.get()
+    const opened = box.active
     await press(box, ['End', 'Enter'])
-    expect([opened, box.value.get()]).toEqual([FIVE_BILLION, { id: LAST }])
+    expect([opened, box.value]).toEqual([FIVE_BILLION, { id: LAST }])
   })
 })
 
@@ -170,7 +177,7 @@ describe('an editable combobox with list autocomplete', () => {
     await settle()
     const typed = [box.layer.open.get(), options(box)]
     await press(box, ['ArrowDown', 'Enter'])
-    expect([typed, state(box), box.text.get()]).toEqual([[true, ['Banana', 'Blueberry']], [false, 'Banana'], 'Banana'])
+    expect([typed, state(box), box.text]).toEqual([[true, ['Banana', 'Blueberry']], [false, 'Banana'], 'Banana'])
   })
 })
 
@@ -183,7 +190,7 @@ describe('an editable combobox with list autocomplete, closing and selecting', (
     box.type('ch')
     await settle()
     box.layer.dismiss('focus-outside')
-    expect([nothing, state(box), box.text.get()]).toEqual([false, [false, undefined], 'ch'])
+    expect([nothing, state(box), box.text]).toEqual([false, [false, undefined], 'ch'])
   })
 
   test('with automatic selection makes the first active, and chooses it when it is left', async () => {
@@ -192,7 +199,7 @@ describe('an editable combobox with list autocomplete, closing and selecting', (
     await settle()
     const typed = options(box)
     box.layer.dismiss('outside')
-    expect([typed, state(box), box.text.get()]).toEqual([['[Banana]', 'Blueberry'], [false, 'Banana'], 'Banana'])
+    expect([typed, state(box), box.text]).toEqual([['[Banana]', 'Blueberry'], [false, 'Banana'], 'Banana'])
   })
 
   test('with the list open, gives Home, End and the side arrows back to the field, no option active', async () => {
@@ -200,7 +207,7 @@ describe('an editable combobox with list autocomplete, closing and selecting', (
     box.type('a')
     await settle()
     const used = await press(box, ['Home', 'End', 'ArrowLeft', 'ArrowRight'])
-    expect([used, box.list.active.get(), box.layer.open.get()]).toEqual([[false, false, false, false], undefined, true])
+    expect([used, box.active, box.layer.open.get()]).toEqual([[false, false, false, false], undefined, true])
   })
 })
 
@@ -219,7 +226,7 @@ describe('an editable combobox with list autocomplete, opening by key', () => {
     box.type('b')
     await settle()
     const used = await press(box, ['Escape', 'Escape', 'Escape'])
-    expect([used, box.layer.open.get(), box.text.get()]).toEqual([[true, true, false], false, ''])
+    expect([used, box.layer.open.get(), box.text]).toEqual([[true, true, false], false, ''])
   })
 
   test("shows only what's found for the text typed last, however late an earlier answer comes", async () => {
@@ -227,6 +234,7 @@ describe('an editable combobox with list autocomplete, opening by key', () => {
     const asked = new Map()
     const box = new Combobox({
       autocomplete: 'list',
+      extensions: comboboxExtensions(),
       kind: 'editable',
       suggest: async (text) => {
         /** @type {PromiseWithResolvers<MemorySource<string>>} */
@@ -246,14 +254,19 @@ describe('an editable combobox with list autocomplete, opening by key', () => {
 
 describe('an editable combobox without autocomplete', () => {
   test('keeps its options whatever is typed, opens on the first with Down, and fills the field with the choice', async () => {
-    const box = new Combobox({ clearOnEscape: false, kind: 'editable', source: fruitSource() })
+    const box = new Combobox({
+      clearOnEscape: false,
+      extensions: comboboxExtensions(),
+      kind: 'editable',
+      source: fruitSource(),
+    })
     box.type('zz')
     await settle()
     const typed = box.layer.open.get()
     await press(box, ['ArrowDown', 'ArrowDown', 'Enter'])
-    const chosen = [box.text.get(), box.value.get()]
+    const chosen = [box.text, box.value]
     const kept = await press(box, ['Escape'])
-    expect([typed, chosen, kept, box.text.get()]).toEqual([false, ['Apricot', 'Apricot'], [false], 'Apricot'])
+    expect([typed, chosen, kept, box.text]).toEqual([false, ['Apricot', 'Apricot'], [false], 'Apricot'])
   })
 })
 
@@ -273,10 +286,10 @@ describe('an editable combobox with inline autocomplete', () => {
     box.type('ch')
     await settle()
     await press(box, ['ArrowRight'])
-    const kept = [box.text.get(), box.list.active.get(), box.value.get()]
+    const kept = [box.text, box.active, box.value]
     box.type('che')
     await settle()
     await press(box, ['Enter'])
-    expect([kept, box.text.get(), box.value.get()]).toEqual([['cherry', undefined, undefined], 'Cherry', 'Cherry'])
+    expect([kept, box.text, box.value]).toEqual([['cherry', undefined, undefined], 'Cherry', 'Cherry'])
   })
 })

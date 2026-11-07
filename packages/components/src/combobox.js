@@ -1,31 +1,56 @@
-/** @import { Source } from '@interact/core/source' */
+/**
+ * @import { KeyInput } from '@interact/core/inputs'
+ * @import { Attributes, ListPipeline, RenderRow } from '@interact/core/list-pipeline'
+ * @import { ItemSource } from '@interact/core/source'
+ * @import { Builder, Effect, EffectType, Extension, Field, State, Transaction } from '@interact/core/state'
+ * @import { Handled } from '@interact/core/store'
+ * @import { TemplateResult } from '@interact/dom/template'
+ * @import { ActiveItem } from './active-item.js'
+ */
 
-import { Controllable, Layer, Listeners, startsWithTyped } from '@interact/core'
+import {
+  Layer,
+  MemorySource,
+  Store,
+  defineEffect,
+  defineField,
+  definePlugin,
+  inputHandler,
+  keyInput,
+  listPipeline,
+  precedence,
+  startsWithTyped,
+} from '@interact/core'
+import { html, ownElement, releaseOverlay, syncOverlay, viewContent, viewPlugin } from '@interact/dom'
 
-import { PLAIN } from './field-keys.js'
+import { active, readNow } from './active-item.js'
+import { comboboxInput, hearField } from './combobox-field.js'
 import { Latest } from './latest.js'
-import { landing } from './legacy-landing.js'
-import { Listbox } from './legacy-listbox.js'
 
 /**
  * The options for what is typed, at once or later: the app's (or its server's) to find, `undefined` for none.
- * @template T, F
- * @typedef {(text: string) => Source<T, F> | undefined | Promise<Source<T, F> | undefined>} Suggest
+ * @template T
+ * @typedef {(text: string) => ItemSource<T> | undefined | Promise<ItemSource<T> | undefined>} Suggest
+ */
+
+/**
+ * What a combobox is made of besides its core, given that core.
+ * @template T
+ * @typedef {(combobox: ComboboxCore<T>) => Extension} ComboboxExtensions
  */
 
 /**
  * What every combobox has: its id (unique in the page for light DOM), its accessible name, what a select-only one
- * shows with nothing chosen, how many options show at once, the clock typing is timed by, what an option is called,
- * and the option chosen to start with.
+ * shows with nothing chosen, what an option is called, the option chosen to start with, and what it is made of besides
+ * its core.
  * @template T
  * @typedef {Readonly<{
  *   id?: string,
  *   label?: string,
  *   placeholder?: string,
- *   rows?: number,
- *   now?: () => number,
  *   text?: (item: T) => string,
  *   value?: T,
+ *   extensions?: ComboboxExtensions<T>,
  * }>} ComboboxBasics
  */
 
@@ -35,15 +60,15 @@ import { Listbox } from './legacy-listbox.js'
  * are what `suggest` finds for the text; with `both`, the active option's text also completes the field inline. List
  * autocomplete makes the first option found active itself (`automatic`) or waits for the arrows (`manual`); `both` is
  * always automatic. `clearOnEscape`: Escape with the list closed empties the field (by default it does).
- * @template T, F
- * @typedef {(ComboboxBasics<T> & Readonly<{ kind: 'select-only', source?: Source<T, F> }>)
+ * @template T
+ * @typedef {(ComboboxBasics<T> & Readonly<{ kind: 'select-only', source?: ItemSource<T> }>)
  *   | (ComboboxBasics<T> & Readonly<{
- *     kind: 'editable', autocomplete?: 'none', source?: Source<T, F>, clearOnEscape?: boolean,
+ *     kind: 'editable', autocomplete?: 'none', source?: ItemSource<T>, clearOnEscape?: boolean,
  *   }>)
  *   | (ComboboxBasics<T> & Readonly<{
  *     kind: 'editable',
  *     autocomplete: 'list' | 'both',
- *     suggest: Suggest<T, F>,
+ *     suggest: Suggest<T>,
  *     selection?: 'manual' | 'automatic',
  *     clearOnEscape?: boolean,
  *   }>)} ComboboxOptions
@@ -53,13 +78,13 @@ import { Listbox } from './legacy-listbox.js'
  * What kind of combobox the options make: whether its field is editable, how it autocompletes, whether leaving with
  * its list open chooses the active option (select-only, `automatic`, `both`), whether Escape empties it, and what it
  * suggests from, if it suggests.
- * @template T, F
+ * @template T
  * @typedef {Readonly<{
  *   editable: boolean,
  *   autocomplete: 'none' | 'list' | 'both',
  *   selectsOnLeave: boolean,
  *   clearsOnEscape: boolean,
- *   suggest: Suggest<T, F> | undefined,
+ *   suggest: Suggest<T> | undefined,
  * }>} ComboboxKind
  */
 
@@ -74,18 +99,25 @@ import { Listbox } from './legacy-listbox.js'
  * @typedef {Readonly<{ alt: boolean, shift: boolean, toggle: boolean }>} ComboboxModifiers
  */
 
-const DEFAULT_ROWS = 10
+/**
+ * What the field holds: the option chosen, the text in an editable field, and whether the last edit deleted.
+ * @template T
+ * @typedef {Readonly<{ value: T | undefined, text: string, deleting: boolean }>} Chosen
+ */
+
 /** A key that types one character: `KeyboardEvent.key` names every other key with a word. */
 const ONE_CHARACTER = /^.$/su
 const MOVES = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp'])
+/** @type {ComboboxModifiers} */
+const PLAIN = { alt: false, shift: false, toggle: false }
 /** Keys that put the cursor back in an editable field's text, keeping what completed it, so no option is active. */
 const TO_FIELD = new Set(['Home', 'End', 'ArrowLeft', 'ArrowRight'])
 
 /**
  * What kind of combobox options make.
- * @template T, F
- * @param {ComboboxOptions<T, F>} options - The options
- * @returns {ComboboxKind<T, F>} The kind
+ * @template T
+ * @param {ComboboxOptions<T>} options - The options
+ * @returns {ComboboxKind<T>} The kind
  */
 function kindOf(options) {
   if (options.kind === 'select-only') {
@@ -106,152 +138,95 @@ function kindOf(options) {
 }
 
 /**
+ * A list of no options.
+ * @template T
+ * @returns {ItemSource<T>} The list
+ */
+function noOptions() {
+  /** @type {T[]} */
+  const none = []
+  return new MemorySource(none, () => '')
+}
+
+/**
  * Whether a key is a character typed, with nothing but Shift held.
- * @param {string} key - The key
- * @param {ComboboxModifiers} modifiers - What was held
+ * @param {KeyInput} key - The key
  * @returns {boolean} Whether it is
  */
-function printable(key, modifiers) {
-  return ONE_CHARACTER.test(key) && !modifiers.alt && !modifiers.toggle
+function printable({ alt, key, toggle }) {
+  return ONE_CHARACTER.test(key) && !alt && !toggle
 }
 
 /**
- * What an editable combobox with list autocomplete suggests: the options found for its text, shown in its list as they
- * arrive, opening it, or closing it when there are none. Only the answer for the text asked last is shown.
- * @template T, F
+ * What makes a combobox, as the WAI-ARIA Authoring Practices combobox pattern has it, and no more: a field (focusable,
+ * or a text input) controlling a listbox of options in a popup layer of its own, and the option chosen, its `value`.
+ * Focus stays in the field, which names the active option as its active descendant; that option is the one selected.
+ * Its keys are the APG's for its kind, with the list closed or open; opening lands on the option chosen through the
+ * source's `positionOf`, else the first; one that suggests shows only what is found for the text typed last, and closes
+ * when nothing is; leaving with the list open (Tab, a press elsewhere) chooses its active option when it selects by
+ * itself; Escape never does, and with the list closed empties an editable field. An app owns the option chosen with
+ * `controlled(combobox.chosen, ...)`. Keyboard navigation, typeahead, the pointer, windowing and a rendering are
+ * extensions given beside it.
+ * @template T
  */
-class Suggestions {
-  /** @readonly */
-  #latest = new Latest()
-  /**
-   * Where the active option goes once the options asked for are shown, if anywhere.
-   * @type {OpenAt | undefined}
-   */
-  #openAt = undefined
-  /**
-   * @readonly
-   * @type {Suggest<T, F>}
-   */
-  #suggest
-  /**
-   * @readonly
-   * @type {Listbox<T, F>}
-   */
-  #list
-  /**
-   * @readonly
-   * @type {Layer}
-   */
-  #layer
-  /**
-   * @readonly
-   * @type {(at: OpenAt) => Promise<void>}
-   */
-  #land
-
-  /**
-   * @param {Suggest<T, F>} suggest - What finds the options for some text
-   * @param {Listbox<T, F>} list - The list they are shown in
-   * @param {Layer} layer - Its layer, opened on them
-   * @param {(at: OpenAt) => Promise<void>} land - What makes an option active once they are shown
-   */
-  constructor(suggest, list, layer, land) {
-    this.#suggest = suggest
-    this.#list = list
-    this.#layer = layer
-    this.#land = land
-  }
-
-  /**
-   * Opens the list on the options for some text, its active option where `at` says.
-   * @param {string} text - The text
-   * @param {OpenAt} at - Where the active option goes
-   * @returns {void}
-   */
-  open(text, at) {
-    this.#openAt = at
-    void this.#find(text)
-  }
-
-  /**
-   * Text typed: its options are found, the first made active if the combobox selects by itself. Empty text closes
-   * the list instead.
-   * @param {string} text - The text
-   * @param {boolean} selects - Whether the combobox selects by itself
-   * @returns {void}
-   */
-  typed(text, selects) {
-    if (text === '') {
-      this.drop()
-      this.#layer.open.request(false)
-      return
-    }
-    this.#openAt = selects ? 'first' : undefined
-    void this.#find(text)
-  }
-
-  /**
-   * Drops every answer still to come.
-   * @returns {void}
-   */
-  drop() {
-    this.#latest.drop()
-  }
-
-  /**
-   * Finds the options for some text and, unless something else was asked for meanwhile, shows them, opening the list
-   * and making one active where asked; with none, closes the list.
-   * @param {string} text - The text
-   * @returns {Promise<void>} When they are shown and one is active, if one is asked for, or they were dropped
-   */
-  async #find(text) {
-    const found = await this.#latest.ask(async () => this.#suggest(text))
-    if (found === undefined) {
-      return
-    }
-    this.#list.source.set(found.answer)
-    if (this.#list.items.count === 0) {
-      this.#layer.open.request(false)
-      return
-    }
-    this.#layer.open.request(true)
-    const at = this.#openAt
-    this.#openAt = undefined
-    if (at !== undefined) {
-      await this.#land(at)
-    }
-  }
-}
-
-/**
- * A combobox's behavior, with no DOM (the WAI-ARIA APG combobox pattern): a field, the list of options it controls in
- * a layer of its own, and the option chosen, its `value`. Focus stays in the field; the list's active option is where
- * keys act. The option chosen is controllable, and so is an editable field's text, which follows it. Options come from
- * a source, ten or ten billion at the same cost. Leaving with the list open (Tab, a press elsewhere) chooses its active
- * option when the combobox selects by itself (`kind.selectsOnLeave`); Escape never does.
- * @template T, F
- */
-class Combobox {
+class ComboboxCore {
   /** @readonly */
   layer = new Layer()
   /**
-   * What an editable combobox's field holds.
+   * Chooses an option, or none.
    * @readonly
+   * @type {EffectType<T | undefined>}
    */
-  text = new Controllable('', false)
+  chosen = defineEffect()
+  /**
+   * Text typed in an editable field, and whether it was deleting.
+   * @readonly
+   * @type {EffectType<Readonly<{ text: string, deleting: boolean }>>}
+   */
+  typed = defineEffect()
+  /**
+   * The combobox's layer opened or closed.
+   * @readonly
+   * @type {EffectType<boolean>}
+   */
+  layerChanged = defineEffect()
   /**
    * @readonly
-   * @type {Listeners<undefined>}
+   * @type {Field<Chosen<T>>}
    */
-  #changes = new Listeners()
+  field
+  /**
+   * @readonly
+   * @type {ListPipeline<T, TemplateResult, ItemSource<T>>}
+   */
+  list
+  /**
+   * @readonly
+   * @type {ActiveItem<T, TemplateResult, ItemSource<T>>}
+   */
+  current
+  /**
+   * @readonly
+   * @type {ComboboxKind<T>}
+   */
+  kind
   /**
    * The landings asked for as the list opens, of which only the latest counts.
    * @readonly
    */
   #landings = new Latest()
-  #deleting = false
+  /**
+   * The suggestions asked for as the text changes, of which only the latest counts.
+   * @readonly
+   */
+  #suggestions = new Latest()
+  /**
+   * @readonly
+   * @type {((item: T) => string) | undefined}
+   */
+  #text
 
-  /** @param {ComboboxOptions<T, F>} options - How it starts */
+  /** @param {ComboboxOptions<T>} options - How it starts */
   constructor(options) {
     /** @readonly */
     this.id = options.id ?? 'combobox'
@@ -259,56 +234,664 @@ class Combobox {
     this.label = options.label ?? ''
     /** @readonly */
     this.placeholder = options.placeholder ?? ''
-    /**
-     * @readonly
-     * @type {ComboboxKind<T, F>}
-     */
     this.kind = kindOf(options)
-    /**
-     * The option chosen, if any.
-     * @readonly
-     * @type {Controllable<T | undefined>}
-     */
-    this.value = new Controllable(options.value, false)
+    this.#text = options.text
     const source = 'source' in options ? options.source : undefined
-    /**
-     * The options, in a list that selects nothing, whose active option is the one the field names; fixed for a
-     * combobox that doesn't suggest.
-     * @readonly
-     * @type {Listbox<T, F>}
-     */
-    this.list = new Listbox({
-      id: `${this.id}-option`,
-      label: options.label ?? '',
-      mode: 'none',
-      rows: options.rows ?? DEFAULT_ROWS,
-      ...(source === undefined ? {} : { source }),
-      ...(options.text === undefined ? {} : { text: options.text }),
-      ...(options.now === undefined ? {} : { now: options.now }),
+    /** @type {ListPipeline<T, TemplateResult, ItemSource<T>>} */
+    const list = listPipeline(source ?? noOptions())
+    this.list = list
+    this.current = active(list)
+    const { value } = options
+    const { editable } = this.kind
+    this.field = defineField({
+      /**
+       * @param {State} state - The first state
+       * @returns {Chosen<T>} The option to start with, and its text
+       */
+      create: (state) => ({
+        deleting: false,
+        text: editable && value !== undefined ? state.facet(list.text)(value) : '',
+        value,
+      }),
+      update: (was, transaction) =>
+        transaction.effects.reduce((next, effect) => this.#after(next, effect, transaction), was),
     })
-    const { suggest } = this.kind
-    /**
-     * What it suggests as its text changes, if it autocompletes.
-     * @readonly
-     */
-    this.suggestions =
-      suggest === undefined ? undefined : new Suggestions(suggest, this.list, this.layer, async (at) => this.#land(at))
-    this.#follow()
+  }
+
+  /** @returns {string} The id of its listbox */
+  get listId() {
+    return `${this.id}-listbox`
+  }
+
+  /**
+   * Puts the combobox's core in a configuration.
+   * @param {Builder} into - The configuration being built
+   * @param {number} level - Its level
+   * @returns {void}
+   */
+  install(into, level) {
+    const { current, list } = this
+    /** @type {Extension} */
+    const parts = [
+      current,
+      this.field,
+      this.#text === undefined ? [] : list.text.of(this.#text),
+      list.attributes.of((row, state) => this.#rowAttributes(row, state)),
+      list.containerAttributes.of(() => ({
+        'aria-label': this.label,
+        id: this.listId,
+        part: 'viewport',
+        role: 'listbox',
+        tabindex: -1,
+      })),
+      precedence(
+        'high',
+        list.containerAttributes.of(() => ({ 'aria-activedescendant': false })),
+      ),
+      precedence(
+        'highest',
+        inputHandler.of((input, store) => (input.is(keyInput) ? this.#gate(input.value, store) : false)),
+      ),
+      inputHandler.of((input, store) => {
+        if (input.is(list.press)) {
+          return this.choose(store, input.value.position)
+        }
+        return input.is(keyInput) && this.layer.open.get() && this.#openKey(input.value, store)
+      }),
+      this.#following(),
+      viewContent.of((state) => this.#view(state)),
+      this.#page(),
+    ]
+    into.add(parts, level)
+  }
+
+  /**
+   * What an option is called.
+   * @param {State} state - The state
+   * @param {T} item - The option
+   * @returns {string} Its text
+   */
+  textOf(state, item) {
+    return state.facet(this.list.text)(item)
   }
 
   /**
    * Opens the list, its active option where `at` says; one that suggests finds its options for the text first, and
    * stays closed if there are none.
+   * @param {Store} store - The combobox's store
+   * @param {OpenAt} at - Where the active option goes
+   * @returns {void}
+   */
+  open(store, at) {
+    if (this.kind.suggest === undefined) {
+      this.layer.open.request(true)
+      void this.#land(store, at)
+    } else {
+      void this.#suggest(store, store.state.field(this.field).text, at)
+    }
+  }
+
+  /**
+   * Opens the list if it is closed, closes it if it is open: what a press on the field does.
+   * @param {Store} store - The combobox's store
+   * @returns {void}
+   */
+  toggle(store) {
+    if (this.layer.open.get()) {
+      this.layer.open.request(false)
+    } else {
+      this.open(store, 'value-or-first')
+    }
+  }
+
+  /**
+   * Chooses the option at a position, if it has been read, and closes the list.
+   * @param {Store} store - The combobox's store
+   * @param {number} position - Where it is among the options
+   * @returns {boolean} Whether there was an option there
+   */
+  choose(store, position) {
+    const item = readNow(this.list.listOf(store.state), position)
+    if (item === undefined) {
+      return false
+    }
+    store.dispatch({ effects: this.chosen.of(item.item) })
+    this.layer.open.request(false)
+    return true
+  }
+
+  /**
+   * Chooses the active option, if there is one, and closes the list.
+   * @param {Store} store - The combobox's store
+   * @returns {void}
+   */
+  chooseActive(store) {
+    const at = this.current.positionIn(store.state)
+    if (at === undefined || !this.choose(store, at)) {
+      this.layer.open.request(false)
+    }
+  }
+
+  /**
+   * Empties an editable field, choosing nothing.
+   * @param {Store} store - The combobox's store
+   * @returns {void}
+   */
+  clear(store) {
+    this.#suggestions.drop()
+    store.dispatch({ effects: [this.typed.of({ deleting: false, text: '' }), this.chosen.of(undefined)] })
+  }
+
+  /**
+   * New text typed in an editable field: nothing is chosen any more, and one that suggests finds its options for it,
+   * opening its list on them, the first active if it selects by itself; empty text closes the list instead.
+   * @param {Store} store - The combobox's store
+   * @param {string} text - What the field holds now
+   * @param {boolean} deleting - Whether it was deleting, so nothing completes it inline
+   * @returns {void}
+   */
+  type(store, text, deleting) {
+    const chose = store.state.field(this.field).value === undefined ? [] : [this.chosen.of(undefined)]
+    store.dispatch({ effects: [this.typed.of({ deleting, text }), ...chose] })
+    if (this.kind.suggest === undefined) {
+      return
+    }
+    if (text === '') {
+      this.#suggestions.drop()
+      this.layer.open.request(false)
+    } else {
+      void this.#suggest(store, text, this.kind.selectsOnLeave ? 'first' : 'none')
+    }
+  }
+
+  /**
+   * What the field shows with `both` autocomplete: what was typed, then the rest of the active option's text, while
+   * the list is open, the option starts with what was typed, and the last edit was not a deletion.
+   * @param {State} state - The state
+   * @returns {string | undefined} The text shown, typed part and completion
+   */
+  completionIn(state) {
+    const at = this.current.positionIn(state)
+    const item = at === undefined ? undefined : readNow(this.list.listOf(state), at)
+    const { deleting, text: typed } = state.field(this.field)
+    if (this.kind.autocomplete !== 'both' || deleting || item === undefined || typed === '') {
+      return undefined
+    }
+    const whole = this.textOf(state, item.item)
+    return this.layer.open.get() && startsWithTyped(whole, typed) ? `${typed}${whole.slice(typed.length)}` : undefined
+  }
+
+  /**
+   * Keeps an inline completion as typed text, as moving the cursor into it does.
+   * @param {Store} store - The combobox's store
+   * @returns {void}
+   */
+  keepCompletion(store) {
+    const shown = this.completionIn(store.state)
+    if (shown !== undefined) {
+      store.dispatch({ effects: this.typed.of({ deleting: false, text: shown }) })
+    }
+  }
+
+  /**
+   * What the field holds after one effect: what was typed, or the option chosen, whose text an editable field takes.
+   * @param {Chosen<T>} value - What it held
+   * @param {Effect<unknown>} effect - The effect
+   * @param {Transaction} transaction - The transaction it is in
+   * @returns {Chosen<T>} What it holds
+   */
+  #after(value, effect, transaction) {
+    if (effect.is(this.typed)) {
+      return { deleting: effect.value.deleting, text: effect.value.text, value: value.value }
+    }
+    if (!effect.is(this.chosen)) {
+      return value
+    }
+    const chosen = effect.value
+    const text = this.kind.editable && chosen !== undefined ? this.textOf(transaction.state, chosen) : value.text
+    return { deleting: false, text, value: chosen }
+  }
+
+  /**
+   * Whether an option is the one chosen.
+   * @param {State} state - The state
+   * @param {T} item - The option
+   * @returns {boolean} Whether it is
+   */
+  #isChosen(state, item) {
+    const { value } = state.field(this.field)
+    const list = this.list.listOf(state)
+    return value !== undefined && list.key(value) === list.key(item)
+  }
+
+  /**
+   * An option's attributes: its id, role, state and parts.
+   * @param {RenderRow<T>} row - Its row
+   * @param {State} state - The state
+   * @returns {Attributes} The attributes
+   */
+  #rowAttributes(row, state) {
+    if (row.kind !== 'item') {
+      return {}
+    }
+    const isActive = this.current.positionIn(state) === row.position
+    const chosen = row.item !== undefined && this.#isChosen(state, row.item)
+    return {
+      'aria-selected': isActive ? 'true' : 'false',
+      id: `${this.id}-option-${String(row.position)}`,
+      part: `option${isActive ? ' option-active' : ''}${chosen ? ' option-chosen' : ''}`,
+      role: 'option',
+    }
+  }
+
+  /**
+   * A key, gated by whether the list is open: with it closed, the keys that open it, and every other key kept from the
+   * list; an editable field's own keys, which put the cursor back in its text; Escape.
+   * @param {KeyInput} key - The key
+   * @param {Store} store - The combobox's store
+   * @returns {Handled} What was done with it
+   */
+  #gate(key, store) {
+    const open = this.layer.open.get()
+    const { editable } = this.kind
+    if (key.key === 'Escape') {
+      return this.#escape(store)
+    }
+    if (!open) {
+      return editable ? this.#closedEditable(key, store) : this.#closedSelect(key, store)
+    }
+    if (editable && TO_FIELD.has(key.key)) {
+      if (this.current.positionIn(store.state) !== undefined) {
+        this.keepCompletion(store)
+        store.dispatch({ effects: this.current.moved.of({ entering: false, shift: false, to: undefined }) })
+      }
+      return 'keep-default'
+    }
+    return false
+  }
+
+  /**
+   * Escape: closes the list, choosing nothing; with it closed, empties an editable field that clears on Escape.
+   * @param {Store} store - The combobox's store
+   * @returns {Handled} What was done with it
+   */
+  #escape(store) {
+    if (this.layer.open.get()) {
+      this.layer.dismiss('escape')
+      return true
+    }
+    if (this.kind.editable && this.kind.clearsOnEscape && store.state.field(this.field).text !== '') {
+      this.clear(store)
+      return true
+    }
+    return false
+  }
+
+  /**
+   * A key with a select-only combobox's list closed: the arrows, Enter, Space, Home and End open it, and a character
+   * typed opens it for typing to go to the option it starts.
+   * @param {KeyInput} key - The key
+   * @param {Store} store - The combobox's store
+   * @returns {Handled} What was done with it
+   */
+  #closedSelect(key, store) {
+    if (key.key === 'ArrowDown' && key.alt) {
+      this.open(store, 'value')
+    } else if (key.key === 'ArrowDown' || key.key === 'Enter' || key.key === ' ') {
+      this.open(store, 'value-or-first')
+    } else if (key.key === 'ArrowUp' || key.key === 'Home' || key.key === 'End') {
+      this.open(store, key.key === 'End' ? 'last' : 'first')
+    } else if (printable(key)) {
+      this.open(store, 'none')
+      return false
+    } else {
+      return 'keep-default'
+    }
+    return true
+  }
+
+  /**
+   * A key with an editable combobox's list closed: Down opens it on the first option, Up on the last, Alt+Down on the
+   * option chosen. The rest edit the text.
+   * @param {KeyInput} key - The key
+   * @param {Store} store - The combobox's store
+   * @returns {Handled} What was done with it
+   */
+  #closedEditable(key, store) {
+    if (key.key === 'ArrowDown') {
+      this.open(store, key.alt ? 'value' : 'first')
+      return true
+    }
+    if (key.key === 'ArrowUp' && !key.alt) {
+      this.open(store, 'last')
+      return true
+    }
+    return 'keep-default'
+  }
+
+  /**
+   * A key with the list open: Enter and Alt+Up choose the active option, and Space too in a select-only one (unless it
+   * continues what is being typed, which typing takes first); from no active option, Down and Page Down go to the
+   * first and Up and Page Up to the last, as Home and End do in a select-only one. Other moves are the list's.
+   * @param {KeyInput} key - The key
+   * @param {Store} store - The combobox's store
+   * @returns {boolean} Whether it was taken
+   */
+  #openKey(key, store) {
+    const { editable } = this.kind
+    const choosing = key.key === 'Enter' || (key.key === 'ArrowUp' && key.alt) || (!editable && key.key === ' ')
+    if (choosing) {
+      this.chooseActive(store)
+      return true
+    }
+    const moves = MOVES.has(key.key) || (!editable && (key.key === 'Home' || key.key === 'End'))
+    if (!moves || this.current.positionIn(store.state) !== undefined) {
+      return false
+    }
+    const { state } = store
+    const down = key.key === 'ArrowDown' || key.key === 'PageDown' || key.key === 'Home'
+    const to = down
+      ? this.current.landing(state, 0, 1)
+      : this.current.landing(state, this.list.listOf(state).count() - 1, -1)
+    if (to !== undefined) {
+      store.dispatch({ effects: this.current.go(to) })
+    }
+    return true
+  }
+
+  /**
+   * Makes an option active as the list opens, where `at` says, never on an option focus passes over: the option chosen
+   * is found through the source's `positionOf`, without which it can't be found without reading every option. A later
+   * landing, or the list closing, drops this one.
+   * @param {Store} store - The combobox's store
+   * @param {OpenAt} at - Where
+   * @returns {Promise<void>} When it has landed, or not
+   */
+  async #land(store, at) {
+    const { state } = store
+    const list = this.list.listOf(state)
+    const { value } = state.field(this.field)
+    const landed = await this.#landings.ask(async () => {
+      if (at === 'none') {
+        return undefined
+      }
+      if (at === 'first' || at === 'last') {
+        return at === 'first' ? this.current.landing(state, 0, 1) : this.current.landing(state, list.count() - 1, -1)
+      }
+      const chosen = value === undefined ? undefined : await list.positionOf?.(list.key(value))
+      return chosen ?? (at === 'value-or-first' ? this.current.landing(state, 0, 1) : undefined)
+    })
+    if (landed?.answer !== undefined && this.layer.open.get()) {
+      store.dispatch({ effects: this.current.go(landed.answer) })
+    }
+  }
+
+  /**
+   * Finds the options for some text and, unless something else was asked for meanwhile, shows them, opening the list
+   * and making one active where asked; with none, closes the list.
+   * @param {Store} store - The combobox's store
+   * @param {string} text - The text
+   * @param {OpenAt} at - Where the active option goes
+   * @returns {Promise<void>} When they are shown and one is active, or they were dropped
+   */
+  async #suggest(store, text, at) {
+    const { suggest } = this.kind
+    if (suggest === undefined) {
+      return
+    }
+    const found = await this.#suggestions.ask(async () => suggest(text))
+    if (found === undefined) {
+      return
+    }
+    const options = found.answer ?? noOptions()
+    store.dispatch({ effects: this.list.setSource.of(options) })
+    if (options.count() === 0) {
+      this.layer.open.request(false)
+      return
+    }
+    this.layer.open.request(true)
+    await this.#land(store, at)
+  }
+
+  /**
+   * What follows the layer: its opening and closing shown, a landing still to come dropped as it closes and no option
+   * left active; and leaving the list (Tab, a press elsewhere) choosing its active option when it selects by itself.
+   * @returns {Extension} The plugin
+   */
+  #following() {
+    return definePlugin((store) => {
+      const stops = [
+        this.layer.onDismiss((reason) => {
+          const at = this.current.positionIn(store.state)
+          const leaving = reason === 'outside' || reason === 'focus-outside'
+          if (this.kind.selectsOnLeave && leaving && at !== undefined) {
+            this.choose(store, at)
+          }
+        }),
+        this.layer.open.subscribe((open) => {
+          /** @type {Effect<unknown>[]} */
+          const forget = []
+          if (!open) {
+            this.#landings.drop()
+            forget.push(this.current.moved.of({ entering: false, shift: false, to: undefined }))
+          }
+          store.dispatch({ effects: [this.layerChanged.of(open), ...forget] })
+        }),
+      ]
+      return {
+        destroy: () => {
+          for (const stop of stops) {
+            stop()
+          }
+        },
+      }
+    })
+  }
+
+  /**
+   * The combobox: its field, and its listbox of options in a popup.
+   * @param {State} state - The state
+   * @returns {TemplateResult} The view
+   */
+  #view(state) {
+    return html`<div part="combobox"
+      >${this.kind.editable ? this.#editField(state) : this.#selectField(state)}<div
+        part="overlay popup"
+        popover="manual"
+        >${this.list.render(state)}</div
+      ></div
+    >`
+  }
+
+  /**
+   * A select-only combobox's field: focusable, showing the option chosen or the placeholder.
+   * @param {State} state - The state
+   * @returns {TemplateResult} The field
+   */
+  #selectField(state) {
+    const { value } = state.field(this.field)
+    return html`<div
+      part="field"
+      role="combobox"
+      tabindex="0"
+      aria-label=${this.label}
+      aria-haspopup="listbox"
+      aria-expanded=${this.layer.open.get() ? 'true' : 'false'}
+      aria-controls=${this.listId}
+      aria-activedescendant=${this.current.descendantIn(state)}
+      ><span part=${value === undefined ? 'value placeholder' : 'value'}
+        >${value === undefined ? this.placeholder : this.textOf(state, value)}</span
+      ></div
+    >`
+  }
+
+  /**
+   * An editable combobox's field: a text input, focus staying in it as options are suggested.
+   * @param {State} state - The state
+   * @returns {TemplateResult} The field
+   */
+  #editField(state) {
+    return comboboxInput({
+      active: this.current.descendantIn(state),
+      autocomplete: this.kind.autocomplete,
+      controls: this.listId,
+      expanded: this.layer.open.get(),
+      label: this.label,
+      part: 'field',
+      value: state.field(this.field).text,
+    })
+  }
+
+  /**
+   * What the combobox does in the page: its field's typing and keys heard, and a press on a select-only field opening
+   * or closing the list; a press in the popup keeping focus in the field; after each render, the popup shown while the
+   * list is open, below the field and at least as wide, and an editable field's text with its completion selected after
+   * what was typed.
+   * @returns {Extension} The view plugin
+   */
+  #page() {
+    return viewPlugin((store, root) => {
+      const stop = hearField(root, '[part~="field"]', {
+        input: (text, deleting) => {
+          this.type(store, text, deleting)
+        },
+        key: (event) =>
+          store.handle(
+            keyInput.of({
+              alt: event.altKey,
+              key: event.key,
+              shift: event.shiftKey,
+              toggle: event.ctrlKey || event.metaKey,
+            }),
+          ),
+      })
+      /**
+       * A press on a select-only field, or in the popup.
+       * @param {Event} event - The press
+       * @returns {void}
+       */
+      const press = (event) => {
+        const { target } = event
+        if (!(target instanceof Element)) {
+          return
+        }
+        if (event.type === 'mousedown' && target.closest('[part~="popup"]') !== null) {
+          event.preventDefault()
+        } else if (event.type === 'click' && !this.kind.editable && target.closest('[part~="field"]') !== null) {
+          this.toggle(store)
+        }
+      }
+      root.addEventListener('mousedown', press)
+      root.addEventListener('click', press)
+      return {
+        destroy: () => {
+          stop()
+          root.removeEventListener('mousedown', press)
+          root.removeEventListener('click', press)
+          const popup = ownElement(root, '[part~="popup"]')
+          if (popup !== undefined) {
+            releaseOverlay(popup)
+          }
+        },
+        rendered: () => {
+          const container = ownElement(root, '[part~="combobox"]')
+          const field = ownElement(root, '[part~="field"]')
+          const popup = ownElement(root, '[part~="popup"]')
+          if (container === undefined || field === undefined || popup === undefined) {
+            return
+          }
+          container.style.setProperty('--_field-width', `${String(field.getBoundingClientRect().width)}px`)
+          syncOverlay(popup, this.layer, { anchor: field, focus: 'stay' })
+          if (field instanceof HTMLInputElement) {
+            const typed = store.state.field(this.field).text
+            const shown = this.completionIn(store.state) ?? typed
+            if (field.value !== shown) {
+              field.value = shown
+              if (shown !== typed) {
+                field.setSelectionRange(typed.length, shown.length)
+              }
+            }
+          }
+        },
+      }
+    })
+  }
+}
+
+/**
+ * A combobox: its core and the extensions it is made of, as a store, with what an app and a view do to it.
+ * @template T
+ */
+class Combobox extends Store {
+  /** @param {ComboboxOptions<T>} options - How it starts */
+  constructor(options) {
+    /** @type {ComboboxCore<T>} */
+    const core = new ComboboxCore(options)
+    super([core, options.extensions?.(core) ?? []])
+    /** @readonly */
+    this.core = core
+  }
+
+  /** @returns {Layer} The layer its list opens in */
+  get layer() {
+    return this.core.layer
+  }
+
+  /** @returns {ComboboxKind<T>} What kind it is */
+  get kind() {
+    return this.core.kind
+  }
+
+  /** @returns {T | undefined} The option chosen, if any */
+  get value() {
+    return this.state.field(this.core.field).value
+  }
+
+  /** @returns {string} What an editable field holds */
+  get text() {
+    return this.state.field(this.core.field).text
+  }
+
+  /** @returns {string | undefined} What the field shows with `both` autocomplete, typed part and completion */
+  get completion() {
+    return this.core.completionIn(this.state)
+  }
+
+  /** @returns {number | undefined} The position of the active option, if any */
+  get active() {
+    return this.core.current.positionIn(this.state)
+  }
+
+  /** @returns {number} How many options there are */
+  get count() {
+    return this.core.list.listOf(this.state).count()
+  }
+
+  /**
+   * The option at a position, if it has been read.
+   * @param {number} position - Where it is
+   * @returns {T | undefined} The option
+   */
+  option(position) {
+    return readNow(this.core.list.listOf(this.state), position)?.item
+  }
+
+  /**
+   * Sets the option chosen, as an app that owns it does once it decides.
+   * @param {T | undefined} value - The option, or none
+   * @returns {void}
+   */
+  setValue(value) {
+    this.dispatch({ effects: this.core.chosen.of(value), filter: false })
+  }
+
+  /**
+   * Opens the list, its active option where `at` says.
    * @param {OpenAt} [at] - Where the active option goes
    * @returns {void}
    */
   open(at = 'value') {
-    if (this.suggestions === undefined) {
-      this.layer.open.request(true)
-      void this.#land(at)
-    } else {
-      this.suggestions.open(this.text.get(), at)
-    }
+    this.core.open(this, at)
   }
 
   /**
@@ -316,45 +899,24 @@ class Combobox {
    * @returns {void}
    */
   close() {
-    this.layer.open.request(false)
+    this.core.layer.open.request(false)
   }
 
   /**
-   * Opens the list if it is closed, closes it if it is open: what a press on the field does.
+   * Opens the list if it is closed, closes it if it is open.
    * @returns {void}
    */
   toggle() {
-    if (this.layer.open.get()) {
-      this.close()
-    } else {
-      this.open('value-or-first')
-    }
+    this.core.toggle(this)
   }
 
   /**
    * Chooses the option at a position, if it has been read, and closes the list.
-   * @param {number} position - Where it is among the options
+   * @param {number} position - Where it is
    * @returns {boolean} Whether there was an option there
    */
   choose(position) {
-    const item = this.list.items.item(position)
-    if (item === undefined) {
-      return false
-    }
-    this.value.request(item)
-    this.close()
-    return true
-  }
-
-  /**
-   * Chooses the active option, if there is one, and closes the list.
-   * @returns {void}
-   */
-  chooseActive() {
-    const active = this.list.active.get()
-    if (active === undefined || !this.choose(active)) {
-      this.close()
-    }
+    return this.core.choose(this, position)
   }
 
   /**
@@ -362,267 +924,28 @@ class Combobox {
    * @returns {void}
    */
   clear() {
-    this.suggestions?.drop()
-    this.text.request('')
-    this.value.request(undefined)
+    this.core.clear(this)
   }
 
   /**
-   * New text typed in an editable field: nothing is chosen any more, and one that suggests finds its options for it,
-   * opening its list on them.
+   * New text typed in an editable field.
    * @param {string} text - What the field holds now
-   * @param {boolean} [deleting] - Whether it was deleting, so nothing completes it inline
+   * @param {boolean} [deleting] - Whether it was deleting
    * @returns {void}
    */
   type(text, deleting = false) {
-    this.#deleting = deleting
-    this.text.request(text)
-    if (this.value.get() !== undefined) {
-      this.value.request(undefined)
-    }
-    this.suggestions?.typed(text, this.kind.selectsOnLeave)
+    this.core.type(this, text, deleting)
   }
 
   /**
-   * Acts on a key typed in the field, as the APG combobox pattern says for its kind, with its list closed or open.
-   * Escape closes the list, choosing nothing; with it closed, it empties an editable field that clears on Escape.
+   * A key typed in the field.
    * @param {string} key - The key, as `KeyboardEvent.key` names it
-   * @param {ComboboxModifiers} modifiers - What was held
+   * @param {ComboboxModifiers} [modifiers] - What was held
    * @returns {boolean} Whether it was used, so its default should be prevented
    */
-  key(key, modifiers) {
-    if (key === 'Escape') {
-      if (this.layer.open.get()) {
-        this.layer.dismiss('escape')
-        return true
-      }
-      if (this.kind.editable && this.kind.clearsOnEscape && this.text.get() !== '') {
-        this.clear()
-        return true
-      }
-      return false
-    }
-    if (this.layer.open.get()) {
-      return this.kind.editable ? this.#openEditable(key, modifiers) : this.#openSelect(key, modifiers)
-    }
-    return this.kind.editable ? this.#closedEditable(key, modifiers) : this.#closedSelect(key, modifiers)
-  }
-
-  /**
-   * The pointer over an option makes it active.
-   * @param {number} position - Where it is
-   * @returns {void}
-   */
-  point(position) {
-    if (this.list.active.get() !== position) {
-      this.list.active.request(position)
-    }
-  }
-
-  /**
-   * What the field shows with `both` autocomplete: what was typed, then the rest of the active option's text, while
-   * the list is open, the option starts with what was typed, and the last edit was not a deletion.
-   * @returns {string | undefined} The text shown, typed part and completion
-   */
-  get completion() {
-    const active = this.list.active.get()
-    const item = active === undefined ? undefined : this.list.items.item(active)
-    const typed = this.text.get()
-    if (this.kind.autocomplete !== 'both' || this.#deleting || item === undefined || typed === '') {
-      return undefined
-    }
-    const whole = this.list.text(item)
-    return this.layer.open.get() && startsWithTyped(whole, typed) ? `${typed}${whole.slice(typed.length)}` : undefined
-  }
-
-  /**
-   * Keeps an inline completion as typed text, as moving the cursor into it does.
-   * @returns {void}
-   */
-  keepCompletion() {
-    const shown = this.completion
-    if (shown !== undefined) {
-      this.text.request(shown)
-    }
-  }
-
-  /**
-   * Calls `listener` whenever anything a view shows may have changed.
-   * @param {() => void} listener - What to call
-   * @returns {() => void} Stops calling it
-   */
-  subscribe(listener) {
-    return this.#changes.add(() => {
-      listener()
-    })
-  }
-
-  /**
-   * Moves the active option in an open list: from none, Down and Page Down go to the first, Up and Page Up to the last.
-   * @param {string} key - An arrow, page, Home or End key
-   * @returns {boolean} True: the key was used
-   */
-  #moveIn(key) {
-    const { list } = this
-    if (list.active.get() !== undefined) {
-      list.key(key, PLAIN)
-      return true
-    }
-    const down = key === 'ArrowDown' || key === 'PageDown' || key === 'Home'
-    const to = down ? landing(list, 0, 1) : landing(list, list.items.count - 1, -1)
-    if (to !== undefined) {
-      list.goTo(to)
-    }
-    return true
-  }
-
-  /**
-   * A key with a select-only combobox's list closed: the arrows, Enter, Space, Home and End open it, and a character
-   * typed opens it on the first option it starts.
-   * @param {string} key - The key
-   * @param {ComboboxModifiers} modifiers - What was held
-   * @returns {boolean} Whether it was used
-   */
-  #closedSelect(key, modifiers) {
-    if (key === 'ArrowDown' && modifiers.alt) {
-      this.open('value')
-    } else if (key === 'ArrowDown' || key === 'Enter' || key === ' ') {
-      this.open('value-or-first')
-    } else if (key === 'ArrowUp' || key === 'Home' || key === 'End') {
-      this.open(key === 'End' ? 'last' : 'first')
-    } else if (printable(key, modifiers)) {
-      this.open('none')
-      void this.list.type(key)
-    } else {
-      return false
-    }
-    return true
-  }
-
-  /**
-   * A key with a select-only combobox's list open: the arrows, page keys, Home and End move the active option; Enter,
-   * Space and Alt+Up choose it; a character typed goes to the option it starts (a space too, while typing goes on).
-   * @param {string} key - The key
-   * @param {ComboboxModifiers} modifiers - What was held
-   * @returns {boolean} Whether it was used
-   */
-  #openSelect(key, modifiers) {
-    const choosing = (key === 'ArrowUp' && modifiers.alt) || key === 'Enter' || (key === ' ' && !this.list.typing)
-    if (choosing) {
-      this.chooseActive()
-      return true
-    }
-    if (MOVES.has(key) || key === 'Home' || key === 'End') {
-      return this.#moveIn(key)
-    }
-    if (!printable(key, modifiers)) {
-      return false
-    }
-    void this.list.type(key)
-    return true
-  }
-
-  /**
-   * A key with an editable combobox's list closed: Down opens it on the first option, Up on the last, Alt+Down on the
-   * option chosen. The rest edit the text.
-   * @param {string} key - The key
-   * @param {ComboboxModifiers} modifiers - What was held
-   * @returns {boolean} Whether it was used
-   */
-  #closedEditable(key, modifiers) {
-    if (key === 'ArrowDown') {
-      this.open(modifiers.alt ? 'value' : 'first')
-      return true
-    }
-    if (key === 'ArrowUp' && !modifiers.alt) {
-      this.open('last')
-      return true
-    }
-    return false
-  }
-
-  /**
-   * A key with an editable combobox's list open: the arrows and page keys move the active option; Enter and Alt+Up
-   * choose it; Home, End and the left and right arrows put the cursor back in the text, with no option active.
-   * @param {string} key - The key
-   * @param {ComboboxModifiers} modifiers - What was held
-   * @returns {boolean} Whether it was used
-   */
-  #openEditable(key, modifiers) {
-    if (key === 'Enter' || (key === 'ArrowUp' && modifiers.alt)) {
-      this.chooseActive()
-      return true
-    }
-    if (MOVES.has(key)) {
-      return this.#moveIn(key)
-    }
-    if (TO_FIELD.has(key) && this.list.active.get() !== undefined) {
-      this.keepCompletion()
-      this.list.active.request(undefined)
-    }
-    return false
-  }
-
-  /**
-   * Makes an option active as the list opens, where `at` says, never on an option focus passes over: the option
-   * chosen is found through the source's `positionOf`, without which it can't be found without reading every option.
-   * A later landing, or the list closing, drops this one.
-   * @param {OpenAt} at - Where
-   * @returns {Promise<void>} When it has landed, or not
-   */
-  async #land(at) {
-    const { list } = this
-    const value = this.value.get()
-    const landed = await this.#landings.ask(async () => {
-      if (at === 'none') {
-        return undefined
-      }
-      if (at === 'first' || at === 'last') {
-        return at === 'first' ? landing(list, 0, 1) : landing(list, list.items.count - 1, -1)
-      }
-      const { source } = list.items
-      const chosen =
-        value === undefined || source === undefined ? undefined : await source.positionOf?.(source.key(value))
-      return chosen ?? (at === 'value-or-first' ? landing(list, 0, 1) : undefined)
-    })
-    if (landed?.answer !== undefined && this.layer.open.get()) {
-      this.list.goTo(landed.answer)
-    }
-  }
-
-  /**
-   * Follows its own state: an editable field's text follows the option chosen; leaving the list (Tab, a press
-   * elsewhere) chooses its active option when it selects by itself; closing drops a landing still to come, and leaves
-   * no option active; every change is reported.
-   * @returns {void}
-   */
-  #follow() {
-    this.value.subscribe((value) => {
-      if (this.kind.editable && value !== undefined) {
-        this.text.request(this.list.text(value))
-      }
-      this.#changes.emit(undefined)
-    })
-    this.layer.onDismiss((reason) => {
-      const active = this.list.active.get()
-      const leaving = reason === 'outside' || reason === 'focus-outside'
-      if (this.kind.selectsOnLeave && leaving && active !== undefined) {
-        this.choose(active)
-      }
-    })
-    this.layer.open.subscribe((open) => {
-      if (!open) {
-        this.#landings.drop()
-        this.list.active.request(undefined)
-      }
-      this.#changes.emit(undefined)
-    })
-    for (const changing of [this.text, this.list]) {
-      changing.subscribe(() => {
-        this.#changes.emit(undefined)
-      })
-    }
+  key(key, modifiers = PLAIN) {
+    return this.handle(keyInput.of({ ...modifiers, key }))
   }
 }
 
-export { Combobox }
+export { Combobox, ComboboxCore }

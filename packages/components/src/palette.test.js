@@ -9,6 +9,7 @@ import { Listeners } from '@interact/core'
 import { renderComponent } from '@interact/dom'
 
 import { CommandBridge } from './command-bridge.js'
+import { paletteExtensions } from './palette-extensions.js'
 import { paletteView } from './palette-view.js'
 import { Palette } from './palette.js'
 
@@ -67,7 +68,12 @@ function palette(over = {}, inactive = 'show') {
   const made = system(over)
   return {
     ...made,
-    palette: new Palette({ bridge: new CommandBridge(made.system), context: () => 'editor', inactive }),
+    palette: new Palette({
+      bridge: new CommandBridge(made.system),
+      context: () => 'editor',
+      extensions: paletteExtensions(),
+      inactive,
+    }),
   }
 }
 
@@ -86,10 +92,9 @@ async function settle() {
  * @returns {string[]} The labels
  */
 function results(shown) {
-  const { items } = shown.list
-  return Array.from({ length: items.count }, (_unused, position) => {
-    const label = items.item(position)?.label ?? '?'
-    return shown.list.active.get() === position ? `[${label}]` : label
+  return Array.from({ length: shown.count }, (_unused, position) => {
+    const label = shown.result(position)?.label ?? '?'
+    return shown.active === position ? `[${label}]` : label
   })
 }
 
@@ -131,7 +136,11 @@ describe('a command palette over a context that is itself undefined', () => {
         return true
       },
     }
-    const shown = new Palette({ bridge: new CommandBridge(everything), context: () => undefined })
+    const shown = new Palette({
+      bridge: new CommandBridge(everything),
+      context: () => undefined,
+      extensions: paletteExtensions(),
+    })
     shown.open()
     await settle()
     const opened = results(shown)
@@ -204,8 +213,13 @@ describe("a command palette's search field", () => {
     /** @type {CommandSystem<string>} */
     const listing = { list: () => COMMANDS, run: () => true }
     const bridge = new CommandBridge(listing)
-    const given = new Palette({ bridge, context: () => 'editor', placeholder: 'Type a command' })
-    const plain = new Palette({ bridge, context: () => 'editor' })
+    const given = new Palette({
+      bridge,
+      context: () => 'editor',
+      extensions: paletteExtensions(),
+      placeholder: 'Type a command',
+    })
+    const plain = new Palette({ bridge, context: () => 'editor', extensions: paletteExtensions() })
     const [withText, without] = [given, plain].map((each) =>
       renderComponent(paletteView(), each, { mode: 'light', prefix: 'p', styles: 'inline' }),
     )

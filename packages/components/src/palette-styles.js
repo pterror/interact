@@ -1,12 +1,11 @@
 import { css, joinStyles, overlayStyles } from '@interact/dom'
 
-import { rowsStyles } from './legacy-rows-styles.js'
+import { windowingStyles } from './windowing-styles.js'
 
 /**
  * The command palette's own structural stylesheet, the same in shadow and light DOM. Every visual value is a token: an
  * instance's own, else the component's (`--interact-palette-*`), else the theme's global one, else a system color. The
- * dialog is `--interact-palette-width` wide and shows `rows` results whatever was found, so nothing shifts as the
- * query changes; the status region lies over the results, where they would be.
+ * dialog is `--interact-palette-width` wide; the status region lies over the results, where they would be.
  */
 const paletteOwnStyles = css`
   @layer interact.structure, interact.theme;
@@ -75,6 +74,21 @@ const paletteOwnStyles = css`
       pointer-events: none;
     }
 
+    :where([part~='viewport']) {
+      outline: none;
+    }
+
+    :where([part~='row']) {
+      box-sizing: border-box;
+      block-size: var(--_row-height);
+      overflow: hidden;
+      line-height: var(--_row-height);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      cursor: default;
+      user-select: none;
+    }
+
     :where([part~='result']) {
       display: flex;
       gap: 1em;
@@ -125,7 +139,7 @@ const paletteOwnStyles = css`
   }
 `
 
-/** The palette's stylesheet: an overlay's, the rows' structure, then its own. */
-const paletteStyles = joinStyles(overlayStyles, rowsStyles, paletteOwnStyles)
+/** The palette's stylesheet: an overlay's, a windowed list's structure, then its own. */
+const paletteStyles = joinStyles(overlayStyles, windowingStyles, paletteOwnStyles)
 
 export { paletteStyles }

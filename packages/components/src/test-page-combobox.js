@@ -1,7 +1,6 @@
 /**
  * The combobox in a browser test's page: registering it, putting one of each kind in the page between two buttons,
  * and seeing what it shows and where focus is.
- * @import { Span } from '@interact/core/memory-source'
  * @import { DomMode } from '@interact/dom/css'
  * @import { Combobox } from './combobox.js'
  */
@@ -75,7 +74,7 @@ async function settle() {
  * A fruit combobox of a kind: select-only with nothing chosen, editable with list or inline autocomplete, or, for any
  * other, select-only with Banana chosen.
  * @param {Variant | undefined} variant - The kind
- * @returns {Combobox<string, Span>} A new combobox
+ * @returns {Combobox<string>} A new combobox
  */
 function fruitCombobox(variant) {
   if (variant === 'select') {

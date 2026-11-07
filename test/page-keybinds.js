@@ -12,6 +12,7 @@ import {
   bindCommandButtons,
   contextMenuElement,
   menuExtensions,
+  paletteExtensions,
   openOnContextMenu,
   paletteElement,
   showCommands,
@@ -112,7 +113,12 @@ function hubAndPalette() {
   const scorer = defaultScorer([{ id: 'reopen', timestamp: Date.now() }])
   /** @type {CommandBridge<string | undefined>} */
   const ranked = new CommandBridge(hub.commandSystem({ scorer }))
-  const palette = new Palette({ bridge: ranked, context: everyCommand, id: 'commands' })
+  const palette = new Palette({
+    bridge: ranked,
+    context: everyCommand,
+    extensions: paletteExtensions(),
+    id: 'commands',
+  })
   held.palette = palette
   return { hub, palette }
 }
