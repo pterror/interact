@@ -1,21 +1,28 @@
 /**
- * @import { Span } from '@interact/core/memory-source'
  * @import { BridgeCommand, CommandSystem } from './command-bridge.js'
  */
 
 import { describe, expect, test } from 'bun:test'
 
-import { Listeners } from '@interact/core'
+import { Listeners, keyInput } from '@interact/core'
 
 import { CommandBridge, showCommands } from './command-bridge.js'
 import { bindCommandButtons } from './command-buttons.js'
-import { menuKey } from './menu-keys.js'
+import { menuExtensions } from './menu-extensions.js'
 import { Menu } from './menu.js'
 
-/** @type {Readonly<{ direction: 'ltr' | 'rtl', modifiers: Readonly<{ shift: boolean, toggle: boolean }> }>} */
-const PLAIN = { direction: 'ltr', modifiers: { shift: false, toggle: false } }
 const SECOND = 1
 const NO_TIME = 0
+
+/**
+ * A key pressed in a menu.
+ * @param {Menu} menu - The menu
+ * @param {string} key - The key
+ * @returns {boolean} Whether it meant something
+ */
+function press(menu, key) {
+  return menu.handle(keyInput.of({ alt: false, key, shift: false, toggle: false }))
+}
 
 /**
  * A command system for the tests: commands in a list the test changes, which it can say has changed, or not.
@@ -53,26 +60,26 @@ function commands(live) {
 /**
  * A menu showing a system's commands in the "edit" context.
  * @param {boolean} live - Whether the system says when its list changes
- * @returns {Readonly<{ menu: Menu<Span>, bridge: CommandBridge<string> } & ReturnType<typeof commands>>} The menu, the
+ * @returns {Readonly<{ menu: Menu, bridge: CommandBridge<string> } & ReturnType<typeof commands>>} The menu, the
  *   bridge, and the system
  */
 function commandMenu(live) {
   const made = commands(live)
   const bridge = new CommandBridge(made.system)
-  /** @type {Menu<Span>} */
-  const menu = new Menu({ id: 'commands' })
+  /** @type {Menu} */
+  const menu = new Menu({ extensions: menuExtensions(), id: 'commands' })
   showCommands(menu, bridge, () => 'edit')
   return { ...made, bridge, menu }
 }
 
 /**
  * The labels a menu shows, and which are disabled.
- * @param {Menu<Span>} menu - The menu
+ * @param {Menu} menu - The menu
  * @returns {string[]} Each label, with "(off)" after a disabled one
  */
 function labels(menu) {
-  return Array.from({ length: menu.list.items.count }, (_skip, position) => {
-    const entry = menu.list.items.item(position)
+  return Array.from({ length: menu.count }, (_skip, position) => {
+    const entry = menu.entry(position)
     return entry?.kind === 'command' ? `${entry.label}${entry.disabled === true ? ' (off)' : ''}` : '?'
   })
 }
@@ -82,20 +89,20 @@ describe('a menu of commands', () => {
     const { menu, ran } = commandMenu(true)
     menu.open()
     const shown = labels(menu)
-    menuKey(menu, 'Enter', PLAIN)
+    press(menu, 'Enter')
     expect([shown, ran, menu.layer.open.get()]).toEqual([['Save', 'Undo (off)'], ['save in edit'], false])
   })
 
   test('follows a live system while open, keeping the active item', () => {
     const { menu, set } = commandMenu(true)
     menu.open()
-    menuKey(menu, 'ArrowDown', PLAIN)
+    press(menu, 'ArrowDown')
     set([
       { enabled: true, id: 'save', label: 'Save' },
       { enabled: true, id: 'undo', label: 'Undo' },
       { enabled: true, id: 'redo', label: 'Redo' },
     ])
-    expect([labels(menu), menu.list.active.get()]).toEqual([['Save', 'Undo', 'Redo'], SECOND])
+    expect([labels(menu), menu.active]).toEqual([['Save', 'Undo', 'Redo'], SECOND])
   })
 
   test('looks again when it opens, or when the app says so, if the system cannot say', () => {
@@ -172,7 +179,7 @@ describe('a menu of commands shown by a view', () => {
     const { menu, ran } = commandMenu(true)
     menu.open()
     menu.layer.shown.set(true)
-    menuKey(menu, 'Enter', PLAIN)
+    press(menu, 'Enter')
     const whileShown = [...ran]
     menu.layer.shown.set(false)
     expect([whileShown, ran]).toEqual([[], ['save in edit']])

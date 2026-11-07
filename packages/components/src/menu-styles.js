@@ -1,12 +1,12 @@
 import { css, joinStyles, overlayStyles } from '@interact/dom'
 
-import { rowsStyles } from './legacy-rows-styles.js'
+import { windowingStyles } from './windowing-styles.js'
 
 /**
  * The menu's own structural stylesheet, the same in shadow and light DOM and for a menu button and a context menu.
  * Every visual value is a token: an instance's own, else the component's (`--interact-menu-*`), else the theme's
- * global one, else a system color. Rows are virtualized, so they don't size the menu: it is `--interact-menu-width`
- * wide, at least.
+ * global one, else a system color. Rows are one row high, so a windowed menu can place them, and windowed rows don't
+ * size the menu: it is `--interact-menu-width` wide, at least.
  */
 const menuOwnStyles = css`
   @layer interact.structure, interact.theme;
@@ -41,6 +41,18 @@ const menuOwnStyles = css`
 
     :where([part~='viewport']) {
       inline-size: 100%;
+      outline: none;
+    }
+
+    :where([part~='row']) {
+      box-sizing: border-box;
+      block-size: var(--_row-height);
+      overflow: hidden;
+      line-height: var(--_row-height);
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      cursor: default;
+      user-select: none;
     }
 
     :where([part~='item']) {
@@ -101,7 +113,7 @@ const menuOwnStyles = css`
   }
 `
 
-/** The menu's stylesheet: an overlay's, the rows' structure, then its own. */
-const menuStyles = joinStyles(overlayStyles, rowsStyles, menuOwnStyles)
+/** The menu's stylesheet: an overlay's, a windowed list's structure, then its own. */
+const menuStyles = joinStyles(overlayStyles, windowingStyles, menuOwnStyles)
 
 export { menuStyles }

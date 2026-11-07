@@ -1,7 +1,6 @@
 /**
  * A page where a keybinds CommandHub drives `@interact/components`' command palette, a context menu and command
  * buttons through the command bridge, for the browser test: neither package imports the other.
- * @import { Span } from '@interact/core/memory-source'
  * @import { DomMode } from '@interact/dom/css'
  * @import { Command } from 'keybinds/command'
  */
@@ -12,6 +11,7 @@ import {
   Palette,
   bindCommandButtons,
   contextMenuElement,
+  menuExtensions,
   openOnContextMenu,
   paletteElement,
   showCommands,
@@ -169,8 +169,7 @@ async function putPage(mode) {
   pageHub = hub
   /** @type {CommandBridge<string | undefined>} */
   const bridge = new CommandBridge(hub.commandSystem())
-  /** @type {Menu<Span>} */
-  const menu = new Menu({ id: 'edit', label: 'Edit' })
+  const menu = new Menu({ extensions: menuExtensions(), id: 'edit', label: 'Edit' })
   showCommands(menu, bridge, () => 'edit')
   register([paletteElement(() => palette), contextMenuElement(() => menu)], { mode, prefix: 'k' })
   const { area, toolbar } = putParts()

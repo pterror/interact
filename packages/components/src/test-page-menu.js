@@ -1,7 +1,6 @@
 /**
  * The menu in a browser test's page: registering it, putting a menu button or a context menu in the page, and seeing
  * what is open, where focus is, and what was chosen.
- * @import { Span } from '@interact/core/memory-source'
  * @import { DomMode } from '@interact/dom/css'
  * @import { Menu } from './menu.js'
  */
@@ -31,7 +30,7 @@ import { editMenu } from './test-menus.js'
 
 /** @type {string[]} */
 const chosen = []
-/** @type {Map<string, Menu<Span>>} */
+/** @type {Map<string, Menu>} */
 const made = new Map()
 
 /**
@@ -59,7 +58,7 @@ async function settle() {
 /**
  * Makes a menu of one kind, noting what is chosen in it.
  * @param {string} kind - Which kind
- * @returns {Menu<Span>} The menu
+ * @returns {Menu} The menu
  */
 function makeMenu(kind) {
   const menu = editMenu()
@@ -107,7 +106,7 @@ function byId(id) {
 
 /**
  * A focusable box the context menu opens over, at 300, 200 on the page.
- * @param {Menu<Span>} menu - The context menu
+ * @param {Menu} menu - The context menu
  * @returns {HTMLElement} The box
  */
 function contextTarget(menu) {

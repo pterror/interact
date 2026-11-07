@@ -7,7 +7,7 @@
  * A palette searches the commands. A command system that ranks its own (by how often each is used, say, or on a
  * server) has a fourth, `search`; the bridge asks it, and it may answer later. Without it, the bridge finds commands
  * among those listed by their labels (`matchCommands`).
- * @import { MemorySource, Span } from '@interact/core/memory-source'
+ * @import { MemorySource } from '@interact/core/memory-source'
  * @import { FoundCommand } from './command-match.js'
  * @import { Menu } from './menu.js'
  * @import { MenuEntry } from './menu-entry.js'
@@ -141,7 +141,7 @@ class CommandBridge {
 /**
  * A command as a menu entry: run when chosen, disabled while it can't run.
  * @param {BridgeCommand} command - The command
- * @returns {MenuEntry<Span>} The entry
+ * @returns {MenuEntry} The entry
  */
 function commandEntry(command) {
   const shown = command.shortcut === undefined ? {} : { shortcut: command.shortcut }
@@ -151,8 +151,8 @@ function commandEntry(command) {
 /**
  * Brings a source of entries in line with a list, position by position, so an item that stays where it was stays
  * active: those both have are replaced, then what is new is added at the end or what is gone taken off it.
- * @param {MemorySource<MenuEntry<Span>>} source - The menu's entries
- * @param {readonly MenuEntry<Span>[]} entries - What they should be
+ * @param {MemorySource<MenuEntry>} source - The menu's entries
+ * @param {readonly MenuEntry[]} entries - What they should be
  * @returns {void}
  */
 function updateEntries(source, entries) {
@@ -173,14 +173,14 @@ function updateEntries(source, entries) {
  * and again whenever the bridge says the list may have changed while it is open. A command chosen runs in the context
  * it was chosen in, once the menu has gone and focus is back where it was, so it acts on what the person was on.
  * @template C
- * @param {Menu<Span>} menu - The menu, made with no entries of its own
+ * @param {Menu} menu - The menu, made with no entries of its own
  * @param {CommandBridge<C>} bridge - The bridge to the command system
  * @param {() => C} context - The context the menu's commands are listed and run in, as it is when asked
  * @returns {() => void} Stops
  */
 function showCommands(menu, bridge, context) {
   const source = menuEntries(bridge.list(context()).map((command) => commandEntry(command)))
-  menu.list.source.set(source)
+  menu.setItems(source)
   /** @returns {void} */
   function relist() {
     updateEntries(

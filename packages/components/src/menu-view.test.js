@@ -1,6 +1,5 @@
 /**
  * @import { DomMode } from '@interact/dom/css'
- * @import { Span } from '@interact/core/memory-source'
  * @import { Page } from 'playwright-core'
  * @import { Engine } from '../../../test/browser.js'
  * @import { MenuEntry } from './menu-entry.js'
@@ -9,10 +8,11 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
-import { renderComponent, renderToString, stylesheetAttributes, stylesheetText } from '@interact/dom'
+import { contentOf, renderComponent, renderToString, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
 import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
-import { menuBody, menuButtonView } from './menu-view.js'
+import { menuExtensions } from './menu-extensions.js'
+import { menuButtonView } from './menu-view.js'
 import { Menu } from './menu.js'
 import { besideMenu, boxAt, crossToSubmenu, keys, look, strayFromSubmenu } from './test-menu-driver.js'
 import { editMenu, entries } from './test-menus.js'
@@ -249,16 +249,16 @@ const LONG = 40
 
 /**
  * A menu of more commands than it shows at once.
- * @returns {Menu<Span>} The menu
+ * @returns {Menu} The menu
  */
 function longMenu() {
-  /** @type {MenuEntry<Span>[]} */
+  /** @type {MenuEntry[]} */
   const list = Array.from({ length: LONG }, (_unused, index) => ({
     id: `c${String(index)}`,
     kind: 'command',
     label: `Command ${String(index)}`,
   }))
-  return new Menu({ id: 'long', items: entries(list), label: 'Long' })
+  return new Menu({ extensions: menuExtensions(), id: 'long', items: entries(list), label: 'Long' })
 }
 
 /**
@@ -280,14 +280,14 @@ const START = 0
 
 describe("a menu's items", () => {
   test('say their place and the menu’s size when only some are rendered', () => {
-    const markup = renderToString(menuBody(longMenu(), undefined))
+    const markup = renderToString(contentOf(longMenu()))
     const places = placesIn(markup)
     expect(places.slice(START, FIRST_TWO.length)).toEqual(FIRST_TWO)
     expect(places.length).toBeLessThan(LONG)
   })
 
   test('leave counting to the browser when every one is rendered', () => {
-    const markup = renderToString(menuBody(editMenu(), undefined))
+    const markup = renderToString(contentOf(editMenu()))
     const places = placesIn(markup)
     expect(places).not.toEqual([])
     expect(places.filter((place) => place !== '-')).toEqual([])

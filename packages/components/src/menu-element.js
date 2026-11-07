@@ -10,9 +10,8 @@ import { contextMenuView, menuButtonView } from './menu-view.js'
 /**
  * The menu button as a custom element class: nothing is registered until the app calls `register`. `create` makes each
  * instance's menu from its element.
- * @template F
- * @param {(host: HTMLElement) => Menu<F>} create - Makes an instance's menu
- * @returns {ComponentClass<Menu<F>>} The class
+ * @param {(host: HTMLElement) => Menu} create - Makes an instance's menu
+ * @returns {ComponentClass<Menu>} The class
  */
 function menuButtonElement(create) {
   return component(menuButtonView(), create)
@@ -21,9 +20,8 @@ function menuButtonElement(create) {
 /**
  * The context menu as a custom element class, opened with `openAt` (see `openOnContextMenu`): nothing is registered
  * until the app calls `register`. `create` makes each instance's menu from its element.
- * @template F
- * @param {(host: HTMLElement) => Menu<F>} create - Makes an instance's menu
- * @returns {ComponentClass<Menu<F>>} The class
+ * @param {(host: HTMLElement) => Menu} create - Makes an instance's menu
+ * @returns {ComponentClass<Menu>} The class
  */
 function contextMenuElement(create) {
   return component(contextMenuView(), create)
@@ -63,9 +61,8 @@ function pointFor(event, target) {
 /**
  * Opens a menu where the person asks for a context menu over an element, instead of the browser's own: at the
  * pointer, or below what has focus when they ask from the keyboard.
- * @template F
  * @param {EventTarget} target - Where they ask
- * @param {Menu<F>} menu - The menu
+ * @param {Menu} menu - The menu
  * @returns {() => void} Stops
  */
 function openOnContextMenu(target, menu) {

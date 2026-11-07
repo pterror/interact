@@ -1,18 +1,25 @@
 /**
  * The keybinds CommandHub driving `@interact/components`' menus and command buttons through the command bridge: neither
  * package imports the other; the hub's `commandSystem()` has the shape the bridge asks for.
- * @import { Span } from '@interact/core/memory-source'
  * @import { Command } from 'keybinds/command'
  * @import { CommandSystem } from 'keybinds/command-system'
  */
 
 import { describe, expect, test } from 'bun:test'
 
-import { CommandBridge, Menu, bindCommandButtons, menuKey, showCommands } from '@interact/components'
+import { CommandBridge, Menu, bindCommandButtons, menuExtensions, showCommands } from '@interact/components'
+import { keyInput } from '@interact/core'
 import { CommandHub } from 'keybinds'
 
-/** @type {Readonly<{ direction: 'ltr' | 'rtl', modifiers: Readonly<{ shift: boolean, toggle: boolean }> }>} */
-const PLAIN = { direction: 'ltr', modifiers: { shift: false, toggle: false } }
+/**
+ * A key pressed in a menu.
+ * @param {Menu} menu - The menu
+ * @param {string} key - The key
+ * @returns {boolean} Whether it meant something
+ */
+function press(menu, key) {
+  return menu.handle(keyInput.of({ alt: false, key, shift: false, toggle: false }))
+}
 
 /**
  * A hub with a paste command that applies only while there is something to paste, and a copy command, both in the
@@ -50,12 +57,12 @@ function editingHub() {
 
 /**
  * Whether each entry in a menu is disabled.
- * @param {Menu<Span>} menu - The menu
+ * @param {Menu} menu - The menu
  * @returns {(boolean | undefined)[]} Whether each is
  */
 function disabledEntries(menu) {
-  return Array.from({ length: menu.list.items.count }, (_skip, position) => {
-    const entry = menu.list.items.item(position)
+  return Array.from({ length: menu.count }, (_skip, position) => {
+    const entry = menu.entry(position)
     return entry?.kind === 'command' ? entry.disabled : undefined
   })
 }
@@ -63,12 +70,12 @@ function disabledEntries(menu) {
 /**
  * A menu showing a hub's edit commands through the bridge, open.
  * @param {CommandSystem} system - The hub as a command system
- * @returns {Readonly<{ menu: Menu<Span>, live: boolean }>} The menu, and whether the bridge is live
+ * @returns {Readonly<{ menu: Menu, live: boolean }>} The menu, and whether the bridge is live
  */
 function editMenu(system) {
   const bridge = new CommandBridge(system)
-  /** @type {Menu<Span>} */
-  const menu = new Menu({ id: 'edit' })
+  /** @type {Menu} */
+  const menu = new Menu({ extensions: menuExtensions(), id: 'edit' })
   showCommands(menu, bridge, () => 'edit')
   menu.open()
   return { live: bridge.live, menu }
@@ -96,8 +103,8 @@ describe('a keybinds hub through the command bridge', () => {
     const before = disabledEntries(menu)
     fill()
     const after = disabledEntries(menu)
-    menuKey(menu, 'ArrowDown', PLAIN)
-    menuKey(menu, 'Enter', PLAIN)
+    press(menu, 'ArrowDown')
+    press(menu, 'Enter')
     expect([live, before, after, ran, menu.layer.open.get()]).toEqual([
       true,
       [false, true],

@@ -1,18 +1,19 @@
 /**
  * Menus for the tests: a source of entries, a clock that waits only when told, and a menu of each kind of entry with a
  * submenu, the same on the server and in the page.
- * @import { MemorySource, Span } from '@interact/core/memory-source'
+ * @import { MemorySource } from '@interact/core/memory-source'
  * @import { MenuEntry } from './menu-entry.js'
- * @import { Wait } from './menu.js'
+ * @import { Wait } from './submenus.js'
  */
 
 import { menuEntries } from './menu-entry.js'
+import { menuExtensions } from './menu-extensions.js'
 import { Menu } from './menu.js'
 
 /**
  * Entries in a source, keyed by their ids.
- * @param {readonly MenuEntry<Span>[]} list - The entries
- * @returns {MemorySource<MenuEntry<Span>>} The source
+ * @param {readonly MenuEntry[]} list - The entries
+ * @returns {MemorySource<MenuEntry>} The source
  */
 function entries(list) {
   return menuEntries(list)
@@ -20,8 +21,8 @@ function entries(list) {
 
 /**
  * The submenu open from a menu.
- * @param {Menu<Span>} menu - The menu
- * @returns {Menu<Span>} Its submenu
+ * @param {Menu} menu - The menu
+ * @returns {Menu} Its submenu
  * @throws {Error} If none is open
  */
 function submenuOf(menu) {
@@ -60,7 +61,7 @@ function manualWait() {
 
 /**
  * An edit menu: commands with a separator between, a disabled one, checkbox and radio items, and a submenu.
- * @returns {readonly MenuEntry<Span>[]} Its entries
+ * @returns {readonly MenuEntry[]} Its entries
  */
 function editEntries() {
   return [
@@ -87,10 +88,10 @@ function editEntries() {
 /**
  * The edit menu, waiting by `wait`.
  * @param {Wait} [wait] - How it waits
- * @returns {Menu<Span>} The menu
+ * @returns {Menu} The menu
  */
 function editMenu(wait) {
-  return new Menu({ id: 'edit', items: entries(editEntries()), label: 'Edit', ...(wait ? { wait } : {}) })
+  return new Menu({ extensions: menuExtensions({ wait }), id: 'edit', items: entries(editEntries()), label: 'Edit' })
 }
 
 export { editEntries, editMenu, entries, manualWait, submenuOf }
