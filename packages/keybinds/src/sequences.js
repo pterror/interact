@@ -38,8 +38,6 @@
  */
 
 const DEFAULT_TIMEOUT = 1000
-const FIRST = 0
-const ONE = 1
 
 /** @type {Step} */
 const PENDING = { found: undefined, pending: true }
@@ -81,8 +79,8 @@ class SequenceSteps {
     if (command.anyModifiers === true) {
       throw new Error(`"${steps.join(' ')}" is a sequence, which can't use anyModifiers`)
     }
-    for (let end = ONE; end < steps.length; end += ONE) {
-      const prefix = steps.slice(FIRST, end).join(' ')
+    for (let end = 1; end < steps.length; end += 1) {
+      const prefix = steps.slice(0, end).join(' ')
       const list = this.#prefixes.get(prefix)
       if (list === undefined) {
         this.#prefixes.set(prefix, [command])
@@ -160,10 +158,10 @@ function sequences({ timeout = DEFAULT_TIMEOUT } = {}) {
         .replaceAll(/\s*\+\s*/gu, '+')
         .split(/\s+/u)
         .filter((step) => step !== '')
-      if (steps.length > ONE && suffix !== '') {
+      if (steps.length > 1 && suffix !== '') {
         throw new Error(`"${binding}${suffix}": a sequence can't end in "${suffix}"`)
       }
-      return steps.length > FIRST ? steps : [binding]
+      return steps.length > 0 ? steps : [binding]
     },
     table: () => new SequenceSteps(timeout),
   }

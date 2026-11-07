@@ -13,7 +13,6 @@
  */
 
 const FIRST_COPY = 2
-const NEXT = 1
 
 /**
  * The name each class was registered under
@@ -29,7 +28,7 @@ const NAMES = new WeakMap()
 function freeCopyName(usual) {
   let copy = FIRST_COPY
   while (customElements.get(`${usual}-${copy}`) !== undefined) {
-    copy += NEXT
+    copy += 1
   }
   return `${usual}-${copy}`
 }

@@ -7,7 +7,6 @@
 const WHEN_HOLDS = 2
 const ALWAYS = 1
 const EXCLUDED = 0
-const NONE = 0
 const MINUTE = 60_000
 const FIVE_MINUTES = 300_000
 const HALF_AN_HOUR = 1_800_000
@@ -30,10 +29,10 @@ const RECENCY = [
  * @returns {number} The boost
  */
 function recency(id, history, now) {
-  let best = NONE
+  let best = 0
   for (const entry of history) {
     const age = now - entry.timestamp
-    const earned = entry.id === id ? (RECENCY.find(({ within }) => age <= within)?.boost ?? NONE) : NONE
+    const earned = entry.id === id ? (RECENCY.find(({ within }) => age <= within)?.boost ?? 0) : 0
     best = Math.max(best, earned)
   }
   return best

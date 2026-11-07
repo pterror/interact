@@ -26,8 +26,6 @@
  */
 
 const RELEASE_SUFFIX = ':up'
-const START = 0
-const LAST = -1
 
 /** @type {ReadonlyMap<string, string>} */
 const SUFFIX_MODULES = new Map([
@@ -64,7 +62,7 @@ function flipRelease(binding) {
 function splitBinding(binding) {
   const trimmed = binding.trim()
   const suffix = /(?<suffix>:(?:up|hold|tap))$/iu.exec(trimmed)?.groups?.['suffix']?.toLowerCase() ?? ''
-  const body = trimmed.slice(START, trimmed.length - suffix.length)
+  const body = trimmed.slice(0, trimmed.length - suffix.length)
   return {
     steps: body
       .replaceAll(/\s*\+\s*/gu, '+')
@@ -85,7 +83,7 @@ function takeSuffix(binding, syntax) {
   const lower = body.toLowerCase()
   const owned = [syntax.releases, syntax.holds].flatMap((phase) => phase?.suffixes ?? [])
   const suffix = owned.findLast((each) => lower.endsWith(each)) ?? ''
-  return { body: body.slice(START, body.length - suffix.length), suffix }
+  return { body: body.slice(0, body.length - suffix.length), suffix }
 }
 
 /**
@@ -125,7 +123,7 @@ function parseBinding(input, binding, syntax) {
   const taken = takeSuffix(binding, syntax)
   const { suffix } = taken
   const parsed = stepsOf(binding, taken, syntax).map((step) => input.parse(step, suffix))
-  const last = parsed.at(LAST)
+  const last = parsed.at(-1)
   if (last === undefined) {
     throw new Error(`Invalid binding: "${binding}" has no steps`)
   }

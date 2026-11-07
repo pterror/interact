@@ -99,9 +99,6 @@ const TRIGGERS = new Set(['lt', 'rt'])
 /** How far a stick can drift from the middle at rest; less reads as nothing */
 const DEADZONE = 0.15
 
-const NOTHING = 0
-const FULL = 1
-
 /**
  * One pad's stick or trigger as the browser reads it: a trigger's pull from 0 to 1, a stick from -1 to 1
  * @param {Pad} pad - The pad
@@ -110,9 +107,9 @@ const FULL = 1
  */
 function rawAxis(pad, source) {
   if (TRIGGERS.has(source)) {
-    return pad.buttons[GAMEPAD_BUTTONS.indexOf(source)]?.value ?? NOTHING
+    return pad.buttons[GAMEPAD_BUTTONS.indexOf(source)]?.value ?? 0
   }
-  return pad.axes[PAD_AXES.indexOf(source)] ?? NOTHING
+  return pad.axes[PAD_AXES.indexOf(source)] ?? 0
 }
 
 /**
@@ -127,9 +124,9 @@ function padAxisOf(pad, source) {
     return value
   }
   if (Math.abs(value) <= DEADZONE) {
-    return NOTHING
+    return 0
   }
-  return (Math.sign(value) * (Math.abs(value) - DEADZONE)) / (FULL - DEADZONE)
+  return (Math.sign(value) * (Math.abs(value) - DEADZONE)) / (1 - DEADZONE)
 }
 
 /**
@@ -138,7 +135,7 @@ function padAxisOf(pad, source) {
  * @returns {number} Where it is
  */
 function padAxis(source) {
-  return connectedPads().reduce((sum, pad) => sum + padAxisOf(pad, source), NOTHING)
+  return connectedPads().reduce((sum, pad) => sum + padAxisOf(pad, source), 0)
 }
 
 /**

@@ -33,8 +33,6 @@ import { holdsAll } from './binding-mods.js'
  * @typedef {Readonly<{ command: Command, mods: Modifiers }>} Loose
  */
 
-const NONE = 0
-
 /** One input's `anyModifiers` bindings, by their lookups without modifiers */
 class LooseBindings {
   /**
@@ -71,7 +69,7 @@ class LooseBindings {
     const extra = bound
       .filter((each) => holdsAll(each.mods, mods) && !exact.includes(each.command))
       .map((each) => each.command)
-    return extra.length === NONE ? found : [...exact, ...extra]
+    return extra.length === 0 ? found : [...exact, ...extra]
   }
 
   /**

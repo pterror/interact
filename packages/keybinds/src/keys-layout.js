@@ -9,10 +9,6 @@
 
 /** @import { KeySyntax } from './keys.js' */
 
-const DIGITS = 10
-const FIRST = 0
-const ONE = 1
-
 /** @type {ReadonlyMap<string, string>} */
 const PUNCTUATION = new Map([
   ['backquote', 'Backquote'],
@@ -35,7 +31,7 @@ const PUNCTUATION = new Map([
 function codes() {
   /** @type {Map<string, string>} */
   const all = new Map(PUNCTUATION)
-  for (let digit = FIRST; digit < DIGITS; digit += ONE) {
+  for (let digit = 0; digit < 10; digit += 1) {
     all.set(`digit${digit}`, `Digit${digit}`)
   }
   return all

@@ -46,11 +46,7 @@ import { fuzzyMatcher, simpleMatcher } from './matchers.js'
  *   ScoredCommand
  */
 
-const ABOVE = -1
-const BELOW = 1
-const EVEN = 0
 const UNRANKED = 0
-const NOTHING = 0
 const OTHER = 'Other'
 
 /** @type {readonly BindingField[]} */
@@ -73,10 +69,10 @@ function dedupeCommands(commands) {
  */
 function byRelevance(first, second) {
   if (first.active !== second.active) {
-    return first.active ? ABOVE : BELOW
+    return first.active ? -1 : 1
   }
   const rank = (second.command.rank ?? UNRANKED) - (first.command.rank ?? UNRANKED)
-  return rank === EVEN ? second.score - first.score : rank
+  return rank === 0 ? second.score - first.score : rank
 }
 
 /**
@@ -125,7 +121,7 @@ function searchCommands(commands, query, options = {}) {
   for (const command of dedupeCommands(commands)) {
     const match = command.hidden === true ? undefined : matchOf(command, query, matcher)
     if (match !== undefined) {
-      const ranked = scorer?.(command, context) ?? NOTHING
+      const ranked = scorer?.(command, context) ?? 0
       results.push(scored(command, match, { active: isActive(command, context), ranked }))
     }
   }
@@ -143,7 +139,7 @@ function groupByCategory(commands, context = {}, fields = BINDING_FIELDS) {
   /** @type {Record<string, ActiveCommand[]>} */
   const groups = {}
   for (const command of dedupeCommands(commands)) {
-    const bound = fields.some((field) => bindingsOf(command, field).length > NOTHING)
+    const bound = fields.some((field) => bindingsOf(command, field).length > 0)
     if (command.hidden !== true && bound) {
       const category = command.category === undefined || command.category === '' ? OTHER : command.category
       groups[category] = [...(groups[category] ?? []), { active: isActive(command, context), command }]

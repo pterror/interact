@@ -13,10 +13,6 @@ const SAME_CASE = 1
 const COVERAGE = 10
 const WHOLE_AT_WORD_START = 20
 const WHOLE = 10
-const NONE = 0
-const NOT_FOUND = -1
-const BEFORE_START = -1
-const NEXT = 1
 const SEPARATORS = ' -_'
 
 /**
@@ -41,7 +37,7 @@ function simpleMatcher(query, text) {
  * @returns {boolean} Whether a word starts there
  */
 function atWordStart(text, at) {
-  return at === NONE || SEPARATORS.includes(text.charAt(at - NEXT))
+  return at === 0 || SEPARATORS.includes(text.charAt(at - 1))
 }
 
 /**
@@ -53,14 +49,14 @@ function atWordStart(text, at) {
 function letterPositions(query, text) {
   /** @type {number[]} */
   const positions = []
-  let from = NONE
-  for (let order = NONE; order < query.length; order += NEXT) {
+  let from = 0
+  for (let order = 0; order < query.length; order += 1) {
     const at = text.indexOf(query.charAt(order), from)
-    if (at === NOT_FOUND) {
+    if (at === -1) {
       return undefined
     }
     positions.push(at)
-    from = at + NEXT
+    from = at + 1
   }
   return positions
 }
@@ -77,12 +73,12 @@ function letterPositions(query, text) {
  * @returns {number} Its score
  */
 function letterScore(letters, order) {
-  const at = letters.positions[order] ?? NOT_FOUND
-  const previous = letters.positions[order - NEXT] ?? BEFORE_START
+  const at = letters.positions[order] ?? -1
+  const previous = letters.positions[order - 1] ?? -1
   return (
-    (at === previous + NEXT ? CONSECUTIVE : NONE) +
-    (atWordStart(letters.lowerText, at) ? WORD_START : NONE) +
-    (letters.query.charAt(order) === letters.text.charAt(at) ? SAME_CASE : NONE)
+    (at === previous + 1 ? CONSECUTIVE : 0) +
+    (atWordStart(letters.lowerText, at) ? WORD_START : 0) +
+    (letters.query.charAt(order) === letters.text.charAt(at) ? SAME_CASE : 0)
   )
 }
 
@@ -94,8 +90,8 @@ function letterScore(letters, order) {
  */
 function wholeScore(lowerQuery, lowerText) {
   const at = lowerText.indexOf(lowerQuery)
-  if (at === NOT_FOUND) {
-    return NONE
+  if (at === -1) {
+    return 0
   }
   return atWordStart(lowerText, at) ? WHOLE_AT_WORD_START : WHOLE
 }
