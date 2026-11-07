@@ -8,9 +8,6 @@ import { CLOSE_MARKUP, OPEN_MARKUP } from './markers.js'
 import { prepare } from './prepare.js'
 import { attributeText, childOf } from './values.js'
 
-const FIRST = 0
-const NEXT = 1
-
 /**
  * A child hole's content as markup, without the hole's own markers.
  * @param {Value} value - The hole's value
@@ -61,9 +58,9 @@ function holeToString(hole, value) {
  */
 function instanceToString(result) {
   const { holes, pieces } = prepare(result.strings)
-  const markup = [pieces[FIRST] ?? '']
+  const markup = [pieces[0] ?? '']
   for (const [index, hole] of holes.entries()) {
-    markup.push(holeToString(hole, result.values[index]), pieces[index + NEXT] ?? '')
+    markup.push(holeToString(hole, result.values[index]), pieces[index + 1] ?? '')
   }
   return markup.join('')
 }

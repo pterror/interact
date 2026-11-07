@@ -14,9 +14,6 @@ const OPEN_MARKUP = `<!--${OPEN}-->`
 const CLOSE_MARKUP = `<!--${CLOSE}-->`
 const ELEMENT_MARKUP = `<!--${ELEMENT}-->`
 
-const OUTSIDE = 0
-const LEVEL = 1
-
 /**
  * Whether a node is one of the markers.
  * @param {Node | null} node - Any node
@@ -33,13 +30,13 @@ function isMarker(node, which) {
  * @returns {Comment} Its `CLOSE`
  */
 function matchingClose(open) {
-  let depth = LEVEL
+  let depth = 1
   for (let node = open.nextSibling; node; node = node.nextSibling) {
     if (isMarker(node, OPEN)) {
-      depth += LEVEL
+      depth += 1
     } else if (isMarker(node, CLOSE)) {
-      depth -= LEVEL
-      if (depth === OUTSIDE) {
+      depth -= 1
+      if (depth === 0) {
         return node
       }
     }

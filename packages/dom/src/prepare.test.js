@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { prepare } from './prepare.js'
+import { prepare, tokens } from './prepare.js'
 
 const FIRST = 0
 const SECOND = 1
@@ -63,5 +63,17 @@ describe('prepare', () => {
     ['raw text', () => prepare(strings`<textarea>${'a'}</textarea>`), 'inside <script>'],
   ])('rejects a hole in %s', (_what, run, message) => {
     expect(run).toThrow(message)
+  })
+})
+
+describe('tokens', () => {
+  test('splits markup into comments, tags, text and raw text', () => {
+    expect(tokens('<p a="<b>">x<!-- <i> --></p><style>a<b</style>').map(({ kind, text }) => `${kind}:${text}`)).toEqual(
+      ['start:<p a="<b>">', 'text:x', 'comment:<!-- <i> -->', 'end:</p>', 'start:<style>', 'raw:a<b', 'end:</style>'],
+    )
+  })
+
+  test('ends raw text at its own end tag, whatever it holds', () => {
+    expect(tokens('<script><!-- </script><p>').map(({ kind }) => kind)).toEqual(['start', 'raw', 'end', 'start'])
   })
 })

@@ -1,7 +1,8 @@
-/** @import { Found, Token } from './tokens.js' */
-
 import { ELEMENT_MARKUP } from './markers.js'
-import { matches, tokens } from './tokens.js'
+
+/** @typedef {'comment' | 'end' | 'start' | 'raw' | 'text'} TokenKind */
+/** @typedef {Readonly<{ kind: TokenKind, text: string }>} Token */
+/** @typedef {Readonly<{ index: number, text: string, groups: Readonly<Record<string, string | undefined>> }>} Found */
 
 /**
  * A hole on an element: an attribute, a property or an event, and which of the template's bound elements it is on.
@@ -27,11 +28,64 @@ const SENTINEL = /^\u{E000}(?<index>\d+)\u{E001}$/u
 const SENTINELS = /\u{E000}\d+\u{E001}/gu
 const START_TAG = /^<(?<name>[^\s/>]+)(?<attributes>[\s\S]*?)(?<close>\/?)>$/u
 const ATTRIBUTE = /\s+(?<name>[^\s"'>/=]+)(?:\s*=\s*(?:"(?<double>[^"]*)"|'(?<single>[^']*)'|(?<bare>[^\s"'=<>`]+)))?/gu
-const FIRST = 0
-const PREVIOUS = 1
+const RAW_TEXT = /^<(?<name>script|style|textarea|title)\b/iu
+const TOKEN = /(?<comment><!--[\s\S]*?-->)|(?<end><\/[^>]*>)|(?<start><[A-Za-z](?:"[^"]*"|'[^']*'|[^>"'])*>)|[^<]+|</u
 
 /** @type {WeakMap<TemplateStringsArray, Prepared>} */
 const known = new WeakMap()
+
+/**
+ * Every match of a global pattern, with where it starts.
+ * @param {string} text - What to search
+ * @param {RegExp} pattern - A global pattern
+ * @returns {Found[]} The matches, in order
+ */
+function matches(text, pattern) {
+  return [...text.matchAll(pattern)].map((match) => ({
+    groups: match.groups ?? {},
+    index: match.index,
+    text: match[0],
+  }))
+}
+
+/**
+ * The template's markup split into tokens: comments, end tags, start tags, raw text and text. The content of a raw
+ * text element runs to its end tag whatever it holds.
+ * @param {string} markup - The whole template, with sentinels for its holes
+ * @returns {Token[]} The tokens, in order
+ */
+function tokens(markup) {
+  const token = new RegExp(TOKEN.source, 'uy')
+  /** @type {Token[]} */
+  const found = []
+  while (token.lastIndex < markup.length) {
+    const start = token.lastIndex
+    const match = token.exec(markup)
+    const text = match?.[0] ?? markup.slice(start)
+    const groups = match?.groups ?? {}
+    const kind =
+      groups['comment'] !== undefined
+        ? 'comment'
+        : groups['end'] !== undefined
+          ? 'end'
+          : groups['start'] === undefined
+            ? 'text'
+            : 'start'
+    found.push({ kind, text })
+    let end = start + text.length
+    const raw = RAW_TEXT.exec(groups['start'] ?? '')?.groups?.['name']
+    if (raw !== undefined) {
+      const close = markup.slice(end).search(new RegExp(`</${raw}`, 'iu'))
+      const content = markup.slice(end, close === -1 ? markup.length : end + close)
+      if (content !== '') {
+        found.push({ kind: 'raw', text: content })
+      }
+      end += content.length
+    }
+    token.lastIndex = end
+  }
+  return found
+}
 
 /**
  * Fails if markup that can't hold a hole has one.
@@ -76,8 +130,8 @@ class Scanner {
   #pieces = []
   /** @type {string[]} */
   #current = []
-  #elements = FIRST
-  #children = FIRST
+  #elements = 0
+  #children = 0
 
   /**
    * Adds static markup.
@@ -109,11 +163,11 @@ class Scanner {
    * @returns {void}
    */
   text(text) {
-    let at = FIRST
+    let at = 0
     for (const found of matches(text, SENTINELS)) {
       this.keep(text.slice(at, found.index))
       this.hole(found.text, { child: this.#children, kind: 'child' })
-      this.#children += PREVIOUS
+      this.#children += 1
       at = found.index + found.text.length
     }
     this.keep(text.slice(at))
@@ -152,7 +206,7 @@ class Scanner {
     this.keep(bound ? `${ELEMENT_MARKUP}<${name}` : `<${name}`)
     this.attributes(attributes)
     this.keep(close === '' ? '>' : ' />')
-    this.#elements += bound ? PREVIOUS : FIRST
+    this.#elements += bound ? 1 : 0
   }
 
   /**
@@ -161,7 +215,7 @@ class Scanner {
    * @returns {void}
    */
   attributes(attributes) {
-    let at = FIRST
+    let at = 0
     for (const attribute of matches(attributes, ATTRIBUTE)) {
       this.keep(attributes.slice(at, attribute.index))
       this.attribute(attribute)
@@ -208,24 +262,7 @@ class Scanner {
 }
 
 /**
- * Scans a template's static strings for its holes.
- * @param {TemplateStringsArray} strings - The static strings
- * @returns {Prepared} The template, ready to render
- */
-function scanTemplate(strings) {
-  if (strings.some((text) => text.includes(START) || text.includes(END))) {
-    throw new Error('A template contains U+E000 or U+E001, which mark its holes while it is read')
-  }
-  const markup = strings.map((text, index) => (index === FIRST ? text : `${START}${index - PREVIOUS}${END}${text}`))
-  const scanner = new Scanner()
-  for (const token of tokens(markup.join(''))) {
-    scanner.token(token)
-  }
-  return scanner.done()
-}
-
-/**
- * A template's static strings, scanned once and remembered.
+ * A template's static strings, scanned once for its holes and remembered.
  * @param {TemplateStringsArray} strings - The static strings, the same object each time the template runs
  * @returns {Prepared} The template, ready to render
  */
@@ -234,9 +271,17 @@ function prepare(strings) {
   if (seen) {
     return seen
   }
-  const fresh = scanTemplate(strings)
+  if (strings.some((text) => text.includes(START) || text.includes(END))) {
+    throw new Error('A template contains U+E000 or U+E001, which mark its holes while it is read')
+  }
+  const markup = strings.map((text, index) => (index === 0 ? text : `${START}${index - 1}${END}${text}`))
+  const scanner = new Scanner()
+  for (const token of tokens(markup.join(''))) {
+    scanner.token(token)
+  }
+  const fresh = scanner.done()
   known.set(strings, fresh)
   return fresh
 }
 
-export { prepare }
+export { prepare, tokens }
