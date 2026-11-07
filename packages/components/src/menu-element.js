@@ -29,8 +29,6 @@ function contextMenuElement(create) {
   return component(contextMenuView(), create)
 }
 
-const NONE = 0
-
 /**
  * Whether a context menu was asked for from the keyboard (the Context Menu key, Shift+F10) rather than the pointer:
  * Chrome says so with button -1; an engine giving no point and no press count is taken as saying the same.
@@ -38,7 +36,7 @@ const NONE = 0
  * @returns {boolean} Whether it came from the keyboard
  */
 function fromKeyboard(event) {
-  return event.button < NONE || (event.detail === NONE && event.clientX === NONE && event.clientY === NONE)
+  return event.button < 0 || (event.detail === 0 && event.clientX === 0 && event.clientY === 0)
 }
 
 /**

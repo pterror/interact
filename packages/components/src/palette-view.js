@@ -15,9 +15,6 @@ import { comboboxInput } from './combobox-field.js'
 import { paletteStyles } from './palette-styles.js'
 import { activeDescendant, rowsViewport, syncRows } from './rows-view.js'
 
-const NONE = 0
-const ONE = 1
-
 /**
  * A run of a label's text: where it starts, what it is, and whether the query matched it.
  * @typedef {Readonly<{ start: number, text: string, matched: boolean }>} Run
@@ -33,8 +30,8 @@ function runsOf(label, positions) {
   const matched = new Set(positions)
   /** @type {Run[]} */
   const runs = []
-  let start = NONE
-  for (let index = ONE; index <= label.length; index += ONE) {
+  let start = 0
+  for (let index = 1; index <= label.length; index += 1) {
     if (index === label.length || matched.has(index) !== matched.has(start)) {
       runs.push({ matched: matched.has(start), start, text: label.slice(start, index) })
       start = index
@@ -102,7 +99,7 @@ function result(palette, row) {
  */
 function statusOf(palette) {
   const answered = palette.list.source.get() !== undefined
-  return answered && palette.list.items.count === NONE ? 'No matching commands' : ''
+  return answered && palette.list.items.count === 0 ? 'No matching commands' : ''
 }
 
 /**

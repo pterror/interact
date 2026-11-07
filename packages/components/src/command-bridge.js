@@ -44,8 +44,6 @@ import { menuEntries } from './menu-entry.js'
  * }>} CommandSystem
  */
 
-const NONE = 0
-
 /**
  * A command system, and everyone following its list: live when the system says when its list changes, otherwise
  * looking again when the app calls `refresh`.
@@ -160,8 +158,8 @@ function commandEntry(command) {
 function updateEntries(source, entries) {
   const before = source.count()
   const shared = Math.min(before, entries.length)
-  if (shared > NONE) {
-    source.replace(NONE, entries.slice(NONE, shared))
+  if (shared > 0) {
+    source.replace(0, entries.slice(0, shared))
   }
   if (entries.length > before) {
     source.insert(before, entries.slice(before))

@@ -4,8 +4,6 @@
  * @typedef {Readonly<{ items: Readonly<{ count: number, item: (position: number) => T | undefined }>, skip: (item: T) => boolean }>} Landable
  */
 
-const NONE = 0
-
 /**
  * The first position from `from` on, stepping by `step`, that focus can rest on.
  * @template T
@@ -16,7 +14,7 @@ const NONE = 0
  */
 function scan({ items, skip }, from, step) {
   const { count } = items
-  for (let at = from; at >= NONE && at < count; at += step) {
+  for (let at = from; at >= 0 && at < count; at += step) {
     const item = items.item(at)
     if (item === undefined || !skip(item)) {
       return at

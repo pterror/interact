@@ -5,8 +5,6 @@
 
 import { BlockCache, Listeners, findsSelected, firstSelected, startsWithTyped } from '@interact/core'
 
-const NONE = 0
-
 /**
  * A collection component's items: a source, read a block at a time through a bounded cache, so any number of items
  * costs the same. Views and behaviors read items here and hear the source's changes here, with blocks arriving
@@ -79,7 +77,7 @@ class Items {
    * @returns {number} The count
    */
   get count() {
-    return this.#source?.count() ?? NONE
+    return this.#source?.count() ?? 0
   }
 
   /**
@@ -87,7 +85,7 @@ class Items {
    * @returns {number} The blocks
    */
   get blocks() {
-    return this.#cache?.blocks ?? NONE
+    return this.#cache?.blocks ?? 0
   }
 
   /**
@@ -123,10 +121,10 @@ class Items {
    */
   async findPrefix(text, from, textOf) {
     const { count } = this
-    const start = from < count ? Math.max(from, NONE) : NONE
+    const start = from < count ? Math.max(from, 0) : 0
     try {
       const found = await this.#find(text, start, textOf)
-      return found === undefined && start > NONE ? await this.#find(text, NONE, textOf) : found
+      return found === undefined && start > 0 ? await this.#find(text, 0, textOf) : found
     } catch (error) {
       this.#errors.emit(error)
       return undefined

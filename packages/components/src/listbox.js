@@ -210,8 +210,7 @@ class Listbox {
    * @returns {Promise<void>} When it has been found, or not
    */
   async type(character) {
-    const at = { active: this.active.get(), top: this.scroll.top.get() }
-    const found = await this.#typeahead.seek(character, at, async (text, from) =>
+    const found = await this.#typeahead.seek(character, this.active.get(), this.scroll.top.get(), async (text, from) =>
       this.items.findPrefix(text, from, this.text),
     )
     const landed = found === undefined ? undefined : landing(this, found, 1)

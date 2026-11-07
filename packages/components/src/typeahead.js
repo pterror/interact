@@ -7,8 +7,6 @@
  */
 
 const WAIT = 500
-const NONE = 0
-const ONE = 1
 
 /** @type {Intl.Segmenter | undefined} */
 let segmenter = undefined
@@ -45,7 +43,7 @@ class Typeahead {
    * How many searches have started, so one that answers after a later one started is dropped.
    * @type {number}
    */
-  #searches = NONE
+  #searches = 0
   /**
    * @readonly
    * @type {() => number}
@@ -75,7 +73,7 @@ class Typeahead {
     this.#typed = `${now - this.#at < WAIT ? this.#typed : ''}${character}`
     this.#at = now
     const characters = graphemes(this.#typed)
-    const first = characters.length === ONE
+    const first = characters.length === 1
     const repeated = !first && characters.every((typed) => typed === character)
     return { after: first, cycle: repeated ? character : undefined, text: this.#typed }
   }
@@ -84,16 +82,16 @@ class Typeahead {
    * Looks for an item by a character typed, with what was typed a moment before it: the whole of it first, then, for
    * one character typed again and again, the next item after the active one starting with that character.
    * @param {string} character - What was typed
-   * @param {Readonly<{ active: number | undefined, top: number }>} at - The active item, and the top, where looking
-   *   starts while nothing is active
+   * @param {number | undefined} active - The active item
+   * @param {number} top - The top, where looking starts while nothing is active
    * @param {(text: string, from: number) => Promise<number | undefined>} find - Looks for an item from a position
    * @returns {Promise<number | undefined>} Where it is, unless none was found or more was typed meanwhile
    */
-  async seek(character, at, find) {
+  async seek(character, active, top, find) {
     const { after, cycle, text } = this.type(character)
-    const next = at.active === undefined ? at.top : at.active + ONE
-    const from = at.active === undefined ? at.top : at.active + (after ? ONE : NONE)
-    this.#searches += ONE
+    const next = active === undefined ? top : active + 1
+    const from = active === undefined ? top : active + (after ? 1 : 0)
+    this.#searches += 1
     const search = this.#searches
     const whole = await find(text, from)
     const found = whole === undefined && cycle !== undefined ? await find(cycle, next) : whole

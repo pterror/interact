@@ -30,8 +30,6 @@ import { Listbox } from './listbox.js'
  */
 
 const DEFAULT_ROWS = 10
-const START = 0
-const FORWARD = 1
 
 /**
  * Whether a command can't run now, so focus passes over it.
@@ -243,7 +241,7 @@ class Palette {
   #show(found) {
     const shown = this.#options.inactive === 'hide' ? found.filter((command) => command.enabled) : found
     this.list.source.set(new MemorySource(shown, idOf, labelOf))
-    const first = landing(this.list, START, FORWARD)
+    const first = landing(this.list, 0, 1)
     if (first !== undefined) {
       this.list.goTo(first)
     }

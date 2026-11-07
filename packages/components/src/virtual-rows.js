@@ -12,10 +12,6 @@
 const MAX_SCROLL_PIXELS = 17_895_696
 /** Scrollable rows before a row has been measured, as on the server: under the limit for rows up to 1,789px. */
 const UNMEASURED_ROWS = 10_000
-const NONE = 0
-const ONE = 1
-const HALF = 2
-const QUARTER = 4
 /** Pixels of a row that may be scrolled past before the row is no longer the top one, against rounding. */
 const SLACK = 0.5
 
@@ -26,7 +22,7 @@ const SLACK = 0.5
  * @returns {number} The cap
  */
 function rowCap(screenPitch) {
-  return Math.max(ONE, Math.floor(MAX_SCROLL_PIXELS / screenPitch) - ONE)
+  return Math.max(1, Math.floor(MAX_SCROLL_PIXELS / screenPitch) - 1)
 }
 
 /**
@@ -63,7 +59,7 @@ function clamp(value, low, high) {
  */
 function centredOffset({ cap, count, rows, top }) {
   const scrollable = virtualRows(count, cap)
-  return clamp(top - Math.floor((scrollable - rows) / HALF), NONE, count - scrollable)
+  return clamp(top - Math.floor((scrollable - rows) / 2), 0, count - scrollable)
 }
 
 /**
@@ -78,11 +74,11 @@ function offsetFor(placement) {
     return centredOffset(placement)
   }
   const scrollable = virtualRows(count, cap)
-  const margin = Math.floor(scrollable / QUARTER)
+  const margin = Math.floor(scrollable / 4)
   const row = top - offset
-  const nearStart = row < margin && offset > NONE
+  const nearStart = row < margin && offset > 0
   const nearEnd = row > scrollable - rows - margin && offset < count - scrollable
-  const outside = row < NONE || row > scrollable - rows || offset < NONE || offset > count - scrollable
+  const outside = row < 0 || row > scrollable - rows || offset < 0 || offset > count - scrollable
   return nearStart || nearEnd || outside ? centredOffset(placement) : offset
 }
 

@@ -26,9 +26,6 @@ import { countSelected, isSelected, spanning, toggle } from '@interact/core'
  * }>} Choosing
  */
 
-const NONE = 0
-const ONE = 1
-
 /**
  * What pressing, moving and Space do to a selection, in single or multiple mode, from an anchor: the item last chosen
  * without Shift, which Shift selects through from. Selecting by position reads nothing: the source makes a filter.
@@ -153,8 +150,8 @@ class Chooser {
   all() {
     const source = this.#host.source()
     const count = this.#host.count()
-    if (source && count > NONE && this.mode !== 'none') {
-      this.#host.requestSelection(spanning(source, NONE, count))
+    if (source && count > 0 && this.mode !== 'none') {
+      this.#host.requestSelection(spanning(source, 0, count))
     }
   }
 
@@ -175,7 +172,7 @@ class Chooser {
    */
   async count() {
     const source = this.#host.source()
-    return source ? countSelected(this.#host.selection(), source) : NONE
+    return source ? countSelected(this.#host.selection(), source) : 0
   }
 
   /**
@@ -187,7 +184,7 @@ class Chooser {
   #through(from, to) {
     const source = this.#host.source()
     if (source) {
-      this.#host.requestSelection(spanning(source, Math.min(from, to), Math.max(from, to) + ONE))
+      this.#host.requestSelection(spanning(source, Math.min(from, to), Math.max(from, to) + 1))
     }
   }
 

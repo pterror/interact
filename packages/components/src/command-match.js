@@ -14,9 +14,6 @@
 const AT_START = 0
 const AT_WORD = 1
 const INSIDE = 2
-const SAME = 0
-const NOT_FOUND = -1
-const STEP = 1
 
 /** @type {Intl.Collator | undefined} */
 let collator = undefined
@@ -30,7 +27,7 @@ let collator = undefined
  */
 function matchesAt(label, query, index) {
   collator ??= new Intl.Collator(undefined, { sensitivity: 'base', usage: 'search' })
-  return collator.compare(label.slice(index, index + query.length), query) === SAME
+  return collator.compare(label.slice(index, index + query.length), query) === 0
 }
 
 /**
@@ -41,19 +38,19 @@ function matchesAt(label, query, index) {
  */
 function bestMatch(label, query) {
   /** @type {number} */
-  let inside = NOT_FOUND
-  for (let index = SAME; index + query.length <= label.length; index += STEP) {
+  let inside = -1
+  for (let index = 0; index + query.length <= label.length; index += 1) {
     if (matchesAt(label, query, index)) {
-      if (index === SAME) {
+      if (index === 0) {
         return { index, rank: AT_START }
       }
-      if (/[\s\p{P}]/u.test(label.charAt(index - STEP))) {
+      if (/[\s\p{P}]/u.test(label.charAt(index - 1))) {
         return { index, rank: AT_WORD }
       }
-      inside = inside === NOT_FOUND ? index : inside
+      inside = inside === -1 ? index : inside
     }
   }
-  return inside === NOT_FOUND ? undefined : { index: inside, rank: INSIDE }
+  return inside === -1 ? undefined : { index: inside, rank: INSIDE }
 }
 
 /**

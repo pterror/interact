@@ -2,9 +2,6 @@ import { Controllable } from '@interact/core'
 
 import { clamp } from './virtual-rows.js'
 
-const NONE = 0
-const ONE = 1
-
 /**
  * Which rows of a list show: the position at the top and how many rows show at once, both controllable by the app. The
  * top is the source of truth for where the list is scrolled; a view turns it into pixels, never the other way round.
@@ -52,7 +49,7 @@ class ScrollRows {
     const top = this.top.get()
     return {
       end: Math.min(this.#count(), top + this.rows.get() + this.#overscan),
-      start: Math.max(NONE, top - this.#overscan),
+      start: Math.max(0, top - this.#overscan),
     }
   }
 
@@ -75,7 +72,7 @@ class ScrollRows {
     if (position < top) {
       this.top.request(position)
     } else if (position >= top + this.rows.get()) {
-      this.top.request(position - this.rows.get() + ONE)
+      this.top.request(position - this.rows.get() + 1)
     }
   }
 
@@ -85,7 +82,7 @@ class ScrollRows {
    * @returns {number} The position kept inside
    */
   within(position) {
-    return clamp(position, NONE, Math.max(NONE, this.#count() - this.rows.get()))
+    return clamp(position, 0, Math.max(0, this.#count() - this.rows.get()))
   }
 
   /**
@@ -95,7 +92,7 @@ class ScrollRows {
    */
   positions(active) {
     const { end, start } = this.window()
-    const positions = Array.from({ length: Math.max(NONE, end - start) }, (_skip, offset) => start + offset)
+    const positions = Array.from({ length: Math.max(0, end - start) }, (_skip, offset) => start + offset)
     if (active !== undefined && (active < start || active >= end)) {
       positions.push(active)
     }

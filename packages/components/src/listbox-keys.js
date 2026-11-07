@@ -23,21 +23,16 @@ import { graphemes } from './typeahead.js'
  * >} KeyAction
  */
 
-const BACK = -1
-const FORWARD = 1
-const NONE = 0
-const ONE_CHARACTER = 1
-
 /** @type {ReadonlyMap<string, KeyAction>} */
 const KEYS = new Map([
   [' ', { kind: 'toggle' }],
-  ['ArrowDown', { kind: 'move', pages: NONE, rows: FORWARD }],
-  ['ArrowUp', { kind: 'move', pages: NONE, rows: BACK }],
+  ['ArrowDown', { kind: 'move', pages: 0, rows: 1 }],
+  ['ArrowUp', { kind: 'move', pages: 0, rows: -1 }],
   ['End', { kind: 'last' }],
   ['Enter', { kind: 'activate' }],
   ['Home', { kind: 'first' }],
-  ['PageDown', { kind: 'move', pages: FORWARD, rows: NONE }],
-  ['PageUp', { kind: 'move', pages: BACK, rows: NONE }],
+  ['PageDown', { kind: 'move', pages: 1, rows: 0 }],
+  ['PageUp', { kind: 'move', pages: -1, rows: 0 }],
 ])
 
 /** @type {ReadonlyMap<string, KeyAction>} */
@@ -45,20 +40,6 @@ const TOGGLE_SHIFT_KEYS = new Map([
   ['End', { kind: 'toLast' }],
   ['Home', { kind: 'toFirst' }],
 ])
-
-/**
- * What a key does with the toggle modifier: with A, select everything; with Shift and Home or End, select from the
- * active item to the first or last.
- * @param {string} key - The key
- * @param {boolean} shift - Whether Shift was held too
- * @returns {KeyAction | undefined} What to do
- */
-function toggleAction(key, shift) {
-  if (shift) {
-    return TOGGLE_SHIFT_KEYS.get(key)
-  }
-  return key.toLowerCase() === 'a' ? { kind: 'all' } : undefined
-}
 
 /**
  * What a key does in a listbox, if anything, as the WAI-ARIA Authoring Practices listbox pattern has it: the arrows,
@@ -70,14 +51,17 @@ function toggleAction(key, shift) {
  * @returns {KeyAction | undefined} What to do
  */
 function keyAction(key, modifiers) {
+  if (modifiers.toggle && modifiers.shift) {
+    return TOGGLE_SHIFT_KEYS.get(key)
+  }
   if (modifiers.toggle) {
-    return toggleAction(key, modifiers.shift)
+    return key.toLowerCase() === 'a' ? { kind: 'all' } : undefined
   }
   if (key === ' ' && modifiers.shift) {
     return { kind: 'through' }
   }
   const known = KEYS.get(key)
-  if (known !== undefined || graphemes(key).length !== ONE_CHARACTER) {
+  if (known !== undefined || graphemes(key).length !== 1) {
     return known
   }
   return { character: key, kind: 'type' }
