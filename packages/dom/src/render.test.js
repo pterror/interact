@@ -1,10 +1,25 @@
-/** @import { TemplateResult } from './template.js' */
+/** @import { Entry, TemplateResult } from './template.js' */
 
 import { describe, expect, test } from 'bun:test'
 
-import { hasServerMarkup, hydrate, render } from './render.js'
+import {
+  AttributePart,
+  ChildPart,
+  EventPart,
+  PropertyPart,
+  adoptInstance,
+  clearRange,
+  collect,
+  createInstance,
+  hasServerMarkup,
+  hydrate,
+  moveAfter,
+  reconcile,
+  removeRange,
+  render,
+} from './render.js'
 import { html, repeat } from './template.js'
-import { find, serverMarkup } from './test-helpers.js'
+import { emptyHole, find, lastNode, outerRange, serverMarkup, watchChildren } from './test-helpers.js'
 
 /** @typedef {Readonly<{ id: string, label: string }>} Row */
 
@@ -142,5 +157,170 @@ describe('hydrate', () => {
     expect(() => {
       hydrate(html`<p class=${'x'}>${'a'}</p>`, container)
     }).toThrow('different template')
+  })
+})
+
+/**
+ * A container holding `a`, then a range around `b`, then `c`.
+ * @returns {Readonly<{ container: Element, range: Readonly<{ open: Comment, close: Comment }> }>} Them
+ */
+function setUp() {
+  const container = document.createElement('div')
+  const range = { close: document.createComment('i]'), open: document.createComment('i[') }
+  container.append('a', range.open, 'b', range.close, 'c')
+  return { container, range }
+}
+
+describe('ranges', () => {
+  test('clears between the markers and keeps them', () => {
+    const { container, range } = setUp()
+    clearRange(range)
+    expect(container.innerHTML).toBe('a<!--i[--><!--i]-->c')
+  })
+
+  test('removes the markers too', () => {
+    const { container, range } = setUp()
+    removeRange(range)
+    expect(container.innerHTML).toBe('ac')
+  })
+
+  test('moves a range after a node', () => {
+    const { container, range } = setUp()
+    moveAfter(lastNode(container), range)
+    expect(container.innerHTML).toBe('ac<!--i[-->b<!--i]-->')
+  })
+})
+
+const TWO = 2
+
+describe('collect', () => {
+  test("finds a template's bound elements and child holes, not those of templates inside it", () => {
+    const container = serverMarkup(html`<p class=${'a'}>${html`<b class=${'b'}>${'x'}</b>`}</p> ${'y'}`)
+    const range = outerRange(container)
+    const found = collect({ end: range.close, first: range.open.nextSibling })
+    expect(found.elements.map((element) => element.tagName)).toEqual(['P'])
+    expect(found.children).toHaveLength(TWO)
+  })
+})
+
+describe('AttributePart', () => {
+  test('sets, empties and removes the attribute, starting from what the element has', () => {
+    const element = document.createElement('p')
+    element.setAttribute('title', 'server')
+    const part = new AttributePart(element, 'title')
+    part.set('server')
+    expect(element.getAttribute('title')).toBe('server')
+    part.set(true)
+    expect(element.getAttribute('title')).toBe('')
+    part.set(false)
+    expect(element.hasAttribute('title')).toBe(false)
+  })
+})
+
+describe('PropertyPart', () => {
+  test('sets the property only when the value changes', () => {
+    const input = document.createElement('input')
+    const part = new PropertyPart(input, 'value')
+    part.set('a')
+    input.value = 'typed'
+    part.set('a')
+    expect(input.value).toBe('typed')
+    part.set('b')
+    expect(input.value).toBe('b')
+  })
+})
+
+describe('EventPart', () => {
+  test('calls the handler it holds now, and none once cleared', () => {
+    const button = document.createElement('button')
+    const part = new EventPart(button, 'click')
+    /** @type {string[]} */
+    const heard = []
+    part.set(() => {
+      heard.push('a')
+    })
+    part.set(() => {
+      heard.push('b')
+    })
+    button.click()
+    part.set(undefined)
+    button.click()
+    expect(heard).toEqual(['b'])
+  })
+})
+
+/**
+ * A paragraph with a bound title.
+ * @param {string} title - The title
+ * @returns {TemplateResult} The template
+ */
+function paragraph(title) {
+  return html`<p title=${title}>text</p>`
+}
+
+describe('TemplateInstance', () => {
+  test('renders afresh and updates its parts', () => {
+    const { instance, nodes } = createInstance(paragraph('a'), document)
+    const container = document.createElement('div')
+    container.append(nodes)
+    instance.update(paragraph('b').values)
+    expect(find(container, 'p').title).toBe('b')
+  })
+
+  test('adopts server markup between markers', () => {
+    const container = serverMarkup(paragraph('a'))
+    const server = find(container, 'p')
+    adoptInstance(paragraph('b'), outerRange(container))
+    expect(find(container, 'p')).toBe(server)
+    expect(server.title).toBe('b')
+  })
+})
+
+describe('ChildPart', () => {
+  test('keeps its text node while the text changes', () => {
+    const { container, range } = emptyHole()
+    const part = new ChildPart(range, false)
+    part.set('a')
+    const text = range.open.nextSibling
+    part.set('b')
+    expect(range.open.nextSibling).toBe(text)
+    expect(container.textContent).toBe('b')
+  })
+
+  test('replaces text with a template', () => {
+    const { container, range } = emptyHole()
+    const part = new ChildPart(range, false)
+    part.set('a')
+    part.set(html`<b>x</b>`)
+    expect(find(container, 'b').textContent).toBe('x')
+    expect(container.childNodes).toHaveLength([range.open, find(container, 'b'), range.close].length)
+  })
+})
+
+/**
+ * One entry per key, each an `<i>` showing it.
+ * @param {readonly string[]} keys - The keys
+ * @returns {readonly Entry[]} The entries
+ */
+function keyedRows(keys) {
+  return repeat(
+    keys,
+    (key) => key,
+    (key) => html`<i>${key}</i>`,
+  ).entries
+}
+
+describe('reconcile', () => {
+  test('keeps items without moving them when one goes from the front and one comes at the end', () => {
+    const { container, range } = emptyHole()
+    const first = reconcile([], keyedRows(['a', 'b', 'c']), range)
+    const [, second, third] = first
+    const touched = watchChildren(container)
+    const next = reconcile(first, keyedRows(['b', 'c', 'd']), range)
+    /** @type {Set<Node | undefined>} */
+    const stayed = new Set([second?.range.open, third?.range.open])
+    expect(next.map(({ key }) => key)).toEqual(['b', 'c', 'd'])
+    expect(touched().filter((node) => stayed.has(node))).toEqual([])
+    expect(container.textContent).toBe('bcd')
   })
 })

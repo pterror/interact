@@ -1,11 +1,9 @@
 /**
  * @import { ComponentClass } from './component.js'
- * @import { Range } from './collect.js'
- * @import { Part } from './instance.js'
+ * @import { Range } from './render.js'
  * @import { TemplateResult } from './template.js'
  */
 
-import { ChildPart } from './child-part.js'
 import { component } from './component.js'
 import { css } from './css.js'
 import { CLOSE, OPEN, isMarker } from './markers.js'
@@ -183,24 +181,6 @@ function emptyHole() {
 }
 
 /**
- * Makes real child parts, as rendering does.
- * @param {Range} range - The hole's markers
- * @param {boolean} adopting - Whether to adopt server markup
- * @returns {Part} The part
- */
-function childParts(range, adopting) {
-  return new ChildPart(range, adopting)
-}
-
-/**
- * Makes child parts that ignore their values, to test something without them.
- * @returns {Part} A part that does nothing
- */
-function noChildren() {
-  return { set: () => undefined }
-}
-
-/**
  * An element found by a selector, which must be there.
  * @param {Element | DocumentFragment} root - Where to look
  * @param {string} selector - What to look for
@@ -267,12 +247,10 @@ export {
   counterView,
   testElements,
   watchChildren,
-  childParts,
   emptyHole,
   find,
   firstOpen,
   lastNode,
-  noChildren,
   outerRange,
   serverMarkup,
 }

@@ -689,9 +689,10 @@ The evaluation found two things to learn from:
 
 - **Hydration (built):** `renderToString` marks child holes with `<!--i[-->`…`<!--i]-->` and bound elements with a
   `<!--i@-->` before them (`packages/dom/src/markers.js`). `hydrate` walks the markers in the same order the DOM
-  renderer finds them in a fresh clone (`collect.js`). It keeps the server's nodes and attaches parts. Repeated items
-  are paired by position, and then reconciled by key as on any update (`reconcile.js`). Markup from a different template
-  is an error, not a silent re-render. A missing, `null` or `false` attribute is left out; an empty string keeps it.
+  renderer finds them in a fresh clone (`collect`, `render.js`). It keeps the server's nodes and attaches parts.
+  Repeated items are paired by position, and then reconciled by key as on any update (`reconcile`, `render.js`). Markup
+  from a different template is an error, not a silent re-render. A missing, `null` or `false` attribute is left out; an
+  empty string keeps it.
 - **Formatting templates:** oxfmt formats `html` and `css` templates. With any `htmlWhitespaceSensitivity` but `strict`
   it adds whitespace text to rendered markup. Strict only moves whitespace inside tags, which the template scanner drops
   (`prepare.js`).
