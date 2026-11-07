@@ -1,26 +1,24 @@
-/** @import { Numbered, Range } from './test-helpers.js' */
+/** @import { Numbered } from './test-helpers.js' */
 
 import { describe, expect, test } from 'bun:test'
 
 import { register, renderComponent } from '@interact/dom'
 
-import { Listbox } from './legacy-listbox.js'
 import { listboxElement } from './listbox-element.js'
 import { listboxView } from './listbox-view.js'
-import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
+import { TEN_BILLION, listboxOver, numbers, tenBillionListbox } from './test-helpers.js'
 
 const FIVE_BILLION = 5_000_000_000
 const ROWS = 10
 const OVERSCAN = 5
-const START = 0
 
 describe('listboxElement', () => {
-  test('is a class the app registers, each instance making its listbox from its element', () => {
+  test('is a class the app registers, each instance making its store from its element', () => {
     /** @type {HTMLElement[]} */
     const hosts = []
     const Element = listboxElement((host) => {
       hosts.push(host)
-      return tenBillionListbox(numbers(TEN_BILLION).source, FIVE_BILLION)
+      return tenBillionListbox(numbers(TEN_BILLION).source, FIVE_BILLION).store
     })
     register([Element], { prefix: 'el' })
     const element = document.createElement('el-listbox')
@@ -32,10 +30,8 @@ describe('listboxElement', () => {
 
 describe('the listbox on the server', () => {
   test('renders the options in the window, named for assistive technology', () => {
-    const markup = renderComponent(listboxView(), tenBillionListbox(numbers(TEN_BILLION).source, FIVE_BILLION), {
-      mode: 'light',
-      prefix: 'x',
-    })
+    const { store } = tenBillionListbox(numbers(TEN_BILLION).source, FIVE_BILLION)
+    const markup = renderComponent(listboxView(), store, { mode: 'light', prefix: 'x' })
     expect(markup).toContain('role="listbox"')
     expect(markup).toContain('aria-label="Numbers"')
     expect(markup).toContain('aria-multiselectable="true"')
@@ -45,34 +41,20 @@ describe('the listbox on the server', () => {
   })
 })
 
-/**
- * A listbox element class whose items never arrive, and the listboxes it has made.
- * @returns {Readonly<{ Element: ReturnType<typeof listboxElement<Numbered, Range>>, made: readonly Listbox<Numbered,
- *   Range>[] }>} The class, and what it made
- */
-function waitingElement() {
-  /** @type {Listbox<Numbered, Range>[]} */
-  const made = []
-  const { source } = numbers(TEN_BILLION)
-  /** @type {PromiseWithResolvers<readonly Numbered[]>} */
-  const never = Promise.withResolvers()
-  const Element = listboxElement(() => {
-    const listbox = new Listbox({ rows: ROWS, source: { ...source, read: async () => never.promise } })
-    made.push(listbox)
-    return listbox
-  })
-  return { Element, made }
-}
-
 describe('the listbox element, its items still on their way', () => {
-  test('names no active option until the active item has arrived', () => {
-    const { Element, made } = waitingElement()
-    register([Element], { prefix: 'waiting' })
+  test('names no active option until the active item has arrived', async () => {
+    const { source } = numbers(TEN_BILLION)
+    /** @type {PromiseWithResolvers<readonly Numbered[]>} */
+    const never = Promise.withResolvers()
+    const made = listboxOver({ ...source, read: async () => never.promise }, { rows: ROWS })
+    register([listboxElement(() => made.store)], { prefix: 'waiting' })
     const element = document.createElement('waiting-listbox')
     document.body.append(element)
-    const viewport = element.shadowRoot?.querySelector('[role="listbox"]')
-    viewport?.dispatchEvent(new FocusEvent('focus'))
-    expect(made.map((listbox) => listbox.active.get())).toEqual([START])
-    expect(viewport?.hasAttribute('aria-activedescendant')).toBe(false)
+    const list = element.shadowRoot?.querySelector('[role="listbox"]')
+    list?.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
+    await Bun.sleep(0)
+    expect(made.current.positionIn(made.store.state)).toBe(0)
+    expect(list?.querySelector('[part~="active"]')?.getAttribute('aria-busy')).toBe('true')
+    expect(list?.hasAttribute('aria-activedescendant')).toBe(false)
   })
 })

@@ -1,5 +1,3 @@
-// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
-// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * The arithmetic of showing billions of rows in a scroll area a browser can make: at most `cap` rows are scrollable,
  * and an offset says which position the first of them is. Positions are exact; pixels only ever say which of the
@@ -7,12 +5,15 @@
  */
 
 /**
- * The tallest scrollable area every browser makes, in pixels on screen: Firefox 157's 17,895,696, the smallest of the
- * three measured (Chrome 156 and WebKit 27.2 make 33,554,428). Taller, Firefox collapses the area to nothing; CSS zoom
- * divides the limit in CSS pixels, so it is compared with a row's height on screen.
+ * The tallest scrollable area every browser lands exactly in, in pixels on screen: 2^23. The tallest Firefox 157 makes
+ * at all is 17,895,696, the smallest of the three measured (Chrome 156 and WebKit 27.2 make 33,554,428); taller, it
+ * collapses the area to nothing. But it keeps a scroll position as a 32-bit float (measured: 16,000,000.7 set reads
+ * back 16,000,001, and 17,895,395 reads 17,895,396), so past 2^23 pixels a position is coarser than half a pixel and
+ * the row at the top can't be told; under it, it is within a quarter. CSS zoom divides the limit in CSS pixels, so it
+ * is compared with a row's height on screen. A lower cap costs nothing: the offset moves more often.
  */
-const MAX_SCROLL_PIXELS = 17_895_696
-/** Scrollable rows before a row has been measured, as on the server: under the limit for rows up to 1,789px. */
+const MAX_SCROLL_PIXELS = 8_388_608
+/** Scrollable rows before a row has been measured, as on the server: under the limit for rows up to 838px. */
 const UNMEASURED_ROWS = 10_000
 /** Pixels of a row that may be scrolled past before the row is no longer the top one, against rounding. */
 const SLACK = 0.5

@@ -129,7 +129,8 @@ function scheduler(root, view, behavior) {
 
 /**
  * An element coming into the page: marked with its kind, styled, its view rendered or the server's adopted, and
- * following its behavior from then on.
+ * following its behavior from then on, from before the view first hears it rendered, so a change the view makes then
+ * (a measurement after adopting) renders too.
  * @template {Behavior} B
  * @param {HTMLElement} element - The element
  * @param {View<B>} view - Its view
@@ -150,8 +151,9 @@ function connect(element, view, behavior) {
   } else {
     render(view.render(behavior), root)
   }
+  const stop = behavior.subscribe(again)
   view.rendered?.(behavior, root, again)
-  return { root, stop: behavior.subscribe(again) }
+  return { root, stop }
 }
 
 /**

@@ -2,21 +2,21 @@
  * What the listbox's browser tests run in their pages: registering the listbox, finding it, acting on it as a person
  * or an app would, and seeing what it shows. Each scenario puts the listbox in the page and reports what it saw, as
  * plain values; some are about its scrollable rows: row heights, zoom, and native scrolling near the ends.
+ * @import { Source } from '@interact/core/source'
  * @import { DomMode } from '@interact/dom/css'
- * @import { Listbox } from './legacy-listbox.js'
- * @import { Numbered, Range } from './test-helpers.js'
+ * @import { Made, Numbered, Range } from './test-helpers.js'
  */
 
 import { spanning, toggle } from '@interact/core'
 import { register } from '@interact/dom'
 
-import { pixels } from './legacy-rows-view.js'
 import { listboxElement } from './listbox-element.js'
+import { pixels } from './measure-rows.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 
 /**
- * What showed: the first and last fully visible positions, how many options are in the DOM, whether the viewport has
- * focus and its active descendant is there, the active position, the blocks cached, and the scroll position.
+ * What showed: the first and last fully visible positions, how many options are in the DOM, whether the list has focus
+ * and its active descendant is there, the active position, and the scroll position.
  * @typedef {Readonly<{
  *   top: number,
  *   bottom: number,
@@ -24,17 +24,18 @@ import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
  *   focused: boolean,
  *   activeThere: boolean,
  *   active: number | undefined,
- *   blocks: number,
  *   scrollTop: number,
  * }>} Seen
  */
+
+/** @typedef {Made<Numbered, Range, Source<Numbered, Range>>} NumbersListbox */
 
 const ONE = 1
 const NONE = 0
 const HALF = 2
 const HALF_PIXEL = 0.5
 
-/** @type {Listbox<Numbered, Range>[]} */
+/** @type {NumbersListbox[]} */
 const made = []
 const numbered = numbers(TEN_BILLION)
 
@@ -47,14 +48,14 @@ function registerListbox(top) {
   const ListboxElement = listboxElement(() => {
     const listbox = tenBillionListbox(numbered.source, top)
     made.push(listbox)
-    return listbox
+    return listbox.store
   })
   register([ListboxElement], { prefix: 'x' })
 }
 
 /**
  * The listbox made last.
- * @returns {Listbox<Numbered, Range>} It
+ * @returns {NumbersListbox} It
  */
 function latest() {
   const listbox = made.at(-ONE)
@@ -82,9 +83,9 @@ function parts() {
     throw new TypeError('There is no x-listbox')
   }
   const root = host.shadowRoot ?? host
-  const viewport = root.querySelector('[part~="viewport"]')
+  const viewport = root.querySelector('[part~="list"]')
   if (!(viewport instanceof HTMLElement)) {
-    throw new TypeError('The listbox has no viewport')
+    throw new TypeError('The listbox has no list')
   }
   return { root, viewport }
 }
@@ -138,11 +139,10 @@ function seen() {
   const visible = fullyVisible(root, viewport)
   const focusedNow = root instanceof ShadowRoot ? root.activeElement : document.activeElement
   const id = viewport.getAttribute('aria-activedescendant')
-  const listbox = latest()
+  const { current, store } = latest()
   return {
-    active: listbox.active.get(),
+    active: current.positionIn(store.state),
     activeThere: id !== null && root.querySelector(`#${CSS.escape(id)}`) !== null,
-    blocks: listbox.items.blocks,
     bottom: Math.max(...visible),
     focused: focusedNow === viewport,
     options: root.querySelectorAll('[role="option"]').length,
@@ -176,7 +176,7 @@ function middle() {
 /**
  * Puts a new listbox in the page, in a DOM mode.
  * @param {DomMode} mode - Where it lives
- * @returns {Promise<Listbox<Numbered, Range>>} It, once it has rendered
+ * @returns {Promise<NumbersListbox>} It, once it has rendered
  */
 async function fresh(mode) {
   registerListbox(NONE)
@@ -209,41 +209,49 @@ async function adoptServerListbox(top) {
 }
 
 /**
+ * Has the app scroll a listbox so a position is at the top.
+ * @param {NumbersListbox} listbox - The listbox
+ * @param {number} position - Where to
+ * @returns {void}
+ */
+function scrollTo({ store, windowed }, position) {
+  if (windowed === undefined) {
+    throw new Error('The listbox is not windowed')
+  }
+  store.dispatch({ effects: windowed.scrollTo.of(position) })
+}
+
+/**
  * Jumps across all ten billion items, one jump per frame, from jump `step` on.
- * @param {Listbox<Numbered, Range>} listbox - The listbox
+ * @param {NumbersListbox} listbox - The listbox
  * @param {number} step - Which jump this is
- * @param {Readonly<{ blocks: number, options: number }>} most - The most blocks and options seen so far
- * @returns {Promise<Readonly<{ blocks: number, options: number }>>} The most seen in all the jumps
+ * @param {number} most - The most options seen so far
+ * @returns {Promise<number>} The most seen in all the jumps
  */
 async function jumpAround(listbox, step, most) {
   if (step > JUMPS) {
     return most
   }
-  listbox.scroll.scrollTo(Math.floor((TEN_BILLION / JUMPS) * step) - step)
+  scrollTo(listbox, Math.floor((TEN_BILLION / JUMPS) * step) - step)
   await settle()
-  const now = seen()
-  return jumpAround(listbox, step + ONE, {
-    blocks: Math.max(most.blocks, now.blocks),
-    options: Math.max(most.options, now.options),
-  })
+  return jumpAround(listbox, step + ONE, Math.max(most, seen().options))
 }
 
 /**
- * Jumps to five billion, then to the last item, then all over: what showed after the first two, and the most blocks
- * cached and options rendered at once.
+ * Jumps to five billion, then to the last item, then all over: what showed after the first two, and the most options
+ * rendered at once.
  * @param {DomMode} mode - Where the listbox lives
- * @returns {Promise<Readonly<{ fiveBillion: Seen, last: Seen, mostBlocks: number, mostOptions: number }>>} What showed
+ * @returns {Promise<Readonly<{ fiveBillion: Seen, last: Seen, mostOptions: number }>>} What showed
  */
 async function jump(mode) {
   const listbox = await fresh(mode)
-  listbox.scroll.scrollTo(FIVE_BILLION)
+  scrollTo(listbox, FIVE_BILLION)
   await settle()
   const fiveBillion = seen()
-  listbox.scroll.scrollTo(TEN_BILLION)
+  scrollTo(listbox, TEN_BILLION)
   await settle()
   const last = seen()
-  const most = await jumpAround(listbox, ONE, { blocks: NONE, options: NONE })
-  return { fiveBillion, last, mostBlocks: most.blocks, mostOptions: most.options }
+  return { fiveBillion, last, mostOptions: await jumpAround(listbox, ONE, NONE) }
 }
 
 /**
@@ -260,7 +268,7 @@ async function selectAllButOne(mode) {
   press('a', true)
   const option = root.querySelector(`[aria-posinset="${String(PRESSED)}"]`)
   option?.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))
-  const count = await listbox.choose.count()
+  const count = await listbox.chosen.count(listbox.store.state)
   return { count, milliseconds: performance.now() - started, read: reads() }
 }
 
@@ -298,16 +306,13 @@ async function focusAway(mode) {
 
 /**
  * Selects a few items from five billion on as an app would, then deselects the first.
- * @param {Listbox<Numbered, Range>} listbox - The listbox
+ * @param {NumbersListbox} listbox - The listbox
  * @returns {void}
  */
-function selectFromFiveBillion(listbox) {
-  const { source } = listbox.items
-  if (source === undefined) {
-    throw new Error('The listbox has no source')
-  }
+function selectFromFiveBillion({ chosen, list, store }) {
+  const source = store.state.field(list.source)
   const span = spanning(source, FIVE_BILLION, FIVE_BILLION + PRESSED)
-  listbox.selection.set(toggle(span, source, { id: FIVE_BILLION }))
+  store.dispatch({ effects: chosen.selected.of(toggle(span, source, { id: FIVE_BILLION })) })
 }
 
 /**
@@ -346,7 +351,7 @@ async function focusedAndChosen(mode) {
  */
 async function selectedFills(mode) {
   const listbox = await fresh(mode)
-  listbox.choose.press(NONE, { shift: false, toggle: false })
+  listbox.store.handle(listbox.list.press.of({ count: ONE, position: NONE, shift: false, toggle: false }))
   await settle()
   const { root } = parts()
   const probe = document.createElement('div')
@@ -372,7 +377,7 @@ async function activeSelectedOutline(mode) {
   viewport.focus({ focusVisible: true })
   press(' ')
   await settle()
-  const option = root.querySelector('[part~="option-active"]')
+  const option = root.querySelector('[part~="active"]')
   const style = option ? getComputedStyle(option) : undefined
   return {
     fill: style?.backgroundColor ?? 'missing',
@@ -418,7 +423,7 @@ function colors() {
  */
 async function tokenLevels(mode) {
   const listbox = await fresh(mode)
-  listbox.choose.press(NONE, { shift: false, toggle: false })
+  listbox.store.handle(listbox.list.press.of({ count: ONE, position: NONE, shift: false, toggle: false }))
   await settle()
   const theme = colors()
   document.documentElement.style.setProperty('--interact-listbox-fill', 'rgb(1, 2, 3)')
@@ -443,10 +448,13 @@ const FRACTIONAL_ROW = 27.3
  */
 function rowsOf(viewport) {
   const option = viewport.querySelector('[role="option"]')
-  const spacer = viewport.querySelector('[part~="spacer"]')
+  const gaps = [...viewport.querySelectorAll(':scope > [part~="gap"]')].map((gap) =>
+    gap instanceof HTMLElement ? Number(gap.style.getPropertyValue('--interact-gap-rows')) : NONE,
+  )
+  const shown = viewport.querySelectorAll(':scope > [role="option"]:not([data-offscreen])').length
   return {
     height: option ? pixels(getComputedStyle(option).height) : Number.NaN,
-    scrollable: spacer instanceof HTMLElement ? Number(spacer.style.getPropertyValue('--interact-virtual-rows')) : NONE,
+    scrollable: gaps.reduce((all, rows) => all + rows, shown),
   }
 }
 
@@ -460,7 +468,7 @@ async function zoomedTallRows(mode) {
   document.documentElement.style.zoom = String(ZOOM)
   document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(TALL_ROW)}px`)
   const listbox = await fresh(mode)
-  listbox.scroll.scrollTo(FIVE_BILLION)
+  scrollTo(listbox, FIVE_BILLION)
   await settle()
   const { viewport } = parts()
   return { ...seen(), scrollHeight: viewport.scrollHeight, scrollable: rowsOf(viewport).scrollable }
@@ -475,10 +483,10 @@ async function zoomedTallRows(mode) {
 async function fractionalRows(mode) {
   document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(FRACTIONAL_ROW)}px`)
   const listbox = await fresh(mode)
-  listbox.scroll.scrollTo(TEN_BILLION)
+  scrollTo(listbox, TEN_BILLION)
   await settle()
   const last = seen()
-  listbox.scroll.scrollTo(FIVE_BILLION)
+  scrollTo(listbox, FIVE_BILLION)
   await settle()
   return { fiveBillion: seen(), last }
 }
@@ -491,7 +499,7 @@ async function fractionalRows(mode) {
  */
 async function beforeRecentring(mode) {
   const listbox = await fresh(mode)
-  listbox.scroll.scrollTo(FIVE_BILLION)
+  scrollTo(listbox, FIVE_BILLION)
   await settle()
   const { viewport } = parts()
   const { height, scrollable } = rowsOf(viewport)
@@ -508,7 +516,7 @@ async function beforeRecentring(mode) {
  */
 async function beforeTheEnd(mode) {
   const listbox = await fresh(mode)
-  listbox.scroll.scrollTo(TEN_BILLION - ROWS - ROWS_SHORT)
+  scrollTo(listbox, TEN_BILLION - ROWS - ROWS_SHORT)
   await settle()
   return middle()
 }

@@ -1,7 +1,6 @@
-// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { measureRow, pixels, zoomOf } from './legacy-rows-view.js'
+import { measureRow, pixels, zoomOf } from './measure-rows.js'
 
 const PITCH = 27.25
 const ZOOM = 2

@@ -8,16 +8,15 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
 import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
-import { MAX_SCROLL_PIXELS, rowCap } from './legacy-virtual-rows.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
+import { MAX_SCROLL_PIXELS, rowCap } from './virtual-rows.js'
 
 const FIVE_BILLION = 5_000_000_000
 const START = 0
 const ONE = 1
 const ROWS = 10
 const LAST_ROW = ROWS - ONE
-const LIMIT = 16
 const OVERSCAN = 5
 const PRESSED = 3
 const WHEEL = 100
@@ -52,8 +51,8 @@ afterAll(stopBrowsers, BROWSER_SETUP_MS)
  */
 function serverPage(mode, top) {
   const view = listboxView()
-  const listbox = tenBillionListbox(numbers(TEN_BILLION).source, top)
-  const markup = renderComponent(view, listbox, { mode, prefix: 'x', styles: 'inline' })
+  const { store } = tenBillionListbox(numbers(TEN_BILLION).source, top)
+  const markup = renderComponent(view, store, { mode, prefix: 'x', styles: 'inline' })
   const styles = `<style ${stylesheetAttributes(['listbox'])}>${stylesheetText(view, 'light')}</style>`
   return mode === 'light' ? `${styles}${markup}` : markup
 }
@@ -139,14 +138,13 @@ describe.each(CASES)('the listbox in %s DOM, in %s', (mode, engine) => {
     expect([seen.top, seen.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
   })
 
-  test('lands exactly on five billion and on the last item, holding a bounded cache however far it jumps', async () => {
+  test('lands exactly on five billion and on the last item, rendering a bounded number of rows however far it jumps', async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {
       const { jump } = await import('./test-pages.js')
       return jump(dom)
     })
     expect([seen.fiveBillion.top, seen.fiveBillion.bottom]).toEqual([FIVE_BILLION, FIVE_BILLION + LAST_ROW])
     expect([seen.last.top, seen.last.bottom]).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
-    expect(seen.mostBlocks).toBeLessThanOrEqual(LIMIT)
     expect(seen.mostOptions).toBeLessThanOrEqual(ROWS + OVERSCAN + OVERSCAN + ONE)
   })
 

@@ -2,7 +2,7 @@
 // It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 import { Controllable } from '@interact/core'
 
-import { clamp } from './legacy-virtual-rows.js'
+import { clamp } from './virtual-rows.js'
 
 /**
  * Which rows of a list show: the position at the top and how many rows show at once, both controllable by the app. The

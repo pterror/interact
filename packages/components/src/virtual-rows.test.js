@@ -1,15 +1,6 @@
-// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import {
-  MAX_SCROLL_PIXELS,
-  UNMEASURED_ROWS,
-  clamp,
-  offsetFor,
-  rowAt,
-  rowCap,
-  virtualRows,
-} from './legacy-virtual-rows.js'
+import { MAX_SCROLL_PIXELS, UNMEASURED_ROWS, clamp, offsetFor, rowAt, rowCap, virtualRows } from './virtual-rows.js'
 
 const TEN_BILLION = 10_000_000_000
 const ROWS = 10
@@ -30,7 +21,7 @@ describe('rowCap', () => {
     expect(rowCap(MAX_SCROLL_PIXELS * ZOOMED)).toBe(ONE)
   })
 
-  test('starts at a cap that holds for rows up to 1,789px', () => {
+  test('starts at a cap that holds for rows up to 838px', () => {
     expect(UNMEASURED_ROWS).toBeLessThanOrEqual(rowCap(Math.floor(MAX_SCROLL_PIXELS / UNMEASURED_ROWS)))
   })
 })

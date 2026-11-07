@@ -60,3 +60,24 @@ describe('a store view with nothing saying what it shows', () => {
     expect(() => view.render(new Store([count]))).toThrow('include an extension giving viewContent')
   })
 })
+
+describe('a store view whose plugin changes the state as it first hears the view rendered', () => {
+  test('renders that change', async () => {
+    let first = true
+    const measuring = viewPlugin((store) => ({
+      rendered: () => {
+        if (first) {
+          first = false
+          store.dispatch({ effects: set.of(1) })
+        }
+      },
+    }))
+    const store = new Store([count, measuring, viewContent.of((state) => html`<b>${state.field(count)}</b>`)])
+    register([component(storeView({ kind: 'measured', styles }), () => store)], { mode: 'light', prefix: 'store' })
+    const element = document.createElement('store-measured')
+    document.body.append(element)
+    await Promise.resolve()
+    expect(element.textContent).toBe('1')
+    element.remove()
+  })
+})
