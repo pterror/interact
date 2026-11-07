@@ -7,6 +7,7 @@ import {
   ChildPart,
   EventPart,
   PropertyPart,
+  SpreadPart,
   adoptInstance,
   clearRange,
   collect,
@@ -18,7 +19,7 @@ import {
   removeRange,
   render,
 } from './render.js'
-import { html, repeat } from './template.js'
+import { attributes, html, repeat } from './template.js'
 import { emptyHole, find, lastNode, outerRange, serverMarkup, watchChildren } from './test-helpers.js'
 
 /** @typedef {Readonly<{ id: string, label: string }>} Row */
@@ -59,6 +60,15 @@ function ignore() {
  */
 function rowsIn(container) {
   return [...container.querySelectorAll('li')]
+}
+
+/**
+ * A paragraph whose title comes from a hole standing alone in its tag.
+ * @param {string} title - Its title
+ * @returns {TemplateResult} The template
+ */
+function titled(title) {
+  return html`<p ${attributes({ title })}></p>`
 }
 
 describe('render', () => {
@@ -214,6 +224,31 @@ describe('AttributePart', () => {
     expect(element.getAttribute('title')).toBe('')
     part.set(false)
     expect(element.hasAttribute('title')).toBe(false)
+  })
+})
+
+describe('SpreadPart', () => {
+  test('sets what it is given, and takes off only what it gave before and not now', () => {
+    const element = document.createElement('p')
+    element.setAttribute('id', 'static')
+    const part = new SpreadPart(element)
+    part.set(attributes({ part: 'row', title: 'a' }))
+    part.set(attributes({ hidden: true, part: 'row active', title: undefined }))
+    expect(
+      element
+        .getAttributeNames()
+        .map((name) => `${name}=${element.getAttribute(name) ?? ''}`)
+        .toSorted(),
+    ).toEqual(['hidden=', 'id=static', 'part=row active'])
+  })
+
+  test('renders, and adopts server markup with its attributes as they are', () => {
+    const container = serverMarkup(titled('a'))
+    const before = find(container, 'p')
+    hydrate(titled('a'), container)
+    expect(find(container, 'p')).toBe(before)
+    render(titled('b'), container)
+    expect(before.getAttribute('title')).toBe('b')
   })
 })
 

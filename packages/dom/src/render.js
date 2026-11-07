@@ -6,7 +6,7 @@
 
 import { CLOSE, CLOSE_MARKUP, ELEMENT, OPEN, OPEN_MARKUP, isMarker, matchingClose } from './markers.js'
 import { prepare } from './prepare.js'
-import { attributeText, childOf, handlerOf } from './values.js'
+import { attributeText, childOf, handlerOf, spreadOf } from './values.js'
 
 /**
  * Where a template can be rendered: an element, a shadow root or a fragment.
@@ -175,6 +175,42 @@ class AttributePart {
     } else {
       this.#element.setAttribute(this.#name, text)
     }
+  }
+}
+
+/**
+ * A hole standing alone in a tag: attributes by name, set as they change and taken off once no longer given. It never
+ * touches an attribute it didn't set.
+ */
+class SpreadPart {
+  /** @readonly */
+  #element
+  /** @type {ReadonlyMap<string, string>} */
+  #texts = new Map()
+
+  /** @param {Element} element - The element */
+  constructor(element) {
+    this.#element = element
+  }
+
+  /**
+   * Sets the attributes given that differ from the element's, and takes off those given before and not now.
+   * @param {Value} value - The hole's value
+   * @returns {void}
+   */
+  set(value) {
+    const texts = spreadOf(value)
+    for (const name of this.#texts.keys()) {
+      if (!texts.has(name)) {
+        this.#element.removeAttribute(name)
+      }
+    }
+    for (const [name, text] of texts) {
+      if (this.#element.getAttribute(name) !== text) {
+        this.#element.setAttribute(name, text)
+      }
+    }
+    this.#texts = texts
   }
 }
 
@@ -445,6 +481,9 @@ function partsOf(prepared, span, adopting) {
     if (hole.kind === 'attribute') {
       return new AttributePart(element, hole.name)
     }
+    if (hole.kind === 'spread') {
+      return new SpreadPart(element)
+    }
     return hole.kind === 'property' ? new PropertyPart(element, hole.name) : new EventPart(element, hole.name)
   })
 }
@@ -639,6 +678,7 @@ export {
   ChildPart,
   EventPart,
   PropertyPart,
+  SpreadPart,
   adoptInstance,
   clearRange,
   collect,

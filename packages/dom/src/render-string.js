@@ -6,7 +6,7 @@
 import { escapeAttribute, escapeText } from './escape.js'
 import { CLOSE_MARKUP, OPEN_MARKUP } from './markers.js'
 import { prepare } from './prepare.js'
-import { attributeText, childOf } from './values.js'
+import { attributeText, childOf, spreadOf } from './values.js'
 
 /**
  * A child hole's content as markup, without the hole's own markers.
@@ -43,6 +43,13 @@ function childToString(value) {
 function holeToString(hole, value) {
   if (hole.kind === 'child') {
     return `${OPEN_MARKUP}${childToString(value)}${CLOSE_MARKUP}`
+  }
+  if (hole.kind === 'spread') {
+    const markup = []
+    for (const [name, text] of spreadOf(value)) {
+      markup.push(` ${name}="${escapeAttribute(text)}"`)
+    }
+    return markup.join('')
   }
   if (hole.kind !== 'attribute') {
     return ''

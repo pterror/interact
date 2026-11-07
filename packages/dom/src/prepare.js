@@ -5,8 +5,9 @@ import { ELEMENT_MARKUP } from './markers.js'
 /** @typedef {Readonly<{ index: number, text: string, groups: Readonly<Record<string, string | undefined>> }>} Found */
 
 /**
- * A hole on an element: an attribute, a property or an event, and which of the template's bound elements it is on.
- * @typedef {Readonly<{ kind: 'attribute' | 'property' | 'event', name: string, element: number }>} ElementHole
+ * A hole on an element: an attribute, a property, an event, or attributes by name (`spread`, with no name of its own),
+ * and which of the template's bound elements it is on.
+ * @typedef {Readonly<{ kind: 'attribute' | 'property' | 'event' | 'spread', name: string, element: number }>} ElementHole
  */
 
 /**
@@ -180,9 +181,13 @@ class Scanner {
    */
   attribute(attribute) {
     const { name = '', double, single, bare } = attribute.groups
-    const value = double ?? single ?? bare ?? ''
-    noHole(name, `an attribute's name or stand alone in a tag; it can only be a whole value: name=\${value}`)
-    if (!value.includes(START)) {
+    const value = double ?? single ?? bare
+    if (value === undefined && SENTINEL.test(name)) {
+      this.hole(name, { element: this.#elements, kind: 'spread', name: '' })
+      return
+    }
+    noHole(name, `an attribute's name; it can be a whole value (name=\${value}) or stand alone (\${attributes(...)})`)
+    if (value === undefined || !value.includes(START)) {
       this.keep(` ${attribute.text.trimStart()}`)
       return
     }

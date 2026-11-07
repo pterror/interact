@@ -40,6 +40,15 @@ describe('prepare', () => {
     expect(found.pieces).toEqual(['<!--i@--><ul', '><!--i@--><li', '', ' hidden>', '</li>', '</ul>'])
   })
 
+  test('finds a hole standing alone in a tag, for attributes by name', () => {
+    const found = prepare(strings`<p id="x" ${'a'} title=${'b'}></p>`)
+    expect(found.holes).toEqual([
+      { element: FIRST, kind: 'spread', name: '' },
+      { element: FIRST, kind: 'attribute', name: 'title' },
+    ])
+    expect(found.pieces).toEqual(['<!--i@--><p id="x"', '', '></p>'])
+  })
+
   test('keeps the case of a property name, which the HTML parser would lower', () => {
     expect(prepare(strings`<input .selectionStart=${'a'}>`).holes).toEqual([
       { element: FIRST, kind: 'property', name: 'selectionStart' },
@@ -58,7 +67,6 @@ describe('prepare', () => {
   test.each([
     ['part of an attribute value', () => prepare(strings`<p class="a ${'a'}"></p>`), 'whole attribute value'],
     ['an attribute name', () => prepare(strings`<p ${'a'}=x></p>`), "attribute's name"],
-    ['a bare hole in a tag', () => prepare(strings`<p ${'a'}></p>`), 'stand alone in a tag'],
     ['a comment', () => prepare(strings`<!-- ${'a'} -->`), 'in a comment'],
     ['raw text', () => prepare(strings`<textarea>${'a'}</textarea>`), 'inside <script>'],
   ])('rejects a hole in %s', (_what, run, message) => {

@@ -1,4 +1,4 @@
-/** @import { Handler, Repeat, TemplateResult, Value } from './template.js' */
+/** @import { AttributeValue, Handler, Repeat, TemplateResult, Value } from './template.js' */
 
 /**
  * What a child hole holds: nothing, text, one template, or items by key.
@@ -51,7 +51,7 @@ function childOf(value) {
   if (typeof value === 'string' || typeof value === 'number') {
     return { kind: 'text', text: String(value) }
   }
-  if (typeof value === 'object') {
+  if (typeof value === 'object' && value.kind !== 'attributes') {
     return value
   }
   throw new TypeError(`Child content is text, a number, a template or a repeat, not ${describe(value)}`)
@@ -73,4 +73,26 @@ function handlerOf(value, name) {
   throw new TypeError(`Event "${name}" takes a function, not ${describe(value)}`)
 }
 
-export { NOTHING, attributeText, childOf, handlerOf }
+/**
+ * A hole standing alone in a tag: its attributes' text by name, leaving out those it leaves out.
+ * @param {Value} value - The hole's value
+ * @returns {ReadonlyMap<string, string>} The attributes
+ */
+function spreadOf(value) {
+  if (typeof value !== 'object' || value?.kind !== 'attributes') {
+    throw new TypeError(`A hole standing alone in a tag takes attributes(...), not ${describe(value)}`)
+  }
+  /** @type {Map<string, string>} */
+  const texts = new Map()
+  for (const [name, each] of Object.entries(value.values)) {
+    /** @type {AttributeValue} */
+    const given = each
+    const text = attributeText(given, name)
+    if (text !== undefined) {
+      texts.set(name, text)
+    }
+  }
+  return texts
+}
+
+export { NOTHING, attributeText, childOf, handlerOf, spreadOf }

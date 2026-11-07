@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import { html } from './template.js'
-import { NOTHING, attributeText, childOf, handlerOf } from './values.js'
+import { attributes, html } from './template.js'
+import { NOTHING, attributeText, childOf, handlerOf, spreadOf } from './values.js'
 
 const ONE = 1
 
@@ -25,8 +25,17 @@ describe('values', () => {
     expect(childOf(result)).toBe(result)
   })
 
+  test('reads attributes by name, leaving out what they leave out', () => {
+    expect([...spreadOf(attributes({ a: 'x', b: false, c: true, d: ONE }))]).toEqual([
+      ['a', 'x'],
+      ['c', ''],
+      ['d', '1'],
+    ])
+  })
+
   test('names what a hole cannot take', () => {
     expect(() => handlerOf('x', 'click')).toThrow('Event "click" takes a function, not string')
     expect(() => childOf(true)).toThrow('not boolean')
+    expect(() => spreadOf('x')).toThrow('attributes(...), not string')
   })
 })

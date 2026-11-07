@@ -1,3 +1,5 @@
+/** @import { Answer, Question } from './query.js' */
+
 /**
  * What identifies an item whatever position it moves to.
  * @typedef {string | number} Key
@@ -15,8 +17,25 @@
  */
 
 /**
- * Items by position, ten of them or ten billion. `count` is how many there are now. `read` gives the items from
- * `start` up to `end`, at once or later. `key` identifies an item. `subscribe` reports every change. A filter (`F`)
+ * Items by position, never all at once: `count` is how many there are now, `read` gives the items from `start` up to
+ * `end`, at once or later, `key` identifies an item, and `subscribe` reports every change. A source that can place
+ * items has `positionOf`, where the item with a key is now, or undefined when it isn't there. A source that answers
+ * questions from its own indexes has `ask` (see `Query`): it gives back an answer for a question it knows, made by the
+ * question's query, and undefined for any other. An array is a source (`MemorySource`); a list stage turns one source
+ * into another.
+ * @template T
+ * @typedef {Readonly<{
+ *   count: () => number,
+ *   read: (start: number, end: number) => readonly T[] | Promise<readonly T[]>,
+ *   key: (item: T) => Key,
+ *   subscribe: (listener: (change: Change) => void) => () => void,
+ *   positionOf?: (key: Key) => number | undefined | Promise<number | undefined>,
+ *   ask?: (question: Question) => Answer | undefined,
+ * }>} ItemSource
+ */
+
+/**
+ * An `ItemSource` that also makes selection filters and searches its items' text. A filter (`F`)
  * describes a set of items in the source's own terms: `span` makes one for the items now at some positions, `matches`
  * tests an item against one, and `countMatching` counts its items.
  *
@@ -29,16 +48,11 @@
  * `firstSelected` finds where a selection starts without reading through it, so focus entering a list can go to its
  * first selected item.
  * @template T, F
- * @typedef {Readonly<{
- *   count: () => number,
- *   read: (start: number, end: number) => readonly T[] | Promise<readonly T[]>,
- *   key: (item: T) => Key,
- *   subscribe: (listener: (change: Change) => void) => () => void,
+ * @typedef {ItemSource<T> & Readonly<{
  *   span: (start: number, end: number) => F,
  *   matches: (filter: F, item: T) => boolean,
  *   countMatching: (filter: F) => number | Promise<number>,
  *   findPrefix?: (text: string, from: number) => number | undefined | Promise<number | undefined>,
- *   positionOf?: (key: Key) => number | undefined | Promise<number | undefined>,
  *   firstMatching?: (filter: F, except: ReadonlySet<Key>) => number | undefined | Promise<number | undefined>,
  * }>} Source
  */
