@@ -27,7 +27,9 @@ Then use in HTML:
 
 `hub.commandSystem()` is a `CommandHub` as a command system: what `@interact/components`' `CommandBridge` asks for.
 Through the bridge, its `Palette`, its menus and any `data-command` buttons list, search and run the hub's commands, and
-follow its context as it changes. Neither package imports the other.
+follow its context as it changes. Neither package imports the other. Each component is a small core plus the extensions
+it is given: `menuExtensions()` and `paletteExtensions()` are what a menu and a palette are made of by default, and an
+app can give others.
 
 ```js
 import {
@@ -36,8 +38,10 @@ import {
   Palette,
   bindCommandButtons,
   contextMenuElement,
+  menuExtensions,
   openOnContextMenu,
   paletteElement,
+  paletteExtensions,
   showCommands,
 } from '@interact/components'
 import { register } from '@interact/dom'
@@ -49,8 +53,9 @@ hub.refresh()
 
 const bridge = new CommandBridge(hub.commandSystem({ scorer: defaultScorer(history) }))
 
-// The palette lists every command (its context is no menu's tag), and searches and ranks through keybinds
-const palette = new Palette({ bridge, context: () => undefined })
+// The palette lists every command (its context is no menu's tag), and searches and ranks through keybinds; it is
+// made of the extensions paletteExtensions() gives (the keys, the pointer, windowing, the rendering)
+const palette = new Palette({ bridge, context: () => undefined, extensions: paletteExtensions() })
 hub.setSource('palette', () => [
   {
     id: 'palette',
@@ -63,7 +68,7 @@ hub.setSource('palette', () => [
 ])
 
 // A context menu over the editor, with the commands tagged 'editor'
-const menu = new Menu({ label: 'Edit' })
+const menu = new Menu({ label: 'Edit', extensions: menuExtensions() })
 showCommands(menu, bridge, () => 'editor')
 openOnContextMenu(editorElement, menu)
 

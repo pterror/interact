@@ -102,14 +102,15 @@ DOM-free in `@interact/core`; what needs the page in `@interact/dom`.
 - **Controlled state.** `transactionFilter` filters every transaction's effects unless it says `filter: false`.
   `controlled(type, heard)` hands a piece of state to the app: effects of that type are dropped and heard as requests,
   and the app applies what it decides with `filter: false`. That is the settled controlled/uncontrolled model (see
-  Components) on transactions; `Controllable` stays for the components until they are rebuilt.
+  Components) on transactions; `Controllable` stays only for `Layer`'s open state, which the overlays share.
 - **Store** (`store.js`). `new Store(extensions)` is a component's live state: `state`, `dispatch(spec)` (a transaction
   dispatched while another applies goes right after it, in order), `handle(input)`, `subscribe(listener)` (after the
   plugins), `plugin(plugin)` and `destroy()`. An input is an effect (`keyInput`, `inputs.js`; a list's `press`);
-  `handle` offers it to the `inputHandler` facet's handlers in precedence order until one returns true, which tells the
-  page to prevent the default. `definePlugin(store => ({ update, destroy }))` is a plugin: a life beside the state (a
-  timer, a subscription) that hears every transaction and may dispatch its own. A `Store` is a behavior in the sense of
-  Components: it has `subscribe`, so `component()` renders it.
+  `handle` offers it to the `inputHandler` facet's handlers in precedence order until one takes it: `true` takes it and
+  tells the page to prevent the default, `'keep-default'` takes it and leaves the default to happen (a key that edits a
+  text field's text), `false` passes it on. `definePlugin(store => ({ update, destroy }))` is a plugin: a life beside
+  the state (a timer, a subscription) that hears every transaction and may dispatch its own. A `Store` is a behavior in
+  the sense of Components: it has `subscribe`, so `component()` renders it.
 - **Queries** (`query.js`). `defineQuery()` is a kind of question with input `Q` and answer `A`:
   `query.ask(source, input)` gives `{ answer }` (at once or a promise) or undefined when the source doesn't know the
   query. A source answers through its optional `ask(question)`: `query.input(question)` reads a question that is the
@@ -163,6 +164,25 @@ DOM-free in `@interact/core`; what needs the page in `@interact/dom`.
     each with its own store and list; `storeView` took a `render` before.
   - `component()` follows its behavior before the view first hears it rendered, so a view plugin that dispatches then
     (windowing measuring after adopting server markup) is rendered; it was missed before.
+- **Gaps the menu, palette and combobox found, fixed in the mechanism (Derived, built with them):**
+  - A view inside another's: a submenu is a menu of its own, a store, shown in an overlay inside its menu's.
+    `mountStore(store, element)` runs a store's view plugins on any element (`storeView` is built on it), and an element
+    belongs to the innermost view mounted around it: `inOwnView(root, node)`, `ownElement(root, selector)`. The default
+    rendering, windowing, focus entering and the components' own view plugins act only on their own view, so a key, a
+    press or a scroll in a submenu is never its menu's too. `contentOf(store)` is what a store's view shows, for a view
+    that renders another's inside its own.
+  - A field controlling a list (a combobox's, the palette's search field) keeps its keys: the default rendering marks
+    its list `data-list` and takes keys only from inside it.
+  - The pointer over a row: the list's `hover` input (`position`, the pointer's `x` and `y`, whether the list has
+    focus), which the default rendering reports and `followPointer` takes, and a submenu's pointer intent before it.
+  - An input taken while its default still happens: `'keep-default'` (above). A closed combobox keeps the list's keys
+    from it without stopping Page Down scrolling the page, and an editable one's Home and End move the cursor while it
+    puts the active option back in the field.
+  - A field naming the active option instead of the list: `active.descendantIn(state)` is public, and the list's own
+    `aria-activedescendant` is left out by an attribute of higher precedence.
+  - A windowed list as short as its items: `windowing(list, { shrink: true })` shows no more rows than there are items
+    (a menu, a combobox's popup); without it a list shows `rows` whatever it has (the listbox, the palette, whose height
+    must not move).
 - **Tests:** `state.test.js`, `store.test.js`, `query.test.js`, `list-pipeline.test.js` in core (among them a keyboard
   navigation and a windowing written as two extensions that name neither each other nor anything the core knows of them,
   meeting only through `reveal`, `keep` and `reveals`); `store-view.test.js`, `default-rendering.test.js` and the spread
@@ -178,7 +198,11 @@ typeahead, selection, focus entering, the default rendering and windowing. Two c
 whether Shift was held and whether focus entering made it (`ActiveMove`), which selection reads; and selection follows a
 move in single mode by a transaction filter, so the app's `controlled` hears it as a request. A component's own
 rendering (a menu item with its shortcut and check mark) is an `item` step above the default one that calls `next` for
-the attributes it doesn't set, or replaces it.
+the gap rows it doesn't render itself, and reads every extension's attributes (`attributesOf`) for the rows it does.
+
+**Derived, built** for the menu, palette and combobox (see each, under Components), on the same extensions and the gaps
+they found: the active item following the pointer (`followPointer`), submenus (`submenus`), each component's core, and
+the default set each is made of (`menuExtensions`, `paletteExtensions`, `comboboxExtensions`).
 
 **Proposed, not built yet:**
 
@@ -200,29 +224,33 @@ the attributes it doesn't set, or replaces it.
   nest. Flat headings are the first build; whether rows need a nested container stage is open.
 - Reconfiguring a running store (CodeMirror's compartments: switching a list from single to multiple selection) has no
   mechanism yet; nothing in the four proofs needs it.
-- Several lists in one view element: the default rendering's view plugin listens on the view's element and finds rows by
-  `data-position`, so two lists in one element would both hear each other's presses.
+- Several lists of one store in one view: a view inside another's is its own (`mountStore`), but two pipelines of one
+  store in one view would both hear each other's keys and presses, since the default rendering finds its list by
+  `data-list` and its rows by `data-position`.
+- An extension can't bring its own stylesheet: views adopt one stylesheet, fixed per view. The menu's, palette's and
+  combobox's join windowing's structure (`windowingStyles`), as the listbox's does, so it is there whether or not the
+  extension is included.
 - Selection selects in the source (its filters are the source's), so a list-stage step that makes another list of it is
   an error when it selects. Asking the filters as queries of the list, which a step could answer or pass on, waits on
   the selection model (Questions for the owner, 1).
-- The menu, palette and combobox run on the legacy listbox (`legacy-*.js`) until they are rebuilt on these extensions;
-  the legacy modules go then.
 
 ## Components (Settled, with the derived parts marked)
 
-A component is its behavior, written once as a plain API, plus a default view anyone can replace. What is being built
-(see Extensions): the behavior is a store configured with extensions, and its features (keyboard navigation, typeahead,
-selection, windowing) are extensions of it. The listbox below is built so. The menu, palette and combobox are described
-as built now, on the monolithic model: they run on the listbox as it was, its modules kept as `legacy-*.js` (the
-`Listbox` class, its items, chooser, typeahead, landing, keys, scroll rows and rows view and styles), each saying so,
-until they are rebuilt.
+A component is its behavior, written once as a plain API, plus a default view anyone can replace. The behavior is a
+store configured with extensions (see Extensions): a small core, and its features (keyboard navigation, typeahead,
+selection, the pointer, submenus, windowing, the rendering) as extensions beside it. The listbox, the menu, the palette
+and the combobox are built so. The menu, the palette and the combobox are stores of their own (`Menu`, `Palette`,
+`Combobox` extend `Store`), made from their core (`MenuCore`, `PaletteCore`, `ComboboxCore`) and the extensions an app
+gives as `extensions(core)`; `menuExtensions()`, `paletteExtensions()` and `comboboxExtensions()` are what each is made
+of by default, and give nothing the core knows of. Each has methods for what an app and a view do to it (`open`,
+`close`, `choose`, ...), which dispatch effects or handle inputs; nothing is built in that an extension couldn't do.
 
 - **The behavior** is a class with no DOM in it. It has methods, observable state and events, and uses a state machine
   only where modes and timing call for one: a menu opening and closing with pointer intent, a combobox, a tooltip's
   delays. A component without modes is a few fields and methods. A behavior can be driven by tests, by the DOM, or later
   by a terminal view. **Derived:** the menu's timing came to one timer (a submenu opening once the pointer rests on its
-  entry) and an area the pointer may cross (`menu.js`), so core has no state machine yet; the combobox is the next place
-  one may be needed.
+  entry) and an area the pointer may cross (`submenus.js`, the pending entry a field whose timer a plugin keeps), so
+  core has no state machine; the combobox needed none either.
 - **The view** belongs to one target family. Web views are templates with holes, used by three things:
   - a DOM renderer;
   - a string renderer, for server rendering, which emits Declarative Shadow DOM when the instance uses shadow DOM;
@@ -233,17 +261,18 @@ until they are rebuilt.
 - **State.** Data goes in and events come out. Each piece of state is either controlled (the app owns it and hears
   change requests) or left to the component. zag.js does this with a `value` / `defaultValue` / `onValueChange` triple
   for each piece of state (`@zag-js/listbox` `dist/listbox.types.d.ts:60-80`, read in the evaluation). **Derived:**
-  `@interact/core` has one primitive for this, `Controllable` (`packages/core/src/controllable.js`), so every component
-  handles control the same way. The component calls `request(next)`. Every request is heard (`onRequest`). Left to the
-  component, the value changes at once; controlled, it changes only when the app calls `set`. `subscribe` hears actual
-  changes, and `control(controlled)` hands the value to the app or back after construction, which a custom element
-  created by the browser needs.
-- **Behaviors are readonly to their views (Derived).** A behavior's state is held in `Controllable`s in readonly fields,
-  and it changes only through methods; nothing on a behavior is assignable. oxlint's `prefer-readonly-parameter-types`
-  enforces this for every function a behavior is handed to, with no exemption per component: its `allow` takes exact
-  names only (probed in oxlint 1.90.0: a glob path or a regex name clears nothing), so the readonly type is what makes
-  every future component pass. `Controllable.control()` and the listbox's `source` as a `Controllable` replaced the two
-  setters that broke it (commit 3a0ee7a).
+  every component handles control the same way, on transactions: `controlled(type, heard)` (see Extensions) drops the
+  effects that would change a piece of state and hands them to the app as requests, and the app applies what it decides
+  with `filter: false` (the combobox's `setValue`). Left to the component, the value changes at once. A layer's open
+  state, which the overlays share outside any store, is a `Controllable` (`packages/core/src/controllable.js`): the
+  component calls `request(next)`, every request is heard (`onRequest`), controlled it changes only when the app calls
+  `set`, and `control(controlled)` hands it to the app or back after construction, which a custom element created by the
+  browser needs.
+- **Behaviors are readonly to their views (Derived).** A behavior's state is in its store's fields (and a layer's
+  `Controllable`s), held in readonly fields, and it changes only through transactions and methods; nothing on a behavior
+  is assignable. oxlint's `prefer-readonly-parameter-types` enforces this for every function a behavior is handed to,
+  with no exemption per component: its `allow` takes exact names only (probed in oxlint 1.90.0: a glob path or a regex
+  name clears nothing), so the readonly type is what makes every future component pass.
 - **Commands.** Components know nothing about commands. A bridge needs only two operations: "list the commands available
   in a context" and "run one by id". With those it keeps buttons, menus and the palette in step with any command system,
   and keybinds is one such system. It also accepts an optional third, "tell me when the list changes" (**Settled**):
@@ -343,58 +372,77 @@ until they are rebuilt.
   reports its items' arrival as `changed` (the pipeline's contract) and its own failures; a block cache as a list-stage
   step isn't built.
 
-### The menu (Derived, built; to be rebuilt on extensions)
+### The menu (Derived, built on extensions)
 
-- **The listbox, changed for it rather than copied:** a selection mode of `none` (items are activated, never selected;
-  select-all does nothing), `skip` for items focus passes over, honored by every move, Home, End, typing and focus
-  entering (`landing.js`), a `typing` getter so Space can be part of what is typed, and the virtualized viewport taken
-  out of the listbox's view (`rows-view.js`, `rows-styles.js`) so rows can be menu items. A listbox now also reads again
-  after a source changes items in place, which left rows blank before.
-- `Menu` (`packages/components/src/menu.js`) is the behavior: its entries in a `Listbox` that selects nothing and passes
-  over separators; a `Layer`; a `point` for a context menu; `open('first' | 'last' | 'none')`, `openAt(point)`,
-  `close()`, `closeAll()`, `activate(position, 'enter' | 'space' | 'press')`, `openSubmenu(position, focus)`,
-  `pointTo(position, pointer)`, `headFor(area)`, `onSelect`, `takeFocus()` (a submenu opened from a key, or closed back,
-  asks for focus; its view gives it) and `subscribe`. `menuKey(menu, key, { direction, modifiers })` gives the keys.
+- **The core** (`MenuCore`, `menu.js`) is what makes a list a menu and no more: the list is a `menu` (`part="viewport"`,
+  id `<id>-menu`, named by its label, or a submenu by its entry) and its rows are its entries, each with its role, id
+  (`<id>-<position>`) and state (`aria-checked`, `aria-disabled`, `aria-haspopup`) and parts (`item`, `item-active`,
+  `item-disabled`, `separator`), shown as its check mark, label, shortcut and a submenu's arrow (an `item` step above
+  the default rendering's); focus passes over separators (`skip`) and typing finds items by label (`text`); Enter, Space
+  and a press run an item (`chosen`) and close the menus up to the first (`closeAll`), Space leaving a checkbox or radio
+  item's menu open; it opens in a `Layer`, at a point for a context menu (`placed`), and nothing is active once it
+  closes; it asks for focus to come to its list (`askFocus`, a count its view plugin follows). `Menu` is its store:
+  `open('first' | 'last' | 'none')`, `openAt(point)`, `close()`, `closeAll()`, `setItems(source)`, `onSelect`, and
+  `active`, `count`, `entry(position)`, `point`, `submenu`, `layer`. Beside it:
+  - `submenus(menu, { extensions, wait })` (`submenus.js`): a submenu's entry opens it with Enter, Space or the arrow
+    toward the inline end (read from the page's `direction` as an arrow is pressed), focus in it, or with a press, focus
+    staying; the arrow back in a submenu closes it, and a submenu closing by itself asks for focus back. A submenu is a
+    `Menu` made with the same `extensions`, its content rendered in an overlay after its menu's list (a `container`
+    step), its view plugins mounted there (`mountStore`); what is chosen in it is its menu's `chosen` too, and it closes
+    when its menu does. The pointer resting on an entry opens its submenu, and the area it may cross on the way there is
+    noted as it leaves the entry (see Submenus, below). It says which submenu is open through the core's `opened` facet,
+    and its entry's `aria-expanded`.
+  - `followPointer(current, { focus: true })` (`follow-pointer.js`): the item the pointer is over becomes active, and
+    focus comes to the list; submenus take the pointer's moves before it.
+  - `navigation`, `typeahead`, `focusEntering`, `windowing(list, { rows, shrink: true })`, `defaultRendering` (as the
+    listbox's).
+  - `menuExtensions({ rows, wait })` (`menu-extensions.js`) is that set, each submenu made the same way: what a menu is
+    made of today.
 - **Entries (`menu-entry.js`, from the APG menu and menu button pages, fetched):** commands, checkbox and radio items,
   separators, and submenus, each with an id; an item may be disabled (focusable, does nothing) and show a shortcut.
   Whether an item is checked is the app's; activating one is reported. The APG doesn't define a `group` role for menus,
   so radio items that go together sit between separators, as its examples do. `menuEntries(list)` is an in-memory source
   that typing searches by label.
-- **Collections:** a menu's entries come through a source, like the listbox's, and its rows are the listbox's windowed
-  rows, built in under the dropped requirement (see Extensions). It shows as many rows as it has entries, up to `rows`
-  (10). Windowed rows don't size the list, so a menu is `--interact-menu-width` wide at least. Rebuilt, a menu renders
-  its entries through the default rendering, and windowing is an extension it can include.
+- **Collections:** a menu's entries come through a source, like the listbox's. With `menuExtensions` it is windowed, as
+  it was, showing as many rows as it has entries, up to `rows` (10); windowed rows don't size the list, so a menu is
+  `--interact-menu-width` wide at least. Without windowing it renders whole. Whether a menu includes windowing is the
+  owner's (Questions for the owner, 4); the menu's core and its other extensions don't know it.
 - **Keys (the APG menu and menu button patterns):** on the button, Enter and Space open on the first item, Down on the
   first, Up on the last. In the menu, the arrows, Home, End and typing move, passing over separators, without wrapping
   (optional in the APG); Enter runs an item, or opens its submenu with focus on its first item, and closes the menus
   above; Space does the same, but leaves a checkbox or radio item's menu open; the arrow toward the inline end opens a
   submenu, the arrow back closes it, and Escape closes only the menu focus is in, focus going back to its parent or to
-  the button; Tab moving focus out closes them all.
+  the button; Tab moving focus out closes them all. A key is an input to the menu's store
+  (`menu.handle(keyInput.of(...))`); `menuKey` is gone.
 - **Submenus:** a menu of its own, in an overlay inside its parent's overlay, beside its entry. With the pointer, an
   entry becomes active as the pointer moves over it, its submenu opens once the pointer has rested there 200ms (zag.js's
   wait), and any other closes. Leaving an entry toward its open submenu notes an area (`intentArea`, in core): from just
   behind the pointer to the submenu's near edge and round its far side, zag.js's polygon. While the pointer stays in it,
-  crossing other entries changes nothing; once it strays, the next entry it is over takes over, closing the submenu.
-- **Views:** `menuButtonView()` and `contextMenuView()`, with `menuButtonElement` and `contextMenuElement`, and
-  `openOnContextMenu(target, menu)`, which opens a menu at the point a context menu was asked for. A context menu sits
-  with its corner exactly at the point (no gap).
-- **Proven** (`menu-view.test.js`, Chrome 156, Firefox 157 and WebKit 27.2, shadow and light DOM): the keys above; Space
-  on a checkbox item; submenus from the keyboard and the pointer, including crossing other entries diagonally on the way
-  and straying; a context menu at its point, focus going back to where it came from; server markup adopted with its
-  button kept; and axe-core finding nothing with a submenu open.
+  crossing other entries changes nothing; once it strays, the next entry it is over takes over, closing the submenu;
+  reaching the submenu ends the way there.
+- **Views:** `menuButtonView()` and `contextMenuView()` (`menu-view.js`), with `menuButtonElement` and
+  `contextMenuElement`, and `openOnContextMenu(target, menu)`, which opens a menu at the point a context menu was asked
+  for. Each renders the menu's content (`contentOf`) in an overlay, beside its button (whose clicks and Up and Down are
+  the view's, as the APG menu button pattern has them) or at its point, and mounts the menu's view plugins on its
+  element. A context menu sits with its corner exactly at the point (no gap).
+- **Proven** (`menu-view.test.js`, 66 tests, Chrome 156, Firefox 157 and WebKit 27.2, shadow and light DOM, run again on
+  the rebuilt menu): the keys above; Space on a checkbox item; submenus from the keyboard and the pointer, including
+  crossing other entries diagonally on the way and straying; a context menu at its point, focus going back to where it
+  came from; server markup adopted with its button kept; and axe-core finding nothing with a submenu open.
+  `menu.test.js` and `submenus.test.js` drive the stores directly.
 - **Keyboard-opened context menus:** the Context Menu key and Shift+F10 open the menu at the start of the focused
   element's bottom edge (the inline end in right-to-left text), not at the point the engine reports: Chrome reports the
   element's centre with `button` -1; an engine giving no point would have put it at 0,0. A request is taken as from the
   keyboard by `button` -1, or by no point and no press count (`menu-element.js`). Headless Firefox and WebKit fire no
   `contextmenu` for those keys at all, so the keys are tested in Chrome and a keyboard-style request in all three.
-- **A long menu's size** (the windowing extension's, once it is one): when only some rows are rendered, each item says
-  its place and the menu's size (`aria-posinset`, `aria-setsize`), as ARIA asks for a partial set. Both count
-  separators, since which entries before an item are separators isn't known without reading them. A menu rendered whole
-  leaves the counting to the browser, which gets separators right. The listbox numbers its options always; it has no
-  separators, so its numbers are exact.
+- **A long menu's size** (windowing's): when only some rows are rendered, each item says its place and the menu's size
+  (`aria-posinset`, `aria-setsize`), as ARIA asks for a partial set. Both count separators, since which entries before
+  an item are separators isn't known without reading them. A menu rendered whole leaves the counting to the browser,
+  which gets separators right. The listbox numbers its options the same way; it has no separators, so its numbers are
+  exact.
 - **Unverified:** screen readers (only axe); touch; a long menu's numbers when it has separators (they count them).
 
-### The command palette (Derived, built; to be rebuilt on extensions)
+### The command palette (Derived, built on extensions)
 
 - **Pattern (the APG combobox and modal dialog pages, fetched):** a modal dialog holding an editable combobox (the
   search field, `role="combobox"`, `aria-autocomplete="list"`, `aria-expanded="true"` since its list always shows,
@@ -404,28 +452,35 @@ until they are rebuilt.
   into the dialog on open (to its field), Tab stays inside it (the field is its only stop), Escape closes it, and focus
   goes back to the opener. A dialog with a separate focusable listbox would make every key cross from the field to the
   list and back.
-- **Behavior:** `Palette` (`palette.js`): `layer` (modal), `query` (a `Controllable`), `list` (a `Listbox` that selects
-  nothing and passes over commands that can't run), `open()`, `close()`, `type(text)`, `key(key)`, `run(position)`,
-  `subscribe`, `dispose`. Options: `bridge`, `context` (read as it opens; its commands are found and run in that
-  context), `id`, `label` (the dialog's name), `searchLabel` (the field's), `rows`, and `inactive`: `'show'` (greyed,
-  `aria-disabled`, passed over) or `'hide'`. Opening finds every command; the first that can run is active. The arrows
-  and page keys move the active command; Enter runs it; Home, End and the rest edit the query. What shows stays until a
-  new search answers. A command runs once the palette has gone and focus is back on the opener.
-- **View:** `paletteView()`, `paletteElement(create)`, `paletteStyles`. The results are the virtualized viewport with
-  `focusable: false` (no Tab stop, no active descendant of its own: the field has it). What the query matched is a
+- **The core** (`PaletteCore`, `palette.js`): a modal `layer`, the field's query, the context it opened in (read as it
+  opens; its commands are found and run in that context) and whether a search has answered; the results a listbox
+  (`part="viewport"`, id `<id>-results`, no Tab stop, no active descendant of its own: the field has it) whose options
+  are the commands found (`result`, `result-active`, `result-disabled`, `aria-selected` on the active one), passing over
+  commands that can't run; a plugin searching as it opens, as the query changes and as the bridge says its commands
+  changed while it is open, only the latest answer shown, what shows staying until it comes, the first command that can
+  run active; Enter or a press runs the active command once the palette has gone and focus is back on the opener; the
+  arrows and page keys are the results', every other key the field's (`'keep-default'`); and the dialog with its search
+  field and a status, and its view plugin showing the dialog modally and hearing the field. Options: `bridge`,
+  `context`, `id`, `label` (the dialog's name), `searchLabel` (the field's), `placeholder`, `inactive` (`'show'`:
+  greyed, `aria-disabled`, passed over; or `'hide'`) and `extensions`. `Palette` is its store: `open()`, `close()`,
+  `type(text)`, `key(key)`, `run(position)`, and `query`, `active`, `count`, `result(position)`, `layer`.
+- **Extensions:** `paletteExtensions({ rows })` (`palette-extensions.js`): navigation, `followPointer`, windowing that
+  always shows `rows` rows (10) whatever is found, and the default rendering.
+- **View:** `paletteView()` (a store view), `paletteElement(create)`, `paletteStyles`. What the query matched is a
   `<mark part="match">`; a command's description, group and shortcut show beside its label. The dialog shows `rows` rows
   whatever is found, and a `role="status"` region lying over the results says when nothing is, so nothing shifts as the
   query changes. Its secondary text is the text's own color at 0.75 opacity: system GrayText on the fill failed axe's
   contrast check (about 3.9:1 on white), as it does for a command that can't run only because disabled text is exempt.
-- **Proven** (`palette-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM): opening with focus in
-  the field, every command found and the first active as the combobox says; typing finding commands and marking what
-  matched; the arrows passing a command that can't run; Enter and the pointer running a command once focus is back on
-  the opener; Escape closing and running nothing; Tab staying in the field; the same height with nothing found, and the
-  status saying so; axe-core finding nothing open; server markup adopted with its field kept, then opening.
+- **Proven** (`palette-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM, run again on the
+  rebuilt palette): opening with focus in the field, every command found and the first active as the combobox says;
+  typing finding commands and marking what matched; the arrows passing a command that can't run; Enter and the pointer
+  running a command once focus is back on the opener; Escape closing and running nothing; Tab staying in the field; the
+  same height with nothing found, and the status saying so; axe-core finding nothing open; server markup adopted with
+  its field kept, then opening.
 - **Unverified:** screen readers (only axe); a remote `search` under load (only a slow in-page one, whose late answer is
   dropped); input methods composing in the field (Enter while composing is left to the input method, untested).
 
-### The combobox (Derived, built; to be rebuilt on extensions)
+### The combobox (Derived, built on extensions)
 
 - **Pattern (the APG combobox page and its select-only and list-autocomplete examples, fetched):** a field with
   `role="combobox"` controlling a listbox popup; DOM focus stays in the field, which names the active option as its
@@ -435,45 +490,77 @@ until they are rebuilt.
   options are what the app's `suggest(text)` finds, at once or later), with `manual` selection (nothing active until the
   arrows) or `automatic` (the first found active); and `both`, list plus inline completion, always automatic. The
   options are a union type, so `suggest` exists exactly for the kinds that suggest.
-- **Behavior:** `Combobox` (`combobox.js`): `layer`, `list` (a `Listbox` that selects nothing; its active option is the
-  field's), `value` (the option chosen, a `Controllable`), `text` (an editable field's, a `Controllable` that follows
-  the option chosen), `kind`, `suggestions`, `open(at)`, `close()`, `toggle()`, `choose(position)`, `chooseActive()`,
-  `clear()`, `type(text, deleting)`, `key(key, { alt, shift, toggle })`, `point(position)`, `completion`,
-  `keepCompletion()`, `subscribe`. Options come from a source: opening a select-only one lands on the option chosen
-  through the source's `positionOf`; without it, on the first.
-- **Keys (`Combobox.key`, the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else the
-  first), Alt+Down on the option chosen, Up and Home on the first, End on the last, a character typed on the option it
-  starts. Open: the arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing goes
-  to the option whose text starts with what was typed, the whole of it first. Editable, closed: Down opens on the first,
-  Up on the last, Alt+Down without moving. Open: the arrows and page keys move (from none, Down to the first and Up to
-  the last); Enter and Alt+Up choose; Home, End and the side arrows give the cursor back to the text, no option active,
-  keeping an inline completion as typed text. Escape closes, choosing nothing; with the list closed, it empties an
-  editable field (`clearOnEscape`, on by default). Enter with an editable list closed is left to the page (a form). A
-  key while an input method composes is the input method's (`combobox-field.js`).
+- **The core** (`ComboboxCore`, `combobox.js`): a `layer` of its own; the option chosen, the text of an editable field
+  (which follows the option chosen) and whether its last edit deleted; the options a listbox (`part="viewport"`, id
+  `<id>-listbox`, no Tab stop, no active descendant of its own) whose rows are `option`, `option-active`,
+  `option-chosen`; its keys (below), gated by whether the list is open, at `highest` so the list's extensions hear only
+  what the combobox leaves them; landing on the option chosen as it opens; suggestions; the inline completion; leaving
+  choosing the active option; and the field and popup, with a view plugin hearing the field and placing the popup.
+  Options come from a source: opening a select-only one lands on the option chosen through the source's `positionOf`;
+  without it, on the first. An app owns the option chosen with `controlled(core.chosen, heard)` among its extensions,
+  and sets what it decides with `setValue`. `Combobox` is its store: `open(at)`, `close()`, `toggle()`,
+  `choose(position)`, `clear()`, `type(text, deleting)`, `key(key, modifiers)`, `setValue(value)`, and `value`, `text`,
+  `completion`, `kind`, `active`, `count`, `option(position)`, `layer`.
+- **Extensions:** `comboboxExtensions({ rows, now })` (`combobox-extensions.js`): navigation, typeahead in a select-only
+  one, `followPointer`, windowing that shows as many rows as there are options up to `rows` (10), and the default
+  rendering.
+- **Keys (the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else the first), Alt+Down
+  on the option chosen, Up and Home on the first, End on the last, a character typed on the option it starts. Open: the
+  arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing goes to the option whose
+  text starts with what was typed, the whole of it first. Editable, closed: Down opens on the first, Up on the last,
+  Alt+Down without moving. Open: the arrows and page keys move (from none, Down to the first and Up to the last); Enter
+  and Alt+Up choose; Home, End and the side arrows give the cursor back to the text, no option active, keeping an inline
+  completion as typed text. Escape closes, choosing nothing; with the list closed, it empties an editable field
+  (`clearOnEscape`, on by default). Enter with an editable list closed is left to the page (a form). A key while an
+  input method composes is the input method's (`combobox-field.js`).
 - **Leaving:** the field is the popup's anchor, so it counts as inside its layer. Tab or a press elsewhere dismisses the
   layer (`focus-outside`, `outside`), and a combobox that selects by itself (select-only, `automatic`, `both`) chooses
   its active option then, as the APG's select-only example does; Escape never chooses.
-- **Suggestions (`Suggestions`, `combobox.js`):** only the answer for the text typed last is shown (`Latest`); none
-  found, or the field emptied, closes the list.
-- **Shared with the palette:** its search field is the same editable combobox field (`combobox-field.js`, with the
-  composition check in one place), its list keys (`field-keys.js`), and its dropping of stale answers (`latest.js`). The
-  palette stays its own behavior: its list is always shown inside a modal dialog, with no layer of its own.
-- **No state machine in core:** the only modes are the layer's open state and the listbox's typeahead timer, and the
-  only timing is that timer; landings and suggestions are answers of which only the latest counts.
-- **View:** `comboboxView()`, `comboboxElement(create)`, `comboboxStyles`. The popup is `popover="manual"`, anchored
-  below the field with `focus: 'stay'`, at least as wide as the field and no taller than its options; a press in it
-  keeps focus in the field. An inline completion shows after what was typed, selected.
-- **A design fix in the viewport:** a viewport made with `focusable: false` now says `tabindex="-1"`. Without it,
-  browsers made the scrolling listbox a Tab stop of its own, and Tab from the field went into it.
-- **Proven** (`combobox-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM, 60 tests): the
-  select-only keys, a character typed, Tab choosing and moving on, choosing by pointer with focus kept in the field,
-  Escape keeping the choice; editable suggestions, Down and Enter choosing, two Escapes closing then emptying; inline
-  completion selected after what was typed and chosen with Enter; opening on the option chosen through `positionOf`;
-  server markup adopted with its field kept, opening on the option chosen; and axe-core finding nothing closed or open,
-  in a page whose content is in a landmark.
+- **Suggestions:** only the answer for the text typed last is shown (`Latest`); none found, or the field emptied, closes
+  the list.
+- **Shared with the palette:** its search field is the same editable combobox field (`combobox-field.js`: the template,
+  and `hearField`, which hears typing and keys with the composition check in one place), and its dropping of stale
+  answers (`latest.js`). The palette stays its own core: its list is always shown inside a modal dialog, with no layer
+  of its own.
+- **No state machine in core:** the only modes are the layer's open state and typeahead's timer, and the only timing is
+  that timer; landings and suggestions are answers of which only the latest counts.
+- **View:** `comboboxView()` (a store view), `comboboxElement(create)`, `comboboxStyles`. The popup is
+  `popover="manual"`, anchored below the field with `focus: 'stay'`, at least as wide as the field and, windowed, no
+  taller than its options; a press in it keeps focus in the field. An inline completion shows after what was typed,
+  selected.
+- **The listbox is no Tab stop:** it says `tabindex="-1"`, as the palette's results do. Without it, browsers made the
+  scrolling listbox a Tab stop of its own, and Tab from the field went into it.
+- **Proven** (`combobox-view.test.js`, Chrome 156, Firefox 157, WebKit 27.2, shadow and light DOM, run again on the
+  rebuilt combobox): the select-only keys, a character typed, Tab choosing and moving on, choosing by pointer with focus
+  kept in the field, Escape keeping the choice; editable suggestions, Down and Enter choosing, two Escapes closing then
+  emptying; inline completion selected after what was typed and chosen with Enter; opening on the option chosen through
+  `positionOf`; server markup adopted with its field kept, opening on the option chosen; and axe-core finding nothing
+  closed or open, in a page whose content is in a landmark.
 - **Unverified:** screen readers (only axe); touch; a remote `suggest` under load; input methods composing in the field.
 - **Inside another layer (Derived):** Escape with the list closed empties the field and leaves the layer open; the next
   Escape closes the layer. Shown in a modal dialog in all three engines, both DOM modes (`combobox-view.test.js`).
+
+### Names the rebuild changed (Proposed, the owner's to approve)
+
+Kept where they could be: every part the menu, palette and combobox had on a row or a list stays (`viewport`, `row`,
+`item`, `item-active`, `item-disabled`, `separator`, `check`, `label`, `shortcut`, `arrow`, `result`, `result-active`,
+`result-disabled`, `match`, `description`, `category`, `option`, `option-active`, `option-chosen`, `overlay`, `submenu`,
+`button`, `dialog`, `search`, `results`, `status`, `combobox`, `field`, `value`, `placeholder`, `popup`), as do the
+tokens, the ids and the element kinds. Changed, because the default rendering and windowing give them:
+
+- **Parts added:** `list` on every list (beside `viewport`), `active` on the active row (beside `item-active`,
+  `result-active`, `option-active`), and `gap` for the rows windowing doesn't render.
+- **Parts gone:** `spacer` (windowing places rows by gaps, with no spacer element), and the combobox's `list`, which was
+  an element around its listbox: the listbox itself is `list` now, as in the listbox.
+- **Public names:** `menuKey` is gone (a key is an input to the menu's store). A menu's, palette's and combobox's `rows`
+  (and the combobox's `now`, the menu's `wait`) moved to `menuExtensions`, `paletteExtensions` and `comboboxExtensions`,
+  and each takes `extensions`. `Menu`, `Palette` and `Combobox` are stores: their `list` (a `Listbox`) is their core's
+  (`core.list`, a list pipeline), and they have `active`, `count` and `entry`, `result` or `option` instead; the menu's
+  `takeFocus`, `activate`, `openSubmenu`, `pointTo` and `headFor`, the palette's `dispose` (now `destroy`) and the
+  combobox's `suggestions`, `point`, `chooseActive` and `keepCompletion` are gone or its core's; the palette's `query`
+  and the combobox's `value` and `text` are values, not `Controllable`s (the combobox's `controlled(core.chosen, ...)`
+  and `setValue` replace `value.control` and `value.request`). Types: `Menu<F>` and `MenuEntry<F>` lost their filter
+  type, `Combobox<T, F>` is `Combobox<T>`, and `paletteElement` and `comboboxElement` make elements of a `Store`.
 
 ### What moves out of keybinds (Derived)
 
@@ -547,14 +634,12 @@ Questions for the owner).
   `ask(question)` (see Extensions). `shiftPosition(position, change)` says where a position is after a change. The
   components read `Source<T, F>`, an `ItemSource` with filters of the source's own type `F`: `span(start, end)` makes a
   filter for the items now at those positions, `matches(filter, item)` tests one, and `countMatching(filter)` counts
-  one, at once or later. Rebuilt on extensions, these and `findPrefix` and `firstMatching` below become queries of the
-  extensions that ask them.
-- A source that can search its items' text answers the `findPrefix` query (`find-prefix.js`; `MemorySource` does), which
-  the rebuilt listbox's typeahead asks; the legacy listbox the menus run on asks the method below. It has
-  `findPrefix(text, from)`: the first position at or after `from` whose item's text starts with `text`, compared as
-  `startsWithTyped` compares, at once or later. Typing in a list asks it, since only the source knows every item;
-  without it, a list searches the items it has read (`BlockCache.findHere`, which looks at no more than the cache's
-  blocks).
+  one, at once or later. These and `firstMatching` below are to become queries of the extensions that ask them, as
+  `findPrefix` is.
+- A source that can search its items' text answers the `findPrefix` query (`find-prefix.js`; `MemorySource` does): the
+  first position at or after `from` whose item's text starts with `text`, compared as `startsWithTyped` compares, at
+  once or later. Typing in a list asks it, since only the source knows every item; unanswered, typing looks among the
+  rows rendered.
 - A source that can place items has `positionOf(key)`, where an item is now, and `firstMatching(filter, except)`, the
   first position a filter matches whose key isn't in `except`. With them, `firstSelected(selection, source)`
   (`selection.js`) finds where a selection starts: the filter's first item whose key wasn't removed, or an added key's
@@ -569,18 +654,14 @@ Questions for the owner).
   the same items as others are inserted around it. Its key-to-position index is the only thing it keeps per item besides
   the items themselves, rebuilt lazily after a change.
 
-### Reading sources that answer later (Derived, built)
+### Reading sources that answer later (Derived)
 
-- `BlockCache` (`packages/core/src/block-cache.js`) reads a source a block at a time and keeps a bounded number of
-  blocks, least recently used dropped first. The legacy listbox (the menu, palette and combobox) reads every source
-  through it; the rebuilt listbox doesn't; on the extension model it is a list-stage step for a source that answers
-  later, which a list over an array doesn't include.
-  - Whatever reads through it follows changes through it too, never the source directly. It drops whatever a change made
-    stale, including reads still on their way, before passing the change on, so nothing re-reads stale items.
-  - A block arriving is reported as `changed` over its positions, so arrivals and edits are handled the same way; that
-    is the contract the list pipeline renders by (see Extensions).
-  - A source that answers at once (`MemorySource`) has its block in the cache before `ensure` returns, so in-memory
-    lists never show placeholders.
+- A source that answers later reports its items' arrival as `changed` over their positions, so arrivals and edits are
+  handled the same way; that is the contract the list pipeline renders by (see Extensions). An item not read yet renders
+  as not read (`aria-busy`).
+- `BlockCache`, which the listbox as it was read every source through, is deleted with it. On the extension model a
+  block cache is a list-stage step for a source that answers later, which a list over an array doesn't include; it isn't
+  built.
 
 ### Windowing (Derived, built as an extension)
 
@@ -603,8 +684,9 @@ Questions for the owner).
   4,194,137, Chrome 4,194,141.39 as 4,194,142), so the position is put to the nearest whole pixel and a scroll event
   from where windowing put it is taken as its own; before that, WebKit's rounding moved the top back a row.
 - Rows have one fixed height (a token); variable heights wait (Settled with the owner, below).
-- The menu, palette and combobox still window through the legacy viewport (`legacy-rows-view.js`), which shares the
-  arithmetic (`virtual-rows.js`) and row measuring (`measure-rows.js`).
+- The menu, palette and combobox window through the same extension, which their default sets include (`menuExtensions`,
+  `paletteExtensions`, `comboboxExtensions`); a menu's and a combobox's shrink to their items (`shrink`), the palette's
+  keep `rows` so its height never moves.
 
 ### Selection (Settled model)
 
@@ -965,9 +1047,10 @@ palette, The menu and Overlays). Then the combobox, sharing its field, list keys
 palette (see The combobox). Then keybinds' menus and palette moved onto them (see What moves out of keybinds).
 
 **Then:** the extension mechanism (see Extensions), and the listbox rebuilt on it: a core and its features as
-extensions, with the API gaps it found fixed in the mechanism. **Next**, done by others: the menu, palette and combobox
-rebuilt on it, the legacy listbox deleted, and drag to reorder, load as you scroll and grouped sections written as
-extensions with no change to the mechanism.
+extensions, with the API gaps it found fixed in the mechanism. Then the menu (with submenus, context menus and the menu
+button), the palette and the combobox rebuilt on it, with the gaps they found fixed in the mechanism, and the legacy
+listbox and the block cache deleted. **Next**, done by others: drag to reorder, load as you scroll and grouped sections
+written as extensions with no change to the mechanism.
 
 ## Settled with the owner after the first draft
 
@@ -998,6 +1081,8 @@ tell were the owner's:
    a moving offset, and the row cap from the smallest browser limit you settled as one of the slice's gaps), or only
    window long lists?
 4. **A menu and windowing:** does a menu include windowing (a long menu scrolls, as the APG has it), or render whole?
-   This meets the open question of a "▾ N more" row (see What moves out of keybinds).
-5. **Grouped sections in ARIA:** flat headings among the options, or options nested in `role="group"` elements as the
+   This meets the open question of a "▾ N more" row (see What moves out of keybinds). `menuExtensions()` includes it, as
+   menus did before the rebuild; the menu itself works either way.
+5. **Names changed by the rebuild** (yours to approve): the parts and public names listed under Names, below.
+6. **Grouped sections in ARIA:** flat headings among the options, or options nested in `role="group"` elements as the
    APG's grouped listbox has them, which needs a nested container stage (see Extensions, Open)?
