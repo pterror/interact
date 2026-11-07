@@ -8,14 +8,35 @@
  *
  * Parts: backdrop, container, spoke, slot, slot-active, slot-disabled, indicator, label. Colors come from
  * --radial-menu-active-color, -inactive-color, -disabled-color, -text-color and -spoke-color.
+ *
+ * The eight slots start at the top and go clockwise, each a dot with its label beside it. Labels on the right half sit
+ * right of their dot, left-aligned; labels on the left half sit left of it, right-aligned; the top and bottom slots go
+ * right. Arrows point: up is the top slot, right the right one, and so on, or the nearest filled slot to that when it's
+ * empty; Tab and Shift+Tab go round the filled slots. Pointing at a slot only repaints the slots already there:
+ * drawing them again would replace the one under the pointer, and a press that began on it would never become a click.
  */
 import type { Command, Context } from './command.js';
+/**
+ * The slot a key makes active: the one an arrow points at or the filled slot nearest it, trying clockwise before
+ * counter-clockwise at each distance; with Tab the next filled slot round from the active one, or the one before with
+ * Shift
+ * @param {Readonly<{ key: string, shiftKey: boolean }>} event - The key going down
+ * @param {Readonly<{ active: number, filled: number }>} slots - The active slot (-1 for none), and how many are filled
+ * @returns {number | undefined} The slot; -1 if the key moves but nothing is filled, undefined if it doesn't move
+ */
+declare function slotForKey({ key, shiftKey }: Readonly<{
+    key: string;
+    shiftKey: boolean;
+}>, { active, filled }: Readonly<{
+    active: number;
+    filled: number;
+}>): number | undefined;
 /** A radial menu */
 declare class RadialMenu extends HTMLElement {
     #private;
     static kind: string;
     static observedAttributes: string[];
-    /** Builds the menu's shadow DOM */
+    /** Builds the menu's shadow DOM: its SVG, holding a group for the spokes and one for the slots */
     constructor();
     /** @returns {void} */
     connectedCallback(): void;
@@ -32,7 +53,7 @@ declare class RadialMenu extends HTMLElement {
     /** @param {boolean} open - Whether it's open */
     set open(open: boolean);
     /**
-     * Follows its `open` attribute
+     * Follows its `open` attribute; opening starts over with nothing active and the pointer followed
      * @param {string} _name - The attribute, always `open`
      * @param {string | null} _previous - Its value before
      * @param {string | null} value - Its value now
@@ -54,4 +75,4 @@ declare class RadialMenu extends HTMLElement {
      */
     close(): void;
 }
-export { RadialMenu };
+export { RadialMenu, slotForKey };

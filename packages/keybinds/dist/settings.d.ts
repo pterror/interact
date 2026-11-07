@@ -14,9 +14,28 @@
  * Classes: .settings, __backdrop, __dialog, __header, __title, __reset-all, __group, __group-title, __list, __item,
  * __item-label, __item-bindings, __item-reset, __binding (--recording), __binding-keys, __binding-key,
  * __binding-remove, __item-add, __recording-overlay, __conflict.
+ *
+ * It shows a group per category, a row per command or axis with its bindings, the prompt where one is being recorded,
+ * and the question where a binding is taken. Recording captures a press, or a release, hold or tap, in one step or
+ * several, until a binding is recorded or Escape; each edit is saved to the store as the fields that differ from the
+ * command's defaults, and announced.
  */
 import type { InputUI } from './input.js';
 import type { AnyBindingsStore } from './store.js';
+export type Field = InputUI['field'];
+export type Lists = Readonly<Partial<Record<Field, readonly string[]>>>;
+export type Slot = Readonly<{
+    id: string;
+    index: number | undefined;
+    input: InputUI;
+}>;
+export type Conflict = Readonly<{
+    binding: string;
+    flip: boolean;
+    id: string;
+    label: string;
+    slot: Slot;
+}>;
 /** The panel where people rebind commands and axes */
 declare class KeybindSettings extends HTMLElement {
     #private;
@@ -30,7 +49,7 @@ declare class KeybindSettings extends HTMLElement {
     holds: boolean;
     /** Whether bindings of several steps ("g i") can be recorded */
     sequences: boolean;
-    /** Builds the panel's shadow DOM */
+    /** Builds the panel's shadow DOM: a backdrop, and the dialog its contents go in */
     constructor();
     /** @returns {AnyBindingsStore | undefined} The store it edits */
     get store(): AnyBindingsStore | undefined;

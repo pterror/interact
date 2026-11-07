@@ -10,6 +10,9 @@
  *
  * Events: `open` when it opens, however that happened; `close` when it's dismissed.
  *
+ * Held open by its trigger, it shows while the modifier is held; tapping the modifier twice keeps it open, and tapping
+ * twice again, Escape or a click outside closes it.
+ *
  * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
  * __item-keys, __item-binding, __item-key.
  */

@@ -1,15 +1,38 @@
 /**
  * Mouse input: buttons ("$mod+Click", "MiddleClick", "Back:up") and scrolling ("ScrollUp"). Showing and recording
- * them is keybinds/mouse-ui.
+ * them is keybinds/mouse-ui. Listened to for one keybinds(), buttons go down and up, held buttons are released when
+ * the page never sees them let go, side buttons are kept from navigating while bound, and scrolling runs in steps: a
+ * command runs once per step of scrolling (a wheel notch, or a trackpad's small deltas adding up to one), the page
+ * holds still between steps, and a pause starts a new gesture.
  */
 import type { Modifiers } from './binding-mods.js';
 import type { Command } from './command.js';
 import type { CommandInput } from './input.js';
-import type { WheelOptions } from './mouse-listener.js';
+export type WheelOptions = Readonly<{
+    idle?: number;
+    step?: number;
+}>;
+export type Gesture = {
+    amount: number;
+    last: number;
+    ours: boolean;
+};
 export type ParsedMouse = Readonly<{
     button: string;
     mods: Modifiers;
 }>;
+/**
+ * A pointer button's name as bindings write it, by `MouseEvent.button`
+ * @param {number} button - The button
+ * @returns {string | undefined} Its name, or undefined for a button no binding names
+ */
+declare function pointerButtonName(button: number): string | undefined;
+/**
+ * Which way a wheel event scrolls, as a binding names it: vertically if it does, otherwise horizontally
+ * @param {WheelEvent} event - The event
+ * @returns {string | undefined} "scrollup", "scrolldown", "scrollleft" or "scrollright"; undefined if it doesn't
+ */
+declare function wheelDirection(event: WheelEvent): string | undefined;
 /**
  * Parses a mouse binding like "$mod+Click" or "MiddleClick", without its suffix
  * @param {string} binding - The binding
@@ -36,4 +59,4 @@ declare function mouseMatches(command: Command, event: MouseEvent): boolean;
 declare function mouse(options?: Readonly<{
     wheel?: WheelOptions;
 }>): CommandInput;
-export { mouse, mouseMatches, parseMouse };
+export { mouse, mouseMatches, parseMouse, pointerButtonName, wheelDirection };

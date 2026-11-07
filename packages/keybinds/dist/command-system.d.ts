@@ -1,14 +1,15 @@
 /**
  * A CommandHub as a command system (`hub.commandSystem()`), for a bridge that keeps menus, a palette and buttons in
  * step with it, such as `@interact/components`' CommandBridge: it has the shape such a bridge asks for, and imports
- * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds'.
+ * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds', by its own matcher
+ * and scorer, and, if the app gives one, with further commands from a source asked once typing pauses. A command found
+ * only in the source's answer runs from that answer.
  * @import { Command, Context } from './command.js'
- * @import { CommandSource } from './command-search.js'
  * @import { Matcher, Scorer } from './search.js'
  */
 import type { Command, Context } from './command.js';
-import type { CommandSource } from './command-search.js';
 import type { Matcher, Scorer } from './search.js';
+export type CommandSource = (query: string) => readonly Command[] | Promise<readonly Command[]>;
 export type SystemCommand = Readonly<{
     id: string;
     label: string;

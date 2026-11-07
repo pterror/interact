@@ -1,8 +1,9 @@
 /**
- * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus.
+ * Showing and recording mouse bindings, for the settings panel, cheatsheet, palette and menus. Recording takes what's
+ * done next: a click or a scroll, or with `release` a button's press and its release. Scrolling has no release.
  */
 import type { InputUI } from './input.js';
-import type { WheelOptions } from './mouse-listener.js';
+import type { WheelOptions } from './mouse.js';
 /**
  * A mouse binding as display parts ("$mod+click" is ["⌘", "Click"] on a Mac)
  * @param {string} binding - The binding

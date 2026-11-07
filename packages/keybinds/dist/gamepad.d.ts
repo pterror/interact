@@ -1,6 +1,7 @@
 /**
  * Gamepad buttons: bindings like "a", "rt" or "start:up". Gamepad buttons take no modifiers. Showing and recording
- * them is keybinds/gamepad-ui.
+ * them is keybinds/gamepad-ui. Listened to for one keybinds(), pads are read every frame while a command has a gamepad
+ * binding and a pad is connected: a button changing reports a press starting or ending.
  */
 import type { CommandInput } from './input.js';
 /**

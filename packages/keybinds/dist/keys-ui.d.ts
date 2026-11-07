@@ -1,5 +1,6 @@
 /**
- * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus.
+ * Showing and recording keyboard bindings, for the settings panel, cheatsheet, palette and menus. Recording takes what's
+ * pressed next: a press, or with `release` the press and its release.
  */
 import type { InputUI } from './input.js';
 import type { KeySyntax } from './keys.js';
