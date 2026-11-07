@@ -6,19 +6,9 @@ Behavioral rules for Claude Code in the interact repository ("interact" is a wor
 
 A UI component library. Building a UI takes less work and less to learn, the result behaves well without extra effort,
 and none of it is tied to a framework. An app's code holds only what is specific to that app; no app's needs shape the
-library. `docs/design.md` is the design: what is settled with the owner, what follows from it, and what is still open.
+library.
 
-## Architecture
-
-Plain JavaScript with JSDoc types, one module per part, one test file per module. Packages, with dependencies only
-pointing down:
-
-- `packages/core` — behavior without a view: controllable state, state machines, data sources, selection, focus scopes
-- `packages/dom` — templates with holes; DOM and string renderers, hydration; custom element base and registration
-- `packages/components` — each component's behavior and default web view, structural CSS, the command bridge
-- `packages/theme` — the default visual theme's tokens
-- `packages/codegen` — typed declarations and framework wrappers from a Custom Elements Manifest (build time)
-- `packages/keybinds` — the standalone command and binding engine, imported with its history; its own `CLAUDE.md`
+Plain JavaScript with JSDoc types. `packages/keybinds` was imported with its history and has its own `CLAUDE.md`.
 
 ## Development
 
@@ -31,10 +21,6 @@ bun test             # Every package's tests, from the repo root (bunfig.toml pr
 bun run check        # oxfmt --check, oxlint (type-aware), tsgo on every tsconfig
 bunx oxfmt           # Format
 ```
-
-## Workflow
-
-**Minimize file churn.** When editing a file, read it once, plan all changes, and apply them in one pass.
 
 ## Commit Convention
 
@@ -54,9 +40,6 @@ Types: `feat`, `fix`, `refactor`, `docs`, `chore`, `test`.
 - Nothing is committed that fails `bun run check` or `bun test`.
 
 `test/rules.test.js` enforces the first four over every package and the repo's tests, and checks that it reaches them.
-Lint and type rules are all on: every oxlint category and plugin, every tsgo strictness option. One is turned off only
-where it contradicts another rule or a convention the code follows, with the reason next to it in `.oxlintrc.json`,
-`.oxfmtrc.json` or `tsconfig.base.json`.
 
 <!-- BEGIN ECOSYSTEM RULES -->
 
