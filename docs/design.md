@@ -37,7 +37,8 @@ design:
 
 ## Packages
 
-The five packages are settled, and each is usable on its own.
+The package split is not decided: "the `interact` library seems designed wrong, smells monolithic already which makes
+me deeply uncomfortable" (owner, 2026-11-04T13:27:42). Each package is usable on its own.
 
 Dependencies only point down this list. So far each new package is a manifest only; its first module comes with the
 first build step.
@@ -821,7 +822,7 @@ and deleted.
 
 1. **Bridge freshness.** The bridge accepts an optional change notification and is live where the command system
    provides one (see Components).
-2. **Package boundaries.** The five packages stay, and each is usable on its own.
+2. **Package boundaries.** Not decided (see Packages).
 3. **Wrappers.** Typed declarations for every mainstream framework, and wrappers where its own custom element handling
    falls short of idiomatic (see Generated wrappers and types).
 4. **The slice's gaps** (closed): Firefox and WebKit with the row cap from the smallest real limit; the APG pattern,
