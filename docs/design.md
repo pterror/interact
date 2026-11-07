@@ -126,8 +126,8 @@ A component is its behavior, written once as a plain API, plus a default view an
   - `choose` (`chooser.js`): single or multiple mode; `press()`; `all()`, which selects everything as one filter;
     `isSelected()`; and `count()`, which counts without reading.
 - Also on `Listbox`: `source`, a `Controllable` (a new source starts over); `key()`, which takes keys as DOM-free
-  actions (`listbox-keys.js`, acted on in `listbox-act.js`); `goTo(position, extend)`; `type(character)`; `focus()`;
-  `activate()` and `onActivate()`; `positions()`; and `subscribe()`.
+  actions (`listbox-keys.js`) and acts on; `goTo(position, extend)`; `type(character)`; `focus()`; `activate()` and
+  `onActivate()`; `positions()`; and `subscribe()`.
 - **Keyboard (Derived, checked against the WAI-ARIA APG listbox pattern and its example code):** arrows, Home, End and
   the page keys move the active item; Space toggles it; Enter activates it. In multiple mode, Shift with a move or with
   Space selects from the anchor through the active item, Ctrl+Shift+Home/End select from the active item to the first or
@@ -136,7 +136,7 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Focus entering (Derived, the APG listbox pattern):** the active item stays and is shown. With nothing active, focus
   goes to the first selected item and shows it, when the source can place items (`findsSelected`, below); the answer is
   dropped if a key made something active first, or the source changed. Without that capability, or with nothing
-  selected, it goes to the item last chosen, or the top item (`listbox-focus.js`; tested in all three browsers in both
+  selected, it goes to the item last chosen, or the top item (`Listbox.focus()`; tested in all three browsers in both
   DOM modes, with the first selected item five billion down).
 - **Typeahead (Derived, settled with the owner):** a character goes to the next item whose text starts with it, and
   characters typed within 500ms (the APG example's wait) to the next whose text starts with all of them, going round to

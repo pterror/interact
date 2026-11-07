@@ -5,13 +5,11 @@
  * @import { KeyAction, Modifiers } from './listbox-keys.js'
  */
 
-import { Controllable, Listeners, nothing, plainText, shiftPosition } from '@interact/core'
+import { Controllable, Listeners, entry, move, nothing, plainText, shiftPosition } from '@interact/core'
 
 import { chooserFor } from './chooser.js'
 import { Items } from './items.js'
 import { landing } from './landing.js'
-import { act } from './listbox-act.js'
-import { enterFocus } from './listbox-focus.js'
 import { keyAction } from './listbox-keys.js'
 import { ScrollRows } from './scroll-rows.js'
 import { Typeahead } from './typeahead.js'
@@ -40,9 +38,6 @@ const BLOCK_SIZE = 100
 /** Blocks kept: what shows, its overscan and the active item fit in a few, so 16 leaves room for rows up to ~1,400. */
 const BLOCKS = 16
 const DEFAULT_ROWS = 10
-const NONE = 0
-const ONE = 1
-const FORWARD = 1
 
 /** @type {number | undefined} */
 const NO_POSITION = undefined
@@ -119,7 +114,7 @@ class Listbox {
       count: () => this.items.count,
       overscan: OVERSCAN,
       rows: options.rows ?? DEFAULT_ROWS,
-      top: options.top ?? NONE,
+      top: options.top ?? 0,
     })
     /** @readonly */
     this.choose = chooserFor(this, options.mode ?? 'single')
@@ -152,12 +147,25 @@ class Listbox {
   }
 
   /**
-   * What focus entering the listbox does (see `enterFocus`): the active item stays and is shown; with nothing active,
-   * the first selected item when the source can say where it is, otherwise the item last chosen, or the top one.
+   * What focus entering the listbox does, as the WAI-ARIA listbox pattern has it: the active item stays and is
+   * scrolled into view. With nothing active, the first selected item becomes active and is shown when the source can
+   * say where it is (`findsSelected`); otherwise, or with nothing selected, the item last chosen stands in for it, or
+   * the top one when nothing was.
    * @returns {void}
    */
   focus() {
-    enterFocus(this)
+    const active = this.active.get()
+    if (active !== undefined) {
+      this.scroll.reveal(active)
+      return
+    }
+    const selection = this.selection.get()
+    const chosen = selection.filter !== undefined || selection.added.size > 0
+    if (chosen && this.items.findsSelected(selection)) {
+      void this.#enterSelected(selection)
+      return
+    }
+    this.#enterAt(undefined)
   }
 
   /** @returns {boolean} Whether what was typed a moment ago is still being added to, so a space is part of it */
@@ -175,10 +183,10 @@ class Listbox {
     const typing = key === ' ' && !modifiers.shift && !modifiers.toggle && this.#typeahead.typing
     /** @type {KeyAction | undefined} */
     const action = typing ? { character: key, kind: 'type' } : keyAction(key, modifiers)
-    if (action === undefined || this.items.count === NONE) {
+    if (action === undefined || this.items.count === 0) {
       return false
     }
-    act(this, action, modifiers.shift)
+    this.#act(action, modifiers.shift)
     return true
   }
 
@@ -206,7 +214,7 @@ class Listbox {
     const found = await this.#typeahead.seek(character, at, async (text, from) =>
       this.items.findPrefix(text, from, this.text),
     )
-    const landed = found === undefined ? undefined : landing(this, found, FORWARD)
+    const landed = found === undefined ? undefined : landing(this, found, 1)
     if (landed !== undefined) {
       this.goTo(landed)
     }
@@ -242,6 +250,80 @@ class Listbox {
   }
 
   /**
+   * Does what a key asked: moves the active item and shows it, never onto an item focus passes over; looks for an item
+   * by what was typed; selects everything; or acts on the active item: activates or toggles it, selects through to it
+   * from the anchor, or selects from it to the first or last item and goes there.
+   * @param {KeyAction} action - What it asked
+   * @param {boolean} extend - Whether Shift was held, to select through from the anchor
+   * @returns {void}
+   */
+  #act(action, extend) {
+    const { count } = this.items
+    /** @type {number | undefined} */
+    let to = undefined
+    if (action.kind === 'move') {
+      const by = action.rows + action.pages * this.scroll.rows.get()
+      to = landing(this, move(this.active.get() ?? this.scroll.top.get(), by, count), by < 0 ? -1 : 1)
+    } else if (action.kind === 'first') {
+      to = landing(this, 0, 1)
+    } else if (action.kind === 'last') {
+      to = landing(this, count - 1, -1)
+    }
+    const active = this.active.get()
+    if (to !== undefined) {
+      this.goTo(to, extend)
+    } else if (action.kind === 'type') {
+      void this.type(action.character)
+    } else if (action.kind === 'all' && this.choose.mode === 'multiple') {
+      this.choose.all()
+    } else if (active !== undefined && action.kind === 'activate') {
+      this.activate(active)
+    } else if (active !== undefined && action.kind === 'toggle') {
+      this.choose.toggle(active)
+    } else if (active !== undefined && action.kind === 'through') {
+      this.choose.moved(active, true)
+    } else if (active !== undefined && (action.kind === 'toFirst' || action.kind === 'toLast')) {
+      const end = action.kind === 'toFirst' ? 0 : count - 1
+      this.choose.span(active, end)
+      this.active.request(end)
+      this.scroll.reveal(end)
+    }
+  }
+
+  /**
+   * Makes an item active as focus enters: `position` while it is inside, otherwise the item last chosen, or the top.
+   * @param {number | undefined} position - Where focus should go, if known
+   * @returns {number | undefined} The position made active, if there are items
+   */
+  #enterAt(position) {
+    const left = position ?? this.choose.anchor ?? this.scroll.top.get()
+    const entered = entry(left, this.items.count)
+    const at = entered === undefined ? undefined : landing(this, entered, 1)
+    if (at !== undefined) {
+      this.active.request(at)
+    }
+    return at
+  }
+
+  /**
+   * Makes the first selected item active and shows it, once the source has said where it is. The answer is dropped if
+   * a key made something active meanwhile, or the source changed.
+   * @param {Selection<F>} selection - What is selected
+   * @returns {Promise<void>} When it has, or the answer was dropped
+   */
+  async #enterSelected(selection) {
+    const { source } = this.items
+    const found = await this.items.firstSelected(selection)
+    if (this.active.get() !== undefined || this.items.source !== source) {
+      return
+    }
+    const entered = this.#enterAt(found)
+    if (found !== undefined && entered !== undefined) {
+      this.scroll.reveal(entered)
+    }
+  }
+
+  /**
    * Reads and re-renders as the state and the source change.
    * @returns {void}
    */
@@ -273,7 +355,7 @@ class Listbox {
     if (change.kind !== 'changed') {
       const active = this.active.get()
       this.active.set(active === undefined ? undefined : shiftPosition(active, change))
-      const top = shiftPosition(this.scroll.top.get(), change) ?? (change.kind === 'reset' ? NONE : change.start)
+      const top = shiftPosition(this.scroll.top.get(), change) ?? (change.kind === 'reset' ? 0 : change.start)
       this.scroll.top.set(this.scroll.within(top))
     }
     this.#read()
@@ -289,7 +371,7 @@ class Listbox {
     this.items.read(start, end)
     const active = this.active.get()
     if (active !== undefined) {
-      this.items.read(active, active + ONE)
+      this.items.read(active, active + 1)
     }
   }
 }
