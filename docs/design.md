@@ -34,7 +34,7 @@ design:
   keyboard-only build from 5.1 KB to 2.57 KB gzipped (`packages/keybinds/TODO.md`). The same holds here. Each behavior,
   view, renderer and model is its own module, and whatever is optional is passed in rather than imported.
 - Syntax or options whose module isn't loaded are an error that names the module. They never silently do nothing
-  (`packages/keybinds/src/core.js:421`).
+  (`packages/keybinds/src/core.js:66`).
 
 ## Packages
 
@@ -632,7 +632,7 @@ one call and a prefix. `test/rules.test.js` imports every module and fails if an
 the page.
 
 **Derived:** styles and code never depend on tag names. keybinds already marks each element with its kind
-(`data-keybinds="<kind>"`, `core.js:177`), and the same idea holds here.
+(`data-keybinds="<kind>"`, `packages/keybinds/src/modal.js:18`), and the same idea holds here.
 
 **Derived (built):**
 
