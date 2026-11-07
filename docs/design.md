@@ -64,8 +64,8 @@ A component is its behavior, written once as a plain API, plus a default view an
   only where modes and timing call for one: a menu opening and closing with pointer intent, a combobox, a tooltip's
   delays. A component without modes is a few fields and methods. A behavior can be driven by tests, by the DOM, or later
   by a terminal view. **Derived:** the menu's timing came to one timer (a submenu opening once the pointer rests on its
-  entry) and an area the pointer may cross (`menu-submenu.js`), so core has no state machine yet; the combobox is the
-  next place one may be needed.
+  entry) and an area the pointer may cross (`menu.js`), so core has no state machine yet; the combobox is the next place
+  one may be needed.
 - **The view** belongs to one target family. Web views are templates with holes, used by three things:
   - a DOM renderer;
   - a string renderer, for server rendering, which emits Declarative Shadow DOM when the instance uses shadow DOM;

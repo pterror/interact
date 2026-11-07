@@ -1,8 +1,7 @@
 /**
  * What a key does in a menu, as the WAI-ARIA Authoring Practices menu pattern has it.
  * @import { Modifiers } from './listbox-keys.js'
- * @import { Menu } from './menu.js'
- * @import { Activation } from './menu-types.js'
+ * @import { Activation, Menu } from './menu.js'
  */
 
 /**

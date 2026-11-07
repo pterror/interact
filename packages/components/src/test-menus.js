@@ -3,7 +3,7 @@
  * submenu, the same on the server and in the page.
  * @import { MemorySource, Span } from '@interact/core/memory-source'
  * @import { MenuEntry } from './menu-entry.js'
- * @import { Wait } from './menu-types.js'
+ * @import { Wait } from './menu.js'
  */
 
 import { menuEntries } from './menu-entry.js'

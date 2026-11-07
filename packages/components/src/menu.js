@@ -1,31 +1,82 @@
 /**
  * @import { Point } from '@interact/core/intent'
  * @import { Source } from '@interact/core/source'
- * @import { MenuEntry } from './menu-entry.js'
- * @import { Activation, MenuOptions, MenuSelect, OpenFocus, OpenSubmenu } from './menu-types.js'
+ * @import { MenuEntry, MenuItem } from './menu-entry.js'
  */
 
-import { Controllable, Layer, Listeners } from '@interact/core'
+import { Controllable, Layer, Listeners, insideArea } from '@interact/core'
 
 import { landing } from './landing.js'
 import { Listbox } from './listbox.js'
 import { entryText, isSeparator } from './menu-entry.js'
-import { SubmenuSlot } from './menu-submenu.js'
-import { waitWithTimer } from './menu-types.js'
+
+/**
+ * Waits, then runs something, unless stopped first.
+ * @typedef {(milliseconds: number, run: () => void) => () => void} Wait
+ */
+
+/**
+ * How a menu starts: its entries, an `id` its parts' ids start with (unique in the page for light DOM), its accessible
+ * name, the most rows it shows before scrolling, how it waits (a test's clock, say), and, for a submenu, the menu it
+ * opens from, which sets it.
+ * @template F
+ * @typedef {Readonly<{
+ *   items?: Source<MenuEntry<F>, F>,
+ *   id?: string,
+ *   label?: string,
+ *   rows?: number,
+ *   wait?: Wait,
+ *   parent?: Menu<F>,
+ * }>} MenuOptions
+ */
+
+/**
+ * An item chosen: which, where, and in which menu of a menu and its submenus.
+ * @template F
+ * @typedef {Readonly<{ entry: MenuItem<F>, position: number, menu: Menu<F> }>} MenuSelect
+ */
+
+/**
+ * A submenu open from an entry: the entry's position, and the submenu.
+ * @template F
+ * @typedef {Readonly<{ position: number, menu: Menu<F> }>} OpenSubmenu
+ */
+
+/**
+ * How an item was activated: Enter, Space, or a press with the pointer. Space on a checkbox or radio item leaves the
+ * menu open; anything else that runs an item closes it.
+ * @typedef {'enter' | 'space' | 'press'} Activation
+ */
+
+/**
+ * Where focus goes as a menu opens: its first item, its last, or nowhere yet (a submenu opened by the pointer resting
+ * on its entry).
+ * @typedef {'first' | 'last' | 'none'} OpenFocus
+ */
 
 const DEFAULT_ROWS = 10
-const NONE = 0
-const ONE = 1
-const FORWARD = 1
-const BACK = -1
+/** How long the pointer rests on an entry before its submenu opens, as zag.js's menu waits. */
+const OPEN_DELAY = 200
 /** @type {Point | undefined} */
 const NO_POINT = undefined
 
 /**
+ * Waits with a timer.
+ * @type {Wait}
+ */
+function waitWithTimer(milliseconds, run) {
+  const timer = setTimeout(run, milliseconds)
+  return () => {
+    clearTimeout(timer)
+  }
+}
+
+/**
  * A menu's behavior, with no DOM: its entries in a listbox that selects nothing and passes over separators, the layer
- * it opens in, the point it opens at (a context menu) if not beside its button, and the submenu open from it.
- * Submenus are menus of their own, each in a layer above its parent's. An item chosen in a submenu is reported by
- * `onSelect` on every menu above it too.
+ * it opens in, the point it opens at (a context menu) if not beside its button, and the submenu open from it, with
+ * what the pointer is doing about it: one about to open once the pointer has rested on its entry, and the area the
+ * pointer may cross on its way to the open one. Submenus are menus of their own, each in a layer above its parent's.
+ * An item chosen in a submenu is reported by `onSelect` on every menu above it too.
  * @template F
  */
 class Menu {
@@ -47,11 +98,25 @@ class Menu {
    */
   #changes = new Listeners()
   #wantsFocus = false
+  /** @type {OpenSubmenu<F> | undefined} */
+  #opened = undefined
+  /** @type {(() => void) | undefined} */
+  #unfollowSubmenu = undefined
   /**
-   * @readonly
-   * @type {SubmenuSlot<Menu<F>>}
+   * Stops a submenu about to open.
+   * @type {(() => void) | undefined}
    */
-  #slot
+  #pending = undefined
+  /**
+   * The area the pointer may cross on its way to the open submenu.
+   * @type {readonly Point[] | undefined}
+   */
+  #heading = undefined
+  /**
+   * The entry the pointer is over.
+   * @type {number | undefined}
+   */
+  #pointed = undefined
 
   /**
    * @param {MenuOptions<F>} [options] - How it starts
@@ -77,22 +142,13 @@ class Menu {
       skip: isSeparator,
       text: entryText,
     })
-    this.#slot = new SubmenuSlot({
-      changed: () => {
-        this.#changes.emit(undefined)
-      },
-      closed: () => {
-        this.#wantsFocus = true
-      },
-      wait: this.wait,
-    })
     this.#follow()
     this.list.source.set(options.items)
   }
 
   /** @returns {OpenSubmenu<F> | undefined} The submenu open from one of its entries, and which */
   get submenu() {
-    return this.#slot.open
+    return this.#opened
   }
 
   /**
@@ -103,7 +159,7 @@ class Menu {
   open(focus = 'first') {
     this.layer.open.request(true)
     const { count } = this.list.items
-    const at = focus === 'last' ? landing(this.list, count - ONE, BACK) : landing(this.list, NONE, FORWARD)
+    const at = focus === 'last' ? landing(this.list, count - 1, -1) : landing(this.list, 0, 1)
     if (focus !== 'none' && at !== undefined) {
       this.list.goTo(at)
     }
@@ -174,7 +230,9 @@ class Menu {
   }
 
   /**
-   * Opens the submenu of the entry at a position, closing any other, with focus on its first item if `focus`.
+   * Opens the submenu of the entry at a position, closing any other, with focus on its first item if `focus`. The
+   * submenu is made now unless it is the one open: a menu of its own, whose choices are this menu's too. One that
+   * closes by itself (Escape, the arrow back) is let go, and focus comes back to this menu.
    * @param {number} position - The entry's position
    * @param {boolean} focus - Whether focus goes into the submenu
    * @returns {boolean} Whether the entry has a submenu, enabled
@@ -184,7 +242,40 @@ class Menu {
     if (entry?.kind !== 'submenu' || entry.disabled === true) {
       return false
     }
-    const menu = this.#slot.take(position, () => this.#makeSubmenu(position, entry))
+    this.#cancel()
+    let menu = this.#opened?.position === position ? this.#opened.menu : undefined
+    if (menu === undefined) {
+      this.#closeSubmenu()
+      const made = new Menu({
+        id: `${this.id}-${String(position)}`,
+        items: entry.items,
+        label: entry.label,
+        parent: this,
+        rows: this.rows,
+        wait: this.wait,
+      })
+      made.onSelect((chosen) => {
+        this.#selects.emit(chosen)
+      })
+      const stops = [
+        made.subscribe(() => {
+          this.#changes.emit(undefined)
+        }),
+        made.layer.open.subscribe((open) => {
+          if (!open && this.#opened?.menu === made) {
+            this.#closeSubmenu()
+            this.#wantsFocus = true
+          }
+        }),
+      ]
+      this.#unfollowSubmenu = () => {
+        for (const stop of stops) {
+          stop()
+        }
+      }
+      this.#opened = { menu: made, position }
+      menu = made
+    }
     menu.open(focus ? 'first' : 'none')
     menu.#wantsFocus = focus
     return true
@@ -192,23 +283,42 @@ class Menu {
 
   /**
    * The pointer is over the entry at a position: it becomes active, and its submenu opens once the pointer has rested
-   * there, any other submenu closing. Crossing entries on the way to the open submenu (see `headFor`) does nothing.
+   * there, any other submenu closing; moving on over the same entry changes nothing. Crossing entries on the way to the
+   * open submenu (see `headFor`) does nothing; once the pointer strays outside that area, it is no longer on its way.
    * @param {number} position - Where the entry is
    * @param {Point} pointer - Where the pointer is
    * @returns {boolean} Whether the menu took it, so its list should have focus
    */
   pointTo(position, pointer) {
     const entry = this.list.items.item(position)
-    if (entry === undefined || entry.kind === 'separator' || this.#slot.crossing(position, pointer)) {
+    if (entry === undefined || entry.kind === 'separator') {
       return false
     }
+    const crossing =
+      this.#heading !== undefined && this.#opened?.position !== position && insideArea(pointer, this.#heading)
+    if (crossing) {
+      return false
+    }
+    this.#heading = undefined
     if (this.parent !== undefined) {
-      this.parent.#slot.arrived()
+      this.parent.#heading = undefined
+      this.parent.#cancel()
     }
     this.list.active.request(position)
-    this.#slot.pointedAt(position, entry.kind === 'submenu' && entry.disabled !== true, () => {
-      this.openSubmenu(position, false)
-    })
+    if (this.#pointed === position) {
+      return true
+    }
+    this.#cancel()
+    if (this.#opened?.position !== position) {
+      this.#closeSubmenu()
+    }
+    this.#pointed = position
+    if (entry.kind === 'submenu' && entry.disabled !== true && this.#opened === undefined) {
+      this.#pending = this.wait(OPEN_DELAY, () => {
+        this.#pending = undefined
+        this.openSubmenu(position, false)
+      })
+    }
     return true
   }
 
@@ -219,7 +329,7 @@ class Menu {
    * @returns {void}
    */
   headFor(area) {
-    this.#slot.headFor(area)
+    this.#heading = area
   }
 
   /**
@@ -243,25 +353,30 @@ class Menu {
   }
 
   /**
-   * Makes the submenu of an entry: a menu of its own, whose choices are this menu's too.
-   * @param {number} position - The entry's position
-   * @param {Readonly<{ label: string, items: Source<MenuEntry<F>, F> }>} entry - The entry
-   * @returns {Menu<F>} The submenu
+   * Stops a submenu about to open.
+   * @returns {void}
    */
-  #makeSubmenu(position, entry) {
-    const id = `${this.id}-${String(position)}`
-    const menu = new Menu({
-      id,
-      items: entry.items,
-      label: entry.label,
-      parent: this,
-      rows: this.rows,
-      wait: this.wait,
-    })
-    menu.onSelect((chosen) => {
-      this.#selects.emit(chosen)
-    })
-    return menu
+  #cancel() {
+    this.#pending?.()
+    this.#pending = undefined
+  }
+
+  /**
+   * Closes and lets go of the submenu, if one is open, and stops one about to open.
+   * @returns {void}
+   */
+  #closeSubmenu() {
+    const open = this.#opened
+    this.#cancel()
+    this.#heading = undefined
+    this.#pointed = undefined
+    this.#unfollowSubmenu?.()
+    this.#unfollowSubmenu = undefined
+    this.#opened = undefined
+    if (open !== undefined) {
+      open.menu.layer.open.set(false)
+      this.#changes.emit(undefined)
+    }
   }
 
   /**
@@ -272,13 +387,13 @@ class Menu {
   #follow() {
     this.layer.open.subscribe((open) => {
       if (!open) {
-        this.#slot.close()
+        this.#closeSubmenu()
         this.list.active.set(undefined)
       }
       this.#changes.emit(undefined)
     })
     this.list.subscribe(() => {
-      this.list.scroll.rows.set(Math.max(ONE, Math.min(this.list.items.count, this.rows)))
+      this.list.scroll.rows.set(Math.max(1, Math.min(this.list.items.count, this.rows)))
       this.#changes.emit(undefined)
     })
     this.point.subscribe(() => {
