@@ -1,29 +1,12 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "eslint",
-    "unicorn",
-    "typescript",
-    "oxc",
-    "import",
-    "jsdoc",
-    "promise",
-    "node",
-    "jest",
-    "vitest",
-    "react",
-    "react-perf",
-    "jsx-a11y",
-    "nextjs",
-    "vue"
-  ],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "jsdoc", "promise", "node"],
   "categories": {
     "correctness": "error",
     "suspicious": "error",
     "pedantic": "error",
     "perf": "error",
     "style": "error",
-    "restriction": "error",
     "nursery": "error"
   },
   // typeCheck stays off: tsgo already type-checks every package in `bun run check`.
@@ -31,65 +14,29 @@
   "env": { "browser": true, "es2024": true },
   "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**"],
   "rules": {
-    // A JSDoc @type on a combined declaration types only its first declarator; typing the others needs an inline
-    // comment, which eslint/no-inline-comments forbids.
-    "eslint/one-var": "off",
-    // Each needs TypeScript-only syntax that is an error in a .js file: `public` (TS8009), `interface` (TS8006),
-    // `x!` (TS8013).
-    "typescript/explicit-member-accessibility": "off",
-    "typescript/consistent-type-definitions": "off",
-    "typescript/non-nullable-type-assertion-style": "off",
-    // Contradict import/no-default-export. Modules export named classes and functions for the app to register.
-    "import/no-named-export": "off",
-    "import/prefer-default-export": "off",
-    // Contradicts unicorn/prefer-ternary.
-    "eslint/no-ternary": "off",
-    // Contradicts typescript/prefer-optional-chain.
-    "oxc/no-optional-chaining": "off",
-    // Contradicts promise/prefer-await-to-then and promise/prefer-await-to-callbacks.
-    "oxc/no-async-await": "off",
-    // Contradicts eslint/prefer-object-spread.
-    "oxc/no-rest-spread-properties": "off",
-    // With unicorn/no-null, eslint/no-void and typescript/consistent-return, nothing could express a missing value.
-    // undefined is what optional parameters and properties hold.
-    "eslint/no-undefined": "off",
-    // Contradicts typescript/consistent-return in a function that returns a value or nothing: `return undefined` is
-    // what this rule forbids, and a bare `return` is what consistent-return forbids.
-    "unicorn/no-useless-undefined": "off",
-    // Tests import from bun:test, the runner.
-    "vitest/prefer-importing-vitest-globals": "off",
-    // Contradicts typescript/promise-function-async, which needs `async` on a function that returns a promise without
-    // awaiting it. typescript/require-await checks the rest, knowing which functions return promises.
-    "eslint/require-await": "off",
-    // A function giving a value it already has as a promise can satisfy only two of three rules:
-    // `async () => value` fails typescript/require-await, `() => Promise.resolve(value)` fails
-    // typescript/promise-function-async, and `async () => Promise.resolve(value)` fails this one.
-    "unicorn/no-useless-promise-resolve-reject": "off",
-    // Async work started from a sync event (a read the cache reports on) has to be marked as not awaited:
-    // typescript/no-floating-promises accepts only `void` or `.catch()`, promise/prefer-await-to-then forbids `.catch()`,
-    // and an async listener fails typescript/no-misused-promises. So `void` is allowed as a statement, nowhere else.
+    "eslint/eqeqeq": "error",
+    "eslint/no-empty": "error",
+    "eslint/no-proto": "error",
+    "eslint/no-var": "error",
+    // `void` marks a promise started from a sync event as not awaited, which typescript/no-floating-promises accepts.
     "eslint/no-void": ["error", { "allowAsStatement": true }],
-    // Fires on a map over an array the function didn't receive (Object.entries(), a copy, a call's result), whose
-    // objects are still the caller's. Its fix is Object.assign onto the element, which mutates the caller's readonly
-    // objects (TypeScript can't see it: Object.assign's target is generic); Object.assign({}, ...) instead fails
-    // eslint/prefer-object-spread. Only a for loop making the same copies passes.
-    "oxc/no-map-spread": "off",
-    "eslint/func-style": ["error", "declaration"],
-    // x and y are a point's coordinates as the platform names them (DOMPoint, DOMRect, MouseEvent), and the menus'
-    // documented `position` follows it; every other short name is still flagged.
-    "eslint/id-length": ["error", { "exceptions": ["x", "y"] }],
+    "eslint/unicode-bom": "error",
+    "import/no-cycle": "error",
+    "import/no-amd": "error",
+    "import/no-commonjs": "error",
+    "import/unambiguous": "error",
+    "oxc/bad-bitwise-operator": "error",
+    "promise/catch-or-return": "error",
+    "jsdoc/empty-tags": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-namespace": "error",
     // The browser's CSSStyleSheet.replaceSync styles a constructed sheet before the first paint; replace() resolves
     // later. Node's sync methods stay flagged.
     "node/no-sync": ["error", { "ignores": ["replaceSync"] }],
-    // Functions that call each other (rendering a template renders its children, which render templates) put one call
-    // before the other's declaration whatever the order. Declarations are hoisted; variables and classes stay checked.
-    "eslint/no-use-before-define": ["error", { "functions": false }],
-    // oxfmt's sortImports orders declarations by source, which this rule's declaration order rejects.
-    "eslint/sort-imports": ["error", { "ignoreDeclarationSort": true }],
-    // The platform's own types are mutable all the way down, so even Readonly<Event> fails the rule. ReadonlySet,
-    // ReadonlyMap and TemplateStringsArray are readonly, yet oxlint 1.90.0 flags them while it passes `readonly T[]`.
-    // Behaviors are classes with methods, which the rule otherwise counts as mutable properties; their fields are
-    // still checked.
+    // Behaviors are readonly to their views (docs/design.md). The platform's own types are mutable all the way down,
+    // so even Readonly<Event> fails the rule. ReadonlySet, ReadonlyMap and TemplateStringsArray are readonly, yet
+    // oxlint 1.90.0 flags them while it passes `readonly T[]`. Behaviors are classes with methods, which the rule
+    // otherwise counts as mutable properties; their fields are still checked.
     "typescript/prefer-readonly-parameter-types": [
       "error",
       {
@@ -144,30 +91,57 @@
           { "from": "package", "name": ["Result", "NodeResult"], "package": "axe-core" }
         ]
       }
-    ]
-  },
-  "overrides": [
-    {
-      "files": ["test/**", "**/*.test.js"],
-      // axe is defined in test pages by axe-core's script (test/axe-global.d.ts).
-      "globals": { "Bun": "readonly", "axe": "readonly" }
-    },
-    {
-      // A package's tests use the repo's one browser harness (test/browser.js), which only a parent path reaches; a
-      // copy per package would be a second source. Package code is still checked.
-      "files": ["packages/*/src/**/*.test.js"],
-      "rules": { "import/no-relative-parent-imports": "off" }
-    },
-    {
-      // require-hook is about test files: top-level code there runs outside the runner's hooks. In a module that isn't a
-      // test (library source, the preload, the browser harness), top-level code is the module's own initialization,
-      // and the rule flags it anyway: a top-level `map.set()` or `let n = 0` in a library module. An override can't
-      // scope the plugins themselves (oxlint 1.90.0 neither removes plugins in an override nor applies the base
-      // categories to plugins an override adds), and require-hook is the only jest or vitest rule that fires outside
-      // test files across the repo.
-      "files": ["**/*.js"],
-      "excludeFiles": ["**/*.test.js"],
-      "rules": { "jest/require-hook": "off", "vitest/require-hook": "off" }
-    }
-  ]
+    ],
+
+    // Shape, not defects: these split code by size or count, or pick one of two equivalent spellings.
+    "eslint/max-lines": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-statements": "off",
+    "eslint/max-params": "off",
+    "eslint/max-depth": "off",
+    "eslint/max-nested-callbacks": "off",
+    "eslint/max-classes-per-file": "off",
+    "import/max-dependencies": "off",
+    "unicorn/max-nested-calls": "off",
+    "eslint/no-magic-numbers": "off",
+    "eslint/id-length": "off",
+    "eslint/sort-keys": "off",
+    "eslint/no-inline-comments": "off",
+    "eslint/capitalized-comments": "off",
+    "eslint/init-declarations": "off",
+    "eslint/prefer-destructuring": "off",
+    "eslint/no-continue": "off",
+    "eslint/no-ternary": "off",
+    "eslint/no-nested-ternary": "off",
+    "unicorn/no-nested-ternary": "off",
+    "eslint/one-var": "off",
+    "eslint/func-style": "off",
+    "eslint/no-negated-condition": "off",
+    "unicorn/no-negated-condition": "off",
+    "eslint/no-lonely-if": "off",
+    "unicorn/no-lonely-if": "off",
+    "import/no-named-export": "off",
+    "import/prefer-default-export": "off",
+    "import/group-exports": "off",
+    "import/exports-last": "off",
+    "promise/prefer-await-to-then": "off",
+    "promise/prefer-await-to-callbacks": "off",
+    // oxfmt's sortImports orders imports.
+    "eslint/sort-imports": "off",
+    // Needs TypeScript-only syntax, an error in a .js file: `interface` (TS8006).
+    "typescript/consistent-type-definitions": "off",
+    // tsgo finds undefined names, knowing the globals each tsconfig declares.
+    "eslint/no-undef": "off",
+    // Flags an async function that doesn't await, where `async` is what makes a value that may be a promise always
+    // one (`async count()` over a source counting at once or later). typescript/require-await checks the rest,
+    // knowing which functions return promises.
+    "eslint/require-await": "off",
+    // Contradicts typescript/consistent-return in a function that returns a value or nothing: `return undefined` is
+    // what this rule forbids, and a bare `return` is what consistent-return forbids.
+    "unicorn/no-useless-undefined": "off",
+    // Fires on a map over an array the function didn't receive (Object.entries(), a copy, a call's result), whose
+    // objects are still the caller's. Its fix is Object.assign onto the element, which mutates the caller's readonly
+    // objects (TypeScript can't see it: Object.assign's target is generic).
+    "oxc/no-map-spread": "off"
+  }
 }

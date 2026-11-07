@@ -91,7 +91,7 @@ function serverPalette(mode) {
 
 describe.each(CASES)('a command palette in %s DOM, in %s', (mode, engine) => {
   test('opens with focus in its search field, every command found, the first active as its combobox says', async () => {
-    const opened = await withPalette({ engine, mode }, async (_page, seen) => Promise.resolve(seen))
+    const opened = await withPalette({ engine, mode }, (_page, seen) => Promise.resolve(seen))
     expect([opened.open, opened.focus, opened.value, opened.results]).toEqual([true, 'search', '', EVERY])
     expect(opened.combobox).toEqual(COMBOBOX_ON_OPEN)
   })

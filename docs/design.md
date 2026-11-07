@@ -24,10 +24,11 @@ design:
 - No runtime dependencies (root `CLAUDE.md`, "Hard Constraints"). Packages here may depend on each other. Nothing
   outside the repo may be a runtime dependency. `test/rules.test.js` enforces this.
 - Plain JavaScript with fully type-safe JSDoc: no casts, no `any`, no `@ts-` directives (**Settled**). tsgo runs with
-  every strictness option (`tsconfig.base.json`), and oxlint with every category and plugin, type-aware
-  (`.oxlintrc.json`). oxfmt formats everything (`.oxfmtrc.json`). `bun run check` runs all three, and
-  `test/rules.test.js` enforces the no-casts rule. A rule is off only where it contradicts another rule or a convention
-  the code follows, with the reason next to it.
+  every strictness option (`tsconfig.base.json`), and oxlint type-aware (`.oxlintrc.json`) with every category but
+  restriction, over the plugins this code uses, and the restriction rules that catch defects turned on one by one. Rules
+  whose only effect is the code's shape (sizes, counts, ordering, one of two equal spellings) are off: they split code
+  by line count instead of by responsibility. oxfmt formats everything (`.oxfmtrc.json`). `bun run check` runs all
+  three, and `test/rules.test.js` enforces the no-casts rule.
 - One module per part, and one test file per module that passes when run alone.
 - An app ships only what it uses. For keybinds this meant one module per input and per piece of syntax, and it took the
   keyboard-only build from 5.1 KB to 2.57 KB gzipped (`packages/keybinds/TODO.md`). The same holds here. Each behavior,

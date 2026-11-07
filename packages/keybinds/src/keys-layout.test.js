@@ -40,7 +40,7 @@ function view() {
 function fakeKeyboard(first) {
   let current = first
   /** @type {Keyboard} */
-  const keyboard = { getLayoutMap: async () => Promise.resolve(current) }
+  const keyboard = { getLayoutMap: () => Promise.resolve(current) }
   Object.defineProperty(navigator, 'keyboard', { configurable: true, value: keyboard })
   return {
     restore: () => {
