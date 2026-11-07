@@ -6,7 +6,7 @@
  */
 
 import { entry } from '@interact/core'
-import { viewPlugin } from '@interact/dom'
+import { inOwnView, viewPlugin } from '@interact/dom'
 
 /**
  * Focus entering a list, as the WAI-ARIA Authoring Practices listbox pattern has it: the active item stays, and is
@@ -42,10 +42,15 @@ function focusEntering(current) {
   }
   const page = viewPlugin((store, root) => {
     /**
-     * Focus coming into the list.
+     * Focus coming into the list, in this view rather than one mounted inside it.
+     * @param {Event} event - The focus event
      * @returns {void}
      */
-    const focusin = () => {
+    const focusin = (event) => {
+      const inList = event.target instanceof Element ? event.target.closest('[data-list]') : undefined
+      if (inList === undefined || inList === null || !inOwnView(root, inList)) {
+        return
+      }
       const { state } = store
       const at = current.positionIn(state)
       if (at !== undefined) {

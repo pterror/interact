@@ -7,7 +7,8 @@
 
 import { keyInput, precedence } from '@interact/core'
 
-import { viewPlugin } from './store-view.js'
+import { deepActiveElement } from './flat-tree.js'
+import { inOwnView, ownElement, viewPlugin } from './store-view.js'
 import { attributes, html, repeat } from './template.js'
 
 /**
@@ -17,11 +18,24 @@ import { attributes, html, repeat } from './template.js'
  */
 
 /**
+ * The row an event happened on, in this view's own list rather than one in a view mounted inside it.
+ * @param {HTMLElement} root - Where the view is
+ * @param {Event} event - The event
+ * @returns {HTMLElement | undefined} The row
+ */
+function rowOf(root, event) {
+  const row = event.target instanceof Element ? event.target.closest('[data-position]') : undefined
+  return row instanceof HTMLElement && inOwnView(root, row) ? row : undefined
+}
+
+/**
  * The plain rendering of a list, last of every step so any other wraps or replaces it: the list as an element with the
- * attributes every extension gives it, holding a row for each row rendered, an item row showing its item's text (or
- * nothing until it has been read), a gap row as an empty element whose size its extension's attributes set. In the
- * page it hands keys to the store as `keyInput`s and presses on rows as the list's `press`, and, unless an extension
- * shows revealed items itself (`reveals`), brings a revealed row's element into view.
+ * attributes every extension gives it (and `data-list`, which marks it as a list), holding a row for each row
+ * rendered, an item row showing its item's text (or nothing until it has been read), a gap row as an empty element
+ * whose size its extension's attributes set. In the page it hands keys pressed in the list to the store as
+ * `keyInput`s, presses on rows as the list's `press` and the pointer moving over them as its `hover`, and, unless an
+ * extension shows revealed items itself (`reveals`), brings a revealed row's element into view. Keys pressed outside
+ * the list (in a field that controls it) are left to whatever listens there.
  * @template T
  * @template {ItemSource<T>} S
  * @param {ListPipeline<T, TemplateResult, S>} list - The list
@@ -37,7 +51,9 @@ function defaultRendering(list, options = {}) {
      * @returns {void}
      */
     const keydown = (event) => {
-      if (!(event instanceof KeyboardEvent) || event.isComposing) {
+      const inList = event.target instanceof Element ? event.target.closest('[data-list]') : undefined
+      const own = inList !== undefined && inList !== null && inOwnView(root, inList)
+      if (!(event instanceof KeyboardEvent) || event.isComposing || !own) {
         return
       }
       const key = { alt: event.altKey, key: event.key, shift: event.shiftKey, toggle: event.ctrlKey || event.metaKey }
@@ -51,8 +67,8 @@ function defaultRendering(list, options = {}) {
      * @returns {void}
      */
     const click = (event) => {
-      const row = event.target instanceof Element ? event.target.closest('[data-position]') : undefined
-      if (!(event instanceof MouseEvent) || !(row instanceof HTMLElement) || !root.contains(row)) {
+      const row = rowOf(root, event)
+      if (!(event instanceof MouseEvent) || row === undefined) {
         return
       }
       const position = Number(row.dataset['position'])
@@ -61,17 +77,34 @@ function defaultRendering(list, options = {}) {
         event.preventDefault()
       }
     }
+    /**
+     * The pointer moving over a row, offered to the store.
+     * @param {Event} event - The event
+     * @returns {void}
+     */
+    const pointermove = (event) => {
+      const row = rowOf(root, event)
+      const inList = row?.closest('[data-list]')
+      if (!(event instanceof PointerEvent) || row === undefined || inList === null || inList === undefined) {
+        return
+      }
+      const focused = deepActiveElement(root.ownerDocument) === inList
+      const hover = { focused, position: Number(row.dataset['position']), x: event.clientX, y: event.clientY }
+      store.handle(list.hover.of(hover))
+    }
     root.addEventListener('keydown', keydown)
     root.addEventListener('click', click)
+    root.addEventListener('pointermove', pointermove)
     return {
       destroy: () => {
         root.removeEventListener('keydown', keydown)
         root.removeEventListener('click', click)
+        root.removeEventListener('pointermove', pointermove)
       },
       rendered: (transactions) => {
         const revealed = transactions.flatMap((transaction) => transaction.effectsOf(list.reveal)).at(-1)
         if (revealed !== undefined && !store.state.facet(list.reveals)) {
-          root.querySelector(`[data-position="${String(revealed)}"]`)?.scrollIntoView({ block: 'nearest' })
+          ownElement(root, `[data-position="${String(revealed)}"]`)?.scrollIntoView({ block: 'nearest' })
         }
       },
     }
@@ -87,7 +120,7 @@ function defaultRendering(list, options = {}) {
           }
         : { 'aria-hidden': 'true', part: 'gap' },
     ),
-    list.containerAttributes.of(() => ({ 'aria-label': label, part: 'list', role, tabindex: 0 })),
+    list.containerAttributes.of(() => ({ 'aria-label': label, 'data-list': true, part: 'list', role, tabindex: 0 })),
     list.item.of(
       (row, _next, state) =>
         html`<div ${attributes(list.attributesOf(row, state))}

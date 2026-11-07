@@ -10,7 +10,7 @@ import { css } from './css.js'
 import { defaultRendering } from './default-rendering.js'
 import { renderToString } from './render-string.js'
 import { render } from './render.js'
-import { storeView, viewContent } from './store-view.js'
+import { mountStore, storeView, viewContent } from './store-view.js'
 
 const styles = css`
   @layer test {
@@ -93,6 +93,43 @@ describe('defaultRendering', () => {
     expect([down.defaultPrevented, other.defaultPrevented]).toEqual([true, false])
   })
 
+  test('leaves keys pressed outside its list, and what happens in a view mounted inside its own', () => {
+    /** @type {string[]} */
+    const heard = []
+    const { root } = shown((pipeline) =>
+      inputHandler.of((input) => {
+        heard.push(input.is(keyInput) ? `key ${input.value.key}` : input.is(pipeline.press) ? 'press' : '?')
+        return false
+      }),
+    )
+    const field = document.createElement('input')
+    root.append(field)
+    field.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }))
+    const inner = shown(() => [])
+    root.append(inner.root)
+    mountStore(inner.store, inner.root)
+    inner.root.querySelector('[data-position="0"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    inner.root.querySelector('[data-list]')?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'x' }))
+    expect(heard).toEqual([])
+  })
+
+  test('hands the pointer moving over a row to the store, with where it is and whether the list has focus', () => {
+    /** @type {string[]} */
+    const heard = []
+    const { root } = shown((pipeline) =>
+      inputHandler.of((input) => {
+        if (input.is(pipeline.hover)) {
+          const { focused, position, x, y } = input.value
+          heard.push(`${String(position)} at ${String(x)},${String(y)}${focused ? ' focused' : ''}`)
+        }
+        return false
+      }),
+    )
+    const move = new PointerEvent('pointermove', { bubbles: true, clientX: 3, clientY: 4 })
+    root.querySelector('[data-position="1"]')?.dispatchEvent(move)
+    expect(heard).toEqual(['1 at 3,4'])
+  })
+
   test('brings a revealed row into view, unless an extension shows revealed items itself', () => {
     const scrolled = spyOn(HTMLElement.prototype, 'scrollIntoView')
     const plain = shown(() => [])
@@ -112,6 +149,9 @@ describe('defaultRendering', () => {
     const { list, store } = shown(() => [])
     expect(renderToString(list.render(store.state))).toContain(
       '<div data-position="1" part="row" role="option"><!--i[-->banana<!--i]--></div>',
+    )
+    expect(renderToString(list.render(store.state))).toContain(
+      '<div aria-label="Fruit" data-list="" part="list" role="listbox" tabindex="0">',
     )
   })
 })

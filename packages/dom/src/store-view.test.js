@@ -7,7 +7,7 @@ import { Store, defineEffect, defineField } from '@interact/core'
 import { component } from './component.js'
 import { css } from './css.js'
 import { register } from './register.js'
-import { storeView, viewContent, viewPlugin } from './store-view.js'
+import { inOwnView, mountStore, ownElement, storeView, viewContent, viewPlugin } from './store-view.js'
 import { html } from './template.js'
 
 /** @type {EffectType<number>} */
@@ -79,5 +79,42 @@ describe('a store view whose plugin changes the state as it first hears the view
     await Promise.resolve()
     expect(element.textContent).toBe('1')
     element.remove()
+  })
+})
+
+describe('a store view mounted inside another', () => {
+  test("runs its own plugins on its own element, whose insides are its own and not the outer view's", () => {
+    /** @type {string[]} */
+    const log = []
+    const watching = viewPlugin((_store, root) => {
+      log.push(`made on ${root.id}`)
+      return {
+        destroy: () => {
+          log.push('destroyed')
+        },
+        rendered: (transactions) => {
+          log.push(`rendered after ${String(transactions.length)}`)
+        },
+      }
+    })
+    const store = new Store([count, watching])
+    const outer = document.createElement('div')
+    const inner = document.createElement('div')
+    inner.id = 'inner'
+    const mark = document.createElement('b')
+    inner.append(mark)
+    outer.append(inner)
+    const mount = mountStore(store, inner)
+    store.dispatch({ effects: set.of(1) })
+    mount.rendered()
+    const owners = [inOwnView(outer, inner), inOwnView(outer, mark), inOwnView(inner, mark)]
+    const found = [ownElement(outer, 'b'), ownElement(inner, 'b')]
+    mount.destroy()
+    expect([log, owners, found, inOwnView(outer, mark)]).toEqual([
+      ['made on inner', 'rendered after 1', 'destroyed'],
+      [true, false, true],
+      [undefined, mark],
+      true,
+    ])
   })
 })

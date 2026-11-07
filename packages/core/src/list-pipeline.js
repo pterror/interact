@@ -79,6 +79,12 @@ import { plainText } from './text.js'
  */
 
 /**
+ * The pointer moving over a row: its position, where the pointer is, in pixels from the viewport's top left, and
+ * whether focus is in the list.
+ * @typedef {Readonly<{ position: number, x: number, y: number, focused: boolean }>} Hover
+ */
+
+/**
  * A change the list reported, with the list that reported it.
  * @template T
  * @typedef {Readonly<{ list: ItemSource<T>, change: Change }>} ListChange
@@ -202,6 +208,12 @@ class ListPipeline {
    * @type {EffectType<Press>}
    */
   press = defineEffect()
+  /**
+   * The pointer moving over a row, as an input.
+   * @readonly
+   * @type {EffectType<Hover>}
+   */
+  hover = defineEffect()
   /**
    * The list stage's source steps, in precedence order from the source.
    * @readonly

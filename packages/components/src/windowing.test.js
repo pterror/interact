@@ -1,13 +1,16 @@
 /**
- * @import { RenderRow, Rows } from '@interact/core/list-pipeline'
+ * @import { ListPipeline, RenderRow, Rows } from '@interact/core/list-pipeline'
  * @import { Source } from '@interact/core/source'
  * @import { Numbered, Range } from './test-helpers.js'
  */
 
 import { describe, expect, test } from 'bun:test'
 
+import { Store, listPipeline } from '@interact/core'
+
 import { TEN_BILLION, listboxOver, numbers } from './test-helpers.js'
 import { UNMEASURED_ROWS } from './virtual-rows.js'
+import { windowing } from './windowing.js'
 
 const ROWS = 10
 const OVERSCAN = 5
@@ -110,5 +113,30 @@ describe('windowing', () => {
     scrollTo(made, FIVE_BILLION)
     made.store.dispatch({ effects: made.list.setSource.of(numbers(ROWS + ROWS).source) })
     expect(made.windowed?.placementIn(made.store.state).top).toBe(ROWS)
+  })
+})
+
+/**
+ * How many rows a windowed list over some items says it shows.
+ * @param {number} count - How many items it has
+ * @param {boolean} shrink - Whether it shrinks to them
+ * @returns {string | number | boolean | undefined} Its style
+ */
+function shownRows(count, shrink) {
+  /** @type {ListPipeline<Numbered, string, Source<Numbered, Range>>} */
+  const list = listPipeline(numbers(count).source)
+  const store = new Store([windowing(list, { rows: ROWS, shrink })])
+  return list.containerAttributesOf(store.state)['style']
+}
+
+describe('windowing that shrinks', () => {
+  test('shows as many rows as a short list has, as many as it is told for a long one, and always so without it', () => {
+    const SHORT = 3
+    const LONG = 40
+    expect([shownRows(SHORT, true), shownRows(LONG, true), shownRows(SHORT, false)]).toEqual([
+      '--interact-visible-rows: 3',
+      '--interact-visible-rows: 10',
+      '--interact-visible-rows: 10',
+    ])
   })
 })

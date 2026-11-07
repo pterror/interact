@@ -5,7 +5,7 @@
  */
 
 import { defineEffect, defineField, rowsOf } from '@interact/core'
-import { viewPlugin } from '@interact/dom'
+import { inOwnView, ownElement, viewPlugin } from '@interact/dom'
 
 import { measureRow } from './measure-rows.js'
 import { UNMEASURED_ROWS, clamp, offsetFor, rowAt, rowCap, virtualRows } from './virtual-rows.js'
@@ -66,6 +66,12 @@ class Windowing {
    */
   rows
   /**
+   * Whether the list shows fewer rows when it has fewer items.
+   * @readonly
+   * @type {boolean}
+   */
+  shrink
+  /**
    * @readonly
    * @type {Field<Placement>}
    */
@@ -80,10 +86,12 @@ class Windowing {
    * @param {ListPipeline<T, R, S>} list - The list
    * @param {number} rows - How many rows show at once
    * @param {number} top - The position at the top at first
+   * @param {boolean} shrink - Whether it shows fewer rows when it has fewer items
    */
-  constructor(list, rows, top) {
+  constructor(list, rows, top, shrink) {
     this.#list = list
     this.rows = rows
+    this.shrink = shrink
     this.field = defineField({
       create: (state) =>
         this.#placed({ cap: UNMEASURED_ROWS, offset: undefined, pitch: undefined, top }, list.listOf(state).count()),
@@ -112,7 +120,8 @@ class Windowing {
       list.attributes.of((row, state) => this.#rowAttributes(row, state)),
       list.containerAttributes.of((state) => {
         const { pitch } = state.field(this.field)
-        const shown = `--interact-visible-rows: ${String(this.rows)}`
+        const rows = this.shrink ? Math.min(this.rows, list.listOf(state).count()) : this.rows
+        const shown = `--interact-visible-rows: ${String(rows)}`
         return {
           'data-windowed': true,
           style: pitch === undefined ? shown : `${shown}; --interact-pitch: ${String(pitch)}px`,
@@ -267,7 +276,8 @@ class Windowing {
       const scroll = (event) => {
         const { target } = event
         const { offset, pitch, top } = store.state.field(this.field)
-        if (!(target instanceof HTMLElement) || !Object.hasOwn(target.dataset, 'windowed') || pitch === undefined) {
+        const windowed = target instanceof HTMLElement && Object.hasOwn(target.dataset, 'windowed')
+        if (!windowed || !inOwnView(root, target) || pitch === undefined) {
           return
         }
         if (placed?.top === top && Math.abs(target.scrollTop - placed.at) < 1) {
@@ -286,8 +296,8 @@ class Windowing {
           root.removeEventListener('scroll', scroll, true)
         },
         rendered: () => {
-          const scroller = root.querySelector('[data-windowed]')
-          if (!(scroller instanceof HTMLElement)) {
+          const scroller = ownElement(root, '[data-windowed]')
+          if (scroller === undefined) {
             return
           }
           const placement = store.state.field(this.field)
@@ -317,12 +327,13 @@ class Windowing {
  * @template T, R
  * @template {ItemSource<T>} S
  * @param {ListPipeline<T, R, S>} list - The list
- * @param {Readonly<{ rows?: number | undefined, top?: number | undefined }>} [options] - How many rows show at once (10 by default), and the
- *   position at the top at first
+ * @param {Readonly<{ rows?: number | undefined, top?: number | undefined, shrink?: boolean | undefined }>} [options] - How
+ *   many rows show at once (10 by default), the position at the top at first, and whether a list with fewer items
+ *   shows only as many rows as it has (by default it shows `rows` whatever it has)
  * @returns {Windowing<T, R, S>} The extension
  */
 function windowing(list, options = {}) {
-  return new Windowing(list, options.rows ?? DEFAULT_ROWS, options.top ?? 0)
+  return new Windowing(list, options.rows ?? DEFAULT_ROWS, options.top ?? 0, options.shrink ?? false)
 }
 
 export { Windowing, windowing }

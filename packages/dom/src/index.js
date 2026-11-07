@@ -10,6 +10,15 @@ export { register } from './register.js'
 export { renderComponent, stylesheetAttributes, stylesheetText } from './render-component.js'
 export { renderToString } from './render-string.js'
 export { hasServerMarkup, hydrate, render } from './render.js'
-export { ViewPlugin, storeView, viewContent, viewPlugin } from './store-view.js'
+export {
+  ViewPlugin,
+  contentOf,
+  inOwnView,
+  mountStore,
+  ownElement,
+  storeView,
+  viewContent,
+  viewPlugin,
+} from './store-view.js'
 export { tabbables } from './tabbable.js'
 export { attributes, html, repeat } from './template.js'

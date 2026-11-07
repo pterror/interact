@@ -6,9 +6,16 @@ import { Listeners } from './listeners.js'
 import { State, listFacet } from './state.js'
 
 /**
+ * What an input handler did with an input: took it, so whatever the page does with it by default doesn't happen
+ * (`true`); took it, but left the page's default to happen, as a key that edits a text field's text is the field's
+ * whatever else it does (`'keep-default'`); or didn't take it, so the next handler is offered it (`false`).
+ * @typedef {boolean | 'keep-default'} Handled
+ */
+
+/**
  * Something done to a component that some extension may take: a key, a press. It is an effect, so its type says what
  * its value is; it goes to the input handlers in order until one takes it.
- * @typedef {(input: Effect<unknown>, store: Store) => boolean} InputHandler
+ * @typedef {(input: Effect<unknown>, store: Store) => Handled} InputHandler
  */
 
 /**
@@ -174,10 +181,16 @@ class Store {
   /**
    * Offers an input to the input handlers, in order, until one takes it.
    * @param {Effect<unknown>} input - The input
-   * @returns {boolean} Whether one took it, so whatever it would do by default shouldn't happen
+   * @returns {boolean} Whether one took it and whatever it would do by default shouldn't happen
    */
   handle(input) {
-    return this.#state.facet(inputHandler).some((handler) => handler(input, this))
+    for (const handler of this.#state.facet(inputHandler)) {
+      const handled = handler(input, this)
+      if (handled !== false) {
+        return handled === true
+      }
+    }
+    return false
   }
 
   /**

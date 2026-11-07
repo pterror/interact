@@ -92,7 +92,7 @@ class ActiveItem {
       list.attributes.of((row, state) =>
         row.kind === 'item' && row.position === state.field(this.field) ? { part: 'active' } : {},
       ),
-      list.containerAttributes.of((state) => ({ 'aria-activedescendant': this.#descendant(state) })),
+      list.containerAttributes.of((state) => ({ 'aria-activedescendant': this.descendantIn(state) })),
       precedence(
         'low',
         inputHandler.of((input, store) => {
@@ -172,11 +172,12 @@ class ActiveItem {
   }
 
   /**
-   * The id of the active row, once its item has arrived: the id an extension gives it.
+   * The id of the active row, once its item has arrived: the id an extension gives it, which the list names as its
+   * active descendant, or a field controlling the list does instead.
    * @param {State} state - The state
    * @returns {string | undefined} The id
    */
-  #descendant(state) {
+  descendantIn(state) {
     const at = state.field(this.field)
     const list = this.list.listOf(state)
     const item = at === undefined ? undefined : readNow(list, at)

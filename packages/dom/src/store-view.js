@@ -120,6 +120,17 @@ function viewPlugin(create) {
 }
 
 /**
+ * Where store views are mounted, so an element in one mounted inside another is known to be the inner one's.
+ * @type {WeakSet<Node>}
+ */
+const mountedRoots = new WeakSet()
+
+/**
+ * A store's view plugins running on an element: told after each render of what applied since the one before.
+ * @typedef {Readonly<{ rendered: () => void, destroy: () => void }>} Mount
+ */
+
+/**
  * What a store's view shows now.
  * @param {Store} store - The store
  * @returns {TemplateResult} What its extensions render its state as
@@ -134,45 +145,102 @@ function contentOf(store) {
 }
 
 /**
+ * Runs a store's view plugins on the element its view is in: started now, told after each render what was applied
+ * since the one before, and stopped by `destroy`. A view inside another's (a submenu's, in its menu's overlay) is
+ * mounted on its own element, which then belongs to it rather than to the view around it (`inOwnView`).
+ * @param {Store} store - The store
+ * @param {HTMLElement} root - The element its view is in
+ * @returns {Mount} The running plugins
+ */
+function mountStore(store, root) {
+  /** @type {Transaction[]} */
+  const applied = []
+  const stop = store.subscribe((transaction) => {
+    applied.push(transaction)
+  })
+  mountedRoots.add(root)
+  const running = store.state.facet(viewPlugins)
+  for (const plugin of running) {
+    plugin.start(store, root)
+  }
+  return {
+    destroy: () => {
+      stop()
+      mountedRoots.delete(root)
+      for (const plugin of running) {
+        plugin.stop(store)
+      }
+    },
+    rendered: () => {
+      const transactions = applied.splice(0)
+      for (const plugin of running) {
+        plugin.rendered(store, transactions)
+      }
+    },
+  }
+}
+
+/**
+ * Whether a node belongs to the view mounted on `root` rather than to a view mounted inside it: no element between
+ * them, the node's own parent up, is another view's.
+ * @param {HTMLElement} root - Where the view is mounted
+ * @param {Node} node - The node
+ * @returns {boolean} Whether it is the view's own
+ */
+function inOwnView(root, node) {
+  for (let at = node.parentNode; at !== null; at = at.parentNode) {
+    if (at === root) {
+      return true
+    }
+    if (mountedRoots.has(at)) {
+      return false
+    }
+  }
+  return false
+}
+
+/**
+ * The first element in a view's own part of `root` that matches a selector, passing over those in views mounted inside
+ * it.
+ * @param {HTMLElement} root - Where the view is mounted
+ * @param {string} selector - The selector
+ * @returns {HTMLElement | undefined} The element
+ */
+function ownElement(root, selector) {
+  for (const found of root.querySelectorAll(selector)) {
+    if (found instanceof HTMLElement && inOwnView(root, found)) {
+      return found
+    }
+  }
+  return undefined
+}
+
+/**
  * A web view of a store: it renders what the store's extensions say it shows (`viewContent`), and runs the store's
- * view plugins beside it, telling them after each render what was applied since the one before.
+ * view plugins on its element (`mountStore`).
  * @param {Readonly<{ kind: string, styles: Stylesheet }>} options - Its kind and its stylesheet
  * @returns {View<Store>} The view
  */
 function storeView({ kind, styles }) {
-  /** @type {WeakMap<Store, Readonly<{ applied: Transaction[], stop: () => void }>>} */
+  /** @type {WeakMap<Store, Mount>} */
   const mounted = new WeakMap()
   return {
     disconnected: (store) => {
-      mounted.get(store)?.stop()
+      mounted.get(store)?.destroy()
       mounted.delete(store)
-      for (const plugin of store.state.facet(viewPlugins)) {
-        plugin.stop(store)
-      }
     },
     kind,
     render: contentOf,
     rendered: (store, root) => {
       let mount = mounted.get(store)
       if (mount === undefined) {
-        /** @type {Transaction[]} */
-        const applied = []
-        const stop = store.subscribe((transaction) => {
-          applied.push(transaction)
-        })
-        mount = { applied, stop }
+        mount = mountStore(store, root)
         mounted.set(store, mount)
-        for (const plugin of store.state.facet(viewPlugins)) {
-          plugin.start(store, root)
-        }
       }
-      const transactions = mount.applied.splice(0)
-      for (const plugin of store.state.facet(viewPlugins)) {
-        plugin.rendered(store, transactions)
-      }
+      mount.rendered()
     },
     styles,
   }
 }
 
-export { ViewPlugin, storeView, viewContent, viewPlugin }
+export { ViewPlugin, contentOf, inOwnView, mountStore, ownElement, storeView, viewContent, viewPlugin }

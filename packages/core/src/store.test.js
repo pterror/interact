@@ -72,6 +72,18 @@ describe('Store', () => {
     expect(new Store([]).handle(said.of('x'))).toBe(false)
   })
 
+  test('lets a handler take an input and still leave its default to happen', () => {
+    let after = false
+    const store = new Store([
+      inputHandler.of(() => 'keep-default'),
+      inputHandler.of(() => {
+        after = true
+        return true
+      }),
+    ])
+    expect([store.handle(said.of('x')), after]).toEqual([false, false])
+  })
+
   test('runs each plugin until it is destroyed, then dispatches nothing', () => {
     let destroyed = false
     const plugin = definePlugin(() => ({
