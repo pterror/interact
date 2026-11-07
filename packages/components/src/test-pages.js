@@ -1,21 +1,194 @@
 /**
- * What the listbox's browser tests run in their pages. Each scenario puts the listbox in the page, acts on it as a
- * person or an app would, and reports what it saw, as plain values.
+ * What the listbox's browser tests run in their pages: registering the listbox, finding it, acting on it as a person
+ * or an app would, and seeing what it shows. Each scenario puts the listbox in the page and reports what it saw, as
+ * plain values; some are about its scrollable rows: row heights, zoom, and native scrolling near the ends.
  * @import { DomMode } from '@interact/dom/css'
  * @import { Listbox } from './listbox.js'
  * @import { Numbered, Range } from './test-helpers.js'
- * @import { Seen } from './test-page-listbox.js'
  */
 
 import { spanning, toggle } from '@interact/core'
+import { register } from '@interact/dom'
 
-import { TEN_BILLION } from './test-helpers.js'
-import { fresh, parts, press, reads, registerListbox, seen, settle } from './test-page-listbox.js'
+import { listboxElement } from './listbox-element.js'
+import { pixels } from './rows-view.js'
+import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
+
+/**
+ * What showed: the first and last fully visible positions, how many options are in the DOM, whether the viewport has
+ * focus and its active descendant is there, the active position, the blocks cached, and the scroll position.
+ * @typedef {Readonly<{
+ *   top: number,
+ *   bottom: number,
+ *   options: number,
+ *   focused: boolean,
+ *   activeThere: boolean,
+ *   active: number | undefined,
+ *   blocks: number,
+ *   scrollTop: number,
+ * }>} Seen
+ */
+
+const ONE = 1
+const NONE = 0
+const HALF = 2
+const HALF_PIXEL = 0.5
+
+/** @type {Listbox<Numbered, Range>[]} */
+const made = []
+const numbered = numbers(TEN_BILLION)
+
+/**
+ * Registers the listbox as `x-listbox`, each instance starting at `top`.
+ * @param {number} top - The position shown first
+ * @returns {void}
+ */
+function registerListbox(top) {
+  const ListboxElement = listboxElement(() => {
+    const listbox = tenBillionListbox(numbered.source, top)
+    made.push(listbox)
+    return listbox
+  })
+  register([ListboxElement], { prefix: 'x' })
+}
+
+/**
+ * The listbox made last.
+ * @returns {Listbox<Numbered, Range>} It
+ */
+function latest() {
+  const listbox = made.at(-ONE)
+  if (!listbox) {
+    throw new Error('No listbox has been made')
+  }
+  return listbox
+}
+
+/**
+ * How many items the page's source has been asked for.
+ * @returns {number} The count
+ */
+function reads() {
+  return numbered.reads()
+}
+
+/**
+ * The root the page's listbox view is in, and its scrolling element.
+ * @returns {Readonly<{ root: HTMLElement | ShadowRoot, viewport: HTMLElement }>} The root and the scrolling element
+ */
+function parts() {
+  const host = document.querySelector('x-listbox')
+  if (!(host instanceof HTMLElement)) {
+    throw new TypeError('There is no x-listbox')
+  }
+  const root = host.shadowRoot ?? host
+  const viewport = root.querySelector('[part~="viewport"]')
+  if (!(viewport instanceof HTMLElement)) {
+    throw new TypeError('The listbox has no viewport')
+  }
+  return { root, viewport }
+}
+
+/**
+ * Waits for the next frame to be drawn.
+ * @returns {Promise<void>} When it has been
+ */
+async function frame() {
+  /** @type {PromiseWithResolvers<void>} */
+  const drawn = Promise.withResolvers()
+  requestAnimationFrame(() => {
+    drawn.resolve()
+  })
+  await drawn.promise
+}
+
+/**
+ * Waits for two frames: one for the render and the scroll it sets, one for the scroll event that follows.
+ * @returns {Promise<void>} When they have been drawn
+ */
+async function settle() {
+  await frame()
+  await frame()
+}
+
+/**
+ * The positions of the options fully inside the viewport.
+ * @param {HTMLElement | ShadowRoot} root - Where the view is
+ * @param {HTMLElement} viewport - The scrolling element
+ * @returns {number[]} Their positions
+ */
+function fullyVisible(root, viewport) {
+  const box = viewport.getBoundingClientRect()
+  const top = box.top + viewport.clientTop
+  const bottom = top + viewport.clientHeight
+  return [...root.querySelectorAll('[role="option"]:not([data-offscreen])')]
+    .filter((option) => {
+      const rect = option.getBoundingClientRect()
+      return rect.top >= top - HALF_PIXEL && rect.bottom <= bottom + HALF_PIXEL
+    })
+    .map((option) => Number(option.getAttribute('aria-posinset')) - ONE)
+}
+
+/**
+ * What the page's listbox shows now.
+ * @returns {Seen} What showed
+ */
+function seen() {
+  const { root, viewport } = parts()
+  const visible = fullyVisible(root, viewport)
+  const focusedNow = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+  const id = viewport.getAttribute('aria-activedescendant')
+  const listbox = latest()
+  return {
+    active: listbox.active.get(),
+    activeThere: id !== null && root.querySelector(`#${CSS.escape(id)}`) !== null,
+    blocks: listbox.items.blocks,
+    bottom: Math.max(...visible),
+    focused: focusedNow === viewport,
+    options: root.querySelectorAll('[role="option"]').length,
+    scrollTop: viewport.scrollTop,
+    top: Math.min(...visible),
+  }
+}
+
+/**
+ * A key pressed on the viewport.
+ * @param {string} key - The key
+ * @param {boolean} [toggled] - Whether the toggle modifier is held
+ * @param {boolean} [shift] - Whether Shift is held
+ * @returns {void}
+ */
+function press(key, toggled = false, shift = false) {
+  parts().viewport.dispatchEvent(
+    new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ctrlKey: toggled, key, shiftKey: shift }),
+  )
+}
+
+/**
+ * The middle of the viewport, where the mouse goes to scroll it.
+ * @returns {Readonly<{ across: number, down: number }>} The point, in page coordinates
+ */
+function middle() {
+  const box = parts().viewport.getBoundingClientRect()
+  return { across: box.left + box.width / HALF, down: box.top + box.height / HALF }
+}
+
+/**
+ * Puts a new listbox in the page, in a DOM mode.
+ * @param {DomMode} mode - Where it lives
+ * @returns {Promise<Listbox<Numbered, Range>>} It, once it has rendered
+ */
+async function fresh(mode) {
+  registerListbox(NONE)
+  const element = document.createElement('x-listbox')
+  element.setAttribute('dom-mode', mode)
+  document.body.append(element)
+  await settle()
+  return latest()
+}
 
 const FIVE_BILLION = 5_000_000_000
 const JUMPS = 60
-const ONE = 1
-const NONE = 0
 const SCROLLED_ROWS = 2000
 const PRESSED = 3
 
@@ -256,16 +429,105 @@ async function tokenLevels(mode) {
   return { component, instance: colors(), part, theme }
 }
 
-export { seen, settle } from './test-page-listbox.js'
+const QUARTER = 4
+const ROWS = 10
+const ROWS_SHORT = 6
+const ZOOM = 2
+const TALL_ROW = 600
+const FRACTIONAL_ROW = 27.3
+
+/**
+ * How the view lays its rows out: a row's height in its own CSS pixels, and how many rows are scrollable.
+ * @param {HTMLElement} viewport - The scrolling element
+ * @returns {Readonly<{ height: number, scrollable: number }>} The layout
+ */
+function rowsOf(viewport) {
+  const option = viewport.querySelector('[role="option"]')
+  const spacer = viewport.querySelector('[part~="spacer"]')
+  return {
+    height: option ? pixels(getComputedStyle(option).height) : Number.NaN,
+    scrollable: spacer instanceof HTMLElement ? Number(spacer.style.getPropertyValue('--interact-virtual-rows')) : NONE,
+  }
+}
+
+/**
+ * Zooms the page, makes rows tall enough that the default cap would pass every browser's limit on screen, and jumps
+ * to five billion: what showed, how many rows are scrollable, and how tall the scrollable area is.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Seen & Readonly<{ scrollable: number, scrollHeight: number }>>} What showed
+ */
+async function zoomedTallRows(mode) {
+  document.documentElement.style.zoom = String(ZOOM)
+  document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(TALL_ROW)}px`)
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(FIVE_BILLION)
+  await settle()
+  const { viewport } = parts()
+  return { ...seen(), scrollHeight: viewport.scrollHeight, scrollable: rowsOf(viewport).scrollable }
+}
+
+/**
+ * Gives rows a height that isn't a whole number of pixels and jumps to the last item and to five billion, where the
+ * scrollable rows' pixels are near every browser's limit and rounding would show.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ last: Seen, fiveBillion: Seen }>>} What showed
+ */
+async function fractionalRows(mode) {
+  document.documentElement.style.setProperty('--interact-listbox-row-height', `${String(FRACTIONAL_ROW)}px`)
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(TEN_BILLION)
+  await settle()
+  const last = seen()
+  listbox.scroll.scrollTo(FIVE_BILLION)
+  await settle()
+  return { fiveBillion: seen(), last }
+}
+
+/**
+ * A new listbox jumped to five billion, then scrolled natively to a few rows before the point where the next rows
+ * down move the offset.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ across: number, down: number }>>} Where to put the mouse
+ */
+async function beforeRecentring(mode) {
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(FIVE_BILLION)
+  await settle()
+  const { viewport } = parts()
+  const { height, scrollable } = rowsOf(viewport)
+  const lastKept = scrollable - ROWS - scrollable / QUARTER
+  viewport.scrollTop = (lastKept - ROWS_SHORT) * height
+  await settle()
+  return middle()
+}
+
+/**
+ * A new listbox jumped to a few rows before the last top position.
+ * @param {DomMode} mode - Where the listbox lives
+ * @returns {Promise<Readonly<{ across: number, down: number }>>} Where to put the mouse
+ */
+async function beforeTheEnd(mode) {
+  const listbox = await fresh(mode)
+  listbox.scroll.scrollTo(TEN_BILLION - ROWS - ROWS_SHORT)
+  await settle()
+  return middle()
+}
+
 export {
-  FIVE_BILLION,
   activeSelectedOutline,
   adoptServerListbox,
+  beforeRecentring,
+  beforeTheEnd,
+  FIVE_BILLION,
   focusAway,
-  focusSelected,
   focusedAndChosen,
+  focusSelected,
+  fractionalRows,
   jump,
+  seen,
   selectAllButOne,
   selectedFills,
+  settle,
   tokenLevels,
+  zoomedTallRows,
 }

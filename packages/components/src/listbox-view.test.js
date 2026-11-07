@@ -1,7 +1,7 @@
 /** @import { DomMode } from '@interact/dom/css' */
 /** @import { Page } from 'playwright-core' */
 /** @import { Engine } from '../../../test/browser.js' */
-/** @import { Seen } from './test-page-listbox.js' */
+/** @import { Seen } from './test-pages.js' */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 
@@ -186,7 +186,7 @@ describe.each(CASES)('focus entering the listbox in %s DOM, in %s', (mode, engin
 describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mode, engine) => {
   test("stay under every browser's limit for tall rows at 200% zoom, and still land exactly", async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {
-      const { zoomedTallRows } = await import('./test-pages-rows.js')
+      const { zoomedTallRows } = await import('./test-pages.js')
       return zoomedTallRows(dom)
     })
     expect(seen.scrollable).toBe(rowCap(TALL_ROW * ZOOM))
@@ -197,7 +197,7 @@ describe.each(CASES)('the scrollable rows of the listbox in %s DOM, in %s', (mod
 
   test('land exactly with rows a fraction of a pixel tall, near the limit', async () => {
     const seen = await inPage({ engine, mode }, async (dom) => {
-      const { fractionalRows } = await import('./test-pages-rows.js')
+      const { fractionalRows } = await import('./test-pages.js')
       return fractionalRows(dom)
     })
     expect([seen.last.top, seen.last.bottom]).toEqual([TEN_BILLION - ROWS, TEN_BILLION - ONE])
@@ -274,7 +274,7 @@ describe.each(CASES)('native scrolling of the listbox in %s DOM, in %s', (mode, 
   test('crosses a move of the offset without skipping a row or going back', async () => {
     const turns = summary(
       await wheeled({ engine, mode }, async (dom) => {
-        const { beforeRecentring } = await import('./test-pages-rows.js')
+        const { beforeRecentring } = await import('./test-pages.js')
         return beforeRecentring(dom)
       }),
     )
@@ -285,7 +285,7 @@ describe.each(CASES)('native scrolling of the listbox in %s DOM, in %s', (mode, 
   test('reaches the very last item and stops there', async () => {
     const turns = summary(
       await wheeled({ engine, mode }, async (dom) => {
-        const { beforeTheEnd } = await import('./test-pages-rows.js')
+        const { beforeTheEnd } = await import('./test-pages.js')
         return beforeTheEnd(dom)
       }),
     )
