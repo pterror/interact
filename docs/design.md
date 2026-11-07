@@ -248,11 +248,11 @@ A component is its behavior, written once as a plain API, plus a default view an
 - **Pattern (the APG combobox page and its select-only and list-autocomplete examples, fetched):** a field with
   `role="combobox"` controlling a listbox popup; DOM focus stays in the field, which names the active option as its
   `aria-activedescendant`, and that option is the one `aria-selected`. `aria-expanded` follows the popup's layer.
-- **Kinds (`combobox-options.js`):** select-only (a focusable field showing the option chosen, `aria-haspopup`, a fixed
-  source); editable without autocomplete (an input over a fixed source); editable with `list` autocomplete (the options
-  are what the app's `suggest(text)` finds, at once or later), with `manual` selection (nothing active until the arrows)
-  or `automatic` (the first found active); and `both`, list plus inline completion, always automatic. The options are a
-  union type, so `suggest` exists exactly for the kinds that suggest.
+- **Kinds (`kindOf`, `combobox.js`):** select-only (a focusable field showing the option chosen, `aria-haspopup`, a
+  fixed source); editable without autocomplete (an input over a fixed source); editable with `list` autocomplete (the
+  options are what the app's `suggest(text)` finds, at once or later), with `manual` selection (nothing active until the
+  arrows) or `automatic` (the first found active); and `both`, list plus inline completion, always automatic. The
+  options are a union type, so `suggest` exists exactly for the kinds that suggest.
 - **Behavior:** `Combobox` (`combobox.js`): `layer`, `list` (a `Listbox` that selects nothing; its active option is the
   field's), `value` (the option chosen, a `Controllable`), `text` (an editable field's, a `Controllable` that follows
   the option chosen), `kind`, `suggestions`, `open(at)`, `close()`, `toggle()`, `choose(position)`, `chooseActive()`,
@@ -260,20 +260,20 @@ A component is its behavior, written once as a plain API, plus a default view an
   `keepCompletion()`, `subscribe`. Options come from a source, so ten billion cost what ten do: opening a select-only
   one over 10^10 numbers lands on the one chosen, five billion in, through the source's `positionOf`; without it, on the
   first.
-- **Keys (`combobox-keys.js`, the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else
-  the first), Alt+Down on the option chosen, Up and Home on the first, End on the last, a character typed on the option
-  it starts. Open: the arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing
-  goes to the option whose text starts with what was typed, the whole of it first. Editable, closed: Down opens on the
-  first, Up on the last, Alt+Down without moving. Open: the arrows and page keys move (from none, Down to the first and
-  Up to the last); Enter and Alt+Up choose; Home, End and the side arrows give the cursor back to the text, no option
-  active, keeping an inline completion as typed text. Escape closes, choosing nothing; with the list closed, it empties
-  an editable field (`clearOnEscape`, on by default). Enter with an editable list closed is left to the page (a form). A
+- **Keys (`Combobox.key`, the APG's):** select-only, closed: Down, Enter and Space open on the option chosen (else the
+  first), Alt+Down on the option chosen, Up and Home on the first, End on the last, a character typed on the option it
+  starts. Open: the arrows, page keys, Home and End move without wrapping; Enter, Space and Alt+Up choose; typing goes
+  to the option whose text starts with what was typed, the whole of it first. Editable, closed: Down opens on the first,
+  Up on the last, Alt+Down without moving. Open: the arrows and page keys move (from none, Down to the first and Up to
+  the last); Enter and Alt+Up choose; Home, End and the side arrows give the cursor back to the text, no option active,
+  keeping an inline completion as typed text. Escape closes, choosing nothing; with the list closed, it empties an
+  editable field (`clearOnEscape`, on by default). Enter with an editable list closed is left to the page (a form). A
   key while an input method composes is the input method's (`combobox-field.js`).
 - **Leaving:** the field is the popup's anchor, so it counts as inside its layer. Tab or a press elsewhere dismisses the
   layer (`focus-outside`, `outside`), and a combobox that selects by itself (select-only, `automatic`, `both`) chooses
   its active option then, as the APG's select-only example does; Escape never chooses.
-- **Suggestions (`combobox-suggest.js`):** only the answer for the text typed last is shown (`Latest`); none found, or
-  the field emptied, closes the list.
+- **Suggestions (`Suggestions`, `combobox.js`):** only the answer for the text typed last is shown (`Latest`); none
+  found, or the field emptied, closes the list.
 - **Shared with the palette:** its search field is the same editable combobox field (`combobox-field.js`, with the
   composition check in one place), its list keys (`field-keys.js`), and its dropping of stale answers (`latest.js`). The
   palette stays its own behavior: its list is always shown inside a modal dialog, with no layer of its own.

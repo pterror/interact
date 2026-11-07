@@ -1,6 +1,6 @@
 /**
  * @import { MemorySource } from '@interact/core'
- * @import { ComboboxModifiers } from './combobox-keys.js'
+ * @import { ComboboxModifiers } from './combobox.js'
  */
 
 import { describe, expect, test } from 'bun:test'

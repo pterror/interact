@@ -4,8 +4,7 @@
  * Focus stays in the field, which names the active option as its active descendant; that option is the one selected.
  * @import { View } from '@interact/dom/component'
  * @import { TemplateResult } from '@interact/dom/template'
- * @import { Combobox } from './combobox.js'
- * @import { ComboboxModifiers } from './combobox-keys.js'
+ * @import { Combobox, ComboboxModifiers } from './combobox.js'
  * @import { Row } from './rows-view.js'
  */
 
@@ -183,25 +182,8 @@ function syncText(box, field) {
 }
 
 /**
- * The popup shown while the list is open, below the field and at least as wide, and its options' scroll position
- * where the list's top is.
- * @template T, F
- * @param {Combobox<T, F>} box - The combobox
- * @param {Readonly<{ container: HTMLElement, field: HTMLElement, popup: HTMLElement }>} parts - The view's parts
- * @param {() => void} again - Asks for another render
- * @returns {void}
- */
-function syncPopup(box, { container, field, popup }, again) {
-  container.style.setProperty('--_field-width', `${String(field.getBoundingClientRect().width)}px`)
-  syncOverlay(popup, box.layer, { anchor: field, focus: 'stay' })
-  const viewport = partIn(popup, 'viewport')
-  if (viewport !== undefined && box.layer.open.get()) {
-    syncRows(box.list, viewport, again)
-  }
-}
-
-/**
- * After a render: the popup in line with the list, and an editable field's text with its completion.
+ * After a render: the popup shown while the list is open, below the field and at least as wide, its options' scroll
+ * position where the list's top is, and an editable field's text with its completion.
  * @template T, F
  * @param {Combobox<T, F>} box - The combobox
  * @param {HTMLElement} root - Where its view is
@@ -215,7 +197,12 @@ function synced(box, root, again) {
   if (container === undefined || field === undefined || popup === undefined) {
     return
   }
-  syncPopup(box, { container, field, popup }, again)
+  container.style.setProperty('--_field-width', `${String(field.getBoundingClientRect().width)}px`)
+  syncOverlay(popup, box.layer, { anchor: field, focus: 'stay' })
+  const viewport = partIn(popup, 'viewport')
+  if (viewport !== undefined && box.layer.open.get()) {
+    syncRows(box.list, viewport, again)
+  }
   if (field instanceof HTMLInputElement) {
     syncText(box, field)
   }
