@@ -48,9 +48,6 @@
 
 /** @typedef {'top' | 'bottom' | 'left' | 'right'} Edge */
 
-const NONE = 0
-const HALF = 2
-
 /** @type {Readonly<Record<Edge, Edge>>} */
 const OPPOSITE = { bottom: 'top', left: 'right', right: 'left', top: 'bottom' }
 
@@ -103,7 +100,7 @@ function roomOn(wanted, edge) {
     right: bounds.x + bounds.width - (anchor.x + anchor.width) - spare,
     top: anchor.y - bounds.y - spare,
   }
-  return Math.max(rooms[edge], NONE)
+  return Math.max(rooms[edge], 0)
 }
 
 /**
@@ -136,75 +133,20 @@ function chooseEdge(wanted) {
 }
 
 /**
- * Keeps a coordinate where its length fits between a start and an end, preferring the start when it can't fit.
- * @param {number} value - The coordinate
- * @param {number} length - The length placed there
- * @param {Readonly<{ start: number, end: number }>} range - Where it has to stay
- * @returns {number} The coordinate, moved as little as possible
- */
-function clamp(value, length, range) {
-  return Math.max(range.start, Math.min(value, range.end - length))
-}
-
-/**
- * Where something lines up across the anchor's side: the anchor's extent across that axis, the size placed across it,
- * how it lines up, and whether start is at the far end (inline text running right to left).
- * @param {Readonly<{ start: number, length: number, size: number, align: Align, reversed: boolean }>} line - The line-up
+ * Where something lines up across the anchor's side: by their starts, centres or ends, with start at the far end when
+ * `reversed` (inline text running right to left).
+ * @param {number} start - Where the anchor starts across that axis
+ * @param {number} length - The anchor's extent across it
+ * @param {number} size - The size placed across it
+ * @param {Align} align - How it lines up
+ * @param {boolean} reversed - Whether start is at the far end
  * @returns {number} Its coordinate
  */
-function across(line) {
-  if (line.align === 'center') {
-    return line.start + (line.length - line.size) / HALF
+function across(start, length, size, align, reversed) {
+  if (align === 'center') {
+    return start + (length - size) / 2
   }
-  const atStart = (line.align === 'start') !== line.reversed
-  return atStart ? line.start : line.start + line.length - line.size
-}
-
-/**
- * The area's ranges, less the margin, across and down.
- * @param {Rect} bounds - The area
- * @param {number} margin - The margin to keep from its edges
- * @returns {Readonly<{ x: Readonly<{ start: number, end: number }>, y: Readonly<{ start: number, end: number }> }>} The
- *   ranges
- */
-function ranges(bounds, margin) {
-  return {
-    x: { end: bounds.x + bounds.width - margin, start: bounds.x + margin },
-    y: { end: bounds.y + bounds.height - margin, start: bounds.y + margin },
-  }
-}
-
-/**
- * Where it starts along the main axis, off the anchor's edge by the gap.
- * @param {Wanted} wanted - The placement wanted
- * @param {Edge} edge - The anchor's edge it goes beside
- * @returns {number} The coordinate
- */
-function alongMain(wanted, edge) {
-  const { anchor, gap, size } = wanted
-  /** @type {Readonly<Record<Edge, number>>} */
-  const starts = {
-    bottom: anchor.y + anchor.height + gap,
-    left: anchor.x - gap - size.width,
-    right: anchor.x + anchor.width + gap,
-    top: anchor.y - gap - size.height,
-  }
-  return starts[edge]
-}
-
-/**
- * Where it starts across the main axis, lined up with the anchor as wanted.
- * @param {Wanted} wanted - The placement wanted
- * @param {Edge} edge - The anchor's edge it goes beside
- * @returns {number} The coordinate
- */
-function alongCross(wanted, edge) {
-  const { align, anchor, size } = wanted
-  if (sideways(edge)) {
-    return across({ align, length: anchor.height, reversed: false, size: size.height, start: anchor.y })
-  }
-  const reversed = wanted.direction === 'rtl'
-  return across({ align, length: anchor.width, reversed, size: size.width, start: anchor.x })
+  return (align === 'start') !== reversed ? start : start + length - size
 }
 
 /**
@@ -216,25 +158,29 @@ function alongCross(wanted, edge) {
  * @returns {Placed} Where it goes
  */
 function place(wanted) {
-  const { size } = wanted
+  const { align, anchor, bounds, direction, gap, margin, size } = wanted
   const edge = chooseEdge(wanted)
-  const inside = ranges(wanted.bounds, wanted.margin)
-  const main = alongMain(wanted, edge)
-  const cross = alongCross(wanted, edge)
-  const side = sideOf(edge, wanted.direction)
-  if (sideways(edge)) {
-    return {
-      available: { height: inside.y.end - inside.y.start, width: roomOn(wanted, edge) },
-      side,
-      x: clamp(main, size.width, inside.x),
-      y: clamp(cross, size.height, inside.y),
-    }
+  const left = bounds.x + margin
+  const right = bounds.x + bounds.width - margin
+  const top = bounds.y + margin
+  const bottom = bounds.y + bounds.height - margin
+  /** @type {Readonly<Record<Edge, number>>} */
+  const offEdge = {
+    bottom: anchor.y + anchor.height + gap,
+    left: anchor.x - gap - size.width,
+    right: anchor.x + anchor.width + gap,
+    top: anchor.y - gap - size.height,
   }
+  const room = roomOn(wanted, edge)
+  const beside = sideways(edge)
+  const x = beside ? offEdge[edge] : across(anchor.x, anchor.width, size.width, align, direction === 'rtl')
+  const y = beside ? across(anchor.y, anchor.height, size.height, align, false) : offEdge[edge]
   return {
-    available: { height: roomOn(wanted, edge), width: inside.x.end - inside.x.start },
-    side,
-    x: clamp(cross, size.width, inside.x),
-    y: clamp(main, size.height, inside.y),
+    available: beside ? { height: bottom - top, width: room } : { height: room, width: right - left },
+    side: sideOf(edge, direction),
+    // Moved as little as it takes to stay inside, keeping its start inside when it can't fit
+    x: Math.max(left, Math.min(x, right - size.width)),
+    y: Math.max(top, Math.min(y, bottom - size.height)),
   }
 }
 

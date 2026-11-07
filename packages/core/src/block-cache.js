@@ -2,9 +2,6 @@
 
 import { Listeners } from './listeners.js'
 
-const ONE_BLOCK = 1
-const NOT_FOUND = -1
-
 /**
  * A bounded cache of a source's items, read a block at a time and dropped least recently used first, so memory stays
  * level however many items the source has. Views read items and follow changes through it: it passes on each of the
@@ -57,7 +54,7 @@ class BlockCache {
    * @param {number} limit - Blocks kept at most
    */
   constructor(source, size, limit) {
-    if (!Number.isInteger(size) || size < ONE_BLOCK || !Number.isInteger(limit) || limit < ONE_BLOCK) {
+    if (!Number.isInteger(size) || size < 1 || !Number.isInteger(limit) || limit < 1) {
       throw new RangeError('A block cache needs a whole number of items per block and of blocks, at least one each')
     }
     this.#source = source
@@ -99,10 +96,14 @@ class BlockCache {
    * @returns {Promise<void>} When every block read has arrived
    */
   async ensure(start, end) {
-    const [first, last] = this.#blocksBetween(start, end)
+    const first = Math.floor(start / this.#size)
+    const last = Math.floor((Math.min(end, this.#source.count()) - 1) / this.#size)
+    if (last - first + 1 > this.#limit) {
+      throw new RangeError(`Items from ${String(start)} up to ${String(end)} need more blocks than the cache keeps`)
+    }
     /** @type {Promise<void>[]} */
     const reads = []
-    for (let block = first; block <= last; block += ONE_BLOCK) {
+    for (let block = first; block <= last; block += 1) {
       const items = this.#blocks.get(block)
       if (items !== undefined) {
         this.#keep(block, items)
@@ -121,11 +122,11 @@ class BlockCache {
    * @returns {number | undefined} The position, if an item here passes
    */
   findHere(test, from) {
-    const blocks = [...this.#blocks.keys()].filter((block) => (block + ONE_BLOCK) * this.#size > from)
+    const blocks = [...this.#blocks.keys()].filter((block) => (block + 1) * this.#size > from)
     for (const block of blocks.toSorted((left, right) => left - right)) {
       const start = block * this.#size
       const index = this.#blocks.get(block)?.findIndex((item, at) => start + at >= from && test(item))
-      if (index !== undefined && index !== NOT_FOUND) {
+      if (index !== undefined && index !== -1) {
         return start + index
       }
     }
@@ -158,20 +159,10 @@ class BlockCache {
   async #read(block) {
     const start = block * this.#size
     const result = this.#source.read(start, Math.min(start + this.#size, this.#source.count()))
-    if (result instanceof Promise) {
-      await this.#await(block, result)
-    } else {
+    if (!(result instanceof Promise)) {
       this.#arrive(block, result)
+      return
     }
-  }
-
-  /**
-   * Waits for a block being read, keeping it unless a change made it stale meanwhile.
-   * @param {number} block - Its number
-   * @param {Promise<readonly T[]>} result - Its items, on their way
-   * @returns {Promise<void>} When it has arrived
-   */
-  async #await(block, result) {
     const token = Symbol(String(block))
     this.#pending.set(block, token)
     try {
@@ -184,21 +175,6 @@ class BlockCache {
         this.#pending.delete(block)
       }
     }
-  }
-
-  /**
-   * The numbers of the first and last blocks holding the items from `start` up to `end`.
-   * @param {number} start - The first position
-   * @param {number} end - The position after the last
-   * @returns {[number, number]} The block numbers
-   */
-  #blocksBetween(start, end) {
-    const first = Math.floor(start / this.#size)
-    const last = Math.floor((Math.min(end, this.#source.count()) - ONE_BLOCK) / this.#size)
-    if (last - first + ONE_BLOCK > this.#limit) {
-      throw new RangeError(`Items from ${String(start)} up to ${String(end)} need more blocks than the cache keeps`)
-    }
-    return [first, last]
   }
 
   /**
@@ -236,7 +212,15 @@ class BlockCache {
    * @returns {void}
    */
   #forget(change) {
-    const stale = this.#staleFrom(change)
+    // All of them after a reset, every one from the first position moved by an insertion or removal, and those
+    // overlapping a changed range
+    const first = change.kind === 'reset' ? 0 : Math.floor(change.start / this.#size)
+    const last = change.kind === 'changed' ? Math.floor((change.end - 1) / this.#size) : Infinity
+    /**
+     * @param {number} block - A block's number
+     * @returns {boolean} Whether the change made it stale
+     */
+    const stale = (block) => block >= first && block <= last
     for (const map of [this.#blocks, this.#pending]) {
       for (const block of map.keys()) {
         if (stale(block)) {
@@ -244,24 +228,6 @@ class BlockCache {
         }
       }
     }
-  }
-
-  /**
-   * Which blocks a change makes stale: all of them after a reset, every one from the first position moved by an
-   * insertion or removal, and those overlapping a changed range.
-   * @param {Change} change - What changed
-   * @returns {(block: number) => boolean} Whether a block is stale
-   */
-  #staleFrom(change) {
-    if (change.kind === 'reset') {
-      return () => true
-    }
-    const first = Math.floor(change.start / this.#size)
-    if (change.kind !== 'changed') {
-      return (block) => block >= first
-    }
-    const last = Math.floor((change.end - ONE_BLOCK) / this.#size)
-    return (block) => block >= first && block <= last
   }
 }
 

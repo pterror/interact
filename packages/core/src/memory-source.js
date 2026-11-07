@@ -9,8 +9,6 @@ import { plainText, startsWithTyped } from './text.js'
  */
 
 const NOT_FOUND = -1
-const NO_ITEMS = 0
-const ONE_ITEM = 1
 
 /**
  * A source over items held in memory. Its filters are spans between two keys, so a span keeps meaning the same items
@@ -98,8 +96,8 @@ class MemorySource {
    */
   span(start, end) {
     const first = this.#items.at(start)
-    const last = this.#items.at(end - ONE_ITEM)
-    if (start < NO_ITEMS || end <= start || end > this.#items.length || first === undefined || last === undefined) {
+    const last = this.#items.at(end - 1)
+    if (start < 0 || end <= start || end > this.#items.length || first === undefined || last === undefined) {
       throw new RangeError(`No items from ${String(start)} up to ${String(end)}`)
     }
     return { first: this.#keyOf(first), last: this.#keyOf(last) }
@@ -124,7 +122,7 @@ class MemorySource {
    */
   countMatching(span) {
     const [low, high] = this.#ends(span)
-    return low === NOT_FOUND || high === NOT_FOUND ? NO_ITEMS : high - low + ONE_ITEM
+    return low === NOT_FOUND || high === NOT_FOUND ? 0 : high - low + 1
   }
 
   /**
@@ -134,7 +132,7 @@ class MemorySource {
    * @returns {number | undefined} The position, if an item's text starts so
    */
   findPrefix(text, from) {
-    for (let position = Math.max(from, NO_ITEMS); position < this.#items.length; position += ONE_ITEM) {
+    for (let position = Math.max(from, 0); position < this.#items.length; position += 1) {
       const item = this.#items[position]
       if (item !== undefined && startsWithTyped(this.#textOf(item), text)) {
         return position
@@ -164,7 +162,7 @@ class MemorySource {
     if (low === NOT_FOUND || high === NOT_FOUND) {
       return undefined
     }
-    for (let position = low; position <= high; position += ONE_ITEM) {
+    for (let position = low; position <= high; position += 1) {
       const item = this.#items[position]
       if (item !== undefined && !except.has(this.#keyOf(item))) {
         return position
@@ -180,7 +178,7 @@ class MemorySource {
    * @returns {void}
    */
   insert(start, items) {
-    this.#items.splice(start, NO_ITEMS, ...items)
+    this.#items.splice(start, 0, ...items)
     this.#changed({ end: start + items.length, kind: 'inserted', start })
   }
 

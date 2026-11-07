@@ -2,9 +2,6 @@
 
 import { Listeners } from './listeners.js'
 
-const NOWHERE = -1
-const NEXT = 1
-
 /**
  * The open layers in the order they opened, the last on top. A press or focus outside a layer dismisses it, and every
  * layer above the one it was inside counts as outside; layers beneath the top modal layer can't be reached, so nothing
@@ -67,7 +64,7 @@ class LayerStack {
    * @returns {Layer | undefined} It
    */
   top() {
-    return this.#open.at(-NEXT)
+    return this.#open.at(-1)
   }
 
   /**
@@ -127,9 +124,9 @@ class LayerStack {
    * @returns {void}
    */
   #outside(inside, reason) {
-    const above = inside === undefined ? NOWHERE : this.#open.indexOf(inside)
+    const above = inside === undefined ? -1 : this.#open.indexOf(inside)
     const modal = this.topModal()
-    const floor = Math.max(above + NEXT, modal === undefined ? NOWHERE : this.#open.indexOf(modal))
+    const floor = Math.max(above + 1, modal === undefined ? -1 : this.#open.indexOf(modal))
     const outside = this.#open.slice(floor).toReversed()
     for (const layer of outside) {
       const skipsModal = reason === 'focus-outside' && layer.modal
@@ -156,10 +153,10 @@ class LayerStack {
    */
   #remove(layer) {
     const at = this.#open.indexOf(layer)
-    if (at === NOWHERE) {
+    if (at === -1) {
       return
     }
-    const above = this.#open.slice(at + NEXT).toReversed()
+    const above = this.#open.slice(at + 1).toReversed()
     this.#open = this.#open.filter((each) => each !== layer)
     this.#changes.emit()
     for (const each of above) {

@@ -10,8 +10,6 @@
 
 /** Pixels the area's tip is moved back behind the pointer, so a pointer that pauses on its way stays inside. */
 const BLEED = 5
-const NONE = 0
-const STEP = 1
 
 /**
  * The area a pointer heading for a submenu may pass through: a polygon from a point just behind where it is now, to
@@ -39,7 +37,7 @@ function intentArea(pointer, submenu) {
  */
 function insideArea(point, polygon) {
   let inside = false
-  for (let index = NONE, previous = polygon.length - STEP; index < polygon.length; previous = index, index += STEP) {
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
     const from = polygon[index]
     const to = polygon[previous]
     if (from !== undefined && to !== undefined && from.y > point.y !== to.y > point.y) {

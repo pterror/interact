@@ -5,8 +5,6 @@
 
 /** @type {Intl.Collator | undefined} */
 let collator = undefined
-const START = 0
-const SAME = 0
 
 /**
  * Whether a text starts with what was typed, ignoring case and accents ("Émile" starts with "em").
@@ -17,7 +15,7 @@ const SAME = 0
 function startsWithTyped(text, typed) {
   collator ??= new Intl.Collator(undefined, { sensitivity: 'base', usage: 'search' })
   const wanted = typed.normalize('NFC')
-  return collator.compare(text.normalize('NFC').trimStart().slice(START, wanted.length), wanted) === SAME
+  return collator.compare(text.normalize('NFC').trimStart().slice(0, wanted.length), wanted) === 0
 }
 
 /**

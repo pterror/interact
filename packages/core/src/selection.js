@@ -1,8 +1,5 @@
 /** @import { Key, Source } from './source.js' */
 
-const NONE = 0
-const ONE = 1
-
 /**
  * What is selected: every item `filter` matches, except the keys in `removed`, and the keys in `added` besides. Without
  * a filter, only `added`. So selecting all of ten billion items is one filter, and deselecting one of them is one key.
@@ -110,7 +107,7 @@ function toggle(selection, source, item) {
  * @returns {Promise<number>} The count
  */
 async function countSelected(selection, source) {
-  const matching = selection.filter === undefined ? NONE : await source.countMatching(selection.filter)
+  const matching = selection.filter === undefined ? 0 : await source.countMatching(selection.filter)
   return matching - selection.removed.size + selection.added.size
 }
 
@@ -124,20 +121,7 @@ async function countSelected(selection, source) {
  */
 function findsSelected(selection, source) {
   const matches = selection.filter === undefined || source.firstMatching !== undefined
-  return matches && (selection.added.size === NONE || source.positionOf !== undefined)
-}
-
-/**
- * The earlier of two positions, either of which may be missing.
- * @param {number | undefined} left - One position
- * @param {number | undefined} right - The other
- * @returns {number | undefined} The earlier, or whichever there is
- */
-function earlier(left, right) {
-  if (left === undefined) {
-    return right
-  }
-  return right === undefined ? left : Math.min(left, right)
+  return matches && (selection.added.size === 0 || source.positionOf !== undefined)
 }
 
 /**
@@ -154,7 +138,7 @@ async function addedPosition(selection, source, key) {
   if (position === undefined || !selection.removed.has(key)) {
     return position
   }
-  const [item] = await source.read(position, position + ONE)
+  const [item] = await source.read(position, position + 1)
   return item !== undefined && isSelected(selection, source, item) ? position : undefined
 }
 
@@ -180,7 +164,9 @@ async function firstSelected(selection, source) {
   /** @type {number | undefined} */
   let first = undefined
   for (const position of found) {
-    first = earlier(first, position)
+    if (position !== undefined && (first === undefined || position < first)) {
+      first = position
+    }
   }
   return first
 }

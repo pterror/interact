@@ -1,6 +1,3 @@
-const FIRST = 0
-const ONE = 1
-
 /**
  * Where focus goes on entering a collection: back to the position it left, while that is still inside, otherwise the
  * first. Nowhere in an empty collection.
@@ -9,11 +6,11 @@ const ONE = 1
  * @returns {number | undefined} The position to focus
  */
 function entry(left, count) {
-  if (count < ONE) {
+  if (count < 1) {
     return undefined
   }
   if (left === undefined || left >= count) {
-    return FIRST
+    return 0
   }
   return left
 }
@@ -26,7 +23,7 @@ function entry(left, count) {
  * @returns {number} Where it ends up
  */
 function move(position, by, count) {
-  return Math.min(Math.max(position + by, FIRST), count - ONE)
+  return Math.min(Math.max(position + by, 0), count - 1)
 }
 
 export { entry, move }
