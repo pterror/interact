@@ -415,13 +415,13 @@ The view keeps only a window of items, plus a bounded cache of fetched blocks. T
 - **Derived (built; measured in Chrome 156, Firefox 157 and WebKit 27.2):**
   - The top position is a `Controllable` in `ScrollRows` (`packages/components/src/scroll-rows.js`), DOM-free, with the
     rows showing beside it. The web view turns it into pixels after each render and back from each scroll event
-    (`listbox-view.js`, `sync` and `scrolled`), and leaves the scroll position alone when it already shows the top.
+    (`rows-view.js`, `syncRows` and `scrolled`), and leaves the scroll position alone when it already shows the top.
   - The tallest scrollable area: Chrome and WebKit 33,554,428px, clamping anything taller; Firefox 17,895,696px,
     collapsing anything taller to nothing. Device pixel ratio doesn't change these; CSS `zoom` divides them in CSS
     pixels (Firefox at zoom 2: 8,947,848). So the cap is in pixels on screen: one row fewer than 17,895,696px holds at
     the rows' pitch times the element's zoom (`virtual-rows.js`, `rowCap`; zoom from `currentCSSZoom`, or the product of
-    computed `zoom` where WebKit lacks it, `row-measure.js`). Until a row is measured, and on the server, the cap is
-    10,000 rows, under the limit for rows up to 1,789px on screen.
+    computed `zoom` where WebKit lacks it, `zoomOf` in `rows-view.js`). Until a row is measured, and on the server, the
+    cap is 10,000 rows, under the limit for rows up to 1,789px on screen.
   - The pitch is measured from a row once and handed back to CSS (`--interact-listbox-pitch`), which lays out the spacer
     and every row from it, so script and layout multiply the same number. Chrome snaps a 27.3px row to 27.296875px;
     multiplying the unsnapped value drifted about 2,000px over the cap. Rows are placed with `inset-block-start`, not a

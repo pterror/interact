@@ -13,8 +13,7 @@ import { html, releaseOverlay, syncOverlay } from '@interact/dom'
 
 import { comboboxInput } from './combobox-field.js'
 import { comboboxStyles } from './combobox-styles.js'
-import { syncRows } from './rows-place.js'
-import { activeDescendant, rowsViewport } from './rows-view.js'
+import { activeDescendant, rowsViewport, syncRows } from './rows-view.js'
 
 /**
  * What was held with a key: Alt, Shift, and Control or Command.

@@ -11,8 +11,7 @@ import { html, releaseOverlay, syncOverlay } from '@interact/dom'
 
 import { menuBody } from './menu-rows.js'
 import { menuStyles } from './menu-styles.js'
-import { syncRows } from './rows-place.js'
-import { rowId } from './rows-view.js'
+import { rowId, syncRows } from './rows-view.js'
 
 /**
  * The overlay each menu's submenu is shown in, and which submenu, so it is let go when that submenu closes.

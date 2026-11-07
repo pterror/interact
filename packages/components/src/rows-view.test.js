@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { measureRow, pixels, zoomOf } from './row-measure.js'
+import { measureRow, pixels, zoomOf } from './rows-view.js'
 
 const PITCH = 27.25
 const ZOOM = 2

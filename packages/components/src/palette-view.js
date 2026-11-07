@@ -13,8 +13,7 @@ import { html, releaseOverlay, repeat, syncOverlay } from '@interact/dom'
 
 import { comboboxInput } from './combobox-field.js'
 import { paletteStyles } from './palette-styles.js'
-import { syncRows } from './rows-place.js'
-import { activeDescendant, rowsViewport } from './rows-view.js'
+import { activeDescendant, rowsViewport, syncRows } from './rows-view.js'
 
 const NONE = 0
 const ONE = 1

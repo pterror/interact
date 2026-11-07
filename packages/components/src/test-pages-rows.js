@@ -5,7 +5,7 @@
  * @import { Seen } from './test-page-listbox.js'
  */
 
-import { pixels } from './row-measure.js'
+import { pixels } from './rows-view.js'
 import { TEN_BILLION } from './test-helpers.js'
 import { fresh, middle, parts, seen, settle } from './test-page-listbox.js'
 
