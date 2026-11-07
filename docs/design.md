@@ -151,40 +151,37 @@ DOM-free in `@interact/core`; what needs the page in `@interact/dom`.
   element whose size the extension making it sets through attributes. Its view plugin hands keys to the store as
   `keyInput`s and presses on rows as the list's `press`, and, unless `reveals`, brings a revealed row's element into
   view (`scrollIntoView({ block: 'nearest' })`).
+- **Gaps the listbox found, fixed in the mechanism (Derived, built with it):**
+  - A list's pipeline knows its source's own type: `ListPipeline<T, R, S>`, so an extension can ask more of the source
+    than an `ItemSource` has (selection, the source's filters). The pipeline is invariant in `S` (`setSource` takes an
+    `S`), so an extension is generic in it.
+  - What an item is called is the list's `text` facet (a string or number as itself by default), read by the default
+    rendering and by typeahead alike; the default rendering took it as an option before.
+  - A press says how many presses in a row it makes (`count`, from the click's `detail`), so a double press activates.
+  - `findPrefix`, the query typing asks a source (`find-prefix.js`), answered by `MemorySource`.
+  - A store's view shows what its extensions say (`viewContent`, in `store-view.js`), so one view serves every instance,
+    each with its own store and list; `storeView` took a `render` before.
+  - `component()` follows its behavior before the view first hears it rendered, so a view plugin that dispatches then
+    (windowing measuring after adopting server markup) is rendered; it was missed before.
 - **Tests:** `state.test.js`, `store.test.js`, `query.test.js`, `list-pipeline.test.js` in core (among them a keyboard
   navigation and a windowing written as two extensions that name neither each other nor anything the core knows of them,
   meeting only through `reveal`, `keep` and `reveals`); `store-view.test.js`, `default-rendering.test.js` and the spread
-  hole's in the template modules' tests in dom. Not tested in a browser yet: the store view and default rendering ran in
-  happy-dom only.
+  hole's in the template modules' tests in dom. The store view and default rendering run in all three browsers, both DOM
+  modes, as the rebuilt listbox's view (`listbox-view.test.js`).
 
-### The features on it (Proposed, not built yet)
+### The features on it
 
-What the next steps build, each as an extension of a list pipeline (`list` below), with no change to the mechanism. The
-components are then a source, a pipeline and a set of these.
+**Derived, built** for the listbox (see The listbox, under Components, and Windowing, under Collections), each an
+extension of a list pipeline, with the gaps above fixed in the mechanism: the active item (`active(list)`, given to the
+extensions that act on it rather than looked up, so they share one field without a registry), keyboard navigation,
+typeahead, selection, focus entering, the default rendering and windowing. Two choices the plan left open: a move says
+whether Shift was held and whether focus entering made it (`ActiveMove`), which selection reads; and selection follows a
+move in single mode by a transaction filter, so the app's `controlled` hears it as a request. A component's own
+rendering (a menu item with its shortcut and check mark) is an `item` step above the default one that calls `next` for
+the attributes it doesn't set, or replaces it.
 
-- **The active item** (`active(list)`, the same extension for the same list, so everything depending on it shares one
-  field): a field of a position, set by an `activeMoved` effect and moved by `mapPosition`; `keep` of it; the
-  container's `aria-activedescendant` and the active row's `part` through attributes, with row ids from a row attribute
-  step.
-- **Keyboard navigation:** includes `active(list)`; an `inputHandler` for the arrows, Home, End and the page keys that
-  dispatches `activeMoved` and `reveal` together; a page is what `visible` says shows, or a fixed number without it;
-  `skip(item)` passed in (separators, commands that can't run) is honored by reading the items it passes. Focus entering
-  is its own view plugin listening for focus on the container.
-- **Typeahead:** includes `active(list)`; an `inputHandler` at `high` for printable keys (and Space while typing, so it
-  is taken before selection's Space); a field of what was typed and when, the time carried in the effect; it asks a
-  `findPrefix` query of the list and, unanswered, reads the items near the active one; an answer arriving later is
-  dispatched as `activeMoved` and `reveal`, and dropped if a later search started (a counter in its field).
-- **Selection:** a field of the selection, set by a `selectionMoved` effect; handles the list's `press` and Space, Shift
-  and Ctrl+A keys; in single mode its update follows `activeMoved` in the same transaction, so no second one;
-  `aria-selected` and `part` through row attributes, `aria-multiselectable` through the container's; the app owns it
-  with `controlled(selectionMoved, ...)`.
-- **The default rendering:** built (above). A component's own (a menu item with its shortcut and check mark) is an
-  `item` step above it that calls `next` for the attributes it doesn't set, or replaces it.
-- **Windowing:** a field of the top position, the offset and the measured row sizes, changed by `reveal` (scroll just
-  enough), and by `scrolled` and `measured` effects its view plugin dispatches from the scroll container's scroll events
-  and from measuring rows after a render, setting the scroll position after one; a `rows` step giving a gap before, the
-  window's items, the `keep` positions outside it, and a gap after; gap sizes, row placement and, for a partial set,
-  `aria-setsize`/`aria-posinset` through attributes; `reveals.of(true)` and `visible`.
+**Proposed, not built yet:**
+
 - **Drag to reorder:** a view plugin listening for pointer events on the view's element (rows found by `data-position`),
   a field of the drag (from, over), a `rows` step showing the dragged row where it would land (reordering rows, not the
   list, so no position anyone holds moves), `part` through attributes; the drop is the app's to make on its source,
@@ -205,15 +202,20 @@ components are then a source, a pipeline and a set of these.
   mechanism yet; nothing in the four proofs needs it.
 - Several lists in one view element: the default rendering's view plugin listens on the view's element and finds rows by
   `data-position`, so two lists in one element would both hear each other's presses.
-- The names of the features above (`activeMoved`, `selectionMoved`, `scrolled`, `measured`, `loadMore`) are the next
-  steps' to choose.
+- Selection selects in the source (its filters are the source's), so a list-stage step that makes another list of it is
+  an error when it selects. Asking the filters as queries of the list, which a step could answer or pass on, waits on
+  the selection model (Questions for the owner, 1).
+- The menu, palette and combobox run on the legacy listbox (`legacy-*.js`) until they are rebuilt on these extensions;
+  the legacy modules go then.
 
 ## Components (Settled, with the derived parts marked)
 
 A component is its behavior, written once as a plain API, plus a default view anyone can replace. What is being built
 (see Extensions): the behavior is a store configured with extensions, and its features (keyboard navigation, typeahead,
-selection, windowing) are extensions of it. The listbox, menu, palette and combobox below are described as built now, on
-the monolithic model, until they are rebuilt.
+selection, windowing) are extensions of it. The listbox below is built so. The menu, palette and combobox are described
+as built now, on the monolithic model: they run on the listbox as it was, its modules kept as `legacy-*.js` (the
+`Listbox` class, its items, chooser, typeahead, landing, keys, scroll rows and rows view and styles), each saying so,
+until they are rebuilt.
 
 - **The behavior** is a class with no DOM in it. It has methods, observable state and events, and uses a state machine
   only where modes and timing call for one: a menu opening and closing with pointer intent, a combobox, a tooltip's
@@ -272,51 +274,74 @@ the monolithic model, until they are rebuilt.
 - **Generated code.** Framework wrappers and typed declarations are generated from a Custom Elements Manifest
   (`@interact/codegen`).
 
-### The listbox (Derived, built; to be rebuilt on extensions)
+### The listbox (Derived, built on extensions)
 
-- `Listbox` (`packages/components/src/listbox.js`) is the behavior, with no DOM. Its state is `active` and `selection`,
-  both `Controllable`. Its parts:
-  - `items` (`items.js`): the source, read through a bounded `BlockCache`, with failed reads reported by `onError`.
-  - `scroll` (`scroll-rows.js`): `top` and `rows`, both `Controllable`, with `window()`, `scrollTo()` and `reveal()`:
-    the windowing built into it, which becomes the windowing extension.
-  - `choose` (`chooser.js`): single or multiple mode; `press()`; `all()`, which selects everything as one filter;
-    `isSelected()`; and `count()`, which counts without reading.
-- Also on `Listbox`: `source`, a `Controllable` (a new source starts over); `key()`, which takes keys as DOM-free
-  actions (`listbox-keys.js`) and acts on; `goTo(position, extend)`; `type(character)`; `focus()`; `activate()` and
-  `onActivate()`; `positions()`; and `subscribe()`.
+- **The core** (`listbox(current, { id, label })`, `listbox.js`) is what makes a list a listbox and no more: the list is
+  a `listbox` with an accessible name and its rows are options with ids (`<id>-<position>`, unique in the page for light
+  DOM); Enter or a double press activates an item (the `activated` effect, which an app hears from the store's
+  transactions); and the list is what the listbox's view shows (`viewContent`). Everything else a listbox does is an
+  extension beside it, written against the same API an app would use, none knowing another's insides:
+  - `active(list)` (`active-item.js`): the active item, the one extension the others are given, so they share one field.
+    A position set by `moved` effects and moved by `mapPosition`, nothing once its item goes or the list is replaced;
+    `keep` of it; `part="active"` on its row and the list's `aria-activedescendant`, named by the id some extension
+    gives the row, only once its item has arrived; a press makes an item active unless an extension before it takes the
+    press. Its `skip` facet (items focus passes over) and `entering` facet (where focus entering may go) are what others
+    give it; `landing()` honors `skip` for every extension that moves.
+  - `navigation(current)` (`navigation.js`): the arrows, Home, End and the page keys, as `moved` and `reveal` in one
+    transaction; a page is as many rows as `visible` says show, else ten.
+  - `typeahead(current, { now })` (`typeahead.js`): the typing rules below; its field is what was typed, when, and a
+    count of searches, the time carried in the `typed` effect.
+  - `selection(current, { mode })` (`list-selection.js`): single or multiple; its field is the selection and the anchor,
+    set by `selected` and `anchored` effects; in single mode a transaction filter adds the selection to the transaction
+    that moves the active item (none for focus entering), so no second one; `aria-selected` and `part="selected"` on
+    rows, `aria-multiselectable` on the list; `controlled(selection.selected, ...)` hands it to the app. Without it a
+    list selects nothing (a menu's `none`).
+  - `focusEntering(current)` (`focus-entering.js`): a view plugin hearing focus come into the view's element.
+  - `windowing(list, { rows, top })` (`windowing.js`, structure in `windowing-styles.js`): see Windowing, under
+    Collections. Without it the listbox renders every row, and `reveal` falls back to the default rendering bringing the
+    row into view.
+  - `defaultRendering(list)` (`@interact/dom`): the elements, last.
+- `listboxView()` is the store's view with the listbox's stylesheet, and `listboxElement(create)` the element class;
+  `create(host)` makes each instance's store from the extensions the app wants. Parts: `list`, `option`, `active`,
+  `selected` (were `viewport`, `option-active`, `option-selected`), `gap`.
 - **Keyboard (Derived, checked against the WAI-ARIA APG listbox pattern and its example code):** arrows, Home, End and
   the page keys move the active item; Space toggles it; Enter activates it. In multiple mode, Shift with a move or with
   Space selects from the anchor through the active item, Ctrl+Shift+Home/End select from the active item to the first or
   last and go there, and Ctrl+A selects everything. The anchor is the item last chosen (the APG's "most recently
-  selected"); moving doesn't move it, and a Shift move before any choice starts from where the move started.
+  selected"); moving doesn't move it, and a Shift move before any choice starts from where the move started. The anchor
+  now moves with the source's changes, as the active item does.
 - **Focus entering (Derived, the APG listbox pattern):** the active item stays and is shown. With nothing active, focus
   goes to the first selected item and shows it, when the source can place items (`findsSelected`, below); the answer is
   dropped if a key made something active first, or the source changed. Without that capability, or with nothing
-  selected, it goes to the item last chosen, or the top item (`Listbox.focus()`; tested in all three browsers in both
-  DOM modes).
+  selected, it goes to the item last chosen, or the top item shown (tested in happy-dom, `focus-entering.test.js`, and
+  in all three browsers in both DOM modes, `listbox-view.test.js`).
 - **Typeahead (Derived, settled with the owner):** a character goes to the next item whose text starts with it, and
   characters typed within 500ms (the APG example's wait) to the next whose text starts with all of them, going round to
   the start. The whole of what was typed is always looked for first, so "aa" reaches "Aaron"; only when nothing starts
-  with it, and it is one character typed again and again, does it move on to the next item starting with that character
-  (`typeahead.js`). A space continues what is being typed. Text is compared by `startsWithTyped`
-  (`packages/core/src/text.js`): from its start, ignoring case and accents. `typeahead.js` keeps what was typed;
-  `Items.findPrefix` asks the source's `findPrefix` when it has one, and otherwise looks among the items read.
+  with it, and it is one character typed again and again, does it move on to the next item starting with that character.
+  A space continues what is being typed (typeahead's input handler is at `high`, before selection's Space). Text is the
+  list's `text` facet, compared by `startsWithTyped` (`packages/core/src/text.js`): from its start, ignoring case and
+  accents. It asks the list the `findPrefix` query (`packages/core/src/find-prefix.js`), which `MemorySource` answers;
+  unanswered, it looks among the rows rendered. An answer that comes later is dropped if more was typed meanwhile.
 - **Accessibility (Derived):** axe-core 4.14.0 finds nothing in the listbox as the server renders it, or live, focused
   with items chosen, with the theme and without, in both DOM modes in Chrome 156, Firefox 157 and WebKit 27.2
-  (`listbox-view.test.js`). It first found the no-theme selected colors: `Highlight` on `HighlightText` is about 3:1 in
-  Firefox and 4:1 in WebKit, so the fallback is Canvas tinted with Highlight under CanvasText. In forced colors a
-  selected option takes the person's own `Highlight` and `HighlightText` (tested in Chrome and Firefox, which emulate
-  forced colors; WebKit only matches the media query). The active option's outline takes the selected text color on a
-  selected option, where the theme's focus color matched the fill.
+  (`listbox-view.test.js`, run again on the rebuilt listbox: 96 tests, all passing). It first found the no-theme
+  selected colors: `Highlight` on `HighlightText` is about 3:1 in Firefox and 4:1 in WebKit, so the fallback is Canvas
+  tinted with Highlight under CanvasText. In forced colors a selected option takes the person's own `Highlight` and
+  `HighlightText` (tested in Chrome and Firefox, which emulate forced colors; WebKit only matches the media query). The
+  active option's outline takes the selected text color on a selected option, where the theme's focus color matched the
+  fill.
 - **From Vaadin Grid's keyboard and a11y mixins (Derived, read):** `aria-activedescendant` names only an option that has
   arrived, as Vaadin holds a cell's focus event while its row loads (`__pendingBodyCellFocus`); focus entering brings
   the active item into view. Vaadin's guards for a focused element going stale as rows are reused
   (`__updateItemsFocusable`) have no counterpart to need: the active item is a position that moves with the source's
-  changes, and options are keyed by position. Its page keys (the active row ends at the edge it moved toward) are what
+  changes, and options are keyed by item. Its page keys (the active row ends at the edge it moved toward) are what
   `reveal` already does.
-- Selecting by position reads nothing, because the source makes a filter for the positions.
-- `listboxView()` is the default web view, and `listboxElement(create)` is the element class. The app registers the
-  class, and `create(host)` builds each instance's listbox.
+- Selecting by position reads nothing, because the source makes a filter for the positions. The selection selects in the
+  source, so a list-stage step that makes another list of it is an error when it selects (see Extensions, Open).
+- **Not kept:** reading every source through a `BlockCache` and `onError` for failed reads. A source that answers later
+  reports its items' arrival as `changed` (the pipeline's contract) and its own failures; a block cache as a list-stage
+  step isn't built.
 
 ### The menu (Derived, built; to be rebuilt on extensions)
 
@@ -524,10 +549,12 @@ Questions for the owner).
   filter for the items now at those positions, `matches(filter, item)` tests one, and `countMatching(filter)` counts
   one, at once or later. Rebuilt on extensions, these and `findPrefix` and `firstMatching` below become queries of the
   extensions that ask them.
-- A source that can search its items' text has `findPrefix(text, from)`: the first position at or after `from` whose
-  item's text starts with `text`, compared as `startsWithTyped` compares, at once or later. Typing in a list asks it,
-  since only the source knows every item; without it, a list searches the items it has read (`BlockCache.findHere`,
-  which looks at no more than the cache's blocks).
+- A source that can search its items' text answers the `findPrefix` query (`find-prefix.js`; `MemorySource` does), which
+  the rebuilt listbox's typeahead asks; the legacy listbox the menus run on asks the method below. It has
+  `findPrefix(text, from)`: the first position at or after `from` whose item's text starts with `text`, compared as
+  `startsWithTyped` compares, at once or later. Typing in a list asks it, since only the source knows every item;
+  without it, a list searches the items it has read (`BlockCache.findHere`, which looks at no more than the cache's
+  blocks).
 - A source that can place items has `positionOf(key)`, where an item is now, and `firstMatching(filter, except)`, the
   first position a filter matches whose key isn't in `except`. With them, `firstSelected(selection, source)`
   (`selection.js`) finds where a selection starts: the filter's first item whose key wasn't removed, or an added key's
@@ -545,8 +572,9 @@ Questions for the owner).
 ### Reading sources that answer later (Derived, built)
 
 - `BlockCache` (`packages/core/src/block-cache.js`) reads a source a block at a time and keeps a bounded number of
-  blocks, least recently used dropped first. The components read every source through it now; on the extension model it
-  is a list-stage step for a source that answers later, which a list over an array doesn't include.
+  blocks, least recently used dropped first. The legacy listbox (the menu, palette and combobox) reads every source
+  through it; the rebuilt listbox doesn't; on the extension model it is a list-stage step for a source that answers
+  later, which a list over an array doesn't include.
   - Whatever reads through it follows changes through it too, never the source directly. It drops whatever a change made
     stale, including reads still on their way, before passing the change on, so nothing re-reads stale items.
   - A block arriving is reported as `changed` over its positions, so arrivals and edits are handled the same way; that
@@ -554,16 +582,29 @@ Questions for the owner).
   - A source that answers at once (`MemorySource`) has its block in the cache before `ensure` returns, so in-memory
     lists never show placeholders.
 
-### Windowing (built into the components now; to be an extension)
+### Windowing (Derived, built as an extension)
 
-- The listbox's viewport (`scroll-rows.js`, `virtual-rows.js`, `rows-view.js`, `rows-styles.js`) windows every list,
-  menu, palette and combobox: it renders a window of rows, and the position of the item at the top is the source of
-  truth for where the list is scrolled, turned into pixels after each render and back from each scroll event, so
-  keyboard navigation, `scrollTo(position)` and restoring a view stay exact. It is written to land exactly in a list of
-  ten billion rows (a capped scroll height with a moving offset, after Vaadin Grid, under each browser's measured
-  tallest scroll area), which served the dropped requirement; those measurements and their tests are history, in this
-  file's log. Which of it the windowing extension keeps is open (see Questions for the owner).
+- `windowing(list, { rows, top })` (`windowing.js`) is one extension; neither navigation nor anything else in the
+  listbox knows it exists. Its field is the top position (the source of truth for where the list is scrolled), the
+  offset, the pitch rows are laid out at once measured, and the cap; `reveal` scrolls just enough, `scrollTo` jumps, and
+  its view plugin dispatches `scrolled` from the list's scroll events and `measured` after measuring a row, and puts the
+  scroll position where the top is after each render. A `rows` step gives a gap before, the window's rows (what shows
+  and five either side), the `keep` positions outside it (hidden but present), and a gap after; each row and gap is
+  placed in its scrollable row by attributes (`--interact-row`, `--interact-gap-rows`), the list says how many rows show
+  and the pitch, and a partial set's rows say `aria-posinset` and `aria-setsize`. It gives `reveals` and `visible`.
+- It keeps the old viewport's reach, the open owner question left as it was: a capped scroll height with a moving offset
+  (after Vaadin Grid), so it lands exactly in a list of ten billion rows (`virtual-rows.js`). Placing rows one after
+  another (gaps then rows in flow) put the top row more than half a pixel off in WebKit with rows 27.3px tall, so rows
+  are placed by `calc(row * pitch)`, as the scroll position is worked out.
+- **Measured on the rebuild** (Chrome 156, Firefox 157, WebKit 27.2): Firefox keeps a scroll position as a 32-bit float
+  (16,000,000.7 set reads back 16,000,001; past 2^24 it moves in steps of 2), so the cap is now 2^23 pixels on screen,
+  under which a position is within a quarter pixel, not Firefox's tallest area (17,895,696); a lower cap costs nothing,
+  the offset moves more often. Browsers keep scroll positions to about a whole pixel (WebKit read 4,194,137.55 back as
+  4,194,137, Chrome 4,194,141.39 as 4,194,142), so the position is put to the nearest whole pixel and a scroll event
+  from where windowing put it is taken as its own; before that, WebKit's rounding moved the top back a row.
 - Rows have one fixed height (a token); variable heights wait (Settled with the owner, below).
+- The menu, palette and combobox still window through the legacy viewport (`legacy-rows-view.js`), which shares the
+  arithmetic (`virtual-rows.js`) and row measuring (`measure-rows.js`).
 
 ### Selection (Settled model)
 
@@ -602,11 +643,11 @@ the region closes. keybinds' hub already does that last part by hand (`hub.js:29
 - Overlays that close (menus, the palette, dialogs) form a stack, so Escape and outside presses close the top one only.
   zag.js has a working stack to read (`@zag-js/dismissable` `dist/layer-stack.mjs`), as do its typeahead and tabbable
   helpers (`@zag-js/dom-query`).
-- **Derived (built, measured in Chrome 156):** focus stays on the listbox's viewport, and the active option is its
-  `aria-activedescendant` (`listbox-view.js`). The active option is always among the positions rendered
-  (`ScrollRows.positions`), hidden but present when it is outside the window. With the active item scrolled 2,000 rows
-  away, focus and the active descendant were still there, and the next ArrowDown brought it back into view, in both DOM
-  modes and all three browsers. The keys follow the WAI-ARIA listbox pattern (see The listbox).
+- **Derived (built, measured in Chrome 156):** focus stays on the listbox's list element, and the active option is its
+  `aria-activedescendant` (`active-item.js`). The active option is always among the positions rendered (the active
+  item's `keep`, which windowing renders), hidden but present when it is outside the window. With the active item
+  scrolled 2,000 rows away, focus and the active descendant were still there, and the next ArrowDown brought it back
+  into view, in both DOM modes and all three browsers. The keys follow the WAI-ARIA listbox pattern (see The listbox).
 - What the listbox needs is built (`packages/core/src/focus.js`):
   - `entry(left, count)`: where focus enters a collection. It goes back to where it left, while that's still inside,
     otherwise to the first item, and nowhere when the collection is empty.
@@ -923,9 +964,10 @@ the menu left: Tab out of the page, a long menu's size, and a context menu asked
 palette, The menu and Overlays). Then the combobox, sharing its field, list keys and stale-answer dropping with the
 palette (see The combobox). Then keybinds' menus and palette moved onto them (see What moves out of keybinds).
 
-**Now:** the extension mechanism (see Extensions). **Next**, done by others: the listbox, menu, palette and combobox
-rebuilt on it, with their features as extensions, proved by typeahead, drag to reorder, load as you scroll and grouped
-sections written as extensions with no change to the mechanism.
+**Then:** the extension mechanism (see Extensions), and the listbox rebuilt on it: a core and its features as
+extensions, with the API gaps it found fixed in the mechanism. **Next**, done by others: the menu, palette and combobox
+rebuilt on it, the legacy listbox deleted, and drag to reorder, load as you scroll and grouped sections written as
+extensions with no change to the mechanism.
 
 ## Settled with the owner after the first draft
 
