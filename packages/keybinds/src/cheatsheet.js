@@ -10,6 +10,9 @@
  *
  * Events: `open` when it opens, however that happened; `close` when it's dismissed.
  *
+ * Held open by its trigger, it shows while the modifier is held; tapping the modifier twice keeps it open, and tapping
+ * twice again, Escape or a click outside closes it.
+ *
  * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
  * __item-keys, __item-binding, __item-key.
  */
@@ -17,13 +20,45 @@
 /**
  * @import { Command, Context } from './command.js'
  * @import { InputUI } from './input.js'
+ * @import { ActiveCommand } from './search.js'
  */
 
-import { cheatsheetGroups } from './cheatsheet-groups.js'
-import { holdToOpen } from './cheatsheet-trigger.js'
-import { OVERLAY_STYLE, make, styleOf } from './component-dom.js'
+import { bindingParts } from './binding-format.js'
+import { isMac } from './binding-mods.js'
+import { OVERLAY_STYLE, make, namesOf, styleOf } from './component-dom.js'
 import { keysUI } from './keys-ui.js'
 import { markKind } from './modal.js'
+import { onModifierHold, onModifierTaps } from './modifiers.js'
+import { groupByCategory } from './search.js'
+
+/**
+ * How long the trigger's modifier is held before it opens: long enough that pausing with the modifier down to find the
+ * rest of a shortcut doesn't open it
+ */
+const DEFAULT_DELAY = 1000
+
+/**
+ * One command's row: its label and its bindings, each binding's keys as `<kbd>`s in a span of their own
+ * @param {ActiveCommand} entry - The command, and whether it applies
+ * @param {readonly InputUI[]} inputs - How bindings are shown
+ * @returns {HTMLLIElement} The row
+ */
+function itemOf({ active, command }, inputs) {
+  const item = make('li', {
+    className: namesOf({ cheatsheet__item: true, 'cheatsheet__item--disabled': !active }),
+    part: namesOf({ item: true, 'item-disabled': !active }),
+  })
+  const bindings = make('span', { className: 'cheatsheet__item-keys', part: 'item-keys' })
+  for (const keys of bindingParts(command, inputs)) {
+    const binding = make('span', { className: 'cheatsheet__item-binding', part: 'item-binding' })
+    binding.append(
+      ...keys.map((key) => make('kbd', { className: 'cheatsheet__item-key', part: 'item-key', text: key })),
+    )
+    bindings.append(binding)
+  }
+  item.append(make('span', { className: 'cheatsheet__item-label', part: 'item-label', text: command.label }), bindings)
+  return item
+}
 
 /** A cheatsheet of bindings */
 class KeybindCheatsheet extends HTMLElement {
@@ -169,26 +204,51 @@ class KeybindCheatsheet extends HTMLElement {
    */
   #trigger(on) {
     this.#stopTrigger?.()
-    this.#stopTrigger = on
-      ? holdToOpen(
-          {
-            close: () => {
-              this.#close()
-            },
-            isOpen: () => this.open,
-            onClose: (closed) => {
-              this.addEventListener('close', closed)
-              return () => {
-                this.removeEventListener('close', closed)
-              }
-            },
-            setOpen: (open) => {
-              this.open = open
-            },
-          },
-          { delay: this.getAttribute('trigger-delay'), key: this.getAttribute('trigger-key') },
-        )
-      : undefined
+    if (!on) {
+      this.#stopTrigger = undefined
+      return
+    }
+    const key = this.getAttribute('trigger-key')
+    // "$mod" (the default) is Meta on Mac and Control elsewhere, as in bindings
+    const modifier = key === null || key === '' || key.toLowerCase() === '$mod' ? (isMac ? 'Meta' : 'Control') : key
+    const ms = Number(this.getAttribute('trigger-delay') ?? DEFAULT_DELAY)
+    let pinned = false
+    const unhold = onModifierHold(
+      modifier,
+      (held) => {
+        if (!pinned) {
+          this.open = held
+        }
+      },
+      { delay: Number.isFinite(ms) ? ms : DEFAULT_DELAY },
+    )
+    const untap = onModifierTaps(modifier, () => {
+      pinned = !this.open
+      this.open = pinned
+    })
+    /**
+     * Closes on Escape, which was for closing it and not for whatever is underneath too
+     * @param {KeyboardEvent} event - A key going down
+     * @returns {void}
+     */
+    const escape = (event) => {
+      if (event.key === 'Escape' && this.open) {
+        event.preventDefault()
+        event.stopPropagation()
+        this.#close()
+      }
+    }
+    globalThis.addEventListener('keydown', escape, true)
+    const unpin = () => {
+      pinned = false
+    }
+    this.addEventListener('close', unpin)
+    this.#stopTrigger = () => {
+      unhold()
+      untap()
+      globalThis.removeEventListener('keydown', escape, true)
+      this.removeEventListener('close', unpin)
+    }
   }
 
   /** @returns {void} */
@@ -207,9 +267,24 @@ class KeybindCheatsheet extends HTMLElement {
     }
   }
 
-  /** @returns {void} */
+  /**
+   * Shows each category's commands, with every binding through the inputs it shows, and those that don't apply now
+   * marked
+   * @returns {void}
+   */
   #render() {
-    this.#dialog.replaceChildren(...cheatsheetGroups(this.#commands, this.#context, this.#inputs))
+    const inputs = this.#inputs
+    const fields = inputs.filter((input) => input.axis !== true).map(({ field }) => field)
+    /** @type {HTMLDivElement[]} */
+    const groups = []
+    for (const [category, entries] of Object.entries(groupByCategory(this.#commands, this.#context, fields))) {
+      const group = make('div', { className: 'cheatsheet__group', part: 'group' })
+      const list = make('ul', { className: 'cheatsheet__list', part: 'list' })
+      list.append(...entries.map((entry) => itemOf(entry, inputs)))
+      group.append(make('div', { className: 'cheatsheet__group-title', part: 'group-title', text: category }), list)
+      groups.push(group)
+    }
+    this.#dialog.replaceChildren(...groups)
   }
 }
 
