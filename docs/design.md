@@ -306,7 +306,7 @@ a context menu and a button following the hub's context live, axe clean; Chrome,
 - **Ranking stays keybinds'.** `hub.commandSystem({ matcher, scorer, source, sourceDelay })` lists a menu's commands
   (ranked by a scorer if given, as the old scored menu did) and searches with `searchCommands`, its matcher and scorer;
   a `source` of further commands is asked once typing pauses, as the old palette's was, and its commands run from its
-  answer (`command-system.js`, `command-search.js`).
+  answer (`command-system.js`).
 - **Overlays take the keyboard by the platform's own signal.** keybinds' components marked themselves
   `data-keybinds-modal`; overlays made elsewhere know nothing of keybinds. An open `<dialog>` or popover on an event's
   composed path now keeps bindings from firing as a marked element does (`modal.js`). This also applies to a page's own
@@ -465,7 +465,7 @@ Selecting all of ten billion items then costs nothing, and so does deselecting o
 ### Focus scopes (Settled model)
 
 A focus scope is a region with its own rules: where focus enters, whether it is trapped, and where it goes back to when
-the region closes. keybinds' hub already does that last part by hand (`hub.js:130-150`).
+the region closes. keybinds' hub already does that last part by hand (`hub.js:293-362`).
 
 **Derived:**
 

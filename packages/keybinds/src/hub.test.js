@@ -1,14 +1,13 @@
 /**
  * @import { Mock } from 'bun:test'
  * @import { BindingOverrides, Command, Context } from './command.js'
- * @import { CommandDefinition } from './hub-commands.js'
- * @import { CommandHubOptions } from './hub-options.js'
+ * @import { CommandDefinition, CommandHubOptions } from './hub.js'
  */
 
 import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test'
 
 import { KeybindCheatsheet } from './cheatsheet.js'
-import { CommandHub } from './hub.js'
+import { CommandHub, FocusReturn, commandOf } from './hub.js'
 import { KeybindSettings } from './settings.js'
 import { kbd } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
@@ -17,6 +16,8 @@ const COMPONENTS = { cheatsheet: KeybindCheatsheet, settings: KeybindSettings }
 const ONCE = 1
 const TWICE = 2
 const FIRST = 0
+const TOP = 3
+const TRUTHY = 1
 
 /** @type {(() => void)[]} */
 const cleanups = []
@@ -268,5 +269,99 @@ describe('a hub with every input', () => {
     expect(hub.bindingsFor('strafe', 'axes')).toEqual(['J / L'])
     target.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
     expect(hub.axis('strafe').position).toBe(ONCE)
+  })
+})
+
+describe('a definition taken as a command', () => {
+  test('runs its execute, and keeps the fields a command has, typed as a command types them', () => {
+    const definition = {
+      anyModifiers: true,
+      execute: () => 'ran',
+      id: 'save',
+      label: 'Save',
+      menu: ['file'],
+      rank: TOP,
+      when: () => TRUTHY,
+    }
+    const command = commandOf(definition)
+    expect([command.execute({}), command.when?.({}), command.rank, command.menu, command.anyModifiers]).toEqual([
+      'ran',
+      true,
+      TOP,
+      ['file'],
+      true,
+    ])
+  })
+
+  test('is refused without a function to run', () => {
+    expect(() => commandOf({ id: 'save', label: 'Save' })).toThrow('"save" has no execute function')
+  })
+
+  test.each(['when', 'rank', 'menu', 'captureInput', 'anyModifiers'])(
+    'is refused with a %s of the wrong type',
+    (field) => {
+      const wrong = Object.fromEntries([[field, [TRUTHY]]])
+      const definition = { ...wrong, execute: () => undefined, id: 'save', label: 'Save' }
+      expect(() => commandOf(definition)).toThrow(`"save" has a ${field} that isn't one`)
+    },
+  )
+})
+
+/** @type {Element[]} */
+const placed = []
+
+afterEach(() => {
+  for (const element of placed.splice(FIRST)) {
+    element.remove()
+  }
+})
+
+/**
+ * An element in the page until the test ends
+ * @template {keyof HTMLElementTagNameMap} K
+ * @param {K} tag - Which element
+ * @returns {HTMLElementTagNameMap[K]} The element
+ */
+function placedElement(tag) {
+  const element = document.createElement(tag)
+  document.body.append(element)
+  placed.push(element)
+  return element
+}
+
+/**
+ * An overlay that takes focus into a field of its own, marked as a component
+ * @returns {Readonly<{ field: HTMLInputElement, overlay: HTMLElement }>} The overlay, and its field
+ */
+function overlayWithField() {
+  const overlay = placedElement('div')
+  overlay.dataset['keybinds'] = 'settings'
+  const field = document.createElement('input')
+  overlay.append(field)
+  return { field, overlay }
+}
+
+describe('giving focus back', () => {
+  test('returns focus to where it was when an overlay holding it closes', () => {
+    const editor = placedElement('textarea')
+    const { field, overlay } = overlayWithField()
+    const focus = new FocusReturn([overlay])
+    editor.focus()
+    field.focus()
+    overlay.dispatchEvent(new Event('close'))
+    expect(document.activeElement).toBe(editor)
+    focus.stop()
+  })
+
+  test('leaves focus be when it already went somewhere else', () => {
+    const editor = placedElement('textarea')
+    const elsewhere = placedElement('input')
+    const { overlay } = overlayWithField()
+    const focus = new FocusReturn([overlay])
+    editor.focus()
+    elsewhere.focus()
+    overlay.dispatchEvent(new Event('close'))
+    expect(document.activeElement).toBe(elsewhere)
+    focus.stop()
   })
 })

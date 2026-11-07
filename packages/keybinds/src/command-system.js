@@ -1,15 +1,21 @@
 /**
  * A CommandHub as a command system (`hub.commandSystem()`), for a bridge that keeps menus, a palette and buttons in
  * step with it, such as `@interact/components`' CommandBridge: it has the shape such a bridge asks for, and imports
- * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds'.
+ * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds', by its own matcher
+ * and scorer, and, if the app gives one, with further commands from a source asked once typing pauses. A command found
+ * only in the source's answer runs from that answer.
  * @import { Command, Context } from './command.js'
- * @import { CommandSource } from './command-search.js'
  * @import { Matcher, Scorer } from './search.js'
  */
 
-import { CommandSearch } from './command-search.js'
 import { isActive } from './command.js'
-import { inMenu } from './search.js'
+import { fuzzyMatcher } from './matchers.js'
+import { inMenu, searchCommands } from './search.js'
+
+/**
+ * Further commands for a query, from somewhere other than the hub, at once or later
+ * @typedef {(query: string) => readonly Command[] | Promise<readonly Command[]>} CommandSource
+ */
 
 /**
  * A command as the system lists it: its id and name, whether it applies now, and, if it has them, its first binding as
@@ -62,9 +68,7 @@ import { inMenu } from './search.js'
  * }>} HubOperations
  */
 
-const BEFORE = -1
-const AFTER = 1
-const NOTHING = 0
+const SOURCE_DELAY = 200
 
 /**
  * A command as the system lists it.
@@ -97,7 +101,7 @@ function listed(hub, { command, enabled }) {
  */
 function byRank(first, second) {
   if (first.enabled !== second.enabled) {
-    return first.enabled ? BEFORE : AFTER
+    return first.enabled ? -1 : 1
   }
   return second.score - first.score
 }
@@ -112,7 +116,7 @@ function byRank(first, second) {
 function ranked(commands, { context, scorer }) {
   /** @type {Scored[]} */
   const scored = commands.map(({ command, enabled }) => ({ command, enabled, score: scorer(command, context) }))
-  return scored.filter(({ command, score }) => command.when === undefined || score > NOTHING).toSorted(byRank)
+  return scored.filter(({ command, score }) => command.when === undefined || score > 0).toSorted(byRank)
 }
 
 /**
@@ -142,6 +146,13 @@ function listIn(hub, tag, scorer) {
  * @returns {CommandSystem} The command system
  */
 function systemOf(hub, options = {}) {
+  /** How many searches have asked the source, so one that typing has passed by doesn't ask it */
+  let asked = 0
+  /**
+   * The commands the source last answered that the hub doesn't have, by id
+   * @type {ReadonlyMap<string, Command>}
+   */
+  let answered = new Map()
   /**
    * @param {string | undefined} tag - A menu's tag, or none for every command
    * @returns {SystemCommand[]} The commands listed there
@@ -149,25 +160,92 @@ function systemOf(hub, options = {}) {
   function list(tag) {
     return listIn(hub, tag, options.scorer)
   }
-  const searching = new CommandSearch({
-    commands: hub.commands,
-    context: hub.context,
-    inMenu,
-    list,
-    listed: (found) => listed(hub, found),
-    options,
-  })
   /**
+   * The commands among some that match what was typed, best first, each with where its label matched: a match on its
+   * id or description marks none
+   * @param {readonly Command[]} commands - The commands
+   * @param {string} query - What was typed
+   * @param {string | undefined} tag - The menu's tag, if any
+   * @returns {FoundSystemCommand[]} What was found
+   */
+  function found(commands, query, tag) {
+    const shown = commands.filter((command) => inMenu(command, tag))
+    const results = searchCommands(shown, query, {
+      context: hub.context(),
+      matcher: options.matcher,
+      scorer: options.scorer,
+    })
+    return results.map((result) => {
+      const entry = listed(hub, { command: result.command, enabled: result.active })
+      const positions = (options.matcher ?? fuzzyMatcher)(query, result.command.label)?.positions
+      return positions === undefined ? entry : { ...entry, positions }
+    })
+  }
+  /**
+   * The hub's matches and the source's, asked once typing has paused; a search typing passed by in the meantime finds
+   * the hub's alone, as its answer is dropped. The source's commands the hub doesn't have are kept, to run them if
+   * chosen; a source that fails adds none
+   * @param {CommandSource} source - Where to ask
+   * @param {string} query - What was typed
+   * @param {string | undefined} tag - The menu's tag, if any
+   * @returns {Promise<readonly FoundSystemCommand[]>} What was found
+   */
+  async function withSource(source, query, tag) {
+    asked += 1
+    const mine = asked
+    /** @type {PromiseWithResolvers<void>} */
+    const passed = Promise.withResolvers()
+    setTimeout(() => {
+      passed.resolve()
+    }, options.sourceDelay ?? SOURCE_DELAY)
+    await passed.promise
+    const own = hub.commands()
+    if (mine !== asked) {
+      return found(own, query, tag)
+    }
+    /** @type {readonly Command[]} */
+    let answer
+    try {
+      answer = await source(query)
+    } catch {
+      answer = []
+    }
+    const ids = new Set(own.map(({ id }) => id))
+    const extra = answer.filter(({ id }) => !ids.has(id))
+    answered = new Map(extra.map((command) => [command.id, command]))
+    return found([...own, ...extra], query, tag)
+  }
+  /**
+   * The commands found for what was typed, in a menu or among all: every one listed for nothing typed; otherwise the
+   * hub's matches, best first, and with a source, its matches too, once typing pauses.
    * @param {string} query - What was typed
    * @param {string | undefined} tag - A menu's tag, or none for every command
    * @returns {readonly FoundSystemCommand[] | Promise<readonly FoundSystemCommand[]>} What was found
    */
   function search(query, tag) {
-    return searching.search(query, tag)
+    if (query.trim() === '') {
+      return list(tag)
+    }
+    const { source } = options
+    return source === undefined ? found(hub.commands(), query, tag) : withSource(source, query, tag)
+  }
+  /**
+   * Runs a command found only in the source's last answer, if it applies now
+   * @param {string} id - The command
+   * @returns {boolean} Whether it ran
+   */
+  function runFound(id) {
+    const command = answered.get(id)
+    const context = hub.context()
+    if (command === undefined || !isActive(command, context)) {
+      return false
+    }
+    command.execute(context)
+    return true
   }
   return {
     list,
-    run: (id) => hub.run(id) || searching.runFound(id),
+    run: (id) => hub.run(id) || runFound(id),
     search,
     subscribe: (listener) => hub.listen(listener),
   }
