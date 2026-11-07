@@ -1,6 +1,7 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { keyAction } from './listbox-keys.js'
+import { keyAction } from './legacy-listbox-keys.js'
 
 const PLAIN = { shift: false, toggle: false }
 const TOGGLE = { shift: false, toggle: true }

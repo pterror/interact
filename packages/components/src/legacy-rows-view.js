@@ -1,3 +1,5 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * A virtualized list's web view: its scrolling viewport and the rows in it, and where the view is placed, its own
  * state for each list (which position is the first scrollable row, the rows' pitch), following the person scrolling,
@@ -5,13 +7,13 @@
  * at, in their own CSS pixels, which scroll positions are in; and on screen, which the browsers' limit on a scrollable
  * area is in.
  * @import { TemplateResult } from '@interact/dom/template'
- * @import { Listbox } from './listbox.js'
- * @import { Modifiers } from './listbox-keys.js'
+ * @import { Listbox } from './legacy-listbox.js'
+ * @import { Modifiers } from './legacy-listbox-keys.js'
  */
 
 import { html, repeat } from '@interact/dom'
 
-import { UNMEASURED_ROWS, offsetFor, rowAt, rowCap, virtualRows } from './virtual-rows.js'
+import { UNMEASURED_ROWS, offsetFor, rowAt, rowCap, virtualRows } from './legacy-virtual-rows.js'
 
 /**
  * What every row has, whatever it shows: its id, its place among the items, whether only some of the items are rendered

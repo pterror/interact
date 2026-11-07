@@ -1,3 +1,5 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 import { css } from '@interact/dom'
 
 /**

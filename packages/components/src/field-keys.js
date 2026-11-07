@@ -1,6 +1,6 @@
 /**
- * @import { Listbox } from './listbox.js'
- * @import { Modifiers } from './listbox-keys.js'
+ * @import { Listbox } from './legacy-listbox.js'
+ * @import { Modifiers } from './legacy-listbox-keys.js'
  */
 
 /**

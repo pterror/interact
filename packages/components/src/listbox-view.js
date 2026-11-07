@@ -1,14 +1,14 @@
 /**
  * @import { View } from '@interact/dom/component'
  * @import { TemplateResult } from '@interact/dom/template'
- * @import { Listbox } from './listbox.js'
- * @import { Row } from './rows-view.js'
+ * @import { Listbox } from './legacy-listbox.js'
+ * @import { Row } from './legacy-rows-view.js'
  */
 
 import { html } from '@interact/dom'
 
+import { modifiersOf, rowsViewport, syncRows } from './legacy-rows-view.js'
 import { listboxStyles } from './listbox-styles.js'
-import { modifiersOf, rowsViewport, syncRows } from './rows-view.js'
 
 /**
  * One option: its text, or nothing until it arrives, placed in its scrollable row, and hidden but present when it is

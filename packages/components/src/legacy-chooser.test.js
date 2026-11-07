@@ -1,3 +1,4 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 /** @import { Selection } from '@interact/core/selection' */
 /** @import { Numbered, Range } from './test-helpers.js' */
 
@@ -5,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { Controllable, countSelected, nothing } from '@interact/core'
 
-import { Chooser } from './chooser.js'
+import { Chooser } from './legacy-chooser.js'
 import { TEN_BILLION, numbers } from './test-helpers.js'
 
 const START = 0

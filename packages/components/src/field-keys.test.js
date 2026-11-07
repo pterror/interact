@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { MemorySource } from '@interact/core'
 
 import { fieldListKey } from './field-keys.js'
-import { Listbox } from './listbox.js'
+import { Listbox } from './legacy-listbox.js'
 
 const FIRST = 0
 const SECOND = 1

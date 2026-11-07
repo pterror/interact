@@ -1,6 +1,7 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { Typeahead, WAIT } from './typeahead.js'
+import { Typeahead, WAIT } from './legacy-typeahead.js'
 
 const QUICK = 100
 

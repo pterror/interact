@@ -3,15 +3,15 @@
  * or an app would, and seeing what it shows. Each scenario puts the listbox in the page and reports what it saw, as
  * plain values; some are about its scrollable rows: row heights, zoom, and native scrolling near the ends.
  * @import { DomMode } from '@interact/dom/css'
- * @import { Listbox } from './listbox.js'
+ * @import { Listbox } from './legacy-listbox.js'
  * @import { Numbered, Range } from './test-helpers.js'
  */
 
 import { spanning, toggle } from '@interact/core'
 import { register } from '@interact/dom'
 
+import { pixels } from './legacy-rows-view.js'
 import { listboxElement } from './listbox-element.js'
-import { pixels } from './rows-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 
 /**

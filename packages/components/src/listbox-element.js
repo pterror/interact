@@ -1,6 +1,6 @@
 /**
  * @import { ComponentClass } from '@interact/dom/component'
- * @import { Listbox } from './listbox.js'
+ * @import { Listbox } from './legacy-listbox.js'
  */
 
 import { component } from '@interact/dom'

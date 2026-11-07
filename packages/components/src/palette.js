@@ -7,9 +7,9 @@
 import { Controllable, Layer, Listeners, MemorySource } from '@interact/core'
 
 import { fieldListKey } from './field-keys.js'
-import { landing } from './landing.js'
 import { Latest } from './latest.js'
-import { Listbox } from './listbox.js'
+import { landing } from './legacy-landing.js'
+import { Listbox } from './legacy-listbox.js'
 
 /**
  * How a palette starts: the bridge to its command system, the context its commands are found and run in (read as it

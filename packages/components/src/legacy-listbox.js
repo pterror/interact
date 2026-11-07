@@ -1,18 +1,20 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * @import { Change, Source } from '@interact/core/source'
  * @import { Selection } from '@interact/core/selection'
- * @import { SelectionMode } from './chooser.js'
- * @import { KeyAction, Modifiers } from './listbox-keys.js'
+ * @import { SelectionMode } from './legacy-chooser.js'
+ * @import { KeyAction, Modifiers } from './legacy-listbox-keys.js'
  */
 
 import { Controllable, Listeners, entry, move, nothing, plainText, shiftPosition } from '@interact/core'
 
-import { chooserFor } from './chooser.js'
-import { Items } from './items.js'
-import { landing } from './landing.js'
-import { keyAction } from './listbox-keys.js'
-import { ScrollRows } from './scroll-rows.js'
-import { Typeahead } from './typeahead.js'
+import { chooserFor } from './legacy-chooser.js'
+import { Items } from './legacy-items.js'
+import { landing } from './legacy-landing.js'
+import { keyAction } from './legacy-listbox-keys.js'
+import { ScrollRows } from './legacy-scroll-rows.js'
+import { Typeahead } from './legacy-typeahead.js'
 
 /**
  * How a listbox starts. `text` is what an item is called, `skip` which items focus passes over (a menu's separators),

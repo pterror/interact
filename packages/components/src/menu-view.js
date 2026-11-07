@@ -7,16 +7,16 @@
  * @import { TemplateResult } from '@interact/dom/template'
  * @import { Menu } from './menu.js'
  * @import { MenuEntry } from './menu-entry.js'
- * @import { Row } from './rows-view.js'
+ * @import { Row } from './legacy-rows-view.js'
  */
 
 import { intentArea } from '@interact/core'
 import { deepActiveElement, html, releaseOverlay, syncOverlay } from '@interact/dom'
 
+import { modifiersOf, rowId, rowsViewport, syncRows } from './legacy-rows-view.js'
 import { entryRole } from './menu-entry.js'
 import { menuKey } from './menu-keys.js'
 import { menuStyles } from './menu-styles.js'
-import { modifiersOf, rowId, rowsViewport, syncRows } from './rows-view.js'
 
 /**
  * The overlay each menu's submenu is shown in, and which submenu, so it is let go when that submenu closes.

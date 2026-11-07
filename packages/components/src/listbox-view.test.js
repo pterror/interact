@@ -8,9 +8,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { renderComponent, stylesheetAttributes, stylesheetText } from '@interact/dom'
 
 import { BROWSERS, BROWSER_SETUP_MS, audit, startBrowsers, stopBrowsers, withPage } from '../../../test/browser.js'
+import { MAX_SCROLL_PIXELS, rowCap } from './legacy-virtual-rows.js'
 import { listboxView } from './listbox-view.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
-import { MAX_SCROLL_PIXELS, rowCap } from './virtual-rows.js'
 
 const FIVE_BILLION = 5_000_000_000
 const START = 0

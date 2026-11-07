@@ -1,7 +1,9 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * @import { Selection } from '@interact/core/selection'
  * @import { Source } from '@interact/core/source'
- * @import { Modifiers } from './listbox-keys.js'
+ * @import { Modifiers } from './legacy-listbox-keys.js'
  */
 
 import { countSelected, isSelected, spanning, toggle } from '@interact/core'

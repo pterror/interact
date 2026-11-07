@@ -1,6 +1,7 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { ScrollRows } from './scroll-rows.js'
+import { ScrollRows } from './legacy-scroll-rows.js'
 
 const COUNT = 1000
 const ROWS = 10

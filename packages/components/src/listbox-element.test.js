@@ -4,9 +4,9 @@ import { describe, expect, test } from 'bun:test'
 
 import { register, renderComponent } from '@interact/dom'
 
+import { Listbox } from './legacy-listbox.js'
 import { listboxElement } from './listbox-element.js'
 import { listboxView } from './listbox-view.js'
-import { Listbox } from './listbox.js'
 import { TEN_BILLION, numbers, tenBillionListbox } from './test-helpers.js'
 
 const FIVE_BILLION = 5_000_000_000

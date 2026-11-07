@@ -6,14 +6,14 @@
  * @import { TemplateResult } from '@interact/dom/template'
  * @import { FoundCommand } from './command-match.js'
  * @import { Palette } from './palette.js'
- * @import { Row } from './rows-view.js'
+ * @import { Row } from './legacy-rows-view.js'
  */
 
 import { html, releaseOverlay, repeat, syncOverlay } from '@interact/dom'
 
 import { comboboxInput } from './combobox-field.js'
+import { activeDescendant, rowsViewport, syncRows } from './legacy-rows-view.js'
 import { paletteStyles } from './palette-styles.js'
-import { activeDescendant, rowsViewport, syncRows } from './rows-view.js'
 
 /**
  * A run of a label's text: where it starts, what it is, and whether the query matched it.

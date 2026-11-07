@@ -2,7 +2,7 @@
 
 import { Listeners } from '@interact/core'
 
-import { Listbox } from './listbox.js'
+import { Listbox } from './legacy-listbox.js'
 
 const START = 0
 const STEP = 1

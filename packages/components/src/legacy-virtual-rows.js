@@ -1,3 +1,5 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * The arithmetic of showing billions of rows in a scroll area a browser can make: at most `cap` rows are scrollable,
  * and an offset says which position the first of them is. Positions are exact; pixels only ever say which of the

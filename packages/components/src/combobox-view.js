@@ -5,14 +5,14 @@
  * @import { View } from '@interact/dom/component'
  * @import { TemplateResult } from '@interact/dom/template'
  * @import { Combobox, ComboboxModifiers } from './combobox.js'
- * @import { Row } from './rows-view.js'
+ * @import { Row } from './legacy-rows-view.js'
  */
 
 import { html, releaseOverlay, syncOverlay } from '@interact/dom'
 
 import { comboboxInput } from './combobox-field.js'
 import { comboboxStyles } from './combobox-styles.js'
-import { activeDescendant, rowsViewport, syncRows } from './rows-view.js'
+import { activeDescendant, rowsViewport, syncRows } from './legacy-rows-view.js'
 
 /**
  * What was held with a key: Alt, Shift, and Control or Command.

@@ -1,6 +1,7 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { Items } from './items.js'
+import { Items } from './legacy-items.js'
 import { TEN_BILLION, numbers } from './test-helpers.js'
 
 const BLOCK = 100

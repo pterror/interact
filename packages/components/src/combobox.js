@@ -3,9 +3,9 @@
 import { Controllable, Layer, Listeners, startsWithTyped } from '@interact/core'
 
 import { PLAIN } from './field-keys.js'
-import { landing } from './landing.js'
 import { Latest } from './latest.js'
-import { Listbox } from './listbox.js'
+import { landing } from './legacy-landing.js'
+import { Listbox } from './legacy-listbox.js'
 
 /**
  * The options for what is typed, at once or later: the app's (or its server's) to find, `undefined` for none.

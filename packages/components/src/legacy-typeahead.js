@@ -1,3 +1,5 @@
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
 /**
  * Typing to move to an item, as the WAI-ARIA Authoring Practices listbox pattern describes: a character moves to the
  * next item whose text starts with it, and characters typed in quick succession to the next whose text starts with

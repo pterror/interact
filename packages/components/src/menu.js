@@ -6,8 +6,8 @@
 
 import { Controllable, Layer, Listeners, insideArea } from '@interact/core'
 
-import { landing } from './landing.js'
-import { Listbox } from './listbox.js'
+import { landing } from './legacy-landing.js'
+import { Listbox } from './legacy-listbox.js'
 import { entryText, isSeparator } from './menu-entry.js'
 
 /**

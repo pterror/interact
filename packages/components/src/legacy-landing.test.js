@@ -1,6 +1,7 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 import { describe, expect, test } from 'bun:test'
 
-import { landing } from './landing.js'
+import { landing } from './legacy-landing.js'
 
 const SEPARATOR = '-'
 const NONE = 0

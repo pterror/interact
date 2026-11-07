@@ -1,6 +1,6 @@
 import { css, joinStyles } from '@interact/dom'
 
-import { rowsStyles } from './rows-styles.js'
+import { rowsStyles } from './legacy-rows-styles.js'
 
 /**
  * The listbox's own structural stylesheet, the same in shadow and light DOM. Every visual value is a token: an

@@ -1,6 +1,6 @@
 import { css, joinStyles, overlayStyles } from '@interact/dom'
 
-import { rowsStyles } from './rows-styles.js'
+import { rowsStyles } from './legacy-rows-styles.js'
 
 /**
  * The menu's own structural stylesheet, the same in shadow and light DOM and for a menu button and a context menu.

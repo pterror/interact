@@ -1,3 +1,4 @@
+// Legacy: tests of a module the menu, palette and combobox still run on until they are rebuilt (docs/design.md).
 /**
  * @import { Span } from '@interact/core/memory-source'
  * @import { Source } from '@interact/core/source'
@@ -8,9 +9,9 @@ import { describe, expect, test } from 'bun:test'
 
 import { MemorySource, spanning, toggle } from '@interact/core'
 
-import { Listbox } from './listbox.js'
+import { Listbox } from './legacy-listbox.js'
+import { WAIT } from './legacy-typeahead.js'
 import { TEN_BILLION, numberText, numbers } from './test-helpers.js'
-import { WAIT } from './typeahead.js'
 
 const FIVE_BILLION = 5_000_000_000
 const ROWS = 10

@@ -1,4 +1,6 @@
-import { graphemes } from './typeahead.js'
+// Legacy: part of the listbox as it was before extensions, kept only while the menu, palette and combobox run on it.
+// It goes when they are rebuilt (docs/design.md); new code uses the listbox's extensions instead.
+import { graphemes } from './legacy-typeahead.js'
 
 /**
  * Which modifiers were held: Shift, and the platform's toggle modifier (Control, or Command on a Mac).
