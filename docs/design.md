@@ -37,8 +37,8 @@ design:
 
 ## Packages
 
-The package split is not decided: "the `interact` library seems designed wrong, smells monolithic already which makes
-me deeply uncomfortable" (owner, 2026-11-04T13:27:42). Each package is usable on its own.
+The package split is not decided: "the `interact` library seems designed wrong, smells monolithic already which makes me
+deeply uncomfortable" (owner, 2026-11-04T13:27:42). Each package is usable on its own.
 
 Dependencies only point down this list. So far each new package is a manifest only; its first module comes with the
 first build step.
