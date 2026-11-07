@@ -18,7 +18,7 @@ const FRUIT = ['apple', 'banana', 'cherry', 'damson', 'elder']
 /**
  * A pipeline over some fruit, rendering to text.
  * @param {readonly string[]} [items] - The fruit
- * @returns {ListPipeline<string, string>} The pipeline
+ * @returns {ListPipeline<string, string, MemorySource<string>>} The pipeline
  */
 function fruit(items = FRUIT) {
   return listPipeline(new MemorySource(items, (item) => item))
@@ -26,7 +26,8 @@ function fruit(items = FRUIT) {
 
 /**
  * A plain rendering, last: an item as its text, a gap as how many it stands for, the rows joined by spaces.
- * @param {ListPipeline<string, string>} list - The list
+ * @template {ItemSource<string>} S
+ * @param {ListPipeline<string, string, S>} list - The list
  * @returns {Extension} The rendering
  */
 function plain(list) {

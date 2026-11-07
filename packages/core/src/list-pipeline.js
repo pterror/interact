@@ -6,6 +6,7 @@
 import { shiftPosition } from './source.js'
 import { defineEffect, defineFacet, defineField, listFacet } from './state.js'
 import { definePlugin } from './store.js'
+import { plainText } from './text.js'
 
 /**
  * Attributes an extension gives a row or the list: `part`, `class` and `style` from every extension are joined, and
@@ -72,8 +73,9 @@ import { definePlugin } from './store.js'
  */
 
 /**
- * A press on a row: its position, and whether Shift and the toggle modifier (Control, or Command on a Mac) were held.
- * @typedef {Readonly<{ position: number, shift: boolean, toggle: boolean }>} Press
+ * A press on a row: its position, whether Shift and the toggle modifier (Control, or Command on a Mac) were held, and
+ * how many presses in quick succession it makes (2 for the second of a double press).
+ * @typedef {Readonly<{ position: number, shift: boolean, toggle: boolean, count: number }>} Press
  */
 
 /**
@@ -170,14 +172,16 @@ function runSteps(steps, index, input, state, what) {
  * the extension points each stage has. The list stage makes the list from the source, a source at a time
  * (`transform`), and chooses which rows render (`rows`); every position in an effect is a position in that list. The
  * item stage renders each row (`item`), and the container stage renders them together (`container`). Its own
- * extension (`extension`) holds the source, the list, and what follows the list's changes.
+ * extension (`extension`) holds the source, the list, and what follows the list's changes. `S` is the source's own
+ * type, for an extension that asks more of it than an `ItemSource` has.
  * @template T, R
+ * @template {ItemSource<T>} [S=ItemSource<T>]
  */
 class ListPipeline {
   /**
    * Sets the source.
    * @readonly
-   * @type {EffectType<ItemSource<T>>}
+   * @type {EffectType<S>}
    */
   setSource = defineEffect()
   /**
@@ -261,8 +265,15 @@ class ListPipeline {
    */
   reveals = defineFacet((inputs) => inputs.includes(true))
   /**
+   * What an item is called, for whatever shows it or searches it: the first extension to say, in precedence order, or
+   * a string or number as itself.
    * @readonly
-   * @type {Field<ItemSource<T>>}
+   * @type {Facet<(item: T) => string, (item: T) => string>}
+   */
+  text = defineFacet((inputs) => inputs[0] ?? plainText)
+  /**
+   * @readonly
+   * @type {Field<S>}
    */
   source
   /**
@@ -271,7 +282,7 @@ class ListPipeline {
    */
   #built
 
-  /** @param {ItemSource<T>} source - The source it starts with */
+  /** @param {S} source - The source it starts with */
   constructor(source) {
     this.source = defineField({
       create: () => source,
@@ -423,6 +434,7 @@ class ListPipeline {
    * @returns {Built<T>} The list
    */
   #build(state, previous) {
+    /** @type {ItemSource<T>} */
     let list = state.field(this.source)
     /** @type {Applied<T>[]} */
     const steps = []
@@ -479,8 +491,9 @@ class ListPipeline {
 /**
  * A list's pipeline, starting from a source.
  * @template T, R
- * @param {ItemSource<T>} source - The source
- * @returns {ListPipeline<T, R>} The pipeline
+ * @template {ItemSource<T>} S
+ * @param {S & ItemSource<T>} source - The source
+ * @returns {ListPipeline<T, R, S>} The pipeline
  */
 function listPipeline(source) {
   return new ListPipeline(source)

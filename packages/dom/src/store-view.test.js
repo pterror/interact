@@ -7,7 +7,7 @@ import { Store, defineEffect, defineField } from '@interact/core'
 import { component } from './component.js'
 import { css } from './css.js'
 import { register } from './register.js'
-import { storeView, viewPlugin } from './store-view.js'
+import { storeView, viewContent, viewPlugin } from './store-view.js'
 import { html } from './template.js'
 
 /** @type {EffectType<number>} */
@@ -41,8 +41,8 @@ describe('storeView', () => {
         },
       }
     })
-    const store = new Store([count, watching])
-    const view = storeView({ kind: 'counted', render: (state) => html`<b>${state.field(count)}</b>`, styles })
+    const store = new Store([count, watching, viewContent.of((state) => html`<b>${state.field(count)}</b>`)])
+    const view = storeView({ kind: 'counted', styles })
     register([component(view, () => store)], { mode: 'light', prefix: 'store' })
     const element = document.createElement('store-counted')
     document.body.append(element)
@@ -51,5 +51,12 @@ describe('storeView', () => {
     await Promise.resolve()
     element.remove()
     expect(log).toEqual(['made in counted', 'rendered "0" after 0', 'rendered "2" after 2', 'destroyed'])
+  })
+})
+
+describe('a store view with nothing saying what it shows', () => {
+  test('is an error that names what to include', () => {
+    const view = storeView({ kind: 'empty', styles })
+    expect(() => view.render(new Store([count]))).toThrow('include an extension giving viewContent')
   })
 })

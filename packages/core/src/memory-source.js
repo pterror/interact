@@ -1,5 +1,9 @@
-/** @import { Change, Key, Source } from './source.js' */
+/**
+ * @import { Answer, Question } from './query.js'
+ * @import { Change, Key, Source } from './source.js'
+ */
 
+import { findPrefix } from './find-prefix.js'
 import { Listeners } from './listeners.js'
 import { plainText, startsWithTyped } from './text.js'
 
@@ -12,7 +16,8 @@ const NOT_FOUND = -1
 
 /**
  * A source over items held in memory. Its filters are spans between two keys, so a span keeps meaning the same items
- * as others are inserted or removed around them. It searches its items' text, as `textOf` gives it.
+ * as others are inserted or removed around them. It searches its items' text, as `textOf` gives it, and answers the
+ * `findPrefix` query so.
  * @template T
  * @implements {Source<T, Span>}
  */
@@ -139,6 +144,16 @@ class MemorySource {
       }
     }
     return undefined
+  }
+
+  /**
+   * Answers the questions it knows: `findPrefix`, by searching its items' text.
+   * @param {Question} question - The question
+   * @returns {Answer | undefined} The answer, or undefined for a question it doesn't know
+   */
+  ask(question) {
+    const asked = findPrefix.input(question)
+    return asked === undefined ? undefined : findPrefix.answer(this.findPrefix(asked.input.text, asked.input.from))
   }
 
   /**

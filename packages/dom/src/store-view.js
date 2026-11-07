@@ -6,7 +6,7 @@
  * @import { TemplateResult } from './template.js'
  */
 
-import { listFacet } from '@interact/core'
+import { defineFacet, listFacet } from '@interact/core'
 
 /**
  * A running view plugin: told after each render of the transactions applied since the one before, once the page shows
@@ -28,6 +28,13 @@ import { listFacet } from '@interact/core'
 
 /** @type {Facet<RunningView, readonly RunningView[]>} */
 const viewPlugins = listFacet()
+
+/**
+ * What a store's view shows, from the state: the first extension to say, in precedence order. A component's
+ * extensions say it (a listbox's list, rendered), so one view serves every instance, each with its own store.
+ * @type {Facet<(state: Store['state']) => TemplateResult, ((state: Store['state']) => TemplateResult) | undefined>}
+ */
+const viewContent = defineFacet((inputs) => inputs[0])
 
 /**
  * A view plugin: what of an extension needs the page. It is made when the view first renders, given the element its
@@ -113,13 +120,26 @@ function viewPlugin(create) {
 }
 
 /**
- * A web view of a store: it renders what `render` makes of the state, and runs the store's view plugins beside it,
- * telling them after each render what was applied since the one before.
- * @param {Readonly<{ kind: string, styles: Stylesheet, render: (state: Store['state']) => TemplateResult }>} options -
- *   Its kind, its stylesheet, and what it renders a state as
+ * What a store's view shows now.
+ * @param {Store} store - The store
+ * @returns {TemplateResult} What its extensions render its state as
+ * @throws {Error} If none says what the view shows
+ */
+function contentOf(store) {
+  const content = store.state.facet(viewContent)
+  if (content === undefined) {
+    throw new Error('Nothing says what this view shows: include an extension giving viewContent')
+  }
+  return content(store.state)
+}
+
+/**
+ * A web view of a store: it renders what the store's extensions say it shows (`viewContent`), and runs the store's
+ * view plugins beside it, telling them after each render what was applied since the one before.
+ * @param {Readonly<{ kind: string, styles: Stylesheet }>} options - Its kind and its stylesheet
  * @returns {View<Store>} The view
  */
-function storeView({ kind, render, styles }) {
+function storeView({ kind, styles }) {
   /** @type {WeakMap<Store, Readonly<{ applied: Transaction[], stop: () => void }>>} */
   const mounted = new WeakMap()
   return {
@@ -131,7 +151,7 @@ function storeView({ kind, render, styles }) {
       }
     },
     kind,
-    render: (store) => render(store.state),
+    render: contentOf,
     rendered: (store, root) => {
       let mount = mounted.get(store)
       if (mount === undefined) {
@@ -155,4 +175,4 @@ function storeView({ kind, render, styles }) {
   }
 }
 
-export { ViewPlugin, storeView, viewPlugin }
+export { ViewPlugin, storeView, viewContent, viewPlugin }

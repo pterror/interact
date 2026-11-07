@@ -1,5 +1,6 @@
 /**
  * @import { ListPipeline } from '@interact/core/list-pipeline'
+ * @import { ItemSource } from '@interact/core/source'
  * @import { Extension } from '@interact/core/state'
  * @import { TemplateResult } from './template.js'
  */
@@ -10,9 +11,9 @@ import { viewPlugin } from './store-view.js'
 import { attributes, html, repeat } from './template.js'
 
 /**
- * What the default rendering shows: an item's text, the list's role and its rows', and the list's accessible name.
- * @template T
- * @typedef {Readonly<{ text: (item: T) => string, role?: string, rowRole?: string, label?: string }>} RenderingOptions
+ * What the default rendering says the list and its rows are, and the list's accessible name: what an extension giving
+ * them as attributes doesn't say. An item's text is the list's own (`text`).
+ * @typedef {Readonly<{ role?: string, rowRole?: string, label?: string }>} RenderingOptions
  */
 
 /**
@@ -22,12 +23,13 @@ import { attributes, html, repeat } from './template.js'
  * page it hands keys to the store as `keyInput`s and presses on rows as the list's `press`, and, unless an extension
  * shows revealed items itself (`reveals`), brings a revealed row's element into view.
  * @template T
- * @param {ListPipeline<T, TemplateResult>} list - The list
- * @param {RenderingOptions<T>} options - What it shows
+ * @template {ItemSource<T>} S
+ * @param {ListPipeline<T, TemplateResult, S>} list - The list
+ * @param {RenderingOptions} [options] - What it says the list and rows are, and the list's name
  * @returns {Extension} The rendering
  */
-function defaultRendering(list, options) {
-  const { label, role = 'listbox', rowRole = 'option', text } = options
+function defaultRendering(list, options = {}) {
+  const { label, role = 'listbox', rowRole = 'option' } = options
   const page = viewPlugin((store, root) => {
     /**
      * A key pressed in the list, offered to the store, unless an input method is composing.
@@ -54,7 +56,8 @@ function defaultRendering(list, options) {
         return
       }
       const position = Number(row.dataset['position'])
-      if (store.handle(list.press.of({ position, shift: event.shiftKey, toggle: event.ctrlKey || event.metaKey }))) {
+      const press = { count: event.detail, position, shift: event.shiftKey, toggle: event.ctrlKey || event.metaKey }
+      if (store.handle(list.press.of(press))) {
         event.preventDefault()
       }
     }
@@ -88,7 +91,7 @@ function defaultRendering(list, options) {
     list.item.of(
       (row, _next, state) =>
         html`<div ${attributes(list.attributesOf(row, state))}
-          >${row.kind === 'item' && row.item !== undefined ? text(row.item) : ''}</div
+          >${row.kind === 'item' && row.item !== undefined ? state.facet(list.text)(row.item) : ''}</div
         >`,
     ),
     list.container.of(

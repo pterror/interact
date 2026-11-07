@@ -10,7 +10,7 @@ import { css } from './css.js'
 import { defaultRendering } from './default-rendering.js'
 import { renderToString } from './render-string.js'
 import { render } from './render.js'
-import { storeView } from './store-view.js'
+import { storeView, viewContent } from './store-view.js'
 
 const styles = css`
   @layer test {
@@ -23,19 +23,20 @@ const styles = css`
 /**
  * A list of fruit with the default rendering and other extensions, rendered into a new element in the page, its view
  * plugins running.
- * @param {(list: ListPipeline<string, TemplateResult>) => Extension} more - The other extensions
- * @returns {Readonly<{ list: ListPipeline<string, TemplateResult>, store: Store, root: HTMLElement }>} The list, its
+ * @param {(list: ListPipeline<string, TemplateResult, MemorySource<string>>) => Extension} more - The other extensions
+ * @returns {Readonly<{ list: ListPipeline<string, TemplateResult, MemorySource<string>>, store: Store, root: HTMLElement }>} The list, its
  *   store and the element its view is in
  */
 function shown(more) {
-  /** @type {ListPipeline<string, TemplateResult>} */
+  /** @type {ListPipeline<string, TemplateResult, MemorySource<string>>} */
   const list = listPipeline(new MemorySource(['apple', 'banana', 'cherry'], (item) => item))
   const store = new Store([
     list.extension,
-    defaultRendering(list, { label: 'Fruit', text: (item) => item }),
+    defaultRendering(list, { label: 'Fruit' }),
+    viewContent.of((state) => list.render(state)),
     more(list),
   ])
-  const view = storeView({ kind: 'fruit', render: (state) => list.render(state), styles })
+  const view = storeView({ kind: 'fruit', styles })
   const root = document.createElement('div')
   document.body.append(root)
   render(view.render(store), root)
@@ -77,7 +78,7 @@ describe('defaultRendering', () => {
           return input.value.key === 'ArrowDown'
         }
         if (input.is(pipeline.press)) {
-          heard.push(`press ${String(input.value.position)}`)
+          heard.push(`press ${String(input.value.position)} ${String(input.value.count)}`)
         }
         return false
       }),
@@ -87,8 +88,8 @@ describe('defaultRendering', () => {
     const other = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'x' })
     container?.dispatchEvent(down)
     container?.dispatchEvent(other)
-    root.querySelector('[data-position="2"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(heard).toEqual(['key ArrowDown', 'key x', 'press 2'])
+    root.querySelector('[data-position="2"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 2 }))
+    expect(heard).toEqual(['key ArrowDown', 'key x', 'press 2 2'])
     expect([down.defaultPrevented, other.defaultPrevented]).toEqual([true, false])
   })
 
@@ -100,6 +101,11 @@ describe('defaultRendering', () => {
     windowed.store.dispatch({ effects: windowed.list.reveal.of(2) })
     expect(scrolled).toHaveBeenCalledTimes(1)
     scrolled.mockRestore()
+  })
+
+  test("shows each item by the list's own text", () => {
+    const { root } = shown((list) => list.text.of((item) => item.toUpperCase()))
+    expect(root.querySelector('[data-position="0"]')?.textContent).toBe('APPLE')
   })
 
   test('renders on the server as in the page', () => {
