@@ -9,6 +9,7 @@ import {
   activeDescendant,
   byEntry,
   cell,
+  content,
   drag,
   edgeScroll,
   flowMount,
@@ -139,9 +140,7 @@ function occurrence(key, id, above) {
   const more = all.length - FEW
   /** @type {readonly Occurrence[]} */
   const tile =
-    more > 0
-      ? [{ entry: undefined, key: `${key}/${MORE}${String(more)}`, kind: 'more', label: `+${String(more)} more` }]
-      : []
+    more > 0 ? [{ entry: undefined, key: `${key}/${MORE}`, kind: 'more', label: `+${String(more)} more` }] : []
   return { children: [...children, ...tile], entry: id, key, kind: 'region', label: labelOf(id) }
 }
 
@@ -401,7 +400,6 @@ function putOverview() {
     item.style.cssText = 'user-select: none; padding: 2px 0'
     const head = document.createElement('div')
     head.id = `${idOf(key)}-head`
-    head.textContent = node?.label ?? ''
     head.style.cssText = node?.kind === 'more' ? 'font-style: italic' : 'border: 1px solid; padding: 4px'
     item.append(head)
     if (node?.children !== undefined) {
@@ -428,6 +426,15 @@ function putOverview() {
   })
   facets.push(
     ids(idOf),
+    content({
+      changes: { watch: cache.watchNodes },
+      show(key, element) {
+        const head = element.firstElementChild
+        if (head !== null) {
+          head.textContent = cache.node(key)?.label ?? ''
+        }
+      },
+    }),
     activeDescendant({ active, element: box, idOf }),
     all,
     mark({ attribute: 'data-active', on: '', test: active }),

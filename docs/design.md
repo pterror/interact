@@ -254,6 +254,11 @@ its state is per facet, so whichever render draws the active key names it, and t
 **Fixed after review:** `render.stop()` didn't call `drop` for the elements it drew, so a nested list's elements left
 with their parent without facets hearing it. `drop` is render's own contract ("no longer drawn"); `stop` now keeps it.
 
+**Fixed after review:** an item whose content changed under the same key (a "+N more" count) wasn't shown again. Adds
+`content`: a Facet that shows a key's content in its element, and again for the keys its source says changed.
+`treeCache` gives `watchNodes`, the keys whose node says something new about itself (any field but its children); the
+element stays, its content changes. Any source of content can feed `content` the same way.
+
 **Changed while building:** `place`'s Rect height became optional (no height: as tall as its content), for a layout
 whose items size themselves.
 
@@ -269,8 +274,6 @@ browser. What screen readers announce was not tested.
 
 **Found while building, open:**
 
-- A node whose content changes under the same key (a "+N more" count) isn't redrawn; the test's server keys the tile by
-  its count. A content facet would do it generally.
 - `measuredRows` keeps heights by rank, so an edit at the top level leaves them stale until measured again.
 - Regions are always expanded; Left/Right (collapse, to parent) are not built **(P)**.
 

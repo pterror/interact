@@ -116,6 +116,17 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
         }
         return box
       }
+      const tileId = await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        return overview.idOf('E3/+')
+      })
+      const tile = page.locator(`#${tileId}`)
+      expect(await tile.locator(':scope > div').first().textContent()).toBe('+4 more')
+      await tile.evaluate((element) => {
+        if (element instanceof HTMLElement) {
+          element.dataset['seen'] = ''
+        }
+      })
       const from = await head('E0/M0.1')
       const to = await head('E3/M3.1')
       await page.mouse.move(from.x + 20, from.y + from.height / 2)
@@ -130,6 +141,8 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
       expect(texts.filter((text) => text === 'Entry M0.1')).toHaveLength(1)
       expect(await moved.count()).toBe(1)
       expect(seen.selected).toBe(0)
+      expect(await tile.locator(':scope > div').first().textContent()).toBe('+5 more')
+      expect(await tile.getAttribute('data-seen')).toBe('')
       expect(await audit(page, '[role=tree]')).toEqual([])
     })
   })

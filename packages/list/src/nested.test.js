@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { activeDescendant } from './active-descendant.js'
 import { byEntry } from './by-entry.js'
 import { cell } from './cell.js'
+import { content } from './content.js'
 import { flowMount } from './flow-mount.js'
 import { ids } from './ids.js'
 import { items } from './items.js'
@@ -15,6 +16,11 @@ import { treeCache } from './tree-cache.js'
 /**
  * A node of a test tree
  * @typedef {Readonly<{ key: string, children?: readonly TestNode[] }>} TestNode
+ */
+
+/**
+ * A node of a test tree that shows a label
+ * @typedef {Readonly<{ key: string, label: string, children?: readonly LabelNode[] }>} LabelNode
  */
 
 describe('measuredRows', () => {
@@ -140,6 +146,49 @@ describe('treeCache', () => {
     await cache.keysAt(0, 3)
     expect([asked, heard]).toEqual([1, 1])
     expect(cache.children('c').keys()).toEqual(['c/w', 'c/v'])
+  })
+})
+
+describe('treeCache and content', () => {
+  test('shows an item again when its node says something new about itself under the same key', async () => {
+    /** @type {readonly LabelNode[]} */
+    let tree = [{ children: [{ key: 'a/+', label: '+2 more' }], key: 'a', label: 'A' }]
+    /** @type {Set<() => void>} */
+    const changed = new Set()
+    const cache = treeCache({
+      changes: {
+        watch(listener) {
+          changed.add(listener)
+          return () => undefined
+        },
+      },
+      fetch: (from, to) => Promise.resolve(tree.slice(from, to)),
+      locate: () => Promise.resolve(undefined),
+    })
+    await cache.keysAt(0, 1)
+    const box = document.createElement('div')
+    render({
+      create: () => document.createElement('div'),
+      drawn: cache.children('a'),
+      facets: [
+        content({
+          changes: { watch: cache.watchNodes },
+          show: (key, element) => {
+            element.textContent = cache.node(key)?.label ?? ''
+          },
+        }),
+      ],
+      mount: flowMount(box),
+    })
+    const tile = box.firstElementChild
+    expect(tile?.textContent).toBe('+2 more')
+    tree = [{ children: [{ key: 'a/+', label: '+3 more' }], key: 'a', label: 'A' }]
+    for (const listener of changed) {
+      listener()
+    }
+    await cache.keysAt(0, 1)
+    expect(box.firstElementChild).toBe(tile)
+    expect(tile?.textContent).toBe('+3 more')
   })
 })
 
