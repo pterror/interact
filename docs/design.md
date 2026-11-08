@@ -1,606 +1,690 @@
 # Design
 
-Status: a proposal for the rebuild, to be reviewed before anything is built. No code exists for it yet. Every name in it
-is a proposal (listed at the end). Nothing in it decides a UX behaviour: where one has to be chosen, it is under
-"Decisions for the owner".
+Status: a proposal for the rebuild, revised after one review, and to be reviewed again before anything is built. No code
+exists for it. Every name in it is a proposal (all of them are listed under "Names"). Every behaviour a person would
+notice is a proposal too (listed under "UX proposals"), and nothing here decides one.
 
 ## The answer in one paragraph
 
-There is no library core. The library is a set of independent modules. Each is a plain function that takes what it
-needs as arguments and returns its own state and its own commands. A module never renders and never listens to keys. It
-reaches another module only through a function the app handed it. The app does the combining: it creates the modules it
-wants, passes each the functions it asks for, binds keys to commands with `keybinds`, and renders the DOM from the
-modules' state. The ready-made components are this same app code, shipped with the library. Items are always named by
-their key, never by a position another module made, so there is no shared list for modules to disagree about.
+There is no library core. The library is a set of independent modules. Each module owns the abstractions it needs: it
+states them as its own parameters, and the app passes in anything that implements them. A module never names another
+module, never renders, and never listens to keys. The app combines the modules in two places:
 
-The requirement, restated as tests this design must pass:
+- **Construction.** The app creates each module with implementations of that module's parameters. Some
+  implementations happen to be other modules (windowing gives focus "the element for a key"), but the module that takes
+  one knows only its own abstraction.
+- **Commands.** The app's key bindings call module commands and pass results between them. For example, ArrowDown asks
+  navigation for the next key and gives it to focus.
 
-- each module works on its own and defines its own interface;
-- the app combines the modules it wants;
-- there is nothing every feature has to go through;
-- any module can be left out or replaced, and adding one changes no other module.
+Wiring a module never requires knowing which other modules exist. That is the test each combination below has to pass.
+Items are named by their key, a string, never by a position some other module computed.
 
-"Changes nothing else" means: no other module's code, no priority, no registry. The app's own wiring does mention the
-new module, because that wiring is the combining.
+## The requirement, as tests
+
+- Each module works on its own and owns the abstractions it needs.
+- The app combines the modules it wants, by hand. There is no registry and no resolver.
+- Nothing every feature has to go through.
+- Any module can be left out or replaced. Adding one changes no other module's code, and no other module's parameters.
+- Wiring a module (constructing it, binding its commands, putting its output in the view) never needs to know which
+  other modules exist.
 
 ## Why the current code fails, at the root
 
-Each failure in the brief comes from one of four things every feature shares in the current code. This design has none
-of them.
+Each failure listed in the brief comes from something every feature shares:
 
-1. **A shared positional list.** Every feature reads one list. List-stage transforms rebuild it
-   (`packages/core/src/list-pipeline.js:448-461`), and features refer to items by their position in it (`Press`,
-   `reveal`, `mapPosition`, `list-pipeline.js:76-78, 204, 357-370`). A transform that makes a different list breaks
-   every feature that held positions:
-   - Selection refuses and throws (`packages/components/src/list-selection.js:185-190`).
-   - Grouping inserts its headings as items, so every position counts them
-     (`packages/components/src/grouped-sections.js:395, 473`).
-   - Grouping forwards only the one query it knows by name, `findPrefix` (`grouped-sections.js:532-536`). Any other
-     question, such as reorder's, gets positions that count headings.
-2. **A shared dispatch.** One store applies every feature's transactions from one queue
-   (`packages/core/src/store.js:157-178`). If one throws, the `finally` empties the queue (`store.js:177`) and drops
-   other features' pending updates. Transaction filters rewrite each other's effects by type
-   (`packages/core/src/state.js:408-417`); selection's filter runs at `highest` (`list-selection.js:127-130`).
-3. **A shared input chain with priorities.** Every input goes down one list of handlers until one takes it
-   (`store.js:186-194`), and the list is ordered by guessed levels (`state.js:7-10`):
-   - Typeahead is at `high` (`packages/components/src/typeahead.js:139`) so it takes Space before selection does.
-   - Reorder is at `high` (`packages/components/src/reorder.js:119`) because navigation steps aside for the toggle
-     modifier but not for Alt (`packages/components/src/navigation.js:61`).
+1. **A shared positional list.** List-stage transforms rebuild one list (`packages/core/src/list-pipeline.js:448-461`),
+   and every feature refers to items by position in it (`list-pipeline.js:76-78, 204, 357-370`).
+   - Selection throws when grouping makes a different list (`packages/components/src/list-selection.js:185-190`).
+   - Grouping inserts headings as items (`grouped-sections.js:395, 473`).
+   - Grouping forwards only `findPrefix` (`grouped-sections.js:532-536`), so reorder gets positions that count
+     headings.
+2. **A shared dispatch.** One queue holds every feature's transactions. A throw empties it (`packages/core/src/store.js:157-178`,
+   `177`). Filters rewrite each other's effects (`packages/core/src/state.js:408-417`, `list-selection.js:127-130`).
+3. **A shared input chain with guessed priorities** (`store.js:186-194`, `state.js:7-10`).
+   - Typeahead sits at `high` (`typeahead.js:139`) and reorder at `high` (`reorder.js:119`), because navigation doesn't
+     check for Alt (`navigation.js:61`).
+   - Keys are named inside each feature (`list-selection.js:276-281`, `reorder.js:318-325`).
+   - Ctrl and Cmd are merged (`packages/core/src/inputs.js:5-9`, `packages/dom/src/default-rendering.js:59, 75`).
+   - One rendering takes keys from every list in its view (`default-rendering.js:53-63`) and finds rows by position
+     (`default-rendering.js:74`).
+   - Ids default to `listbox-<position>` (`listbox.js:60, 118`).
+4. **A shared rendering.**
+   - Pipeline stages fix the shape of the DOM (`list-pipeline.js:222-246, 412-440`).
+   - Windowing needs rows as direct children, all one height (`windowing.js:35, 304`), so headings sit flat among the
+     options (`grouped-sections.js:295`).
+   - Roles and the focus model are fixed per component (`listbox.js:75-81`, `active-item.js:95`).
+   - Windowing's CSS is in every component (`listbox-styles.js:97`, `menu-styles.js:117`, `combobox-styles.js:108`,
+     `palette-styles.js:143`).
 
-   The same chain causes the other input failures:
-   - Each feature names its keys in its own code (`list-selection.js:276-281`, `reorder.js:318-325`).
-   - The toggle modifier merges Control and Command (`packages/core/src/inputs.js:5-9`,
-     `packages/dom/src/default-rendering.js:59, 75`).
-   - The default rendering gives every key pressed in any `[data-list]` of its view to its one store
-     (`default-rendering.js:53-63`), and finds rows by `data-position` (`default-rendering.js:74`). Two lists in one
-     view therefore share both.
-   - Option ids default to `listbox-<position>` (`packages/components/src/listbox.js:60, 118`), so two instances
-     collide.
-4. **A shared rendering.** The pipeline's row, item and container stages (`list-pipeline.js:222-246, 412-440`) decide
-   the shape of the DOM:
-   - Windowing assumes rows are the direct children of one scroller (`windowing.js:304`) and all have one height
-     (`windowing.js:35`). Grouping can therefore only put its headings flat among the options, with
-     `role="presentation"` (`grouped-sections.js:295`).
-   - Each component fixes its roles and its focus model as attributes (`listbox.js:75-81`, `active-item.js:95`).
-   - Every component's stylesheet includes windowing's (`listbox-styles.js:97`, `menu-styles.js:117`,
-     `combobox-styles.js:108`, `palette-styles.js:143`).
-
-The other failures come from closed sets inside components:
-
-- the combobox's `kind` switch (`packages/components/src/combobox.js:64-69, 123-134`);
-- the menu's entry kinds (`packages/components/src/menu-entry.js:14-18, 51-57`);
-- the palette's own view (`palette.js:285, 381`), with search results copied into a `MemorySource`
-  (`palette.js:107-110`);
+The current code also has closed sets:
+- the combobox's `kind` (`combobox.js:64-69, 123-134`);
+- the menu entry kinds (`menu-entry.js:14-18`);
+- the palette's own view (`palette.js:285, 381`), with results copied into a `MemorySource` (`palette.js:107-110`);
 - the dismissal reasons (`packages/core/src/layer.js:7`);
-- overlay open state kept in the layer rather than the component (`packages/dom/src/overlay.js:269`);
-- bundles that are functions returning fixed lists (`combobox-extensions.js:23-34`, `menu-extensions.js:26-41`,
-  `palette-extensions.js:21-31`).
+- overlay open state kept in the layer (`packages/dom/src/overlay.js:269`);
+- fixed bundles (`combobox-extensions.js:23-34`, `menu-extensions.js:26-41`, `palette-extensions.js:21-31`).
 
-Assuming: hydration "can't be left out" because the renderer's hydration markers and adoption live in the same
-`@interact/dom` package as plain rendering (`render-string.js:62-76`, `markers.js:2`, `adopt.js:47-62`). I did not
-trace whether a page that never hydrates still loads that code.
+`keybinds` has its own shared policies. This design changes them (see "Changes to keybinds"):
+- it ignores every key and click inside any open popover or dialog (`packages/keybinds/src/modal.js:8, 41-43`, used at
+  `keys.js:239, 276` and `mouse.js:327, 374`);
+- it blocks commands in text fields unless they set `captureInput` (`input.js:131-141`, `core.js:342-347`);
+- it looks only at the first lookup that has any binding (`core.js:215-223`), and runs the first allowed candidate
+  without falling through to other lookups (`core.js:406-410`).
 
-## What this keeps from the current design document
+Because of the first of these, overlays add their own `keydown` listeners (`submenus.js:430-471`,
+`combobox-field.js:95-101`, `menu-view.js:77`).
 
-These sections of the earlier document were settled with the owner, and nothing here changes them:
+Assuming: hydration can't be left out because it sits in one package with rendering (`render-string.js:62-76`,
+`markers.js:2`, `adopt.js:47-62`). I didn't trace what a page that never hydrates loads.
 
+## What this keeps from the earlier document
+
+Settled with the owner, and unchanged:
 - no runtime dependencies;
-- plain JavaScript with fully type-safe JSDoc, so "type" below means a JSDoc type;
-- one module per part, with one test file per module;
+- plain JavaScript with type-safe JSDoc;
+- one module per part, each with its own test file;
 - an app ships only what it uses;
-- a module that isn't loaded is an error that names it, never a silent no-op;
-- the DOM decisions for the ready-made elements: shadow or light DOM per instance, styles scoped with `@scope`,
-  registration with no side effects on import, and server rendering;
-- styling: tokens at five levels, zero specificity, and cascade layers;
-- generated wrappers and types.
+- a module that isn't loaded is an error, not a silent no-op;
+- for the ready-made elements: shadow or light DOM per instance, `@scope` styles, registration with no side effects,
+  server rendering, tokens at five levels, zero specificity, cascade layers, and generated wrappers.
 
-All of these apply to the ready-made elements, which are compositions (see "Roles and the components").
+This design departs from one model the owner had accepted: "a lazy source: a count, items by range, an item's
+position". Modules here never share positions. That departure is the owner's to accept (see "Decisions for the owner").
 
-This design departs from one model the owner accepted: "a lazy source: a count, items by range, an item's position"
-(earlier document, Questions for the owner, 2). Here modules never share positions, and no shared source type exists.
-That departure is the owner's to accept or refuse (see "Decisions for the owner").
+## Concepts
 
-## The concepts
+Every concept the document uses is counted here. There are fifteen, and each is the smallest thing the requirement
+leaves room for.
 
-A person using the library learns four things, plus each module's own small API.
+| # | Concept | What it is | Why it can't be less |
+| --- | --- | --- | --- |
+| 1 | **Key** | A string naming one item where it shows. Keys are compared with `===`. When one entry shows in two places, the data gives the two places different keys. | Positions break under any change of view. One kind of key, and only strings, so equality is never in doubt. |
+| 2 | **Entry** | What the data answers with: `{ key, value }`, plus `position` and `total` when the data knows them. | A read has to bring the value with the key, so drawing it costs no second request. |
+| 3 | **State** | An object with `get()`, `set(value)` and `watch(listener) → stop`. A module keeps its state in one, its own unless the app passes one in. | One source of truth per piece of state, chosen by the app, with no store to put it in. |
+| 4 | **Command** | A function a module returns. It does one thing and may return a result (a key, a promise of one). | Modules never see keys or buttons, so keys are rebindable and no module takes a key from another. |
+| 5 | **Parameter** | One abstraction a module needs, stated as a JSDoc type in that module's own file. | This is what "each module owns its abstraction" means in code. |
+| 6 | **Loader** | The data abstraction: `load(request) → Promise<answer>` and `changes(listener)`. The app's implementation does three things no module knows about. It batches the loads of one action into one request. It never delivers an answer once a newer action has loaded. It keeps a bounded cache. | One action, one request; stale answers that can't cross modules; and the page holding only what it shows. These three need one shared implementation, and only the app can give it. |
+| 7 | **Order requests** | The questions about order: `{ first }`, `{ last }`, `{ after, count }`, `{ before, count }`, `{ around, count }`, `{ find, from }`. Each is defined in the module that asks it. They are listed together because one loader answers them all. | The data and the page have to agree on order questions. This is the "source type" in all but name, but it is open: a new module defines a new request, and no existing one changes. |
+| 8 | **Description** | An opaque value the loader makes for a set of items, such as "all matching" or "the range from k to m". Only the server interprets it. | A selection of ten billion can't be keys, and the page must not run the server's filter itself. |
+| 9 | **Element source** | `elementFor(key) → Promise<Hold>` and `keyOf(element)`. A hold keeps its element in the page until it is released, and says when the item has gone. | Focus, drag and anything else that needs an item's element ask for it, without knowing whether windowing exists. This replaces both "reveal" and the list of keys to keep rendered. |
+| 10 | **Decoration** | A function `(key) → attributes` that a module gives for items, and one for the container. The view merges every decoration it was given. `class` and `part` are unioned. Any other attribute given twice is an error that names both attributes. | The view writes attributes without knowing which modules made them, and two modules can't both write one attribute. |
+| 11 | **Rows** | What to draw: `{ entries, spaceBefore, spaceAfter }` in a state. Windowing gives it, and so does a plain list. | The view draws without knowing whether the list is windowed. |
+| 12 | **Stylesheet** | A module's own structural CSS, exported as `styles`. The app adopts the ones it uses. | An extension can't bring CSS today, and windowing's CSS ships everywhere. |
+| 13 | **Scope** (keybinds) | One `keybinds()` per element that takes focus. It holds the commands bound there, the conditions it chooses, and the text takers (below). | Two lists must not hear each other. Keys belong where focus is. |
+| 14 | **Condition** (keybinds) | `(event) → boolean`. A scope uses it to ignore events, and a binding's `when` uses it to decide whether it applies. "Inside an open overlay" and "in a text field" become conditions a scope chooses. | It turns keybinds' built-in policies into parts a scope picks. |
+| 15 | **Composition** | A ready-made component: a file of plain wiring that uses only public modules. | Most apps want a listbox, not fifteen modules. Taking one apart means not using that file. |
 
-1. **Key.** What names an item: a string or number from the app's data, the same wherever the item moves and whatever
-   view shows it. Every module that holds an item holds its key. Positions exist only inside the module that computes
-   them and never pass to another module.
+Suggested bindings are not a concept of their own. They are data in keybinds' existing binding format,
+`{ commandName: ['ArrowDown'] }`, which an app may use.
 
-   *Why:* this makes the first root failure impossible. No module can be handed a position counted in a list it doesn't
-   know.
-
-   One item can show in several places: worldbuilding's "an entry in several groups appears in each". There, the app
-   chooses which key each module gets. Focus and navigation get the key of the *place* where it shows, such as the path
-   `[group, entry]`. Selection gets the entry's own key. That choice shows in the wiring, one line per module.
-
-2. **Cell.** Any object with `get()`, `set(value)` and `subscribe(listener) → unsubscribe`. A module that has state keeps
-   it in a cell. It makes its own cell unless the app passes one in; then the app's cell is the only copy.
-
-   *Why:* it gives every piece of state one source of truth, chosen by the app piece by piece, with no store to hold
-   them. The app's renderer re-renders from the cells it reads. The library ships a ten-line `cell(initial)`, and any
-   object of the same shape works.
-
-3. **Command.** A function a module returns that does one thing: `next()`, `toggle(key)`, `close('escape')`. Modules
-   never see keys or pointer buttons. The app binds keys to commands with `keybinds`. Each module also exports suggested
-   bindings as plain data, which the app may use or ignore.
-
-   *Why:* keys become rebindable, and Control and Command stay separate keys
-   (`packages/keybinds/src/binding-mods.js:17-27`). No module can take a key from another, because no module takes
-   keys.
-
-4. **Needs.** A module's options name the functions it calls, and nothing else, as its own JSDoc type. Everything comes
-   in this way: the data it reads (`after(key)`, `find(text, from)`), the elements it touches (`container`,
-   `keyFrom(element)`), and other modules' commands it should call (`go(key)`). The library has no shared `Source`
-   type. One app adapter object can meet several modules' needs, because JSDoc types are structural.
-
-   *Why:* this is what "each module defines its own interface" means in code. A new module that needs something new
-   declares it, and nothing else changes.
-
-That is the whole vocabulary at the library level. `keybinds` has its own (command, binding, `when`, `target`,
-`BindingsStore`), which any app that rebinds keys learns anyway.
-
-The library does not have effects, transactions, facets, fields, plugins, input handlers, levels, a store, a pipeline, a
-query registry, a source type, or a rendering.
+Removed since the first draft:
+- reads that may or may not return a promise (every load is a promise now);
+- "needs" (now Parameter);
+- "cell" (now State);
+- place keys versus entry keys (now one kind of key, concept 1);
+- target filtering as its own idea (now part of the element source and the scope).
 
 ## Rules every module follows
 
-- It is a function `name(needs) → { cells, commands, reads }`. It has no global state and registers nothing anywhere.
-- It names items by key.
-- It does not render, and it does not set attributes on elements the app renders. It exposes values, such as
-  `descendant()` or `isSelected(key)`, and the app's template writes them.
-- It touches the DOM only for what can't be state:
+- It is a function, `name(parameters) → { states, commands, decorations, styles }`. It has no global state and registers
+  nothing.
+- Its parameters name abstractions, never other modules.
+- It does not render, and it does not set attributes on elements the app renders. It gives decorations, and the view
+  writes them.
+- It touches the DOM only where state can't:
   - calling `focus()`;
   - setting `scrollTop`;
   - measuring;
-  - listening to pointer or scroll events on an element it was given;
-  - `showPopover()`, `hidePopover()` and `showModal()`.
-- It listens only on elements it was given. It acts only on events whose target its `keyFrom` or `inside` accepts, so
-  two instances in one view never hear each other.
-- If it needs structural CSS, it exports its own stylesheet (`styles`). The app adopts the stylesheets of the modules it
-  uses, and no component carries another module's CSS.
-- When one of its commands fails, that command has failed and nothing else. There is no queue for it to empty.
-- Its data reads may return a value or a promise. Each module keeps its own request counter and drops an answer that
-  arrives after it made a newer request.
+  - showing or hiding popovers and dialogs;
+  - listening for events on elements or documents it was given.
+- It loads only through the loader it was given. It does not deal with stale answers: the loader never delivers one.
+- A failing command fails alone. There is no queue for it to empty.
 
-## Data
+## Data: the loader
 
-The page holds only what it shows. The data lives behind the app's adapter: the server, for SillyTavern; an in-memory
-helper, for a small list.
+The app gives every module that reads data the same loader for one view: `load` and `changes`.
 
-Filter and sort are not modules of this library. They are the app's query, and the app makes its adapter from that
-query (`server.view({ filter, order })`). Every module reads data through functions of that adapter, so the data's own
-indexes answer whatever a module asks.
+**What the app's loader implementation does** (`serverLoader(transport, query)` for SillyTavern, `memoryLoader(items)`
+for small lists):
 
-When the query changes, the app passes the new adapter's functions. Modules that hold keys keep them, because keys
-survive a query change. The windowing module re-anchors (below).
+- **Batching.** Every `load` made during one action goes out as one request. One action is everything that runs
+  before the next task. A request that the cache can answer goes nowhere.
+- **Staleness.** Each action has a number. The answer to an older action is never delivered once a newer action has
+  loaded anything: its promise never settles. A late typeahead `find` therefore can't move focus after an arrow key
+  has. No module handles this.
+- **Cache.** It keeps runs of entries in order, so `after`, `before` and `around` are often answered without a request.
+  The cache is bounded (Assuming: by a fixed number of entries, evicting the least recently used). The page holds only
+  what it shows, plus that bound.
+- **Changes.** It reports `{ keys }` when entries changed or went, and `{ reset }` when the query changed. These come
+  from the server pushing them, or from the app calling `setQuery`. Query, filter and sort are the loader's
+  construction parameters and its `setQuery`. No module knows about them.
 
-Each data function is defined by the module that calls it:
+**Requests are defined by the modules that make them:**
 
-| Function | Called by | Meaning |
+| Request | Defined by | Answer |
 | --- | --- | --- |
-| `read({ after \| before \| around: key, count })` → entries | windowing, load as you scroll | the entries next to a key in the view's order, each `{ key, value }` |
-| `first()`, `last()`, `after(key, n)`, `before(key, n)` → entry | navigation, grid navigation, reorder, focus entering | one entry by order, `n` steps away |
-| `find(text, from)` → entry | typeahead | the first entry at or after `from`, wrapping round, whose text starts with `text` |
-| `everything()`, `span(fromKey, toKey)` → filter | selection | an opaque filter the server understands |
-| `matches(filter, value)` → boolean | selection | whether an item held in memory is in a filter |
-| `firstIn(filter, except)` → key | focus entering (optional) | where a selection starts |
-| `count()`, `keyAt(index)`, `indexOf(key)` | windowing (optional) | only for a scrollbar that is proportional to the whole list |
+| `{ first }`, `{ last }`, `{ after: key, count }`, `{ before: key, count }` | `listNavigation` | entries |
+| `{ around: key, count }`, `{ after }`, `{ before }`, `{ first }` | `windowing` | entries |
+| `{ find: text, from: key }` | `typeahead` | an entry, or none |
+| `{ parent: key }`, `{ firstChild: key }` | `treeNavigation` | an entry, or none |
+| `{ describe: 'all' \| { from: key, to: key } }` | `selection` | a description, made without a request (it carries the current query) |
+| `{ membership: selection, keys }` | `selection` | for each key the server alone can tell about, whether it is in the selection |
 
-Each function returns the entry, not only its key. The action that asked can then draw its result from that one answer:
-one user action, one request.
-
-The in-memory helper, `fromArray(items, keyOf, textOf)`, implements all of these for lists that fit in memory. It is an
-adapter, not a type every module depends on.
-
-The server may push changes, such as another tab editing an entry. They go to the app's cache of what is shown, and the
-app re-renders. No module maps positions through changes, because no module holds positions.
+A loader that doesn't know a request rejects it, naming it. That is an error at the first use, never a silent no-op.
 
 ## The modules
 
-For each module: what it needs, what it gives, and what it does not do.
+For each module, its parameters are what it needs, and its outputs are what it gives.
 
-### Focus: `activeDescendant` and `rovingFocus`
+### Element sources: `windowing` and `plainList`
 
-Two modules with the same commands. The app picks one.
+Both implement **element source** (concept 9) and **rows** (concept 11). The app picks one per list.
 
-- `activeDescendant({ container, active?: Cell<Key>, exists(key) })` gives `active` (a cell), `go(key)`, `idOf(key)` and
-  `descendant()`.
-  - The app writes `id=${idOf(key)}` on each item and `aria-activedescendant=${descendant()}` on the container.
-  - `descendant()` is undefined while `exists(active)` is false, so the attribute never points at a missing element.
-  - An id is the container's own `id` (the module gives the container one if it has none) plus the encoded key. Two
-    instances never collide, and server-rendered ids match the browser's without any coordination.
-- `rovingFocus({ container, active?: Cell<Key>, elementFor(key) })` gives `active`, `go(key)` and `tabIndexOf(key)`: 0
-  for the active item, -1 for the others. `go` moves focus to `elementFor(key)` once that element exists.
+**`plainList({ load, container })`** loads entries (`{ first, count }`, then `{ after }`) as its `loadMore()` command is
+called, and gives them all as `rows`. Its decoration writes `data-key`, and `keyOf` reads it. `elementFor(key)` resolves
+once the key is drawn. It holds every entry it has loaded, because they are all drawn. Lists that must not hold what
+they've scrolled past use windowing.
 
-Neither module knows what the items are, what roles they have, or how the next item is found.
-
-### Navigation: `listNavigation`
-
-`listNavigation({ order: { first, last, after, before }, current: () => Key | undefined, go(key), page?: () => number })`
-gives the commands `next`, `previous`, `first`, `last`, `pageDown` and `pageUp`. Each asks `order` for one entry and
-calls `go` with its key.
-
-Its suggested bindings are the arrow, Home, End and Page keys with no modifiers. `keybinds` matches modifiers exactly, so
-Alt+ArrowDown is a different binding, and navigation never sees it.
-
-It does not skip headings. Headings are never in its `order` (see Grouping).
-
-### Typeahead: `typeahead`
-
-`typeahead({ find(text, from), current, go, now?, wait? })` gives `type(character)` and `typing()`. `typing()` says
-whether a character was typed within `wait`.
-
-`type` keeps what was typed in its own cell and asks `find` once. It never looks at rendered rows, so under windowing or
-over a server it finds what the data finds.
-
-It needs characters typed, and `keybinds` has no binding for "any character typed". See "What I couldn't make work".
-
-### Selection: `selection`
-
-`selection({ mode: 'single' | 'multiple', everything, span, matches, chosen?: Cell<Selection> })`.
-
-A `Selection` is `{ filter?, added: Set<Key>, removed: Set<Key>, anchor?: Key }`: every item the filter matches except
-those in `removed`, plus those in `added`. "All except" over ten billion items is one filter and a set of exceptions,
-and nothing is read to select.
-
-It gives:
-
-- the commands `only(key)`, `toggle(key)`, `extendTo(key)` (from the anchor), `selectEverything()` and `clear()`;
-- the reads `isSelected(key, value)` and `chosen` (the cell).
-
-It does not know about the active item. In single selection, the selected item follows focus because the app passes
-navigation `go: (key) => { focus.go(key); selection.only(key) }`: one line in the wiring.
-
-It does not write `aria-selected`. The app's template writes that, or `aria-checked` in a menu, from `isSelected`.
-
-### Focus entering: `focusEntering`
-
-`focusEntering({ container, current, go, choose: () => Key | Promise<Key> })`: when focus comes into the container and
-nothing is active, it calls `go(await choose())`.
-
-The app's `choose` decides where focus goes (the first selected item, the first item, the item last chosen), built from
-whichever modules the app has.
-
-### Windowing: `windowing`
-
-`windowing({ scroller, read, pinned?: () => Key[], estimate?: (key) => number, sizes? })` gives:
-
-- a cell, `shown`: `{ before: px, keys: Key[], after: px }`;
-- `measure(key, element)`;
-- `reveal(key)`;
+**`windowing({ load, scroller, container })`** gives:
+- `rows`: the entries to draw, with `spaceBefore` and `spaceAfter`;
+- `elementFor`, `keyOf` and a decoration;
+- `loading`, a state saying whether it is loading;
 - `styles`.
 
 How it works:
+- **No layout assumed.** It measures the boxes of the first and last drawn elements against the scroller. It loads
+  more (`{ after: lastKey }`, `{ before: firstKey }`) when they come within a margin of the viewport, and drops entries
+  that have gone past the margin. Rows can be any height, and drawn items can be laid out as a list, a grid or
+  nested groups. Its estimate for undrawn space is the drawn block's size divided by the entries drawn.
+- **Load as you scroll.** It is windowing loading at its ends, so it is not a separate module.
+- **Holds.** `elementFor(key)` returns a hold. If the key is drawn, the hold comes at once. If not, windowing
+  re-anchors with `{ around: key }` and resolves once the element is drawn. Held keys stay drawn, visually hidden if
+  they are outside the window, until they are released. Windowing knows nothing of focus or drag.
+- **Changes.** `{ keys }` reloads those keys if they are drawn, and ends the hold of any that went. `{ reset }` loads
+  `{ first }` and ends every hold whose key the new answer lacks.
+- **Positions.** If entries carry `position` and `total`, the view can write `aria-posinset` and `aria-setsize`. If the
+  data can't give them, there are none (see "What I couldn't fix").
+- **Its CSS ships only with it.**
 
-- **Anchor.** It keeps an anchor: a key and its offset from the top of the viewport. It fills the viewport and a margin
-  by calling `read({ after | before: key, count })`, so it never needs a count. With the optional `count`, `keyAt` and
-  `indexOf` it can also map a proportional scrollbar.
-- **Row heights.** Rows can be any height. The app registers row elements with `measure(key, element)`. The module
-  measures their boxes relative to the scroller, so the rows don't have to be its children, and it estimates the rows
-  it hasn't measured. It keeps sizes only for keys it rendered recently, so its memory does not grow with the list.
-- **DOM structure.** It does not decide any. The app renders `shown.keys` however it likes, in groups, a table or a
-  grid. It puts the `before` and `after` space wherever it wants, as padding or as spacer elements.
-- **Pinned keys.** `pinned` keys are rendered even outside the window, visually hidden, so a focused or dragged item
-  never leaves the DOM. The app passes `() => [focus.active.get(), reorder.dragging.get()]` for the modules it has.
-- **Reveal.** `reveal(key)` scrolls a rendered key into view. If the key isn't rendered, it re-anchors at it with
-  `read({ around: key })`, which is one request.
-- **CSS.** Its stylesheet ships only with it.
+Sticky headings stay possible because headings are not rows. The view wraps each run of drawn entries from one group
+in that group's element, with its heading inside. A heading with `position: sticky` sticks while any of its group's
+entries are drawn.
 
-Earlier designs rejected a "render range". I don't know exactly what that proposal was. `shown` is this module's own
-output: only the app's template reads it, no other module goes through it, and without windowing the app renders every
-key it has. Reviewers should check whether that still counts as the rejected idea.
+### Focus: `activeDescendant` and `rovingFocus`
 
-### Load as you scroll: `loadAsYouScroll`
+Both take `{ elements: element source, start: () => Promise<key | undefined> }` and give `active` (a state), `go(key)`,
+a decoration for items and a decoration for the container. `start` gives where focus goes when it comes into the list
+with nothing active.
 
-This is for lists the app renders whole rather than windowed.
+- **`go(key)`** asks `elements.elementFor(key)`, keeps that hold and releases the one before. When the hold reports its
+  item gone, `active` becomes empty. Neither module knows whether windowing is present.
+- **`activeDescendant`** reads its container's `id`, and throws at construction if the container has none. It never
+  sets one. Its item decoration writes `id` as that id plus the URI-encoded key. Its container decoration writes
+  `aria-activedescendant` while it holds an element.
+- **`rovingFocus`** decorates the active item with `tabindex="0"` and the others with `-1`. While nothing is active, the
+  container is the tab stop, so Tab always reaches the list, even after the active key was filtered out. When focus
+  arrives at the container, it calls `go(await start())`. `go` moves focus to the held element.
 
-`loadAsYouScroll({ sentinel, read, last: () => Key | undefined, loaded(entries) })` watches the sentinel element. When
-the sentinel shows, it calls `read({ after: last(), count })` and hands the page of entries to `loaded`. It gives a
-`loading` cell the app can show, and it keeps no items.
+### Navigation: `listNavigation`, `gridNavigation`, `treeNavigation`
 
-With windowing it isn't needed, because windowing reads as the list scrolls.
+These are pure order arithmetic over `load`. Every command takes a key and returns a promise of a key. None of them
+moves focus or selects anything.
 
-### Grouping: a way of rendering, plus `nestedOrder`
+- **`listNavigation({ load, pageSize? })`**: `next(k)`, `previous(k)`, `first()`, `last()`, `pageDown(k)`, `pageUp(k)`.
+- **`gridNavigation({ load, columns: () => number })`**: `below(k)`, `above(k)`, `rowStart(k)`, `rowEnd(k)`. The helper
+  `columnsIn(container)` counts the drawn items that share the first one's top.
+- **`treeNavigation({ load })`**: `parent(k)`, `firstChild(k)`.
 
-Grouping is not a module. A grouped list is nested lists: a list of groups, each holding its members. The DOM is the
-WAI-ARIA grouped listbox because the app renders it that way: `role="listbox"` › `role="group"`, labelled by its heading
-through `aria-labelledby` › `role="option"`. Groups are not items of anything, and headings never enter navigation,
-selection or typeahead.
+The app's commands decide what a returned key means:
 
-What grouping does need is an order across the nesting, for the modules that walk it:
+```js
+down:      async () => focus.go(await nav.next(focus.active.get()))
+shiftDown: async () => { const k = await nav.next(focus.active.get()); focus.go(k); selection.extendTo(k) }
+ctrlDown:  async () => focus.go(await nav.next(focus.active.get()))   // moves focus without selecting
+```
 
-- **Server data.** The app's adapter answers in that order itself, keyed by place, so `after([group, entry])` is one
-  request. Worldbuilding's indexes per relation and target provide this order.
-- **In-memory data.** `nestedOrder({ groups, membersOf })` composes one order from the list of groups and an order per
-  group.
+One navigation instance serves them all.
 
-Windowing over a grouped list reads the order of *rows*, headings and members. Navigation reads the order of members
-only. They are two functions of the adapter, and each module gets the one it needs.
+### Typeahead: `typeahead`
+
+**`typeahead({ load, wait? })`** gives:
+- `type(character, from) → Promise<key | undefined>`;
+- `takes(event)`, which implements keybinds' **text taker**: it takes a single character typed with no Ctrl, Meta or
+  Alt, and takes Space only while typing is going on.
+
+The text taken so far is in its own state. It asks `{ find: text, from }` once per character. It never looks at drawn
+rows.
+
+### Selection: `selection`
+
+**`selection({ load, mode: 'single' | 'multiple' })`.**
+
+The selection value is `{ ranges: description[], added: Set<key>, removed: Set<key>, anchor?: key }`. It means: what
+any description covers, except `removed`, plus `added`.
+- "All except" is one description plus a set of exceptions.
+- "Group A and group B" is two descriptions.
+
+Membership has one source per fact:
+- A key in `added` is selected, and a key in `removed` is not. The page knows both without asking.
+- Whether any other key is covered by a description, only the server knows. It answers `{ membership }`.
+
+Selection loads `{ membership }` when the value changes, and when its own decoration is asked about a key it has no
+answer for. It doesn't know which module drew that key. The load is batched into the action that caused it. The page never runs the server's filter, so there are not two sources of
+truth.
+
+Commands:
+- `selectOne(k)`;
+- `toggle(k)`;
+- `extendTo(k)`: replaces the ranges with one from the anchor to `k`;
+- `addRange(k)`;
+- `selectAllMatching()`;
+- `clear()`.
+
+Reads: `value` (a state) and `isSelected(key)`, which is `undefined` until the server has answered. Its decoration
+writes `aria-selected`, or `aria-checked` when it is constructed with `attribute: 'aria-checked'`.
+
+A range runs between two keys in the view's order. Keys are places, so a range is defined even when one entry shows
+twice. Which entries a range of places covers is the server's to say. Whether selecting an entry in one place shows it
+selected in its other places is the server's membership answer, so it is decided once, on the server (see "Decisions
+for the owner").
+
+### Expansion: `expansion`
+
+**`expansion({ expanded?: State<Set<key>> })`** gives `expand(k)`, `collapse(k)`, `toggle(k)`, and a decoration that
+writes `aria-expanded`. The app's loader takes the expanded set as part of its query, so expanding a node reports
+`{ keys }` around it. Expansion doesn't know the loader exists.
 
 ### Reorder: `reorder`
 
-`reorder({ container, keyFrom, handle?, siblings: { after, before }, moved({ key, before? | after?, modifiers }), scroller? })`
-gives:
+**`reorder({ elements: element source, container, handle?, targets, moved })`.**
 
-- the commands `moveUp(key)` and `moveDown(key)`, which move an item to just before its previous sibling or just after
-  its next one;
-- a pointer drag on the items under `container`, starting only from elements `handle` accepts (Assuming: this option,
-  one more need of reorder's);
-- the cells `dragging` (the key) and `target` (`{ key, side }`), for the app to draw;
-- `styles`, for its drop indicator.
+`targets` is the app's implementation of **drop target**:
+- `at(element, point) → target | undefined`, for the pointer;
+- `next(key, direction) → Promise<target | undefined>`, for the keyboard.
 
-It reports a move by the neighbours' keys, never by positions, so nothing it says depends on what else is rendered.
-During a drag it scrolls `scroller` near its edges, and windowing, if present, follows that scroll like any other.
-`modifiers` are `{ alt, ctrl, meta, shift }` as they were at the drop, not merged, so the app decides what Alt means
-(worldbuilding's "keep both").
+A target is opaque to reorder. It is whatever the app needs:
+- `{ before: key }` or `{ after: key }` in a list or across groups;
+- `{ into: group }` for an empty group's drop area;
+- `{ childOf: key }` for the middle of a tree item.
 
-### Overlays: `overlay`, `anchored`, and one module per way of dismissing
+Its `decoration` says how the target is drawn.
 
-- **`overlay({ element, modal?, open?: Cell<boolean>, onClose? })`** shows and hides `element`, and gives the commands
-  `show()` and `close(reason)`.
-  - A non-modal overlay is a popover in manual mode, so the cell stays the only truth. The browser's light dismiss would
-    otherwise change the open state behind the cell's back.
-  - A modal overlay is a `<dialog>` shown with `showModal()`, as the earlier document settled.
-  - `close(reason)` calls the app's `onClose(reason)` if it gave one, and that decides whether the overlay closes. A
-    reason can be any value, so there is no closed set of reasons.
+Reorder gives:
+- `moveUp(k)`, `moveDown(k)`: each asks `targets.next` and calls `moved(k, target, modifiers)`;
+- a pointer drag that starts only on elements `handle` accepts;
+- `dragging` and `target` (states);
+- a decoration;
+- `styles`.
+
+During a drag, it holds the dragged item's element (so windowing keeps it drawn) and scrolls the container near its
+edges. `modifiers` are `{ alt, ctrl, meta, shift }` unmerged, so the app decides what Alt means.
+
+### Overlays
+
+- **`overlay({ element, modal?, open?: State<boolean>, allowClose? })`** gives `show()` and `close(reason)`.
+  - A non-modal overlay is a popover in manual mode, so the state is the only truth. A modal overlay is a `<dialog>`
+    shown with `showModal()`.
+  - `close` asks `allowClose(reason)` if the app gave it one. A reason is any value.
 - **`anchored({ element, anchor, placement })`** places an overlay next to its anchor. Assuming: CSS anchor positioning,
-  or the existing placement code (`packages/core/src/placement.js`), is enough. I did not check what browser support
-  that needs.
-- **Dismissal** is one module per way of dismissing:
-  - `closeOnOutsidePress({ overlay, inside: (target) => boolean })`;
-  - `closeOnFocusLeaving({ overlay, inside })`;
-  - Escape is a key, so it is a binding to `overlay.close('escape')` in the overlay's own `keybinds` scope.
+  or `packages/core/src/placement.js`, is enough.
+- **`closeOnOutsidePress({ overlay, page: document, inside: (target) => boolean })`** listens on the `page` it was
+  given. It listens nowhere else.
+- **`closeOnFocusLeaving({ overlay, page, inside })`**.
+- **`overlayStack()`** gives `add(overlay, parent?)` and `inside(overlay)`, a `(target) => boolean` that counts an
+  overlay's child overlays as inside it. That makes it an implementation of the dismissers' `inside` parameter. It is
+  optional.
 
-  A new way of dismissing is a new module.
-- **`layers()`** (optional) is a stack the app creates for overlays that nest. It gives `push(overlay)`, `top()` and
-  `contains(overlay, target)`. The app passes `contains` as `inside`, so a press in a submenu doesn't count as outside
-  its parent menu. The stack covers only the overlays the app gives it.
+Escape closing an overlay is a binding to `overlay.close('escape')`, made in the scope that has focus (see Keys). It is
+a UX proposal.
 
-### Roles and the components
+### Roles: `listboxRoles`, `menuRoles`, `comboboxRoles`, `treeRoles`, `gridRoles`
 
-A component is a role pattern, not a module with state. The role modules, `listboxRoles`, `menuRoles` and
-`comboboxRoles`, are pure functions that give the static ARIA a pattern needs, and the app's template writes it. A menu
-entry's role comes from the app's `roleOf(entry)`, so entry kinds belong to the app: `menuitem`, `menuitemcheckbox`,
-`menuitemradio`, `separator`, or any other the app needs.
+These are pure decorations giving each pattern's static ARIA. A menu entry's role comes from the app's
+`roleOf(entry)`, so entry kinds are open.
 
-- **Listbox.**
-  - Always: a focus module, navigation, a `keybinds` scope on the listbox element, and `listboxRoles`.
-  - As wanted: typeahead, selection, windowing, grouping, reorder, focus entering.
-- **Menu with submenus.**
-  - A menu is a listbox-shaped composition, with `menuRoles`, inside an `overlay`.
-  - A submenu is another menu instance, whose overlay is anchored to its item.
-  - `submenus({ open(key), close(), hasMenu(key) })` gives the commands `openSubmenu` and `closeSubmenu` for the app to
-    bind. The APG suggests ArrowRight and ArrowLeft.
-  - The pointer delay and the safe triangle are a separate module, `submenuPointer({ ... })`.
-- **Combobox.** Its parts are:
-  - an input, or a focusable element for a select-only combobox;
-  - an overlay holding a listbox;
-  - `activeDescendant`, with the *input* as its container.
+### Submenus: `submenus` and `submenuPointer`
 
-  Whether it is editable, and how it autocompletes, is not a switch. Editable means the input's text feeds the adapter's
-  query. Inline completion is a module of its own, `inlineCompletion({ input, current, textOf })`. Each is either there
-  or not.
-- **Command palette.** A combobox whose adapter is the command search: `keybinds`' `searchCommands`, or the
-  `CommandHub`'s command system. It reads the search like any other adapter, so no results are copied. Its strings and
-  its view are in the app's template.
+**`submenus({ hasSubmenu(key), openSubmenu(key), closeSubmenu() })`** gives the commands `open(k)` and `close()`. A
+submenu is another menu composition in an overlay anchored to its item. **`submenuPointer({ ... })`** handles the
+pointer delay and the safe triangle, and is separate.
 
-The library ships ready-made compositions (`<interact-listbox>`, `<interact-menu>`, ...) as files of plain wiring code
-that use only the public modules. The settled DOM, registration and styling decisions apply to these.
+### Inline completion: `inlineCompletion`
 
-Taking a ready-made composition apart means not using it: every part it uses can be imported on its own. It also takes
-module instances as options, so one part can be replaced.
+**`inlineCompletion({ input, textOf })`** gives `complete(entry)`, which writes the completion selected after the
+caret.
 
-### Keys: `keybinds`
+### Cell editing: `cellEditing`
 
-The app makes one `keybinds` scope per component, from the commands of the modules it has. The scope's `target` is the
-component's focus element (`keybinds/src/core.js:330`). A command that runs stops the event (`core.js:362-363`), so an
-outer scope gets only the keys the inner one didn't take. Rebinding is done with `keybinds`' `BindingsStore`.
+**`cellEditing({ editing?: State<key>, commit(key, value) })`** gives `start(k)`, `commit()` and `cancel()`.
 
-Two of the app's modules can want the same key. Space, for example, is typeahead's while typing and selection's
-otherwise. The app writes that key's bindings with `when`, in its own keymap:
+## The view
 
-- `Space → typeahead.type(' ')` when `typeahead.typing()`;
-- `Space → selection.toggle(active)`.
+The view is the app's template, or a composition's. It knows three abstractions and no modules:
 
-`keybinds` runs the first allowed command (`core.js:406-407`), so the order of those two lines is the decision. It is
-written once, where the key is bound, by whoever chose both modules, and neither module knows the other.
+```js
+view({ rows, item: decorations(...itemDecorations), list: decorations(...listDecorations), draw })
+```
 
-A proposal, not built: a helper that refuses a keymap where one key has two commands and the earlier one has no `when`,
-so the choice can't be made by accident.
+- It draws `rows.entries`, with `spaceBefore` and `spaceAfter` as padding.
+- On each item element it writes `item(key)`, the merged item decorations. On the container it writes the merged
+  list decorations.
+- `draw(entry)` gives the item's content.
 
-### Hydration and rendering
+The app lists the decorations of the modules it constructed. That list is the view's parameter, not a parameter of any
+module. Adding a module adds one item to it, and changes no module.
 
-The library has no rendering, so it has no hydration. Modules attach to elements, whether the app's renderer made them
-in the browser or adopted them from server markup.
+## Changes to keybinds
 
-What happens to the existing template code in `@interact/dom` is a separate decision for the rebuild: whether it stays,
-and if so as which separate entry points (rendering, server rendering, hydration).
+These are designed here, to be built in `keybinds` itself:
 
-## The combinations, step by step
+1. **Policies become conditions.**
+   - `outsideOpenOverlay` (today's `overlayOpen`, `modal.js:41-43`) becomes an exported condition.
+   - `keybinds({ target, unless: [conditions] })` ignores an event when any of its conditions holds. Nothing is built
+     in. A page-wide scope can choose `outsideOpenOverlay`. Component scopes don't.
+   - This is a breaking change for apps that rely on the current default (see "Decisions for the owner").
+   - The overlays' own `keydown` listeners go away.
+2. **Text takers replace `captureInput`.** A scope can be given `takesText: [taker]`, where a taker is
+   `(event) → boolean`.
+   - `textField` is a taker: it takes characters and the keys that edit text (Backspace, Delete, ArrowLeft,
+     ArrowRight, Home, End, and in a textarea also ArrowUp, ArrowDown and Enter).
+   - `typeahead.takes` is another taker.
+   - When a taker takes an event, no ordinary binding runs for it, and `$char` bindings may.
+   - When no taker takes it, only ordinary bindings may run.
+   - The two kinds are therefore exclusive by construction. Space goes to typeahead while typing goes on, and to
+     selection otherwise, and neither module knows of the other.
+   - The page-wide scope keeps today's behaviour by being given `textField`. A combobox's input scope is given
+     `textField` too, and its Up, Down, Enter and Escape bindings still run, because the taker doesn't take those keys.
+     `captureInput` goes.
+3. **`$char`** is a new `KeySyntax`, like `symbols()` (`keys-symbols.js:39-50`; the hook is at `keys.js:24-32, 97,
+   166`). It accepts `$char` and adds that lookup for any single character with no Ctrl, Meta or Alt. Its command reads
+   `event.key`.
+4. **No hidden order.**
+   - The candidates are every command bound to any of an event's lookups (not only the first lookup that has some), with
+     `when` and the scope's conditions applied.
+   - Exactly one candidate allowed: it runs.
+   - None allowed: the event is left alone, so it bubbles to the next scope out.
+   - More than one allowed: none runs, and the scope's `onConflict` reports it in development. A binding whose `when`
+     is false can no longer hide a more general one, and the order the commands were given in decides nothing.
+   - One tie-break is kept and flagged: a command bound exactly beats an `anyModifiers` command for the same key.
+     Today's documentation promises this, and it comes from the bindings themselves, not from the order they were given
+     in.
+5. **Scopes.** A command runs in the scope of the element that has focus when it should run. A combobox's input scope
+   binds the overlay's `close` and the listbox's navigation, because focus stays in the input. A scope that runs a
+   command stops the event (`core.js:362-363`), so the scopes around it don't see it.
+
+Assuming: sequences (`g i`), holds and releases still work under rule 4. I didn't trace them.
+
+## Combination tests
+
+Each test shows what the app constructs, what its commands do, and what it puts in the view. Then it checks that each
+module's construction names only its own parameters.
 
 ### 1. Selection with grouping
 
-Wiring:
-
 ```js
-focus = rovingFocus(...)
-sel = selection({ everything: adapter.everything, span: adapter.span, matches: adapter.matches })
-nav = listNavigation({
-  order: adapter.members,
-  go: (place) => { focus.go(place); sel.only(entryOf(place)) }, // single selection
-  ...
-})
+const load = serverLoader(transport, { filter, order, groupBy })  // keys are places: "group/entry"
+const win = windowing({ load, scroller, container })
+const focus = rovingFocus({ elements: win, start: () => nav.first() })
+const nav = listNavigation({ load })
+const sel = selection({ load, mode: 'multiple' })
+bind({ ArrowDown: down, 'Shift+ArrowDown': shiftDown, Space: () => sel.toggle(focus.active.get()) })
+view({ rows: win.rows, item: decorations(win.item, focus.item, sel.item, listboxRoles.option), ... })
 ```
 
-1. The person presses ArrowDown on the last option of group A. `keybinds` runs `nav.next()`.
-2. `nav` calls `adapter.members.after([A, k])`. The adapter answers `[B, m]`, the first member of B, with its value.
-3. `nav` calls the app's `go([B, m])`. `focus.go([B, m])` sets `focus.active`, and `sel.only(m)` sets `sel.chosen` to
-   `{ added: {m} }`.
-4. The app re-renders. `tabindex` or `aria-activedescendant` comes from `focus`. On every rendered option,
-   `aria-selected` comes from `sel.isSelected(entry, value)`. If `m` is also in group C, its option there shows
-   selected too, because selection holds the entry's key.
-5. The person Shift-clicks an option in group D. The app's pointer binding calls `sel.extendTo(entryOf(place))`. `sel`
-   calls `adapter.span(anchor, m)` and stores the filter it returns. What a range across groups means is defined by the
-   adapter, and it is the owner's decision.
+1. ArrowDown on the last item of group A runs `down`. `nav.next` loads `{ after: 'A/k', count: 1 }`. The cache usually
+   holds it already, because windowing drew past it. The answer is `'B/m'`.
+2. `focus.go('B/m')` gets a hold from `win`. The element is drawn, so the hold comes at once, and `active` is set.
+3. Shift+ArrowDown runs `shiftDown`. `sel.extendTo('B/n')` makes the description `{ from: anchor, to: 'B/n' }` with no
+   request, then loads `{ membership }` for the drawn keys. That is one request, the action's only one. Rows in A and B
+   get `aria-selected` from the answer.
+4. Headings are part of each group's element, not entries, so no module ever sees one. No module can throw over a
+   "different list".
 
-No module saw a heading or a position. Nothing can throw over "a different list", because there is no list. **Passes.**
+Wiring check: no module's parameters name another module. `focus.elements` is an element source that windowing
+implements. **Passes.**
 
-### 2. Reorder in a grouped, windowed list
-
-Wiring:
+### 2. Reorder in a grouped, windowed list, across groups and into an empty group
 
 ```js
-win = windowing({ scroller, read: adapter.rows, pinned: () => [focus.active.get(), re.dragging.get()] })
-re = reorder({ container, keyFrom, siblings: adapter.siblings, moved: server.move })
+const re = reorder({ elements: win, container, handle: isGrip, targets: groupTargets(load), moved: server.move })
 ```
 
-1. The app renders `win.shown.keys`, heading rows and member rows. It wraps each run of one group's rows in that group's
-   `role="group"` element, puts `before` as padding above the first group, and calls `win.measure` on each row.
-2. The person presses Alt+ArrowDown on `[A, k]`. `keybinds` matches the Alt binding, which only `re.moveDown` has.
-3. `re` asks `adapter.siblings.after([A, k])` and gets `[A, j]`. It asks the data, so it finds `[A, j]` even if that row
-   isn't rendered. `re` then calls `server.move({ key: [A, k], after: [A, j] })`.
-4. The server writes the one entry's fractional order key and answers with the state change. The app's cache applies
-   it. `win` reads again only if its rendered keys changed, and the app re-renders. `focus.active` is still `[A, k]`,
-   and `pinned` keeps that row rendered wherever it moved.
-5. A pointer drag works the same way:
-   - `re` gets pointer events on `container` and maps their targets to keys with `keyFrom`.
-   - It keeps `target` as `{ key, side }` of the row under the pointer, and scrolls `scroller` near its edges.
-   - `win` hears the scroll and renders new rows. `pinned` keeps the dragged row in the DOM.
-   - On the drop, `re` calls `moved({ key, before: [D, x], modifiers })`. Whether the drop changes a group membership,
-     and whether Alt keeps both, is up to the app's handler.
+`groupTargets` is the app's drop-target implementation:
+- `at` gives `{ before | after: key }` from the half of the item under the pointer, or `{ into: group }` over an empty
+  group's drop area;
+- `next(k, 'down')` loads `{ after: k }` and gives `{ after: that }`. At the end of a group that is the next group's
+  first place, so an item can move across groups from the keyboard. Whether that is wanted is a UX proposal.
 
-Neighbours are named by key, so headings are never counted. **Passes.**
+1. Alt+ArrowDown runs `re.moveDown('A/k')`. `targets.next` gives `{ after: 'A/j' }`, and `moved` calls the server: one
+   request, which writes the one entry's fractional order key. The answer arrives through `changes` as `{ keys }`.
+   Windowing reloads the drawn keys, and focus's hold on `'A/k'` survives the move.
+2. A pointer drag starts on a grip. `re` holds `'A/k'`, so windowing keeps it drawn while the list scrolls. `target`
+   follows the pointer, and the target's decoration draws it.
+3. Dropping over an empty group gives `{ into: 'D' }`. Dropping over B's items gives `{ before: 'B/x' }`. `moved` gets
+   the target unchanged, plus the modifiers. What a move across groups means, and what Alt does, is the app's
+   handler's decision.
 
-### 3. Typeahead over ten billion items held by a server
+Wiring check: reorder's parameters are an element source, a drop target and a callback. **Passes.**
 
-Wiring:
+### 3. Typeahead over ten billion items on a server
 
 ```js
-ta = typeahead({ find: adapter.find, current: focus.active.get, go: focus.go })
+const ta = typeahead({ load })
+scope({ target: container, takesText: [ta.takes], bindings: { $char: async (event) => focus.go(await ta.type(event.key, focus.active.get())) } })
 ```
 
-1. The person types "s" (through the `keybinds` gap below). `ta.type('s')` sets its buffer to "s".
-2. `ta` calls `adapter.find('s', after current)`. That is one request, and the server answers from its index with the
-   entry.
-3. The person types "a" within `wait`. The buffer becomes "sa" and `ta` makes a new request. If the first answer
-   arrives late, `ta`'s counter drops it.
-4. `ta` calls `focus.go(key)`. If the list is windowed, the app also wires `win.reveal(key)` into `go`, which re-anchors
-   with one `read({ around })` when the key isn't rendered.
+1. The person types "s". `ta.takes` takes it, so `$char` runs. `ta.type` loads `{ find: 's', from }`: one request,
+   answered from the server's index.
+2. The person types "a" before the answer arrives. That is a new action with a new load. The answer for "s" is never
+   delivered, so it can't move focus. Nor can it move focus after an ArrowDown pressed meanwhile.
+3. `focus.go(key)` gets a hold from windowing. If the key isn't drawn, windowing loads `{ around: key }`. Assuming: the
+   server answers `find` with the entries around what it found. Then the cache answers that load, and the action stays
+   one request. If not, it is two.
+4. Space while typing goes on is taken by `ta.takes`, so it reaches `$char`. Otherwise Space goes to selection's
+   binding. The two can't both run.
 
-The page held only the rows it showed, and the search never looked at them. **Passes, on two assumptions:**
-
-- Assuming: the server can answer "the first entry at or after K, in this order, under this filter, whose text starts
-  with T" from an index.
-- Assuming: the server's `find` can return the found entry together with the rows around it. Otherwise reveal is a
-  second request, which breaks "one action, one request".
+Assuming: the server can answer "the first place at or after `from`, in this order, under this filter, whose text
+starts with T" from an index. **Passes, on that assumption.**
 
 ### 4. Two listboxes in one view
 
-Wiring: everything above, twice, each with its own `container`.
+Everything above, twice:
+- Each list has its own loader, windowing, focus, selection and scope, on its own container.
+- `keyOf` reads only its own windowing's attribute, inside its own container.
+- `activeDescendant` takes its ids from its own container's `id`.
+- Each scope listens on its own container, and a command that runs stops the event.
+- Two loaders batch separately. Assuming: one transport can merge two lists' loads made in one action into one
+  request. Otherwise two lists changed by one action cost one request each.
 
-- **State:** each module instance has its own cells, and nothing is shared.
-- **Ids:** each focus module prefixes ids with its own container's id. The containers differ, so the ids differ.
-- **Keys:** there are two `keybinds` scopes, each targeted on its own container. A key pressed in one list never reaches
-  its sibling's scope, and a command that runs stops the event.
-- **Pointer:** `reorder`, `focusEntering` and `closeOnOutsidePress` each listen on their own container and act only on
-  targets their own `keyFrom` or `inside` accepts. A nested list's rows are never theirs.
-- **CSS:** each list adopts the stylesheets of the modules it uses. Two adoptions of the same sheet are one constructed
-  sheet.
+Wiring check: nothing is shared. **Passes.**
 
-**Passes.**
+### 5. A feature nobody planned: a grid of cards
 
-### 5. A new feature nobody planned: a grid of cards
+```js
+const grid = gridNavigation({ load, columns: () => columnsIn(container) })
+bind({ ArrowDown: async () => focus.go(await grid.below(focus.active.get())), ArrowRight: down, ... })
+view({ ..., item: decorations(win.item, focus.item, sel.item, gridRoles.cell) })
+```
 
-Worldbuilding's boards draw entries as cards, several to a row. This needs one new module, and nothing else changes.
+- Windowing measures boxes, not stacking, so a grid layout needs nothing from it.
+- Focus, selection, typeahead and reorder take keys and are unchanged.
+- Inline cell editing (`cellEditing`) needs no other module to change either. The editor is an input inside the
+  item, and the list's scope has `textField` as a taker, so the list's character and editing-key bindings don't run
+  while text is typed. Arrow-key navigation still runs on Up and Down.
 
-`gridNavigation({ order: { after, before, first, last }, columns: () => number, current, go })` gives `up`, `down`,
-`rowStart` and `rowEnd`. `down` is `order.after(current, columns())`. It takes the same shape of `order` the app's
-adapter already provides.
-
-1. The app binds ArrowUp and ArrowDown to `grid.up` and `grid.down`, and ArrowLeft and ArrowRight to `nav.previous` and
-   `nav.next`. Navigation is unchanged: its bindings were only suggestions.
-2. Focus, selection, typeahead and reorder work unchanged, because they speak keys.
-3. To window a grid, the app's adapter offers `rows` as rows of cards, each row keyed by its first card's key. `windowing`
-   measures row elements as before, unchanged.
-
-I also checked inline row editing, worldbuilding's "clicking a cell edits it". `cellEditing({ editing?: Cell<Key>,
-commit(key, value) })` gives `start(key)`, `commit` and `cancel`. While a cell is being edited, focus is in the editor's
-input. `keybinds` doesn't run commands while text is being typed unless they capture input
-(`keybinds/src/core.js:342-347`), so the list's arrow and Space bindings do nothing, without either module knowing.
-Nothing else changes.
+  Whether the list's other keys should do nothing while a cell is edited is a UX proposal. If so, the editor gets its
+  own scope with only Enter and Escape bound.
 
 **Passes.**
 
-### What the worldbuilding page needs, without putting worldbuilding in the library
+### 6. A tree with multiple selection
 
-- **Views with axes, saved views, filters:** the app's query and its adapter. The library takes functions over them.
-- **Grouping with regions, repeats and "+N more":** the app renders nested lists, keyed by place (a path). The path is
-  also how it catches repeats ("an entry already open above") without walking the graph.
-- **Selection as a filter plus exceptions, with bulk actions on the server:** `selection` stores exactly that, and the
-  app sends it.
-- **Selecting a range by dragging down the checkbox column:** a pointer module, written by the app or later as
-  `dragSelect`, that calls `selection.extendTo`. Not designed here.
-- **Reordering only from a grip, and only under the author's order:** the app renders the grip only under that order,
-  and `reorder` starts a drag only from elements its `handle` option accepts.
-- **Marks in text and their hover card:** a mark is an element with a key. `rovingFocus` over `domOrder(container,
-  selector)`, an in-memory order of elements, gives the marks keyboard focus. `overlay` and `anchored` show the card.
-  The library knows nothing of marks or looks.
-- **A card's menu with "Move to…":** a `menu` in an `overlay`, whose item opens a combobox over the server's entry
-  search.
+```js
+const exp = expansion()
+const load = serverLoader(transport, { query, expanded: exp.expanded })
+const tree = treeNavigation({ load })
+bind({
+  ArrowRight: async () => { const k = focus.active.get(); exp.isExpanded(k) ? focus.go(await tree.firstChild(k)) : exp.expand(k) },
+  ArrowLeft:  async () => { const k = focus.active.get(); exp.isExpanded(k) ? exp.collapse(k) : focus.go(await tree.parent(k)) },
+  ArrowDown: down, 'Shift+ArrowDown': shiftDown, Space: toggle,
+})
+view({ ..., item: decorations(win.item, focus.item, sel.item, exp.item, treeRoles.item) })
+```
 
-## What I couldn't make work
+1. Expanding a node changes the loader's query. The loader reports `{ keys }` around that node, and windowing loads the
+   children that come into view.
+2. ArrowDown walks the visible places in order, because the loader answers `{ after }` over the expanded tree.
+3. Shift+ArrowDown and Shift-click make range descriptions over visible places. Ctrl+Space toggles. The server answers
+   membership, including for a collapsed subtree's descendants when the range covers its parent. That last point is a
+   UX proposal.
+4. `aria-level` and `aria-setsize` come from the entry's value, through `treeRoles` reading the entry.
 
-1. **Typeahead's input.** `keybinds` binds named keys and characters one by one (`keybinds/src/keys.js:40-49`). It has no
-   binding for "any character typed". Without one, typeahead has to listen to `keydown` itself, beside `keybinds` on the
-   same element. Which of them sees Space first then depends on the order the listeners were added, which is a hidden
-   priority.
+Wiring check: expansion knows nothing of the loader. The loader takes a state of expanded keys, its own parameter.
+**Passes.**
 
-   The fix belongs to `keybinds`, not to this library: a binding that matches any typed character and passes the
-   character to the command (proposal: `$char`). Until it exists, typeahead does not meet the rules.
-2. **Shared keys need the app's decision.** The Space conflict between typeahead and selection is settled by the order
-   of two bindings with `when` in the app's keymap. That is not a module priority and it is not guessed. Still, every
-   app with both modules has to make that decision. I think it belongs to the owner, since it is UX, and I couldn't
-   remove it.
-3. **Not one request in every path.** Navigation across a group boundary takes one request only if the adapter answers
-   in the nested order itself. `nestedOrder`, composing two orders, makes two requests. For server data, answering in
-   that order is the adapter's job; for in-memory data, the second call costs nothing.
-4. **Pointer modifiers through `keybinds`.** Shift-click and Command-click on an item should go through `keybinds`' mouse
-   input, so they can be rebound and Control and Command stay separate. Assuming: its `mouse()` input can bind a click
-   with modifiers and hand the command the event, so the app can call `keyFrom(event.target)`. I did not check
-   `keybinds/src/mouse.js`.
-5. **A proportional scrollbar at ten billion.** It needs `keyAt(index)` from the server, which in turn needs an order
-   index that keeps counts (an order-statistic tree). Without that, windowing works from an anchor and the scrollbar
-   isn't proportional. I don't know which of the two SillyTavern's engine can provide.
+### 7. A combobox with server-side suggestions, under windowing
+
+```js
+const load = serverLoader(transport, { query: '' })
+const pop = overlay({ element: popup })
+const win = windowing({ load, scroller: popup, container: listElement })
+const focus = activeDescendant({ elements: win, start: () => Promise.resolve(undefined) })  // container: the input
+input.addEventListener('input', () => { load.setQuery(input.value); pop.show() })
+scope({ target: input, takesText: [textField], bindings: { ArrowDown: down, ArrowUp: up, Enter: choose, Escape: () => pop.close('escape') } })
+view: input gets decorations(focus.list, comboboxRoles.input); options get decorations(win.item, focus.item, comboboxRoles.option)
+```
+
+1. Typing goes to the input, because `textField` takes characters and caret keys.
+2. Each change of text is an action. `setQuery` reports `{ reset }`. Windowing loads `{ first }` and ends the hold on
+   the active option if the new answer lacks it, so `aria-activedescendant` disappears instead of pointing at nothing.
+   Answers to earlier text are never delivered.
+3. ArrowDown runs in the input's scope, because `textField` doesn't take it. `focus.go` sets `aria-activedescendant` on
+   the input once windowing has drawn the option.
+4. Escape runs in the input's scope too. That is where focus is, so it fires. This is the fix for an Escape bound on
+   the overlay's scope never running.
+
+Wiring check: overlay, windowing and focus each take only their own parameters. **Passes.**
+
+### The command palette
+
+The palette is test 7 with `memoryLoader(searchCommands(commands, query))`. The command list is in memory anyway, as the
+app's data, and the search makes one array of scored results, which the loader reads from. There is no second copy.
+But that array is a copy of the matching commands, so the palette does still copy its results once. See "What I
+couldn't fix".
+
+### What the worldbuilding page needs
+
+- **Views, axes, saved views and filters** are the loader's query.
+- **Regions with "+N more" and repeats** are drawn by the app over places. A path key catches repeats along the drawing
+  path.
+- **Selection as a filter plus exceptions**: `selection`'s value, which the server interprets for bulk actions.
+- **Reordering from a grip only, and only under the author's order**: `handle`, plus the app drawing the grip only then.
+- **Moving between groups**: drop targets, as in test 2.
+- **Marks in text**: `rovingFocus` over a `domElements(container, selector)` element source, with `overlay` and
+  `anchored` for the hover card.
+- **A card's menu with "Move to…"**: the menu composition, with a combobox from test 7 in it.
+
+## What I couldn't fix
+
+1. **Positions without an order-statistic index.** `aria-posinset`, `aria-setsize` and a proportional scrollbar need the
+   server to say where a place is in the whole order. Anchor-only windowing has no other source for them. Without them
+   the attributes are left out. `aria-setsize="-1"` means "unknown", and using it is a UX proposal. I don't know
+   whether SillyTavern's engine can give positions.
+2. **The palette copies once.** In-memory search has to produce its ranked results somewhere. They are one array, made
+   by the search. They aren't copied again into a source, but they do exist apart from the commands.
+3. **Staleness is per action, not per question.** The loader drops every answer from an older action once a newer one
+   has loaded. Scrolling while a typeahead search is pending therefore drops the search. Whether that is right is a UX
+   proposal. Making it finer would mean the loader knowing what each request is for.
+4. **One tie-break in keybinds** (exact over `anyModifiers`) remains, flagged under "Changes to keybinds".
+5. **Two lists in one action** cost one request each, unless the transport merges loads across loaders (Assuming
+   above).
+6. **The changes to keybinds are designed, not checked.** I read the code they change (`core.js:200-260, 335-410`,
+   `modal.js`, `keys.js:20-49, 90-100, 236-278`, `mouse.js:322-376`, `input.js:120-161`). I haven't traced
+   sequences, holds or gamepad input through them.
 
 ## Decisions for the owner
 
-These are left open because they are UX or the owner's model:
+- Names items by key instead of sharing positions, which replaces the accepted positional source model.
+- keybinds' overlay and text-field policies become opt-in, which breaks apps that rely on today's defaults.
+- Whether selecting an entry in one place selects it in every place it shows. The server's membership answer decides
+  it, so it is one rule on the server.
+- What a range across groups, or across a collapsed subtree, covers.
+- Whether a selection survives a query change. The current code clears it (`list-selection.js:99-101`).
+- Where focus goes when its item disappears: nowhere (this design), or to a neighbour.
+- On a query change, whether windowing goes to the top (this design) or keeps its place.
 
-- Whether modules name items by key instead of sharing positions. This replaces the "count, items by range, an item's
-  position" source model accepted earlier.
-- What navigation does when the active item has been deleted, so the data can no longer place it.
-- Whether a selection survives a change of filter. The current code clears it when the source changes
-  (`list-selection.js:99-101`).
-- What a Shift range across groups selects.
-- Whether an item shown in two groups is selected in both. This design makes "both" the natural result, since selection
-  holds the entry's key.
-- The Space conflict above.
-- The default key suggestions for each module.
+## UX proposals
+
+Each of these is a proposal for the owner, not a decision:
+
+- In single selection, selection follows focus (an app command, as in test 1).
+- Shift+Arrow extends the selection, and Ctrl/Cmd+Arrow moves focus without selecting.
+- Space toggles the active item's selection in multiple mode.
+- Ctrl/Cmd+A selects all matching.
+- Typeahead: characters search, Space continues a search in progress, and the `wait` length.
+- Escape closes the top overlay, in the scope that has focus.
+- A press outside closes an overlay, and focus leaving closes it.
+- Alt+ArrowUp and Alt+ArrowDown move an item.
+- A keyboard move at a group's end crosses into the next group.
+- The list auto-scrolls while dragging near its edges.
+- Dragging starts only from a grip.
+- Drop-target halves: before or after; in a tree, the middle as "child of".
+- Alt held while dropping is left to the app (worldbuilding: "keep both").
+- While a cell is edited, list keys that type text do nothing.
+- ArrowRight and ArrowLeft in a tree expand, collapse and move to child or parent.
+- In a menu, ArrowRight and ArrowLeft open and close a submenu, with a pointer delay and a safe triangle.
+- With nothing active, focus entering a list goes where the app's `start` says (first item, or first selected).
+- When the active item disappears, nothing is active and the container becomes the tab stop.
+- `aria-setsize="-1"` when the total isn't known.
+- Staleness drops an older action's answers when any newer action loads.
 
 ## Names (proposals)
 
-Concepts: **key**, **cell**, **command**, **needs**.
+Every name here is the owner's to approve. The reviewer found eight of the first draft's names unclear. They are
+replaced:
 
-Modules: `activeDescendant`, `rovingFocus`, `listNavigation`, `gridNavigation`, `typeahead`, `selection`,
-`focusEntering`, `windowing`, `loadAsYouScroll`, `nestedOrder`, `reorder`, `overlay`, `anchored`,
-`closeOnOutsidePress`, `closeOnFocusLeaving`, `layers`, `submenus`, `submenuPointer`, `inlineCompletion`,
-`cellEditing`, `listboxRoles`, `menuRoles`, `comboboxRoles`, `domOrder`, `fromArray`, `cell`.
+| Old | New |
+| --- | --- |
+| `only` | `selectOne` |
+| `span` | the range description, `{ from, to }` |
+| `everything` | `selectAllMatching` / `'all'` |
+| `cell` | **state** |
+| `needs` | **parameter** |
+| `descendant` | the container decoration |
+| `shown` | `rows` |
+| `read` | `load` |
 
-Their parts: `keyFrom`, `handle`, `elementFor`, `exists`, `idOf`, `descendant`, `tabIndexOf`, `go`, `current`, `order`,
-`find`, `typing`, `everything`, `span`, `matches`, `firstIn`, `only`, `toggle`, `extendTo`, `selectEverything`,
-`chosen`, `shown`, `measure`, `reveal`, `pinned`, `read`, `siblings`, `moved`, `dragging`, `target`, `onClose`,
-`inside`, `styles`.
-
-In `keybinds`, as a request to that package rather than part of this one: `$char`.
+- **Concepts:** key, entry, state, command, parameter, loader, order request, description, element source, hold,
+  decoration, rows, stylesheet, scope, condition, text taker, composition, drop target.
+- **Modules and helpers:** `windowing`, `plainList`, `domElements`, `activeDescendant`, `rovingFocus`, `listNavigation`,
+  `gridNavigation`, `treeNavigation`, `columnsIn`, `typeahead`, `selection`, `expansion`, `reorder`, `overlay`,
+  `anchored`, `closeOnOutsidePress`, `closeOnFocusLeaving`, `overlayStack`, `submenus`, `submenuPointer`,
+  `inlineCompletion`, `cellEditing`, `listboxRoles`, `menuRoles`, `comboboxRoles`, `treeRoles`, `gridRoles`,
+  `decorations`, `view`, `state`, `serverLoader`, `memoryLoader`.
+- **Commands:**
+  - focus: `go`;
+  - navigation: `next`, `previous`, `first`, `last`, `pageDown`, `pageUp`, `below`, `above`, `rowStart`, `rowEnd`,
+    `parent`, `firstChild`;
+  - typeahead: `type`;
+  - selection: `selectOne`, `toggle`, `extendTo`, `addRange`, `selectAllMatching`, `clear`;
+  - expansion: `expand`, `collapse`, `toggle`;
+  - reorder: `moveUp`, `moveDown`;
+  - overlay: `show`, `close`;
+  - submenus: `open`, `close`;
+  - inline completion: `complete`;
+  - cell editing: `start`, `commit`, `cancel`;
+  - plain list: `loadMore`.
+- **States and reads:** `active`, `value`, `isSelected`, `expanded`, `isExpanded`, `dragging`, `target`, `open`,
+  `loading`, `rows`, `entries`, `spaceBefore`, `spaceAfter`, `position`, `total`.
+- **Parameters:** `load`, `changes`, `setQuery`, `elements`, `elementFor`, `keyOf`, `release`, `gone`, `start`,
+  `container`, `scroller`, `pageSize`, `columns`, `wait`, `mode`, `attribute`, `handle`, `targets`, `at`, `moved`,
+  `modifiers`, `element`, `modal`, `allowClose`, `anchor`, `placement`, `page`, `inside`, `parent`, `hasSubmenu`,
+  `openSubmenu`, `closeSubmenu`, `input`, `textOf`, `editing`, `commit`, `roleOf`, `draw`, `styles`.
+- **Order requests:** `first`, `last`, `after`, `before`, `around`, `count`, `find`, `from`, `parent`, `firstChild`,
+  `describe`, `membership`.
+- **Selection value:** `ranges`, `added`, `removed`, `anchor`.
+- **Changes:** `keys`, `reset`.
+- **Drop targets:** `before`, `after`, `into`, `childOf`.
+- **keybinds additions:** `unless`, `outsideOpenOverlay`, `takesText`, `textField`, `$char`, `onConflict`.
+- **Element names** for the compositions: `<interact-listbox>`, `<interact-menu>`, `<interact-combobox>`,
+  `<interact-palette>`, `<interact-tree>`. The prefix is the app's, at registration.
