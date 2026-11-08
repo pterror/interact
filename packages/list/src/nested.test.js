@@ -28,11 +28,6 @@ describe('measuredRows', () => {
   test('takes rows to be the estimate until measured, and places the rest by what was measured', () => {
     /** @type {ReturnType<typeof measuredRows<string>>} */
     const layout = measuredRows(10)
-    /** @type {number[][]} */
-    const shifts = []
-    layout.watchShifts((top, by) => {
-      shifts.push([top, by])
-    })
     expect(layout.place(5)).toEqual({ x: 0, y: 50 })
     layout.measure('c', 2, 40)
     layout.measure('c', 2, 40)
@@ -41,17 +36,11 @@ describe('measuredRows', () => {
     expect(layout.extent(1_000_000_000)).toEqual({ height: 10_000_000_030 })
     expect(layout.ranksIn(25, 65, 100)).toEqual({ from: 2, to: 4 })
     expect(layout.ranksIn(0, 5, 100)).toEqual({ from: 0, to: 1 })
-    expect(shifts).toEqual([[20, 30]])
   })
 
   test('keeps a height with its key, so it moves with its item when the list changes', () => {
     /** @type {ReturnType<typeof measuredRows<string>>} */
     const layout = measuredRows(10)
-    /** @type {number[][]} */
-    const shifts = []
-    layout.watchShifts((top, by) => {
-      shifts.push([top, by])
-    })
     layout.measure('b', 1, 40)
     layout.measure('d', 3, 20)
     expect(layout.place(4)).toEqual({ x: 0, y: 80 })
@@ -64,11 +53,6 @@ describe('measuredRows', () => {
     ])
     layout.measure('z', 2, 15)
     expect(layout.place(3)).toEqual({ x: 0, y: 35 })
-    expect(shifts).toEqual([
-      [10, 30],
-      [60, 10],
-      [20, -25],
-    ])
   })
 })
 
@@ -106,50 +90,96 @@ describe('measure', () => {
   })
 })
 
-describe('keepInPlace', () => {
-  test('scrolls by a change of height above what it holds still: the anchor in view, else the top of the view', () => {
-    /** @type {ReturnType<typeof measuredRows<string>>} */
-    const layout = measuredRows(10)
-    /** @type {number[]} */
-    const scrolled = []
-    /** @type {number | undefined} */
-    let anchor = undefined
-    let start = 100
-    keepInPlace({
-      anchor: () => anchor,
-      scrollBy: (pixels) => {
-        scrolled.push(pixels)
-        start += pixels
+/**
+ * Rows of ten pixels over keys a..z, a view from pixel `start` 50 high, and the keys drawn with their ranks
+ * @returns {Readonly<{ ranks: Map<string, number>, view: { start: number }, held: (string | undefined)[],
+ *   layout: ReturnType<typeof measuredRows<string>>, moved: () => void, userScroll: (to: number) => void }>} The
+ *   setup
+ */
+function setup() {
+  /** @type {Map<string, number>} */
+  const ranks = new Map('abcdefghij'.split('').map((key, rank) => [key, rank]))
+  const view = { start: 30 }
+  /** @type {Set<() => void>} */
+  const rankListeners = new Set()
+  /** @type {Set<() => void>} */
+  const scrollListeners = new Set()
+  /** @type {(string | undefined)[]} */
+  const held = []
+  /** @type {ReturnType<typeof measuredRows<string>>} */
+  const layout = measuredRows(10)
+  keepInPlace({
+    drawn: {
+      keys: () => [...ranks.keys()],
+      rank: (key) => ranks.get(key),
+      watchRanks(listener) {
+        rankListeners.add(listener)
+        return () => undefined
       },
-      shifts: layout,
-      visible: { get: () => ({ end: start + 200, start }), watch: () => () => undefined },
-    })
-    layout.measure('d', 3, 25)
-    layout.measure('x', 30, 5)
-    anchor = 265
-    layout.measure('u', 20, 12)
-    anchor = 900
-    layout.measure('v', 21, 12)
-    expect(scrolled).toEqual([15, 2])
+    },
+    hold: (key) => {
+      held.push(key)
+    },
+    layout,
+    prefer: () => undefined,
+    scrollBy: (pixels) => {
+      view.start += pixels
+    },
+    visible: {
+      get: () => ({ end: view.start + 50, start: view.start }),
+      watch(listener) {
+        scrollListeners.add(listener)
+        return () => undefined
+      },
+    },
+  })
+  return {
+    held,
+    layout,
+    moved() {
+      for (const listener of rankListeners) {
+        listener()
+      }
+    },
+    ranks,
+    userScroll(to) {
+      view.start = to
+      for (const listener of scrollListeners) {
+        listener()
+      }
+    },
+    view,
+  }
+}
+
+describe('keepInPlace', () => {
+  test('holds the first item in view by key when items are added or removed above it', async () => {
+    const { held, moved, ranks, view } = setup()
+    expect(held).toEqual(['d'])
+    for (const [key, rank] of ranks) {
+      ranks.set(key, rank + 4)
+    }
+    moved()
+    await Promise.resolve()
+    expect(view.start).toBe(70)
+    for (const [key, rank] of ranks) {
+      ranks.set(key, rank - 6)
+    }
+    moved()
+    await Promise.resolve()
+    expect(view.start).toBe(10)
   })
 
-  test('aims at where the view was plus the change, though the browser moved the view first', () => {
-    /** @type {ReturnType<typeof measuredRows<string>>} */
-    const layout = measuredRows(10)
-    let start = 100
-    keepInPlace({
-      anchor: () => undefined,
-      scrollBy: (pixels) => {
-        start += pixels
-      },
-      shifts: layout,
-      visible: { get: () => ({ end: start + 200, start }), watch: () => () => undefined },
-    })
-    layout.watch(() => {
-      start -= 4
-    })
-    layout.measure('d', 3, 4)
-    expect(start).toBe(94)
+  test('holds it when rows above it are measured, and picks again when the view is scrolled', async () => {
+    const { held, layout, userScroll, view } = setup()
+    layout.measure('a', 0, 25)
+    await Promise.resolve()
+    expect(view.start).toBe(45)
+    userScroll(60)
+    expect(held.at(-1)).toBe('f')
+    layout.measure('j', 9, 40)
+    await Promise.resolve()
+    expect(view.start).toBe(60)
   })
 })
 

@@ -231,11 +231,15 @@ every level (a region's first few members, each with its first few), a "+N more"
 recurs. Ranks exist only at the top level. Adds:
 
 - `measuredRows`: a layout of rows as tall as their content, an estimate **(P: 56px)** until measured; only measured
-  rows cost anything. It tells `watch` before `watchShifts`, so what sizes the scroll range includes a change first.
+  rows cost anything.
 - `measure`: Facet measuring each element's height, handed on with its key and rank in the next frame, and again when
   ranks change.
-- `keepInPlace`: scrolls by height changes above the anchor (the active item's top-level item while in view, else the
-  view's top), aiming at where the view was plus the change: the browser clamps the view when content shrinks.
+- `keepInPlace`: keeps what is on screen in place by key, whatever moves it (rows above measured, entries added or
+  removed above). It holds one drawn item at its distance from the view's top (the active item's top-level item while in
+  view, else the first item in view), and after any change to the layout or the ranks scrolls it back there, once
+  everything else has heard the change. It picks again when the view scrolls by other means or the preferred item comes
+  into view. It hands the held key on (`hold`); the app adds it to `windowing`'s `keep`, so it has a rank after an edit
+  however far it moved.
 - `treeCache`: holds the latest answers; gives `windowing` the top-level KeysAt and a Locate that fetches a far node
   first; gives each node's children as a Drawn; and each node, for `create`.
 - `nest`: Facet that builds a region's nested list inside its element (render, `flowMount`, the same facets, with `nest`
@@ -265,6 +269,12 @@ now keeps each height with its key, at the rank the key was last seen at (a key 
 it), and `measure` reports again when ranks change, so heights move with their items. The layout still needs ranks for
 positions; taking them from `measure` rather than from `windowing` avoids a cycle (`windowing` needs the layout first).
 A height measured far away keeps its last rank until its item is drawn again.
+
+**Fixed after review:** an insert or removal at the top level above the view moved what was on screen. `keepInPlace`
+first applied measured height changes as deltas; that was one cause of movement among several. It now holds an item by
+key and scrolls it back to where it was after any change, so measurements and edits are one case, and `measuredRows` no
+longer reports shifts. Tested in the browser by inserting and removing above the view while scrolled to the middle of
+100,000 entries: the same entries stay at the same pixels.
 
 **Changed while building:** `place`'s Rect height became optional (no height: as tall as its content), for a layout
 whose items size themselves.
@@ -383,5 +393,4 @@ changes (O).
 
 ## Still open
 
-- **Anchoring the window** by rank shifts what's on screen when items are inserted above; anchoring by key avoids that
-  but needs a second KeysAt shape **(P: by key)**.
+- Nothing beyond the open items noted under each case.

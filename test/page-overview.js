@@ -144,14 +144,160 @@ function occurrence(key, id, above) {
   return { children: [...children, ...tile], entry: id, key, kind: 'region', label: labelOf(id) }
 }
 
+/** Entries added at the top level, before the base entry of each rank, in order */
+/** @type {Map<number, string[]>} */
+const inserted = new Map()
+/** Base entries taken out of the top level, by their rank among the base entries */
+/** @type {Set<number>} */
+const removed = new Set()
+let added = 0
+
+/** @returns {number} How many top-level entries there are */
+function topCount() {
+  let count = TOPS - removed.size
+  for (const entries of inserted.values()) {
+    count += entries.length
+  }
+  return count
+}
+
+/** @returns {number[]} The base ranks where the top level was edited, in order */
+function edits() {
+  return [...new Set([...inserted.keys(), ...removed])].toSorted((one, other) => one - other)
+}
+
+/**
+ * The top-level entry at a rank, through the edits
+ * @param {number} rank - The rank
+ * @returns {string | undefined} The entry
+ */
+function idAt(rank) {
+  let left = rank
+  let base = 0
+  for (const edit of edits()) {
+    if (left < edit - base) {
+      return `E${String(base + left)}`
+    }
+    left -= edit - base
+    const before = inserted.get(edit) ?? []
+    if (left < before.length) {
+      return before[left]
+    }
+    left -= before.length
+    if (!removed.has(edit)) {
+      if (left === 0) {
+        return `E${String(edit)}`
+      }
+      left -= 1
+    }
+    base = edit + 1
+  }
+  return base + left < TOPS && left >= 0 ? `E${String(base + left)}` : undefined
+}
+
+/**
+ * The rank at which a base entry's slot starts: the first entry added before it, or it
+ * @param {number} edit - The base rank
+ * @returns {number} The rank
+ */
+function slotOf(edit) {
+  let rank = edit
+  for (const [at, entries] of inserted) {
+    rank += at < edit ? entries.length : 0
+  }
+  for (const at of removed) {
+    rank -= at < edit ? 1 : 0
+  }
+  return rank
+}
+
+/**
+ * A top-level entry's rank, through the edits
+ * @param {string} id - The entry
+ * @returns {number | undefined} Its rank, if it is at the top level
+ */
+function rankOfTop(id) {
+  const base = topNumber(id)
+  if (base !== undefined) {
+    return base < TOPS && !removed.has(base) ? slotOf(base) + (inserted.get(base)?.length ?? 0) : undefined
+  }
+  for (const [edit, entries] of inserted) {
+    const index = entries.indexOf(id)
+    if (index !== -1) {
+      return slotOf(edit) + index
+    }
+  }
+  return undefined
+}
+
+/**
+ * Tells everyone the overview changed
+ * @returns {void}
+ */
+function tell() {
+  for (const listener of changed) {
+    listener()
+  }
+}
+
+/**
+ * Adds entries at the top level
+ * @param {number} rank - Where: before the entry now at this rank
+ * @param {number} count - How many
+ * @returns {void}
+ */
+function insertTop(rank, count) {
+  const at = idAt(rank)
+  const fresh = Array.from({ length: count }, () => {
+    added += 1
+    return `N${String(added)}`
+  })
+  const base = at === undefined ? undefined : topNumber(at)
+  if (base !== undefined) {
+    inserted.set(base, [...(inserted.get(base) ?? []), ...fresh])
+  } else {
+    for (const [edit, entries] of inserted) {
+      const index = at === undefined ? -1 : entries.indexOf(at)
+      if (index !== -1) {
+        inserted.set(edit, [...entries.slice(0, index), ...fresh, ...entries.slice(index)])
+      }
+    }
+  }
+  tell()
+}
+
+/**
+ * Takes entries out of the top level
+ * @param {number} rank - Where: from the entry now at this rank
+ * @param {number} count - How many
+ * @returns {void}
+ */
+function removeTop(rank, count) {
+  for (let left = count; left > 0; left -= 1) {
+    const at = idAt(rank)
+    const base = at === undefined ? undefined : topNumber(at)
+    if (base !== undefined) {
+      removed.add(base)
+    } else {
+      for (const [edit, entries] of inserted) {
+        inserted.set(
+          edit,
+          entries.filter((each) => each !== at),
+        )
+      }
+    }
+  }
+  tell()
+}
+
 /**
  * A top-level entry's occurrence
  * @param {number} rank - Its rank
- * @returns {Occurrence} It, cut short
+ * @returns {Occurrence | undefined} It, cut short
  */
 function topAt(rank) {
-  const id = `E${String(rank)}`
-  return occurrence(id, id, new Set())
+  const id = idAt(rank)
+  return id === undefined ? undefined : occurrence(id, id, new Set())
 }
 
 /**
@@ -169,8 +315,7 @@ function readingOrder(node) {
  * @returns {number | undefined} Its top-level entry's rank
  */
 function rankOf(key) {
-  const top = topNumber(key.split('/')[0] ?? '')
-  return top !== undefined && top < TOPS ? top : undefined
+  return rankOfTop(key.split('/')[0] ?? '')
 }
 
 /**
@@ -190,11 +335,25 @@ function entryOf(key) {
  * @returns {Promise<readonly Occurrence[]>} The occurrences
  */
 function overview(from, to) {
-  return Promise.resolve(
-    Array.from({ length: Math.max(Math.min(to, TOPS) - Math.max(from, 0), 0) }, (_, index) =>
-      topAt(Math.max(from, 0) + index),
-    ),
-  )
+  /** @type {Occurrence[]} */
+  const found = []
+  for (let rank = Math.max(from, 0); rank < Math.min(to, topCount()); rank += 1) {
+    const top = topAt(rank)
+    if (top !== undefined) {
+      found.push(top)
+    }
+  }
+  return Promise.resolve(found)
+}
+
+/**
+ * Every occurrence under a top-level entry, in reading order
+ * @param {number} rank - The entry's rank
+ * @returns {string[]} Their keys; none past the end
+ */
+function orderAt(rank) {
+  const top = topAt(rank)
+  return top === undefined ? [] : readingOrder(top)
 }
 
 /**
@@ -205,19 +364,19 @@ function overview(from, to) {
  */
 function step(from, by) {
   if (from === undefined) {
-    return Promise.resolve(by < 0 ? readingOrder(topAt(TOPS - 1)).at(-1) : topAt(0).key)
+    return Promise.resolve(by < 0 ? orderAt(topCount() - 1).at(-1) : orderAt(0)[0])
   }
   let key = from
   for (let left = Math.abs(by); left > 0; left -= 1) {
     const rank = rankOf(key) ?? 0
-    const order = readingOrder(topAt(rank))
+    const order = orderAt(rank)
     const index = order.indexOf(key) + Math.sign(by)
     if (index >= 0 && index < order.length) {
       key = order[index] ?? key
-    } else if (by > 0 && rank + 1 < TOPS) {
-      key = topAt(rank + 1).key
+    } else if (by > 0 && rank + 1 < topCount()) {
+      key = orderAt(rank + 1)[0] ?? key
     } else if (by < 0 && rank > 0) {
-      key = readingOrder(topAt(rank - 1)).at(-1) ?? key
+      key = orderAt(rank - 1).at(-1) ?? key
     }
   }
   return Promise.resolve(key)
@@ -270,9 +429,7 @@ function reorder(key, target, after) {
     at = rest.indexOf(targetEntry) + (after ? 1 : 0)
   }
   edited.set(into, [...rest.slice(0, at), entry, ...rest.slice(at)])
-  for (const listener of changed) {
-    listener()
-  }
+  tell()
 }
 
 /**
@@ -361,32 +518,40 @@ function putOverview() {
     locate: (/** @type {string} */ key) => Promise.resolve(rankOf(key)),
   })
   const layout = measuredRows(56)
-  const count = { get: () => TOPS, watch: () => () => undefined }
+  const count = {
+    get: topCount,
+    /**
+     * @param {() => void} listener - Hears the count change
+     * @returns {() => void} Stops
+     */
+    watch(listener) {
+      changed.add(listener)
+      return () => {
+        changed.delete(listener)
+      }
+    },
+  }
   const shown = viewport(scroller)
+  const held = keyCell(undefined)
+  const activeTop = () => active.get()?.split('/')[0]
   const drawn = windowing({
     keep: {
-      get() {
-        const key = active.get()
-        const top = key?.split('/')[0]
-        return top === undefined ? [] : [top]
+      get: () => [...new Set([activeTop(), held.get()])].filter((key) => key !== undefined),
+      watch(listener) {
+        const stops = [active.watch(listener), held.watch(listener)]
+        return () => {
+          for (const stop of stops) {
+            stop()
+          }
+        }
       },
-      watch: (listener) => active.watch(listener),
     },
     keysAt: cache,
     locate: cache.locate,
     ranks: visibleRanks({ count, layout, visible: shown }),
   })
   sizer({ count, element: box, layout })
-  keepInPlace({
-    anchor() {
-      const top = active.get()?.split('/')[0]
-      const rank = top === undefined ? undefined : drawn.rank(top)
-      return rank === undefined ? undefined : layout.place(rank).y
-    },
-    scrollBy: shown.scrollBy,
-    shifts: layout,
-    visible: shown,
-  })
+  keepInPlace({ drawn, hold: held.set, layout, prefer: activeTop, scrollBy: shown.scrollBy, visible: shown })
 
   /**
    * An occurrence's element: a treeitem, holding its region's members in a group
@@ -397,6 +562,7 @@ function putOverview() {
     const node = cache.node(key)
     const item = document.createElement('div')
     item.setAttribute('role', 'treeitem')
+    item.dataset['key'] = key
     item.style.cssText = 'user-select: none; padding: 2px 0'
     const head = document.createElement('div')
     head.id = `${idOf(key)}-head`
@@ -554,4 +720,59 @@ function membersNow(region) {
   return membersOf(region)
 }
 
-export { idOf, membersNow, putOverview, seenOverview }
+/**
+ * The top-level entries in view, and where each starts on screen
+ * @returns {readonly Readonly<{ text: string, top: number, position: string | undefined }>[]} Each, from the top
+ */
+function topsInView() {
+  const view = tree?.parentElement?.getBoundingClientRect()
+  /** @type {Readonly<{ text: string, top: number, position: string | undefined }>[]} */
+  const found = []
+  for (const item of tree?.querySelectorAll(':scope > [role=treeitem]') ?? []) {
+    const top = Math.round(item.getBoundingClientRect().top)
+    if (view !== undefined && top >= view.top && top < view.bottom) {
+      found.push({
+        position: item.getAttribute('aria-posinset') ?? undefined,
+        text: item.firstElementChild?.textContent ?? '',
+        top,
+      })
+    }
+  }
+  return found.toSorted((one, other) => one.top - other.top)
+}
+
+/**
+ * The rank of the first top-level entry in view
+ * @returns {number} Its rank
+ */
+function firstInView() {
+  const view = tree?.parentElement?.getBoundingClientRect()
+  /** @type {{ key: string, top: number } | undefined} */
+  let first = undefined
+  for (const item of tree?.querySelectorAll(':scope > [role=treeitem]') ?? []) {
+    const { top } = item.getBoundingClientRect()
+    if (
+      view !== undefined &&
+      top >= view.top &&
+      (first === undefined || top < first.top) &&
+      item instanceof HTMLElement
+    ) {
+      first = { key: item.dataset['key'] ?? '', top }
+    }
+  }
+  return (first === undefined ? undefined : rankOfTop(first.key)) ?? 0
+}
+
+/**
+ * Scrolls to a part of the way down
+ * @param {number} fraction - How far, from 0 to 1
+ * @returns {void}
+ */
+function scrollToFraction(fraction) {
+  const scroller = tree?.parentElement
+  if (scroller) {
+    scroller.scrollTop = fraction * (scroller.scrollHeight - scroller.clientHeight)
+  }
+}
+
+export { firstInView, idOf, insertTop, membersNow, putOverview, removeTop, scrollToFraction, seenOverview, topsInView }

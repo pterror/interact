@@ -146,4 +146,55 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
       expect(await audit(page, '[role=tree]')).toEqual([])
     })
   })
+
+  test('keeps what is on screen in place when entries are added or removed above it, in the middle of 100,000', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        overview.putOverview()
+        overview.scrollToFraction(0.5)
+      })
+      await page.waitForTimeout(SETTLE_MS * 2)
+      const tops = async () =>
+        page.evaluate(async () => {
+          const overview = await import('./page-overview.js')
+          return overview.topsInView()
+        })
+      const before = await tops()
+      expect(before.length).toBeGreaterThan(2)
+      const first = Number(before[0]?.position)
+      expect(first).toBeGreaterThan(40_000)
+      /** @type {readonly (readonly ['insert' | 'remove', number, number])[]} */
+      const edits = [
+        ['insert', 2, 3],
+        ['insert', 40, 50],
+        ['remove', 3, 2],
+        ['remove', 200, 30],
+        ['insert', first - 10, 1000],
+      ]
+      let moved = 0
+      for (const [kind, above, count] of edits) {
+        // oxlint-disable-next-line no-await-in-loop -- each edit is made and looked at before the next
+        await page.evaluate(
+          async (/** @type {Readonly<{ what: string, back: number, many: number }>} */ edit) => {
+            const overview = await import('./page-overview.js')
+            const at = overview.firstInView() - edit.back
+            if (edit.what === 'insert') {
+              overview.insertTop(at, edit.many)
+            } else {
+              overview.removeTop(at, edit.many)
+            }
+          },
+          { back: above, many: count, what: kind },
+        )
+        moved += kind === 'insert' ? count : -count
+        // oxlint-disable-next-line no-await-in-loop -- each edit is made and looked at before the next
+        await page.waitForTimeout(SETTLE_MS)
+        // oxlint-disable-next-line no-await-in-loop -- each edit is made and looked at before the next
+        const after = await tops()
+        expect(after.map(({ text, top }) => [text, top])).toEqual(before.map(({ text, top }) => [text, top]))
+        expect(after[0]?.position).toBe(String(first + moved))
+      }
+    })
+  })
 })

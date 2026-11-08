@@ -17,7 +17,6 @@
  *   extent: (count: number) => Readonly<{ height: number }>,
  *   watch: (listener: () => void) => () => void,
  *   measure: (key: K, rank: number, height: number) => void,
- *   watchShifts: (listener: (top: number, by: number) => void) => () => void,
  * }>} MeasuredRows
  */
 
@@ -45,8 +44,7 @@ function lastAtMost(values, target) {
  * Rows as tall as their content
  * @template K
  * @param {number} estimate - The height in pixels a row is taken to be until measured
- * @returns {MeasuredRows<K>} The layout; `measure` gives a key's rank and height, and `watchShifts` hears that rows from a pixel
- *   down moved by some pixels, after `watch` has, so what sizes the scroll range already includes the change
+ * @returns {MeasuredRows<K>} The layout; `measure` gives a key's rank and height
  */
 function measuredRows(estimate) {
   /** @type {Map<K, { rank: number, height: number }>} */
@@ -66,8 +64,6 @@ function measuredRows(estimate) {
   let sums = undefined
   /** @type {Set<() => void>} */
   const listeners = new Set()
-  /** @type {Set<(top: number, by: number) => void>} */
-  const shifts = new Set()
 
   /** @returns {Readonly<{ ranks: readonly number[], below: readonly number[], total: number }>} The measured ranks in order, the extra height before each, and in all */
   const summed = () => {
@@ -124,8 +120,6 @@ function measuredRows(estimate) {
       if (was?.rank === rank && was.height === height) {
         return
       }
-      const before = measuredAt(rank) ?? estimate
-      const at = top(rank)
       if (was !== undefined && byRank.get(was.rank) === key) {
         byRank.delete(was.rank)
       }
@@ -139,11 +133,6 @@ function measuredRows(estimate) {
       for (const listener of listeners) {
         listener()
       }
-      if ((was === undefined || was.rank === rank) && height !== before) {
-        for (const listener of shifts) {
-          listener(at, height - before)
-        }
-      }
     },
     place: (rank) => ({ x: 0, y: top(rank) }),
     ranksIn(start, end, count) {
@@ -154,12 +143,6 @@ function measuredRows(estimate) {
       listeners.add(listener)
       return () => {
         listeners.delete(listener)
-      }
-    },
-    watchShifts(listener) {
-      shifts.add(listener)
-      return () => {
-        shifts.delete(listener)
       }
     },
   }
