@@ -90,4 +90,30 @@ describe('drag', () => {
     expect(moves).toEqual([])
     expect(picked).toEqual(['click'])
   })
+
+  test('asks again where the drag would land when anything scrolls under a still pointer', () => {
+    const element = document.createElement('div')
+    const a = document.createElement('div')
+    element.append(a)
+    document.body.append(element)
+    element.setPointerCapture = () => undefined
+    let scrolled = 0
+    /** @type {string[]} */
+    const moves = []
+    drag({
+      element,
+      gap: () => ({ after: true, target: scrolled > 0 ? 'far' : 'near' }),
+      itemOf: (target) => (target === a ? { key: 'a' } : undefined),
+      reorder: (key, target) => {
+        moves.push(`${key}->${target}`)
+      },
+      showing: () => undefined,
+    })
+    point(a, 'pointerdown', 0)
+    point(a, 'pointermove', 60)
+    scrolled += 1
+    document.dispatchEvent(new Event('scroll'))
+    point(a, 'pointerup', 60)
+    expect(moves).toEqual(['a->far'])
+  })
 })

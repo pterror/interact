@@ -1,6 +1,7 @@
 /**
  * Dragging an item to another place with the pointer. A press becomes a drag once the pointer moves a few pixels;
- * the click that ends a drag is swallowed, so it doesn't also pick.
+ * where it would land is asked again whenever the pointer moves or anything scrolls under it; the click that ends a
+ * drag is swallowed, so it doesn't also pick.
  */
 
 /** How far, in pixels, the pointer moves before a press is a drag */
@@ -31,7 +32,10 @@ const THRESHOLD = 4
  * @returns {() => void} Stops
  */
 function drag({ element, gap, itemOf, reorder, showing }) {
-  /** @type {{ key: K, x: number, y: number, pointer: number, moved: boolean, at: Dragging<K> | undefined } | undefined} */
+  /**
+   * @type {{ key: K, x: number, y: number, pointer: number, moved: boolean, at: Dragging<K> | undefined,
+   *   point: Readonly<{ x: number, y: number }> } | undefined}
+   */
   let press = undefined
   let swallow = false
 
@@ -45,7 +49,23 @@ function drag({ element, gap, itemOf, reorder, showing }) {
       return
     }
     swallow = false
-    press = { at: undefined, key: item.key, moved: false, pointer: event.pointerId, x: event.clientX, y: event.clientY }
+    const point = { x: event.clientX, y: event.clientY }
+    press = { at: undefined, key: item.key, moved: false, point, pointer: event.pointerId, ...point }
+  }
+
+  /**
+   * Asks where the drag would land, with the pointer where it last was
+   * @returns {void}
+   */
+  const aim = () => {
+    if (press?.moved !== true) {
+      return
+    }
+    const found = gap(press.point)
+    if (found !== undefined) {
+      press.at = found.target === press.key ? undefined : { after: found.after, key: press.key, target: found.target }
+      showing(press.at)
+    }
   }
 
   /**
@@ -64,11 +84,8 @@ function drag({ element, gap, itemOf, reorder, showing }) {
       element.setPointerCapture(event.pointerId)
     }
     event.preventDefault()
-    const found = gap({ x: event.clientX, y: event.clientY })
-    if (found !== undefined) {
-      press.at = found.target === press.key ? undefined : { after: found.after, key: press.key, target: found.target }
-      showing(press.at)
-    }
+    press.point = { x: event.clientX, y: event.clientY }
+    aim()
   }
 
   /**
@@ -108,7 +125,10 @@ function drag({ element, gap, itemOf, reorder, showing }) {
   element.addEventListener('pointerup', ended)
   element.addEventListener('pointercancel', ended)
   element.addEventListener('click', clicked, { capture: true })
+  const page = element.ownerDocument
+  page.addEventListener('scroll', aim, { capture: true, passive: true })
   return () => {
+    page.removeEventListener('scroll', aim, { capture: true })
     element.removeEventListener('pointerdown', down)
     element.removeEventListener('pointermove', moved)
     element.removeEventListener('pointerup', ended)
