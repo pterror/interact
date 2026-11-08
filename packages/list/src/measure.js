@@ -1,12 +1,13 @@
 /**
- * Measures each drawn element's height and hands it on with its rank, as it changes.
+ * Measures each drawn element's height and hands it on with its key and rank, when it changes size and when ranks
+ * change, so heights follow their items.
  */
 
 /**
  * @template K
  * @typedef {Readonly<{
- *   rank: Readonly<{ rank: (key: K) => number | undefined }>,
- *   measure: (rank: number, height: number) => void,
+ *   rank: Readonly<{ rank: (key: K) => number | undefined, watchRanks: (listener: () => void) => () => void }>,
+ *   measure: (key: K, rank: number, height: number) => void,
  * }>} MeasureOptions
  */
 
@@ -15,7 +16,7 @@
  * @template K
  * @param {MeasureOptions<K>} options - Each drawn key's rank, and where heights go
  * @returns {Readonly<{ apply: (key: K, element: Element) => void, drop: (key: K, element: Element) => void,
- *   watch: () => () => void }>} The facet
+ *   watch: () => () => void }>} The facet; it never asks render to apply it again
  */
 function measure({ measure: measured, rank }) {
   /** @type {Map<Element, K>} */
@@ -27,9 +28,12 @@ function measure({ measure: measured, rank }) {
     for (const [element, key] of watched) {
       const at = rank.rank(key)
       if (at !== undefined && element instanceof HTMLElement && element.isConnected) {
-        measured(at, element.offsetHeight)
+        measured(key, at, element.offsetHeight)
       }
     }
+  }
+  const schedule = () => {
+    frame ??= requestAnimationFrame(report)
   }
   // Heights are handed on in the next frame: changing the layout inside the observer's callback would make it observe
   // again in the same frame, which browsers report as an error
@@ -37,7 +41,7 @@ function measure({ measure: measured, rank }) {
     typeof ResizeObserver === 'undefined'
       ? undefined
       : new ResizeObserver(() => {
-          frame ??= requestAnimationFrame(report)
+          schedule()
         })
   return {
     apply(key, element) {
@@ -50,7 +54,7 @@ function measure({ measure: measured, rank }) {
       watched.delete(element)
       observer?.unobserve(element)
     },
-    watch: () => () => undefined,
+    watch: () => rank.watchRanks(schedule),
   }
 }
 

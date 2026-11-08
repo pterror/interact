@@ -8,6 +8,7 @@ import { flowMount } from './flow-mount.js'
 import { ids } from './ids.js'
 import { items } from './items.js'
 import { keepInPlace } from './keep-in-place.js'
+import { measure } from './measure.js'
 import { measuredRows } from './measured-rows.js'
 import { nest } from './nest.js'
 import { render } from './render.js'
@@ -25,6 +26,7 @@ import { treeCache } from './tree-cache.js'
 
 describe('measuredRows', () => {
   test('takes rows to be the estimate until measured, and places the rest by what was measured', () => {
+    /** @type {ReturnType<typeof measuredRows<string>>} */
     const layout = measuredRows(10)
     /** @type {number[][]} */
     const shifts = []
@@ -32,8 +34,8 @@ describe('measuredRows', () => {
       shifts.push([top, by])
     })
     expect(layout.place(5)).toEqual({ x: 0, y: 50 })
-    layout.measure(2, 40)
-    layout.measure(2, 40)
+    layout.measure('c', 2, 40)
+    layout.measure('c', 2, 40)
     expect(layout.place(5)).toEqual({ x: 0, y: 80 })
     expect(layout.place(2)).toEqual({ x: 0, y: 20 })
     expect(layout.extent(1_000_000_000)).toEqual({ height: 10_000_000_030 })
@@ -41,10 +43,72 @@ describe('measuredRows', () => {
     expect(layout.ranksIn(0, 5, 100)).toEqual({ from: 0, to: 1 })
     expect(shifts).toEqual([[20, 30]])
   })
+
+  test('keeps a height with its key, so it moves with its item when the list changes', () => {
+    /** @type {ReturnType<typeof measuredRows<string>>} */
+    const layout = measuredRows(10)
+    /** @type {number[][]} */
+    const shifts = []
+    layout.watchShifts((top, by) => {
+      shifts.push([top, by])
+    })
+    layout.measure('b', 1, 40)
+    layout.measure('d', 3, 20)
+    expect(layout.place(4)).toEqual({ x: 0, y: 80 })
+    layout.measure('b', 2, 40)
+    layout.measure('d', 4, 20)
+    expect([layout.place(2), layout.place(3), layout.place(5)]).toEqual([
+      { x: 0, y: 20 },
+      { x: 0, y: 60 },
+      { x: 0, y: 90 },
+    ])
+    layout.measure('z', 2, 15)
+    expect(layout.place(3)).toEqual({ x: 0, y: 35 })
+    expect(shifts).toEqual([
+      [10, 30],
+      [60, 10],
+      [20, -25],
+    ])
+  })
+})
+
+describe('measure', () => {
+  test('hands on each element’s key, rank and height again when ranks change', async () => {
+    /** @type {Map<string, number>} */
+    const ranks = new Map([['a', 0]])
+    /** @type {Set<() => void>} */
+    const moved = new Set()
+    /** @type {string[]} */
+    const heard = []
+    const facet = measure({
+      measure: (key, rank) => {
+        heard.push(`${key}@${String(rank)}`)
+      },
+      rank: {
+        rank: (/** @type {string} */ key) => ranks.get(key),
+        watchRanks(listener) {
+          moved.add(listener)
+          return () => undefined
+        },
+      },
+    })
+    const element = document.createElement('div')
+    document.body.append(element)
+    facet.apply('a', element)
+    facet.watch()
+    ranks.set('a', 3)
+    for (const listener of moved) {
+      listener()
+    }
+    await Bun.sleep(50)
+    element.remove()
+    expect(heard).toEqual(['a@3'])
+  })
 })
 
 describe('keepInPlace', () => {
   test('scrolls by a change of height above what it holds still: the anchor in view, else the top of the view', () => {
+    /** @type {ReturnType<typeof measuredRows<string>>} */
     const layout = measuredRows(10)
     /** @type {number[]} */
     const scrolled = []
@@ -60,16 +124,17 @@ describe('keepInPlace', () => {
       shifts: layout,
       visible: { get: () => ({ end: start + 200, start }), watch: () => () => undefined },
     })
-    layout.measure(3, 25)
-    layout.measure(30, 5)
+    layout.measure('d', 3, 25)
+    layout.measure('x', 30, 5)
     anchor = 265
-    layout.measure(20, 12)
+    layout.measure('u', 20, 12)
     anchor = 900
-    layout.measure(21, 12)
+    layout.measure('v', 21, 12)
     expect(scrolled).toEqual([15, 2])
   })
 
   test('aims at where the view was plus the change, though the browser moved the view first', () => {
+    /** @type {ReturnType<typeof measuredRows<string>>} */
     const layout = measuredRows(10)
     let start = 100
     keepInPlace({
@@ -83,7 +148,7 @@ describe('keepInPlace', () => {
     layout.watch(() => {
       start -= 4
     })
-    layout.measure(3, 4)
+    layout.measure('d', 3, 4)
     expect(start).toBe(94)
   })
 })

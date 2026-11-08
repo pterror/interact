@@ -1,6 +1,8 @@
 /**
  * A layout of rows as tall as their content: each row is taken to be an estimated height until it is measured. Only
- * measured rows cost anything; the rest are worked out from the estimate, so the list can be any length.
+ * measured rows cost anything; the rest are worked out from the estimate, so the list can be any length. A height is
+ * kept with the key it was measured for, at the rank that key was last seen at, so it moves with its item when the list
+ * changes; a key seen at a rank another held displaces it.
  */
 
 /**
@@ -8,12 +10,13 @@
  */
 
 /**
+ * @template K
  * @typedef {Readonly<{
  *   ranksIn: (start: number, end: number, count: number) => Readonly<{ from: number, to: number }>,
  *   place: (rank: number) => Rect,
  *   extent: (count: number) => Readonly<{ height: number }>,
  *   watch: (listener: () => void) => () => void,
- *   measure: (rank: number, height: number) => void,
+ *   measure: (key: K, rank: number, height: number) => void,
  *   watchShifts: (listener: (top: number, by: number) => void) => () => void,
  * }>} MeasuredRows
  */
@@ -40,13 +43,25 @@ function lastAtMost(values, target) {
 
 /**
  * Rows as tall as their content
+ * @template K
  * @param {number} estimate - The height in pixels a row is taken to be until measured
- * @returns {MeasuredRows} The layout; `measure` gives a row's height, and `watchShifts` hears that rows from a pixel
+ * @returns {MeasuredRows<K>} The layout; `measure` gives a key's rank and height, and `watchShifts` hears that rows from a pixel
  *   down moved by some pixels, after `watch` has, so what sizes the scroll range already includes the change
  */
 function measuredRows(estimate) {
-  /** @type {Map<number, number>} */
-  const heights = new Map()
+  /** @type {Map<K, { rank: number, height: number }>} */
+  const byKey = new Map()
+  /** @type {Map<number, K>} */
+  const byRank = new Map()
+  /**
+   * The height measured at a rank
+   * @param {number} rank - The rank
+   * @returns {number | undefined} Its height, if measured
+   */
+  const measuredAt = (rank) => {
+    const key = byRank.get(rank)
+    return key === undefined ? undefined : byKey.get(key)?.height
+  }
   /** @type {{ ranks: readonly number[], below: readonly number[], total: number } | undefined} */
   let sums = undefined
   /** @type {Set<() => void>} */
@@ -57,13 +72,13 @@ function measuredRows(estimate) {
   /** @returns {Readonly<{ ranks: readonly number[], below: readonly number[], total: number }>} The measured ranks in order, the extra height before each, and in all */
   const summed = () => {
     if (sums === undefined) {
-      const ranks = [...heights.keys()].toSorted((one, other) => one - other)
+      const ranks = [...byRank.keys()].toSorted((one, other) => one - other)
       /** @type {number[]} */
       const below = []
       let total = 0
       for (const rank of ranks) {
         below.push(total)
-        total += (heights.get(rank) ?? estimate) - estimate
+        total += (measuredAt(rank) ?? estimate) - estimate
       }
       sums = { below, ranks, total }
     }
@@ -78,7 +93,7 @@ function measuredRows(estimate) {
   const top = (rank) => {
     const { below, ranks } = summed()
     const at = lastAtMost(ranks, rank - 1)
-    const extra = at < 0 ? 0 : (below[at] ?? 0) + (heights.get(ranks[at] ?? 0) ?? estimate) - estimate
+    const extra = at < 0 ? 0 : (below[at] ?? 0) + (measuredAt(ranks[at] ?? 0) ?? estimate) - estimate
     return rank * estimate + extra
   }
 
@@ -104,19 +119,30 @@ function measuredRows(estimate) {
 
   return {
     extent: (count) => ({ height: count * estimate + summed().total }),
-    measure(rank, height) {
-      const before = heights.get(rank) ?? estimate
-      if (before === height) {
+    measure(key, rank, height) {
+      const was = byKey.get(key)
+      if (was?.rank === rank && was.height === height) {
         return
       }
+      const before = measuredAt(rank) ?? estimate
       const at = top(rank)
-      heights.set(rank, height)
+      if (was !== undefined && byRank.get(was.rank) === key) {
+        byRank.delete(was.rank)
+      }
+      const displaced = byRank.get(rank)
+      if (displaced !== undefined && displaced !== key) {
+        byKey.delete(displaced)
+      }
+      byKey.set(key, { height, rank })
+      byRank.set(rank, key)
       sums = undefined
       for (const listener of listeners) {
         listener()
       }
-      for (const listener of shifts) {
-        listener(at, height - before)
+      if ((was === undefined || was.rank === rank) && height !== before) {
+        for (const listener of shifts) {
+          listener(at, height - before)
+        }
       }
     },
     place: (rank) => ({ x: 0, y: top(rank) }),

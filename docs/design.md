@@ -232,7 +232,8 @@ recurs. Ranks exist only at the top level. Adds:
 
 - `measuredRows`: a layout of rows as tall as their content, an estimate **(P: 56px)** until measured; only measured
   rows cost anything. It tells `watch` before `watchShifts`, so what sizes the scroll range includes a change first.
-- `measure`: Facet measuring each ranked element's height, handed on in the next frame.
+- `measure`: Facet measuring each element's height, handed on with its key and rank in the next frame, and again when
+  ranks change.
 - `keepInPlace`: scrolls by height changes above the anchor (the active item's top-level item while in view, else the
   view's top), aiming at where the view was plus the change: the browser clamps the view when content shrinks.
 - `treeCache`: holds the latest answers; gives `windowing` the top-level KeysAt and a Locate that fetches a far node
@@ -259,6 +260,12 @@ with their parent without facets hearing it. `drop` is render's own contract ("n
 `treeCache` gives `watchNodes`, the keys whose node says something new about itself (any field but its children); the
 element stays, its content changes. Any source of content can feed `content` the same way.
 
+**Fixed after review:** `measuredRows` kept heights by rank, so an edit at the top level left them on the wrong rows. It
+now keeps each height with its key, at the rank the key was last seen at (a key seen at a rank another held displaces
+it), and `measure` reports again when ranks change, so heights move with their items. The layout still needs ranks for
+positions; taking them from `measure` rather than from `windowing` avoids a cycle (`windowing` needs the layout first).
+A height measured far away keeps its last rank until its item is drawn again.
+
 **Changed while building:** `place`'s Rect height became optional (no height: as tall as its content), for a layout
 whose items size themselves.
 
@@ -274,7 +281,6 @@ browser. What screen readers announce was not tested.
 
 **Found while building, open:**
 
-- `measuredRows` keeps heights by rank, so an edit at the top level leaves them stale until measured again.
 - Regions are always expanded; Left/Right (collapse, to parent) are not built **(P)**.
 
 ## Changed after review
