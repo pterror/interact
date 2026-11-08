@@ -224,6 +224,56 @@ Groups of cards, each under a header as wide as the grid, windowed (the worldbui
 ends in a short row, `+columns` lands in the wrong column of the next group. Moving by rows is a layout question, so it
 is `gridStep` over the layout's `rowStep`; plain `cards` could give `rowStep` too.
 
+## Case 11: nested regions (the worldbuilding overview)
+
+The server answers "the overview near rank r" with the top-level entries around r, each with its subtree cut short at
+every level (a region's first few members, each with its first few), a "+N more" tile per cut, and a repeat cut where it
+recurs. Ranks exist only at the top level. Adds:
+
+- `measuredRows`: a layout of rows as tall as their content, an estimate **(P: 56px)** until measured; only measured
+  rows cost anything. It tells `watch` before `watchShifts`, so what sizes the scroll range includes a change first.
+- `measure`: Facet measuring each ranked element's height, handed on in the next frame.
+- `keepInPlace`: scrolls by height changes above the anchor (the active item's top-level item while in view, else the
+  view's top), aiming at where the view was plus the change: the browser clamps the view when content shrinks.
+- `treeCache`: holds the latest answers; gives `windowing` the top-level KeysAt and a Locate that fetches a far node
+  first; gives each node's children as a Drawn; and each node, for `create`.
+- `nest`: Facet that builds a region's nested list inside its element (render, `flowMount`, the same facets, with `nest`
+  itself, so regions nest the same way) and stops it when the element is dropped.
+- `items`: Facet that knows every drawn element across every render it is given to, so `pick`, `drag` and `gaps` find
+  the innermost item. One render's ItemOf can't: the outer item contains the inner.
+- `byEntry`: a Test over occurrences from a Test over entries. The same entry in two regions is two occurrences with two
+  keys; selecting by entry (marking every occurrence) or by occurrence is the app's choice **(P)**: `byEntry`, or a
+  `cell` of occurrence keys.
+
+The arrow keys use one Step over the tree's reading order, from the server. `windowing` keeps the active occurrence's
+top-level key drawn; the nested lists under it are drawn whole.
+
+**Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
+its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
+
+**Changed while building:** `place`'s Rect height became optional (no height: as tall as its content), for a layout
+whose items size themselves.
+
+**ARIA.** A listbox can't hold groups inside groups: its required owned elements are `group → option` and `option`
+(WAI-ARIA 1.2, https://www.w3.org/TR/wai-aria-1.2/#listbox). A tree can: `tree` owns `treeitem` and `group → treeitem`,
+and a `treeitem` with children holds a `group` and has `aria-expanded` (https://www.w3.org/TR/wai-aria-1.2/#tree,
+#treeitem, #group; APG Tree View, https://www.w3.org/WAI/ARIA/apg/patterns/treeview/). So the overview is a `tree` with
+`aria-activedescendant`; each occurrence is a `treeitem`, a region's holds its members in a `group`, and "+N more" is a
+`treeitem` **(P)**. The treeitem is named from its content. Chrome leaves the nested group out of that name and gives
+levels 1 to 3, as its accessibility tree shows (checked over CDP). `aria-labelledby` on the head instead fails axe's
+`label-content-name-mismatch`. Top-level items carry `aria-posinset` and `aria-setsize`; nested ones are counted by the
+browser. What screen readers announce was not tested.
+
+**Found while building, open:**
+
+- `render.stop()` doesn't drop its elements, so a nested list's elements leave with their parent without facets hearing
+  `drop`. It is safe today only because `windowing` keeps the active occurrence's top-level item drawn. Making `stop`
+  drop every element changes `render`'s behaviour, so it waits for the owner.
+- A node whose content changes under the same key (a "+N more" count) isn't redrawn; the test's server keys the tile by
+  its count. A content facet would do it generally.
+- `measuredRows` keeps heights by rank, so an edit at the top level leaves them stale until measured again.
+- Regions are always expanded; Left/Right (collapse, to parent) are not built **(P)**.
+
 ## Changed after review
 
 - **Pairings.** `elementReveal`/`rankReveal` and `flowGaps`/`layoutGaps` each worked with only one kind of Drawn. Now

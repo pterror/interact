@@ -3,7 +3,8 @@
  */
 
 /**
- * @typedef {Readonly<{ x: number, y: number, width?: number, height: number }>} Rect
+ * Where an item goes, in pixels; no width means as wide as the container, no height as tall as its content
+ * @typedef {Readonly<{ x: number, y: number, width?: number, height?: number }>} Rect
  */
 
 /**
@@ -34,7 +35,11 @@ function place({ layout, rank }) {
       style.boxSizing = 'border-box'
       style.top = `${String(y)}px`
       style.left = `${String(x)}px`
-      style.height = `${String(height)}px`
+      if (height === undefined) {
+        style.removeProperty('height')
+      } else {
+        style.height = `${String(height)}px`
+      }
       if (width === undefined) {
         style.right = '0'
         style.removeProperty('width')
