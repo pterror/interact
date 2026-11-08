@@ -94,4 +94,26 @@ describe('render', () => {
     list.set(['b'])
     expect(shown(container)).toEqual(['a'])
   })
+
+  test('tells every facet, when it stops, that each element it drew is no longer drawn', () => {
+    const container = document.createElement('div')
+    /** @type {string[]} */
+    const dropped = []
+    const rendered = render({
+      create,
+      drawn: arrayList(['a', 'b']),
+      facets: [
+        {
+          apply: () => undefined,
+          drop: (key) => {
+            dropped.push(key)
+          },
+          watch: () => () => undefined,
+        },
+      ],
+      mount: flowMount(container),
+    })
+    rendered.stop()
+    expect(dropped.toSorted()).toEqual(['a', 'b'])
+  })
 })

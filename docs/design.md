@@ -251,6 +251,9 @@ top-level key drawn; the nested lists under it are drawn whole.
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
 
+**Fixed after review:** `render.stop()` didn't call `drop` for the elements it drew, so a nested list's elements left
+with their parent without facets hearing it. `drop` is render's own contract ("no longer drawn"); `stop` now keeps it.
+
 **Changed while building:** `place`'s Rect height became optional (no height: as tall as its content), for a layout
 whose items size themselves.
 
@@ -266,9 +269,6 @@ browser. What screen readers announce was not tested.
 
 **Found while building, open:**
 
-- `render.stop()` doesn't drop its elements, so a nested list's elements leave with their parent without facets hearing
-  `drop`. It is safe today only because `windowing` keeps the active occurrence's top-level item drawn. Making `stop`
-  drop every element changes `render`'s behaviour, so it waits for the owner.
 - A node whose content changes under the same key (a "+N more" count) isn't redrawn; the test's server keys the tile by
   its count. A content facet would do it generally.
 - `measuredRows` keeps heights by rank, so an edit at the top level leaves them stale until measured again.

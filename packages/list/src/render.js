@@ -19,7 +19,7 @@
 
 /**
  * Something an element shows for its key. `watch` hears the keys whose state changed, or none for any; `drop` hears
- * that an element is about to be taken out
+ * that an element is no longer drawn: about to be taken out, or render stopping
  * @template K
  * @typedef {Readonly<{ apply: (key: K, element: Element) => void,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
@@ -137,6 +137,12 @@ function render({ create, drawn, facets, mount }) {
       for (const stop of stops) {
         stop()
       }
+      for (const [key, element] of elements) {
+        for (const facet of facets) {
+          facet.drop?.(key, element)
+        }
+      }
+      elements.clear()
     },
   }
 }
