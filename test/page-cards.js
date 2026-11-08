@@ -9,9 +9,14 @@ import {
   arrayKeysAt,
   arrayList,
   arrayLocate,
+  arrayReorder,
   arrayStep,
   cards,
+  cell,
+  drag,
+  edgeScroll,
   flowMount,
+  gaps,
   ids,
   mark,
   move,
@@ -43,6 +48,31 @@ const CARD_HEIGHT = 80
  *   selected: readonly string[], drawn: number, columns: number }>} CardsSeen
  */
 
+/**
+ * A drag under way
+ * @typedef {Readonly<{ key: string, target: string, after: boolean }>} Dragging
+ */
+
+/**
+ * A test that holds for the key a drag would land next to, on one side
+ * @param {Readonly<{ get: () => Dragging | undefined, watch: (listener: () => void) => () => void }>} dragging - The
+ *   drag
+ * @param {(drag: Dragging, key: string) => boolean} holds - Whether it holds for a key
+ * @returns {Readonly<{ has: (key: string) => boolean, watch: (listener: () => void) => () => void }>} The test
+ */
+function dragTest(dragging, holds) {
+  return {
+    has(key) {
+      const at = dragging.get()
+      return at !== undefined && holds(at, key)
+    },
+    watch: (listener) =>
+      dragging.watch(() => {
+        listener()
+      }),
+  }
+}
+
 /** @type {Grid | undefined} */
 let grid = undefined
 
@@ -52,7 +82,7 @@ let grid = undefined
  * @returns {string} Its id
  */
 function idOf(key) {
-  return `card-${key}`
+  return `card-${key.replaceAll(' ', '-')}`
 }
 
 /**
@@ -65,6 +95,7 @@ function create(key) {
   card.setAttribute('role', 'option')
   card.textContent = key
   card.style.border = '1px solid'
+  card.style.userSelect = 'none'
   return card
 }
 
@@ -103,6 +134,12 @@ function putCards() {
   const active = list.hold(undefined, 'next')
   const selected = list.hold(undefined, 'none')
   const count = arrayCount(list)
+  /** @type {typeof cell<Dragging | undefined>} */
+  const dragCell = cell
+  const dragging = dragCell(undefined)
+  const reorder = arrayReorder(list)
+  const step = arrayStep(list.keys)
+  const shown = viewport(scroller)
   const layout = cards({ cardHeight: CARD_HEIGHT, cardWidth: CARD_WIDTH, width: widthOf(box) })
   const drawn = windowing({
     keep: {
@@ -114,7 +151,7 @@ function putCards() {
     },
     keysAt: arrayKeysAt(list),
     locate: arrayLocate(list.keys),
-    ranks: visibleRanks({ count, layout, visible: viewport(scroller) }),
+    ranks: visibleRanks({ count, layout, visible: shown }),
   })
   sizer({ count, element: box, layout })
   const rendered = render({
@@ -126,6 +163,17 @@ function putCards() {
       posInSet({ count, position: drawn }),
       mark({ attribute: 'data-active', on: '', test: active }),
       mark({ attribute: 'aria-selected', on: 'true', test: selected }),
+      mark({ attribute: 'data-dragging', on: '', test: dragTest(dragging, (at, key) => at.key === key) }),
+      mark({
+        attribute: 'data-drop-before',
+        on: '',
+        test: dragTest(dragging, (at, key) => at.target === key && !at.after),
+      }),
+      mark({
+        attribute: 'data-drop-after',
+        on: '',
+        test: dragTest(dragging, (at, key) => at.target === key && at.after),
+      }),
       reveal(active),
     ],
     mount: flowMount(box),
@@ -139,7 +187,37 @@ function putCards() {
       selected.set(key)
     },
   })
-  const moves = move({ from: active.get, step: arrayStep(list.keys), to: active.set })
+  drag({
+    element: box,
+    gap: gaps({ axis: 'x', itemOf: rendered.itemOf }),
+    itemOf: rendered.itemOf,
+    reorder,
+    showing: dragging.set,
+  })
+  edgeScroll({
+    active: {
+      get: () => dragging.get() !== undefined,
+      watch: (listener) =>
+        dragging.watch(() => {
+          listener()
+        }),
+    },
+    element: scroller,
+    scrollBy: shown.scrollBy,
+  })
+  /**
+   * Moves the active card one place along
+   * @param {1 | -1} by - Which way
+   * @returns {Promise<void>} When it has moved
+   */
+  const shift = async (by) => {
+    const key = active.get()
+    const target = key === undefined ? undefined : await step(key, by)
+    if (key !== undefined && target !== undefined) {
+      reorder(key, target, by > 0)
+    }
+  }
+  const moves = move({ from: active.get, step, to: active.set })
   keybinds(
     [
       moving('right', 'ArrowRight', async () => moves.by(1)),
@@ -148,6 +226,8 @@ function putCards() {
       moving('up', 'ArrowUp', async () => moves.by(-layout.columns.get())),
       moving('first', 'Home', async () => moves.edge(1)),
       moving('last', 'End', async () => moves.edge(-1)),
+      moving('shift-right', 'alt+ArrowRight', async () => shift(1)),
+      moving('shift-left', 'alt+ArrowLeft', async () => shift(-1)),
       {
         execute: () => {
           selected.set(active.get())
@@ -198,4 +278,22 @@ function seenCards() {
   }
 }
 
-export { putCards, seenCards, widen }
+/**
+ * The cards' order
+ * @param {number} length - How many from the start
+ * @returns {readonly string[]} The first cards
+ */
+function order(length) {
+  return grid?.list.keys().slice(0, length) ?? []
+}
+
+/**
+ * Where a card is in the order
+ * @param {string} key - The card
+ * @returns {number} Its index
+ */
+function indexOf(key) {
+  return grid?.list.keys().indexOf(key) ?? -1
+}
+
+export { indexOf, order, putCards, seenCards, widen }

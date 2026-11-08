@@ -38,8 +38,8 @@ Each is owned by the module(s) named, which declare it.
 | RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`    | visibleRanks                                          |
 | Place       | `place(rank) → rect`, `watch(fn)`                                   | place                                                 |
 | Extent      | `extent(count) → size`, `watch(fn)`                                 | sizer                                                 |
-| Gap         | `gapAt(point) → before: key \| none`                                | drag                                                  |
-| Reorder     | `move(key, before: key \| none)`                                    | drag                                                  |
+| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                 | drag                                                  |
+| Reorder     | `move(key, target: key, after: bool)`                               | drag                                                  |
 | Scroll      | `scrollBy(px)`                                                      | edgeScroll                                            |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
@@ -138,11 +138,21 @@ is needs its key. `flowMount` ignores it.
 
 ## Case 7: drag to reorder
 
-Adds `drag`: pointer down on an item, move, drop; asks Gap where the pointer is and calls Reorder. Parameters: element,
-itemOf, gap, reorder. Adds `gaps` (Gap from the element under the pointer and `render`'s ItemOf: before or after that
-item by which half it is in), `edgeScroll` (scrolls while the pointer is near an edge during a drag), and
-`arrayReorder`. The drop position is shown by `mark(dropBefore, 'data-drop-before')`, where `dropBefore` is a `cell`
-that `drag` sets. Keyboard: Alt+Up/Down move the active item by one **(P)**.
+Adds `drag`: a press becomes a drag after the pointer moves a few pixels **(P: 4)**; it asks Gap where the pointer is,
+hands the drag to `showing` (none when it ends), calls Reorder on release, and swallows the click that ends it.
+Parameters: element, itemOf, gap, reorder, showing. Adds `gaps` (Gap from the element under the pointer and `render`'s
+ItemOf: before or after that item by which half it is in, along `y` for a list or `x` for cards), `edgeScroll` (scrolls
+while the pointer is near the scroller's top or bottom during a drag; parameters: element, scrollBy, active), and
+`arrayReorder`. The drag is shown by marks over a `cell` that `showing` sets: `data-dragging`, `data-drop-before`,
+`data-drop-after` **(P)**. Keyboard: Alt+arrow moves the active item one place **(P)**.
+
+**Changed while building:** Gap was `before: key | none` and Reorder `move(key, before)`. `gaps` knows only the item
+under the pointer, so "after the last item" or "after X" would need X's neighbour, from another question; now both say
+`{target, after}`, which an array and a server answer alike.
+
+**Found while building:** while `edgeScroll` scrolls and the pointer stands still, the drop place isn't asked again
+until the pointer moves **(P: ask on scroll too)**. Touch dragging (`touch-action`) and dragging across groups are not
+handled.
 
 ## Case 8: long lists, drawn only partly (windowing)
 
