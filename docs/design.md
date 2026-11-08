@@ -180,11 +180,15 @@ scrolls its header out of view **(P: reveal the header too)**.
 ## Case 9: a grid of cards
 
 Adds `cards`: a layout of fixed-size cards in as many columns as the width holds; gives RanksIn, Place, Extent, and the
-column count as Watched. Up/Down are `move.by(∓columns)`; Left/Right are ±1 and run on across rows **(P)**. Semantics
-stay a listbox **(P)**; `role=grid` would add a `rowMount` (Mount grouping by rank and column count), nothing else.
+column count as Watched; and `widthOf`, an element's width as Watched, which `cards` takes. Up/Down are
+`move.by(∓columns)`; Left/Right are ±1 and run on across rows **(P)**. Semantics stay a listbox **(P)**; `role=grid`
+would add a `rowMount` (Mount grouping by rank and column count), nothing else.
 
 **Changed:** Step began as `after(k)`/`before(k)`. Moving by a row of columns or a page would have been many calls (many
 round trips to a server) and a loop in `move`, so it became `step(k, n)`.
+
+**Found while building:** grouping doesn't combine with `cards`: a header row would take one card's cell. A grouped grid
+is a further layout (each group starting a row, its header spanning it), not built.
 
 ## Changed after review
 
