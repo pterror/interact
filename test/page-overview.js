@@ -9,6 +9,7 @@ import {
   activeDescendant,
   byEntry,
   cell,
+  collapse,
   content,
   drag,
   edgeScroll,
@@ -16,6 +17,7 @@ import {
   gaps,
   ids,
   items,
+  keySet,
   keepInPlace,
   mark,
   measure,
@@ -44,7 +46,7 @@ const MORE = '+'
 /**
  * An occurrence in the overview as the server answers it
  * @typedef {Readonly<{ key: string, entry: string | undefined, kind: 'entry' | 'region' | 'repeat' | 'more',
- *   label: string, children?: readonly Occurrence[] }>} Occurrence
+ *   label: string, closed?: boolean, count?: number, children?: readonly Occurrence[] }>} Occurrence
  */
 
 /**
@@ -62,6 +64,14 @@ const MORE = '+'
 const edited = new Map()
 /** @type {Set<() => void>} */
 const changed = new Set()
+/** The regions closed in the view: kept in memory here, as a test has nowhere else to keep them */
+/** @type {ReturnType<typeof keySet<string>>} */
+const closed = keySet()
+closed.watch(() => {
+  for (const listener of changed) {
+    listener()
+  }
+})
 
 /**
  * The number of a top-level entry
@@ -137,12 +147,23 @@ function occurrence(key, id, above) {
   }
   const inside = new Set(above).add(id)
   const all = membersOf(id)
+  if (closed.has(key)) {
+    return { children: [], closed: true, count: all.length, entry: id, key, kind: 'region', label: labelOf(id) }
+  }
   const children = all.slice(0, FEW).map((member) => occurrence(`${key}/${member}`, member, inside))
   const more = all.length - FEW
   /** @type {readonly Occurrence[]} */
   const tile =
     more > 0 ? [{ entry: undefined, key: `${key}/${MORE}`, kind: 'more', label: `+${String(more)} more` }] : []
-  return { children: [...children, ...tile], entry: id, key, kind: 'region', label: labelOf(id) }
+  return {
+    children: [...children, ...tile],
+    closed: false,
+    count: all.length,
+    entry: id,
+    key,
+    kind: 'region',
+    label: labelOf(id),
+  }
 }
 
 /** Entries added at the top level, before the base entry of each rank, in order */
@@ -504,6 +525,8 @@ function later(id, key, run) {
 
 /** @type {HTMLElement | undefined} */
 let tree = undefined
+/** @type {ReturnType<typeof collapse<string>> | undefined} */
+let regions = undefined
 
 /**
  * Puts the overview in the page
@@ -591,7 +614,7 @@ function putOverview() {
     head.id = `${idOf(key)}-head`
     head.style.cssText = node?.kind === 'more' ? 'font-style: italic' : 'border: 1px solid; padding: 4px'
     item.append(head)
-    if (node?.children !== undefined) {
+    if (node?.kind === 'region') {
       const group = document.createElement('div')
       group.setAttribute('role', 'group')
       group.style.paddingLeft = '20px'
@@ -617,9 +640,18 @@ function putOverview() {
     content({
       changes: { watch: cache.watchNodes },
       show(key, element) {
+        const node = cache.node(key)
         const head = element.firstElementChild
         if (head !== null) {
-          head.textContent = cache.node(key)?.label ?? ''
+          head.textContent =
+            node?.closed === true ? `${node.label} (${String(node.count ?? 0)} members)` : (node?.label ?? '')
+        }
+        if (node?.kind === 'region') {
+          element.setAttribute('aria-expanded', String(node.closed !== true))
+          const group = element.querySelector(':scope > [role=group]')
+          if (group instanceof HTMLElement) {
+            group.hidden = node.closed === true
+          }
         }
       },
     }),
@@ -681,14 +713,34 @@ function putOverview() {
   const moves = move({ from: active.get, step, to: active.set })
   const out = move({ from: active.get, step: relationStep(parentKey), to: active.set })
   const into = move({ from: active.get, step: relationStep(firstChildKey), to: active.set })
+  regions = collapse({ active, closed, inside: (key, region) => Promise.resolve(key.startsWith(`${region}/`)) })
+  const opening = regions
+  /**
+   * Whether the active key is the head of a region, and whether that region is closed
+   * @returns {Readonly<{ key: string, closed: boolean }> | undefined} The region, if the active key heads one
+   */
+  const activeRegion = () => {
+    const key = active.get()
+    return key === undefined || cache.node(key)?.kind !== 'region' ? undefined : { closed: closed.has(key), key }
+  }
   keybinds(
     [
       later('next', 'ArrowDown', async () => moves.by(1)),
       later('previous', 'ArrowUp', async () => moves.by(-1)),
       later('first', 'Home', async () => moves.edge(1)),
       later('last', 'End', async () => moves.edge(-1)),
-      later('parent', 'ArrowLeft', async () => out.by(1)),
-      later('first-member', 'ArrowRight', async () => into.by(1)),
+      later('parent', 'ArrowLeft', async () => {
+        const region = activeRegion()
+        return region === undefined || region.closed ? out.by(1) : opening.close(region.key)
+      }),
+      later('first-member', 'ArrowRight', async () => {
+        const region = activeRegion()
+        if (region?.closed === true) {
+          opening.open(region.key)
+          return undefined
+        }
+        return into.by(1)
+      }),
       {
         execute: () => {
           const key = active.get()
@@ -801,4 +853,57 @@ function scrollToFraction(fraction) {
   }
 }
 
-export { firstInView, idOf, insertTop, membersNow, putOverview, removeTop, scrollToFraction, seenOverview, topsInView }
+/**
+ * Closes a region, as the overview does
+ * @param {string} key - The region's occurrence
+ * @returns {Promise<void>} When closed
+ */
+async function closeRegion(key) {
+  await regions?.close(key)
+}
+
+/**
+ * Opens a region
+ * @param {string} key - The region's occurrence
+ * @returns {void}
+ */
+function openRegion(key) {
+  regions?.open(key)
+}
+
+/**
+ * An open top-level region drawn above the view
+ * @returns {string | undefined} Its key
+ */
+function regionAboveView() {
+  const view = tree?.parentElement?.getBoundingClientRect()
+  /** @type {{ key: string, top: number } | undefined} */
+  let found = undefined
+  for (const item of tree?.querySelectorAll(':scope > [aria-expanded=true]') ?? []) {
+    const { bottom, top } = item.getBoundingClientRect()
+    if (
+      view !== undefined &&
+      bottom < view.top &&
+      item instanceof HTMLElement &&
+      (found === undefined || top > found.top)
+    ) {
+      found = { key: item.dataset['key'] ?? '', top }
+    }
+  }
+  return found?.key
+}
+
+export {
+  closeRegion,
+  openRegion,
+  regionAboveView,
+  firstInView,
+  idOf,
+  insertTop,
+  membersNow,
+  putOverview,
+  removeTop,
+  scrollToFraction,
+  seenOverview,
+  topsInView,
+}

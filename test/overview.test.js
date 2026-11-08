@@ -98,7 +98,7 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
     })
   })
 
-  test('moves to a region’s head by Left and into its first member by Right, regions always open', async () => {
+  test('closes and opens regions by Left and Right, moves to heads and members, and skips what is closed', async () => {
     await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
       await page.evaluate(async () => {
         const overview = await import('./page-overview.js')
@@ -106,24 +106,95 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
       })
       await page.focus('[role=tree]')
       expect(await press(page, 'ArrowDown')).toMatchObject({ active: 'Region 0', depth: 0 })
+      const expanded = async (/** @type {string} */ key) =>
+        page.locator(`[data-key="${key}"]`).getAttribute('aria-expanded')
+      const drawnMembers = async (/** @type {string} */ key) => page.locator(`[data-key^="${key}/"]`).count()
       for (const [key, active, depth] of [
-        ['ArrowLeft', 'Region 0', 0],
-        ['ArrowRight', 'Region M0.0', 1],
-        ['ArrowRight', 'Entry M0.0.0', 2],
-        ['ArrowRight', 'Entry M0.0.0', 2],
-        ['ArrowDown', 'Region 0 (shown above)', 2],
-        ['ArrowRight', 'Region 0 (shown above)', 2],
-        ['ArrowLeft', 'Region M0.0', 1],
-        ['ArrowLeft', 'Region 0', 0],
-        ['End', '+5 more', 1],
-        ['ArrowRight', '+5 more', 1],
-        ['ArrowLeft', 'Region 99999', 0],
-        ['ArrowLeft', 'Region 99999', 0],
+        ['ArrowLeft', 'Region 0 (4 members)', 0],
+        ['ArrowDown', 'Entry 1', 0],
+        ['ArrowUp', 'Region 0 (4 members)', 0],
       ]) {
         // oxlint-disable-next-line no-await-in-loop -- one key after another
         expect(await press(page, String(key))).toMatchObject({ active, depth, focused: true, inView: true })
       }
-      expect(await page.locator('[aria-expanded]').count()).toBe(0)
+      expect([await expanded('E0'), await drawnMembers('E0')]).toEqual(['false', 0])
+      for (const [key, active, depth] of [
+        ['ArrowRight', 'Region 0', 0],
+        ['ArrowRight', 'Region M0.0', 1],
+        ['ArrowLeft', 'Region M0.0 (5 members)', 1],
+        ['ArrowDown', 'Entry M0.1', 1],
+        ['ArrowRight', 'Entry M0.1', 1],
+        ['ArrowLeft', 'Region 0', 0],
+        ['ArrowDown', 'Region M0.0 (5 members)', 1],
+        ['ArrowLeft', 'Region 0', 0],
+      ]) {
+        // oxlint-disable-next-line no-await-in-loop -- one key after another
+        expect(await press(page, String(key))).toMatchObject({ active, depth, focused: true, inView: true })
+      }
+      expect([await expanded('E0'), await expanded('E0/M0.0'), await drawnMembers('E0/M0.0')]).toEqual([
+        'true',
+        'false',
+        0,
+      ])
+      expect(await audit(page, '[role=tree]')).toEqual([])
+    })
+  })
+
+  test('moves the active item to the head of a region closed around it', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        overview.putOverview()
+      })
+      await page.focus('[role=tree]')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ArrowDown')
+      expect(await press(page, 'ArrowDown')).toMatchObject({ active: 'Entry M0.0.0', depth: 2 })
+      await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        await overview.closeRegion('E0')
+      })
+      expect(await look(page)).toMatchObject({ active: 'Region 0 (4 members)', depth: 0, focused: true, inView: true })
+    })
+  })
+
+  test('keeps what is on screen in place when a region above it is closed or opened', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        overview.putOverview()
+        overview.scrollToFraction(0.5)
+      })
+      await page.waitForTimeout(SETTLE_MS * 2)
+      const tops = async () =>
+        page.evaluate(async () => {
+          const overview = await import('./page-overview.js')
+          return overview.topsInView().map(({ text, top }) => [text, top])
+        })
+      const before = await tops()
+      const region = await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        return overview.regionAboveView()
+      })
+      expect(region).toBeDefined()
+      for (const close of [true, false]) {
+        // oxlint-disable-next-line no-await-in-loop -- each change is made and looked at before the next
+        await page.evaluate(
+          async (/** @type {Readonly<{ key: string, close: boolean }>} */ change) => {
+            const overview = await import('./page-overview.js')
+            if (change.close) {
+              await overview.closeRegion(change.key)
+            } else {
+              overview.openRegion(change.key)
+            }
+          },
+          { close, key: region ?? '' },
+        )
+        // oxlint-disable-next-line no-await-in-loop -- each change is made and looked at before the next
+        await page.waitForTimeout(SETTLE_MS)
+        // oxlint-disable-next-line no-await-in-loop -- each change is made and looked at before the next
+        expect(await tops()).toEqual(before)
+      }
     })
   })
 

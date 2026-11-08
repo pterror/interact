@@ -289,13 +289,22 @@ accessibility tree shows (checked over CDP). `aria-labelledby` on the head inste
 `label-content-name-mismatch`. Top-level items carry `aria-posinset` and `aria-setsize`; nested ones are counted by the
 browser. What screen readers announce was not tested.
 
-**Left and Right** (the owner's provisional choice): regions are always open and never collapse; Left moves to the
-parent region's head, Right on a head to its first member, and either stays put where there is nowhere to go. There is
-no `aria-expanded`: ARIA lists it as supported on a `treeitem`, not required, and with nothing to collapse there is no
-state to announce; the APG pattern does give parent nodes `aria-expanded`, so screen readers won't hear that a region
-has members until they reach them. Adds `relationStep`: a Step from one hop the source answers, now or later ("the
-parent of k", "the first child of k"), so Left and Right are `move`s like the others. The overview's source answers both
-from its occurrence keys.
+**Opening and closing regions.** Regions start open. Left on an open region's head closes it, and anywhere else moves to
+the parent region's head; Right on a closed head opens it, and on an open head moves to its first member. Either stays
+put where there is nowhere to go. A closed region shows only its head card, with its member count; its members are
+neither drawn nor in Up/Down's reading order. Heads carry `aria-expanded`. Adds:
+
+- `collapse`: `open(k)` and `close(k)`. Closing a region that holds the active item first moves the active item to the
+  region's head, so it is never an item no longer drawn. Whether a key is inside a region is a question the source
+  answers, now or later. The closed set is an abstraction `collapse` owns (`add`, `delete`); the app provides where it
+  lives. SillyTavern keeps it on the server as tab state.
+- `keySet`: the closed set in memory, for tests and for an app that provides nothing else.
+- `relationStep`: a Step from one hop the source answers, now or later ("the parent of k", "the first child of k"), so
+  Left and Right are `move`s like the others.
+
+The source answers with the closed set taken into account: a closed region comes back with no members and its count, so
+`nest`, `content`, `windowing`, `measure` and `keepInPlace` need nothing new; the view stays in place when a region
+above it closes or opens.
 
 ## Changed after review
 
