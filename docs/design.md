@@ -150,9 +150,13 @@ while the pointer is near the scroller's top or bottom during a drag; parameters
 under the pointer, so "after the last item" or "after X" would need X's neighbour, from another question; now both say
 `{target, after}`, which an array and a server answer alike.
 
-**Found while building:** while `edgeScroll` scrolls and the pointer stands still, the drop place isn't asked again
-until the pointer moves **(P: ask on scroll too)**. Touch dragging (`touch-action`) and dragging across groups are not
-handled.
+**Changed while building:** `drag` asked Gap only when the pointer moved, so while `edgeScroll` scrolled under a still
+pointer the drop place was stale. It now also asks on any scroll in the page (a capturing listener), with the pointer
+where it last was. Touch dragging is not handled.
+
+**Between groups** (built with case 10): Reorder puts the key into the target's group; a group's header as the target
+puts it first in that group, so an empty group can be dropped into. Alt+arrow across a group's end puts the item at the
+near end of the next group **(P)**.
 
 ## Case 8: long lists, drawn only partly (windowing)
 
@@ -202,8 +206,23 @@ would add a `rowMount` (Mount grouping by rank and column count), nothing else.
 **Changed:** Step began as `after(k)`/`before(k)`. Moving by a row of columns or a page would have been many calls (many
 round trips to a server) and a loop in `move`, so it became `step(k, n)`.
 
-**Found while building:** grouping doesn't combine with `cards`: a header row would take one card's cell. A grouped grid
-is a further layout (each group starting a row, its header spanning it), not built.
+## Case 10: a grouped grid of cards
+
+Groups of cards, each under a header as wide as the grid, windowed (the worldbuilding page's entries by region). Adds:
+
+- `arrayGroups`: keys in groups in memory, with held keys; seen as rows (headers and cards, what `windowing` draws and
+  ranks) and options (cards alone, what Left/Right step through and `posInSet` counts), with each group's size.
+- `groupReorder`: Reorder over `arrayGroups`, into the target's group.
+- `groupedCards`: the layout; each group starts a row; gives RanksIn, Place, Extent, the column count, and `rowStep`
+  (the rank some rows up or down: same column, the last card of a shorter row, past headers and empty groups).
+- `gridStep`: a Step by rows, from Locate, KeysAt and a layout's `rowStep`; Up/Down use it.
+- `arrayRank`: an immediate Rank over a list in memory, for `posInSet`.
+
+`groupMount` gives the groups their `role=group`; nothing existing changed.
+
+**Wrong in case 9:** Up/Down as `move.by(∓columns)` over the options is right only while every row is full. Once a group
+ends in a short row, `+columns` lands in the wrong column of the next group. Moving by rows is a layout question, so it
+is `gridStep` over the layout's `rowStep`; plain `cards` could give `rowStep` too.
 
 ## Changed after review
 
