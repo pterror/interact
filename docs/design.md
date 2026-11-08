@@ -1,599 +1,657 @@
 # Design
 
-Status: a proposal for the rebuild, in its third draft after two reviews. No code exists for it. It is the owner's to
-approve before anything is built. Every name in it is a proposal ("Names"), and so is every behaviour a person would
-notice ("UX proposals").
+Status: a proposal for the rebuild, in its fourth draft after three reviews. No code exists for it. It is the owner's
+to approve before anything is built.
+
+- Every name in it is a proposal ("Names").
+- Every behaviour a person would notice is a proposal ("UX proposals"), and every policy is either a parameter or one
+  of those proposals.
+- The data side (navigation, typeahead, selection and expansion each owning their questions) passed the third review
+  and is kept. The view layer is new in this draft.
 
 ## The design in one paragraph
 
-There is no library core. The library is independent modules, and each module owns the abstractions it needs: it
-states them as its own parameters, and the app passes in anything that implements them. The library supports every
-case, a huge list held by a server included, because no module makes any case impossible. The hard cases live in the
-implementations, not in the modules.
+There is no library core. The library is independent modules. Each module owns the abstractions it needs as its own
+parameters, and the app passes in anything that implements them. The app wires by hand: no registry, no central
+mechanism.
 
-Navigation owns the question "the key after k". Typeahead owns "the first item at or after k whose text starts with
-t". A view owns "the items around k". An array answers these by scanning. A server answers them from its indexes. No
-module knows which kind it got. Batching, prefetching and stale answers are the implementation's business, and the
-library doesn't design them.
+Writing or wiring a module never needs knowledge of another module. Every parameter is one of these:
 
-Rules such as "one action is one request" and "the page holds only what it shows" are SillyTavern's own, not
-requirements of this library. An app that has them keeps them in its implementations, and no module stands in their
-way.
+- a function;
+- a state;
+- an element;
+- one of the few shared shapes listed under "Concepts".
 
-The app wires the modules by hand. Writing a module, or wiring one, never needs knowledge of any other module.
+Every case stays possible, a huge list held by a server included. The modules ask questions ("the key after k", "the
+items near k"), and an array or a server's indexes answer them. Batching, prefetching and stale answers are the
+implementation's business.
 
-## The tests the design has to pass
+## Tests the design has to pass
 
 1. Each module works alone and owns the abstractions it needs.
-2. The app combines the modules by hand. There is no registry and no central mechanism.
-3. Leaving a module out, replacing it, or adding one changes no other module's code or parameters.
-4. Constructing a module, binding its operations to keys, and giving its output to a view never needs to know which
-   other modules exist.
-5. Every case stays possible, a huge list held by a server included. Each abstraction can be implemented from an
-   index, and no module changes when it is.
-
-## What fails in the current code
-
-The previous drafts gave the full evidence. In short:
-
-- **Every feature reads one list by position** (`packages/core/src/list-pipeline.js:448-461, 357-370`). So selection
-  throws under grouping (`list-selection.js:185-190`), and grouping's headings count in positions
-  (`grouped-sections.js:395, 532-536`).
-- **One queue and one input chain with guessed priorities** (`store.js:157-194`, `state.js:7-10`, `typeahead.js:139`,
-  `reorder.js:119`, `navigation.js:61`).
-- **One rendering fixes the shape of the DOM** (`list-pipeline.js:412-440`, `windowing.js:35, 304`,
-  `grouped-sections.js:295`), and every component carries windowing's CSS (`listbox-styles.js:97`).
-- **Closed sets** for combobox kinds (`combobox.js:64-69`), menu entry kinds (`menu-entry.js:14-18`) and dismissal
-  reasons (`layer.js:7`).
-- **keybinds has built-in policies:**
-  - It ignores every input inside any open popover or dialog: keys (`modal.js:8, 41-43`, `keys.js:239, 276`), mouse
-    (`mouse.js:327, 348, 374`), gamepad (`gamepad.js:100, 105`) and axes (`axes.js:249`).
-  - It blocks commands in text fields unless they set `captureInput` (`input.js:131-141`, `core.js:342-347`).
-  - It looks only at the first lookup that has any binding, and doesn't fall through when none is allowed
-    (`core.js:215-223, 406-410`; sequences resolve the same way, `core.js:254`).
-  - Any command that doesn't return `false` takes the event, including an async one (`core.js:357-366`,
-    `command.js:26`).
-  - The hub makes one window-wide listener for every command on the page (`hub.js:1-4, 681`).
+2. The app combines modules by hand. There is nothing every feature has to go through.
+3. Adding, removing or replacing a module changes no other module's code or parameters. That includes the layouts: a
+   new module that asks the layout something uses the general geometry, not a new view feature.
+4. Wiring a module needs no knowledge of other modules, and the wiring code runs in declaration order.
+5. Each abstraction can be implemented from an index, so a huge server-held list needs no module to change.
 
 ## Concepts
 
-Seven concepts. Each is one abstraction that more than one module, or the view and the modules, have to agree on.
+Seven concepts. Everything else is ordinary JavaScript: a module's functions, a stylesheet it exports, a file of wiring
+(a composition), and a keybinds `Schema` (which exists today).
 
 1. **Key.** A string naming one item, compared with `===`. An item is `{ key, value }`. The data chooses keys that last
-   as long as the item does, including through every move the data supports. For worldbuilding's "an entry in several
-   groups", that means a membership's own id, not one made from the group and the entry. A key that encodes the group
-   would change when the item moves, and focus and selection would lose it.
-2. **State.** `get()`, `set(value)`, `watch(listener) → stop`. A module keeps each piece of its state in one. The app
-   may pass one in, and then the app's is the only copy.
-3. **Question.** A data abstraction a module owns, stated in its own file as a JSDoc type. The app passes an
-   implementation. A question comes in one of two forms:
-   - **one-shot**: a function returning a promise;
-   - **live**: a function returning `{ answer: State, close() }`, whose answer the implementation replaces whenever it
-     changes.
+   as long as the item does, through every move it supports, so moving an item between groups keeps its key.
+2. **State.** `get()`, `set(value)` and `watch(listener) → stop`. Every piece of a module's state is in one. The app may
+   create a state and pass it in, and then that is the only copy. A data function whose answer changes over time
+   returns a state. That is all "kept up to date" means; it is not a concept of its own.
+3. **Attribute writer.** `{ attributes: { name: 'single' | 'tokens' }, apply(element, item?) → stop }`.
+   - It writes the attributes it declares, and keeps them in step with its own states until it is stopped.
+   - It can be applied to any element: an item drawn by a layout, the list container, or a combobox's input.
+   - `combine(...writers)` makes one writer. It takes the union of `'tokens'` attributes. Two writers that declare the
+     same `'single'` attribute are an error when `combine` is called, so it fails while wiring, never while running.
+   - Each writer declares how its own attributes combine. Views hold no list of token attributes.
+4. **Geometry.** What a layout knows about where its items are. Layouts implement it, and windowing, grid navigation,
+   reorder, page size and any later module use it:
+   - `axis`: `'block'` or `'inline'`, the scroll direction;
+   - `span(key) → { start, end } | undefined`: where an item sits along the axis, in content pixels. For an item that
+     isn't drawn, the value is the layout's estimate, or `undefined` if the layout doesn't know the item.
+   - `keyAt(offset, toward: 'start' | 'end') → key | undefined`: the item at an offset along the axis, or the nearest
+     one in the direction given;
+   - `box(key) → DOMRect | undefined`: a drawn item's box;
+   - `hit(rect) → key[]`: the drawn items whose boxes meet a rect, in order;
+   - `watch(listener) → stop`: what it knows has changed.
+5. **Drawing range.** A state saying which items a layout draws: `'all'`, or `{ near: key, ahead: px, behind: px }`.
+   Layouts read it. Windowing writes it. An app that draws everything creates it as `'all'` and never changes it. No
+   layout knows windowing exists, and windowing knows no layout.
+6. **Drawn elements.** A state of `Map<key, Element>`, which a layout keeps equal to what it has drawn. Focus, anchored
+   overlays, and anything else that needs an item's element read it. It is created before any module, so nothing is
+   used before it is declared.
+7. **Keymap** (keybinds). One `keybinds()` call on one element, with the rules given under "keybinds": conditions,
+   text takers, one command per binding string, and releases that follow their press.
 
-   An implementation must settle every promise. What else it does (batching, prefetching, answering more than it was
-   asked) is its own business. A module applies its own latest request and ignores the answers to its earlier ones.
-   That is part of the module's own meaning ("the latest `go` wins"), not a staleness mechanism. A missing question is
-   an error when the module is constructed.
-4. **Element handle.** What a view gives for a drawn item: `elementOf(key) → { element, gone(listener) } | undefined`.
-   It never makes the view draw anything. `gone` reports that the element was removed.
-5. **Decoration.** What a module gives a view for each drawn item, and for the container:
-   - `writes`, the attributes it sets;
-   - `apply(element, item) → cleanup`;
-   - `watch(listener(keys | 'all')) → stop`, so the view knows when to apply it again.
+Cut since the last draft, with what replaces them:
 
-   Attributes that hold a list of tokens (`class`, `part`, `aria-describedby`, `aria-labelledby`, `aria-controls`)
-   take the union of every decoration's tokens. Any other attribute has one owner, the module whose state it states.
-   The view checks `writes` when it is constructed, so two owners of one attribute is an error while wiring, never
-   while running.
-6. **Condition** (keybinds). `(context, event) → boolean`. A binding's `when` is one. A keymap's `unless` is a list of
-   them. `event` is new: today `when` gets only the context (`command.js:25`).
-7. **Drop target.** An opaque value that the app's implementation produces and consumes, such as `{ before: key }`,
-   `{ into: group }` or `{ childOf: key }`. Reorder only carries it.
-
-These are ordinary JavaScript, not concepts:
-
-- a module's operations (its functions);
-- its `styles` (a stylesheet the app adopts);
-- a keymap (one existing `keybinds()` call on an element);
-- a composition (a file of wiring).
-
-The reviewer's eighth, the loader, is gone: each module asks its own questions.
+| Cut | Now |
+| --- | --- |
+| Question, and "live" | plain functions; one whose answer changes returns a state |
+| Element handle | drawn elements |
+| Decoration | attribute writer |
+| Condition | part of a keymap |
+| Drop target | an opaque value the app passes through reorder |
+| Text taker | part of a keymap |
+| Latest-wins | each module's own documented behaviour |
+| Structure attributes | ordinary attribute writers over item data |
+| `gone` and `removed` | focus asking `exists(k)` |
+| Member views | gone |
+| Follow | `keepVisible`, a parameter |
 
 ## Rules every module follows
 
-- A module is a function, `name(parameters) → { states, operations, decorations?, styles? }`. Its parameters are
-  questions, states, element handles, elements and callbacks. None is another module.
-- It never sets attributes except through its decorations, which a view applies.
-- It touches only DOM it was given or owns: calling `focus()`, scrolling, measuring, listening, and opening and closing
-  popovers and dialogs.
-- Every async input applies latest-wins, within the module only.
-- A failing operation fails alone.
+- A module is a function, `name(parameters) → { states, functions, writers, styles? }`. No parameter is another module.
+- It writes attributes only through attribute writers. It touches only DOM it was given or owns.
+- Every promise it gets from a data function settles. That is the implementation's contract. A module never waits on
+  anything else.
+- A failing function fails alone.
 
-## Views own their DOM
+## The view layer
 
-A view is a module that draws the items of its questions into a container it was given. It owns its layout, including
-any windowing. That is the fix for the rejected render range: no other module and no template takes a windowing shape.
-Each view implements element handles and applies the decorations it is given.
+### Layouts
 
-**`listView({ container, items: Question<all items>, draw, decorations })`** draws every item, for lists that fit in
-memory. It holds what it draws, which is everything.
+A layout draws items into a container it owns. It implements geometry, reads a drawing range, and writes drawn
+elements. It knows nothing about windowing, focus or selection. It applies the attribute writer it was given to each
+item element it draws, and calls `fill(element, item) → stop` for the content.
 
-**`windowedList({ container, scroller, around, draw, decorations, follow?: State<key> })`.** `around` is the live
-question `(key | 'first', before, after) → items`.
+All layouts take:
 
-- It keeps an anchor: a key, and that key's offset in the viewport.
-- It draws a run of items in one contiguous block. Elements it doesn't draw don't exist, so nothing is held hidden.
-- It measures only items drawn in place.
-- As the block's ends near the viewport, it asks `around` again with the new anchor. Scroll anchoring by key keeps the
-  view still when items arrive.
-- Loading as the list scrolls is this behaviour; it is not a module of its own.
-- When `follow` changes to a key it hasn't drawn, it re-anchors there. Focus doesn't ask it to do this: the app passes
-  focus's `active` state as `follow`, and the view depends only on "a state of a key".
-- Before it removes an element that holds DOM focus, it moves focus to its scroller (a UX proposal).
-- Changes need no vocabulary. The implementation replaces the answer, and the view reconciles it by key. Inserts,
-  moves, removals and new tree children all just appear in the next answer.
-
-**`windowedGrid({ ...same, minColumnWidth })`** lays items out in rows of as many columns as fit. It draws and drops
-whole rows, so a responsive grid never shifts. Each row is a `role="row"` element, so ARIA grids can be built. It
-implements `below(k)` and `above(k)` (see Navigation) from its own layout and its `around` question.
-
-**`groupedView({ container, scroller, groups, groupOf, members, drawGroup, groupDecorations, follow })`** draws groups
-as its windowed items:
-
-- Each group element holds its heading and a member view. Which member view is the app's choice: a `listView`, a
-  `windowedList` nested against the same scroller, or a `windowedGrid`.
-- An empty group is a group drawn with an empty member view, so it is visible and can be dropped on.
-- Headings are part of their group's element. `position: sticky` on a heading works, because the group element holds
-  every drawn member.
-- To follow a key, it asks `groupOf(k)`, follows that group, and passes the key to that group's member view.
-  `groupOf` and `members` are both questions the groupedView owns, so they can't disagree: the members of `groupOf(k)`
-  contain k by definition.
-- It writes `aria-setsize`, `aria-posinset` and `aria-level` where the items carry them. Only a view writes structure
-  attributes, so they never collide.
-
-Shared windowing arithmetic (anchor, measurement, margins) is one internal helper that the windowed views import. It is
-not part of the public API. A page without a windowed view doesn't load it.
-
-## The modules
-
-### Focus: `activeDescendant`, `rovingFocus`
-
-Both take:
-
-- `{ container, elements: element handles }`;
-- `replacement: (goneKey) => Promise<key | undefined>`, which is required, so there is no built-in policy for an item
-  that vanished;
-- `start: () => Promise<key | undefined>`, where focus goes when it comes into the list with nothing active.
-
-Both give `active` (a state), `go(key | Promise<key>)` with latest-wins, and decorations.
-
-- **`activeDescendant`**:
-  - Its item decoration writes `id`: the container's `id` plus the URI-encoded key. It reads the container's `id` and
-    throws at construction if there is none.
-  - Its container decoration writes `aria-activedescendant` while `elementOf(active)` exists. When the element appears
-    (the decoration is applied), the attribute does too.
-- **`rovingFocus`**:
-  - It writes `tabindex` 0 on the active item and -1 on the others.
-  - Its container decoration makes the container the tab stop while the active item isn't drawn.
-  - When the active item's element is applied while the active item has just changed, it calls `focus()` on it.
-
-On `gone`, both keep `active` if the key still exists (it was only scrolled away). They call `replacement` when the
-implementation says the item was removed (Assuming: a removal arrives through the same view answer; the view tells its
-handles `gone` with `removed: true`).
-
-### Navigation: `listNavigation`, `treeNavigation`, `gridNavigation`
-
-- **`listNavigation({ order })`.** `order` is a question with `next(k)`, `previous(k)`, `first()`, `last()` and
-  `step(k, n)`. `next(undefined)` is `first()`, and `previous(undefined)` is `last()` (a UX proposal). The operations
-  return keys, and the module adds page size (a UX proposal) and suggested bindings.
-- **`treeNavigation({ tree })`** asks `parent(k)` and `firstChild(k)`.
-- **`gridNavigation({ grid })`** asks `below(k)` and `above(k)`. `windowedGrid` implements these, so a grouped grid's
-  rows come from the view that laid them out, not from counting.
-
-None of them moves focus or selects. The app's operations decide what a returned key means:
-
-```js
-const down = async () => { const k = await nav.next(focus.active.get()); focus.go(k); sel.setAnchor(k) }
-const shiftDown = async () => { const k = await nav.next(focus.active.get()); focus.go(k); sel.extendTo(k) }
+```
+container, items, range, drawn, fill, write
 ```
 
-### Typeahead: `typeahead`
+- `items` is the layout's own data function: `itemsNear(key | 'start', countBefore, countAfter)`, returning a state of
+  items.
+- `range` is the drawing range.
+- `drawn` is the drawn elements.
+- `write` is an attribute writer.
 
-**`typeahead({ textSearch, wait })`.** `textSearch` is the question `firstFrom(k, t)`: the first item at or after `k`
-whose text starts with `t`, wrapping round (a UX proposal). The module keeps the text typed so far and the timing, and
-gives:
+Layouts write no ARIA structure attributes. `aria-level`, `aria-setsize` and `aria-posinset` come from item data,
+through attribute writers like `treeRoles`, so they have one owner.
 
-- `type(character, from) → Promise<key>`, latest-wins;
-- `takes(event)`: a text taker for keybinds (see "keybinds"). It takes a single typed character, and takes Space only
-  while typing is going on.
+- **`listLayout({ ..., axis })`** stacks items along the axis, block (a list) or inline (a carousel). Items can be any
+  size: it measures the ones it has drawn and estimates the rest from the average of the drawn ones.
+- **`gridLayout({ ..., minColumnWidth })`** arranges items in rows of as many columns as fit. With a range, it draws
+  whole rows, so the grid never shifts when a row's first card would leave. Each row is a `role="row"` element. `hit`
+  gives the drawn cells.
+- **`masonryLayout({ ..., columns })`** places each item in the shortest column. `keyAt` gives the first item, in
+  order, that reaches the offset.
+- **`sectionsLayout({ ..., arrange, drawSection, emptySections })`**: grouped sections.
+  - Its `items` answer mixes items and section starts, `{ section, value }`. A section start is not an item: it has no
+    key, so focus and selection never see one.
+  - Each section is one element holding its heading (drawn by `drawSection`) and its items, laid out by `arrange`.
+  - `arrange` is the layout's own abstraction: pure arithmetic that places a run of items in a width. `listArrangement`
+    and `gridArrangement` implement it.
+  - There is one layout and one windowing on one scroller. No layout takes another layout.
+  - `emptySections` decides whether a section with no items is drawn (a parameter, and a UX proposal).
+  - A heading with `position: sticky` sticks while its section's element is drawn.
 
-### Selection: `singleSelection`, `multipleSelection`
+A new layout (a calendar, say) implements the same parameters and geometry. Windowing, focus and every other module
+work with it unchanged.
 
-- **`singleSelection({ selected?: State<key> })`** holds one key. It gives `select(k)` and a decoration (`aria-selected`,
-  or `aria-checked` if constructed so). It has no ranges, so it can't be in a multiple state.
-- **`multipleSelection({ describe, membership, attribute? })`.**
-  - `describe` is a synchronous question: `all()` and `range(a, b)`, each returning an opaque description. The
-    implementation stamps it with the current view.
-  - `membership` is a live question: `(selection, keys) → Map<key, boolean>`. Only the implementation evaluates
-    descriptions.
-  - The value is `{ ranges: description[], added: Set, removed: Set, anchor? }`, a state.
-  - Operations:
-    - `setAnchor(k)`;
-    - `toggleSelected(k)`;
-    - `extendTo(k)`: replaces the whole value with one range from the anchor to k, and empties `added` and `removed`;
-    - `addRangeTo(k)`;
-    - `selectAllMatching()`;
-    - `clear()`.
-  - Its decoration asks `membership` for each item key as the decoration is applied, and closes that interest in the
-    cleanup. What it asks is bounded by what is drawn, so the cache is too.
-  - A key in `added` or `removed` is known without asking. For the rest, `membership` is a live question, so its first
-    answer can already be known when the decoration is applied. An implementation that sends membership with its items
-    makes rows appear selected from the start; how it does that is its own business. When a flag isn't known yet, the
-    decoration writes nothing until it is (a UX proposal).
-  - `count(selection)` is a one-shot question, capped (worldbuilding's "1,000+").
+### Windowing
 
-Each fact has one source. `added` and `removed` are the page's. Coverage by descriptions is the server's.
+**`windowing({ scroller, geometry, range, keepVisible?, margin })`** reads the scroller's position and geometry, and
+writes the range:
 
-### Expansion: `expansion`
+- **On scroll.** `keyAt(scrollStart, 'start')` names the key near which to draw. `margin` (pixels) sets `ahead` and
+  `behind`. Windowing writes `{ near, ahead, behind }`.
+- **`keepVisible`** is a state of a key, any state. When it changes:
+  - if `span(key)` is known, windowing scrolls so the key is in view, whether or not it is drawn;
+  - if `span(key)` is `undefined`, windowing writes `{ near: key }`. The layout then loads and draws near that key,
+    geometry reports the change, and windowing scrolls.
+- **Timing contract:** windowing acts on geometry's `watch`, and the layout reports a change only after the elements are
+  in the page and measured.
+- It sets no styles and draws nothing.
 
-**`expansion({ expanded?: State })`.** The value is `{ all: boolean, except: Set<key> }`, so "expand all" is one value.
-It gives `expand(k)`, `collapse(k)`, `toggleExpanded(k)`, `expandAll()`, and a decoration (`aria-expanded`).
+Without windowing, **`scrollToKeep({ keepVisible, drawn })`** scrolls a drawn element into view when the state changes.
 
-The app's tree implementation takes this state as its own parameter. It sends each change as an action ("open k") and
-never re-sends the whole set. The children come back in the view's live `around` answer.
+### Asking the layout new things
 
-### Reorder: `reorder`
+A module that needs to know something about the layout uses geometry:
 
-**`reorder({ container, elements, handle, targetAt, moveTarget, moved, scroller })`.**
+- **`firstOnScreen({ geometry, scroller })`**: `keyAt(scroller start, 'start')`.
+- **`pageSize({ geometry, scroller })`**: how many keys `hit` finds in the viewport. This is a helper the app passes as
+  navigation's `pageSize`.
+- **`gridNavigation({ geometry })`**: `below(k)` and `above(k)`, by `hit` on the rect just past `box(k)` across the axis,
+  taking the cell whose centre is nearest.
+  - It works in grouped grids and masonry alike.
+  - The item below must be drawn, which windowing's `margin` ensures when it is at least one row (a stated contract).
+- **`itemDropPlace({ geometry })`**: for a point, the nearest item and which half of it the point is in. This is a
+  helper for reorder's `dropAt`.
 
-- `targetAt(point) → { target, key?, side? }` is implemented by the view, which knows its layout. Over a group's empty
-  member view, `groupedView` gives `{ into: group }`.
-- `moveTarget(k, direction) → Promise<target>` is a question. The server answers it from its group indexes, including
-  "the start of the next group, empty or not", so there is no counting at group edges.
-- During a drag, the dragged item is a copy that reorder owns, in the top layer. The view may drop the original freely.
-- It gives `moveUp`, `moveDown`, `dragging` and `target` (states), a decoration for the drop indicator (`writes:
-  ['data-drop']`), and `styles`.
-- It auto-scrolls the scroller near its edges (a UX proposal).
-- On drop, it calls `moved(key, target, { alt, ctrl, meta, shift })`.
+None of these needs a change to any layout.
 
-### Cell editing: `cellEditing`
+## The data modules
 
-**`cellEditing({ editing?: State<{ key, draft }>, commit })`.** The draft lives in its state, not in the DOM, so a
-windowed view can drop the edited row and draw it again with the draft. It gives `start(k)`, `setDraft(text)`,
-`commit()` and `cancel()`. The editor input's keymap is its own (see keybinds).
+These are unchanged from the last draft, except for the policies the review found.
+
+- **`listNavigation({ order, pageSize })`.** `next(k)`, `previous(k)`, `first()`, `last()`, `pageDown(k)`, `pageUp(k)`,
+  where `order` is a data function. A key is required: what to do with nothing active is the app's command.
+- **`treeNavigation({ tree })`**: `parent(k)`, `firstChild(k)`.
+- **`typeahead({ textSearch, wait, wrap })`.**
+  - `textSearch(from, text)` gives the first item at or after `from` whose text starts with `text`. With `wrap`, it
+    goes round to the start (a parameter).
+  - `type(character) → (from) => Promise<key | undefined>`, a function of the current active key, so focus applies it
+    in order.
+  - `typing`, a state saying whether a search is in progress.
+- **`singleSelection({ selected? })`**: `select(k)`, and a writer for `aria-selected`, or for `aria-checked` when it is
+  given `checked: true`.
+- **`multipleSelection({ terms, whichSelected, checked? })`.**
+  - The value is `{ terms, plus, minus, rangeStart }`.
+  - `terms` is a pair of functions, `allMatching()` and `between(a, b)`, that make opaque terms.
+  - `whichSelected(value, keys)` returns a state of `Map<key, boolean>`, and only it evaluates terms.
+  - Functions: `setRangeStart(k)`, `toggleSelected(k)`, `extendTo(k)` (one term from `rangeStart` to `k`, with `plus`
+    and `minus` emptied: a UX proposal), `addRangeTo(k)`, `selectAllMatching()`, `clear()`.
+  - Its writer asks `whichSelected` only for the keys it is applied to, so what it holds is bounded by what is drawn.
+  - `count(value, cap)` is capped (worldbuilding's "1,000+", a UX proposal).
+- **`expansion({ open?, expandable: (item) => boolean })`.**
+  - The value is `{ allOpen, except }`.
+  - Functions: `isOpen(k)`, `expand(k)`, `collapse(k)`, `toggleExpanded(k)`, `expandAll()`.
+  - Its writer writes `aria-expanded` only on items `expandable` accepts, so leaves never get it.
+  - The app's tree data takes the state as its own parameter, and sends changes as they happen.
+
+## Focus
+
+**`rovingFocus` and `activeDescendant`.** Both take:
+
+- `container` and `active` (a state of a key), so the app makes `active` first;
+- `drawn`;
+- `exists(k) → Promise<boolean>`;
+- `whenRemoved(k) → Promise<key | undefined>`;
+- `entry() → Promise<key | undefined>`: where focus goes when it comes in with nothing active.
+
+`rovingFocus` also takes `holdFocus`, the element that keeps DOM focus while the active item isn't drawn. It is
+required, so there is no built-in choice.
+
+Both give `go(f)`:
+
+- `f` is a function of the current active key, returning a key or a promise of one.
+- Calls apply in order: each one gets the key the one before it produced. Three fast ArrowDowns therefore move three
+  items, and a late typeahead answer lands before the ArrowDown pressed after it, never after.
+
+When the active key's element leaves `drawn`, focus asks `exists(k)`:
+
+- **True:** the item moved or scrolled away. Focus keeps the key, and `rovingFocus` moves DOM focus to `holdFocus` if
+  DOM focus was on the removed element.
+- **False:** focus asks `whenRemoved(k)` and goes there.
+
+The writers:
+
+- `rovingFocus.item` writes `tabindex` (single), 0 on the active item and -1 on the others.
+- `rovingFocus.list` makes the container the tab stop while the active item isn't drawn.
+- `rovingFocus` calls `focus()` on the active element when it appears in `drawn`. It does so only if DOM focus is inside
+  the container, or on `holdFocus`, at that moment. It never takes focus from elsewhere (a UX proposal).
+- `activeDescendant.item` writes `id` (single), the container's `id` plus the URI-encoded key. It reads the
+  container's `id`, and throws when it is constructed if there is none.
+- `activeDescendant.list` writes `aria-activedescendant` (single) while the active key is in `drawn`. It is applied to
+  whatever element has focus: the list, or a combobox's input.
+
+## Reorder, cell editing, overlays
+
+### Reorder
+
+**`reorder({ container, drawn, handle, dropAt, moveTarget, moved, ghost, autoScroll? })`.**
+
+- `dropAt(point) → place | undefined` is the app's. It is often `itemDropPlace(geometry)`, plus a section element's
+  `{ into: section }` found by `document.elementFromPoint`.
+- `moveTarget(k, 'forward' | 'back') → Promise<place>` is a data function, so a move off a section's end is the data's
+  answer.
+- `ghost(key) → Element` draws what follows the pointer (a parameter). `autoScroll` is the scroller and a speed, or
+  absent.
+- A place is opaque to reorder. On drop it calls `moved(k, place, { alt, ctrl, meta, shift })`, passing the modifiers
+  on (a UX proposal).
+- It gives `moveForward(k)` and `moveBack(k)`, the states `dragging` and `dropPlace`, a writer for `data-drop` (tokens),
+  and `styles`.
+
+### Cell editing
+
+**`cellEditing({ editing? })`.** The state is `{ key, draft }`. Functions: `edit(k)`, `setDraft(text)`, `commit()`,
+`cancel()`.
+
+The app's `fill` draws the editor for the item whose key is `editing.key`, and watches `editing` so the editor appears
+and goes. The draft is in the state, so a windowed layout can drop the row and draw it again with the same draft. The
+editor input has its own keymap.
 
 ### Overlays
 
-- **`overlay({ element, modal?, open?, allowClose?, returnFocus })`.**
-  - It gives `show()` and `close(reason)`.
-  - Non-modal overlays are popovers in manual mode. Modal ones are `<dialog>` elements shown with `showModal()`, and the
-    module listens for the dialog's own `cancel` and `close` events so a native close goes through its state.
-  - `returnFocus` is required. Helpers: `returnTo(element handle)`, `returnToPrevious()`. A reason is any value.
-- **`anchored({ element, anchor: element handle, placement, anchorGone })`.** `anchorGone` is required. The app might
-  pass `() => menu.close('anchor gone')` (a UX proposal).
-- **`closeOnOutsidePress({ overlay, page, inside })`** and **`closeOnFocusLeaving({ overlay, page, inside })`** listen on
-  the `page` they were given.
-- **`overlayStack()`** gives `add(overlay, parent?)` and `inside(overlay)`, which implements `inside`.
+- **`overlay({ element, modal?, open?, allowClose?, returnFocus })`**: `show()`, `close(reason)`, and a writer for
+  `aria-expanded` (single) to apply to the opener.
+  - Non-modal overlays are manual popovers. Modal ones are dialogs shown with `showModal()`, and their native `cancel`
+    becomes `close('escape')` (a UX proposal).
+  - `returnFocus` is a callback, such as `() => focus.go(() => k)`.
+- **`anchored({ element, anchor: () => Element | undefined, placement, anchorGone })`.** `anchor` can read `drawn`.
+  `anchorGone` is called when `anchor()` becomes undefined.
+- **`closeOnOutsidePress({ overlay, page, inside: (target) => boolean })`** and **`closeOnFocusLeaving`**. The
+  abstraction an overlay meets here is `{ open: State<boolean>, close(reason) }`.
+- **`overlayStack()`**: `add(overlay, within?)` and `inside(overlay)`, where an overlay is `{ element, open, close }`.
+  When an overlay closes, the stack closes those added `within` it, so nested overlays close together.
 
 ### Roles, submenus, completion
 
-- **Roles** (`listboxRoles`, `menuRoles`, `comboboxRoles`, `treeRoles`, `gridRoles`) are decorations that write `role`
-  and the pattern's static ARIA. A menu item's role comes from the app's `roleOf(item)`.
-- **`submenus({ hasSubmenu, openSubmenu, closeSubmenu })`** and **`submenuPointer`**, as before.
-- **`inlineCompletion({ input, textOf })`**, as before.
-
-### Compositions
-
-`<interact-listbox>`, `<interact-menu>`, `<interact-combobox>`, `<interact-palette>` and `<interact-tree>` are files of
-wiring over public modules, so they can be taken apart and their parts replaced. The settled DOM, registration and
-styling decisions of the earlier document apply to them.
+Roles are attribute writers: `listboxRoles`, `menuRoles(roleOf)`, `comboboxRoles`, `treeRoles` (`aria-level` and
+`aria-setsize` from item data), `gridRoles`. `submenus`, `submenuPointer` and `inlineCompletion` are as before.
 
 ## keybinds
 
 These changes are designed here and built in `keybinds`.
 
-1. **Keymaps.** One `keybinds(commands, context, { target, inputs, unless, takesText })` per element that takes focus.
-   The API stays commands-first. A module exports a keybinds `Schema` of suggested defaults (ids, labels, keys), and the
-   app writes the commands:
-
-   ```js
-   keybinds([{ id: 'list.next', label: 'Next item', keys: ['ArrowDown'], execute: () => void down() }], ctx, { target: container, inputs: [keys(chars())] })
-   ```
-
-   A keymap that runs a command stops the event, so the keymaps around it never see it.
-2. **Policies become conditions.**
-   - The overlay check becomes the conditions `insideNoOpenOverlay(context, event)` for key and mouse events and
-     `noOverlayOpen()` for gamepad and axes. A keymap lists them in `unless`. Nothing is built in.
-   - A dialog's own keymap doesn't list them. It is inside the overlay, and the page-wide keymap outside it does list
-     them, so page keys stop while the dialog is open.
-   - The overlays' own `keydown` listeners (`submenus.js:430-471`, `combobox-field.js:95-101`, `menu-view.js:77`) go.
+1. **A keymap is `keybinds(commands, context, { target, inputs, unless, textTakers })`.** The API stays commands-first.
+2. **Conditions.** `unless` is a list of `(context, event | undefined) → boolean`. Axes and gamepad pass `undefined`.
+   - `notInOpenOverlay`: the event's composed path has no `dialog[open]`, `:popover-open` or
+     `[data-keybinds-modal][open]` (`modal.js:8`). With no event, it checks the whole page (`anyOverlayOpen`).
+   - `notFromTextField`: today's `inInput`. It blocks every key, Ctrl+A and Ctrl+Z included.
+   - Nothing is built in any more. The checks in `keys.js:239, 276`, `mouse.js:327, 348, 374`, `gamepad.js:100, 105`
+     and `axes.js:249` go, and each keymap lists the conditions it wants. A dialog's own keymap lists neither, and the
+     page-wide keymap lists both.
    - This is a breaking change for apps that rely on today's defaults.
-3. **Text fields.** The condition `notFromTextField` (today's `inInput`) goes in the `unless` of every keymap that isn't
-   on a text field itself. It blocks every key from a text field, Ctrl+A and Ctrl+Z included, as `core.js:346` does
-   today.
-   - An input that wants keys (a combobox, a cell editor) has its own keymap on the input. That keymap has no such
-     condition, and binds only what it means to: Up, Down, Enter, Escape.
-   - A command meant to run even in text fields lives in a keymap without the condition. `captureInput` goes.
-   - The cell editor's typing never reaches the list's keymap, so it never reaches typeahead.
-4. **Text takers.** `takesText: [taker]`, where a taker is `(event) → boolean`.
-   - When a taker takes an event, only `$char` bindings may run. When none does, only the others may.
-   - Space therefore goes to typeahead while typing is going on, and to selection otherwise, by construction.
-5. **`$char`.** A `KeySyntax` (`chars()`), built like `symbols()` (`keys-symbols.js:39-50`, through the hook at
-   `keys.js:24-32, 166`).
-   - It matches when `event.key` is one character and neither Ctrl nor Meta is held, except with AltGraph
-     (`getModifierState('AltGraph')`).
-   - Option on a Mac and AltGr count as typing. Alt alone on other systems doesn't (a UX proposal).
-6. **One binding per lookup, and no hidden order.**
-   - A keymap refuses, when it is made, two commands bound to the same binding string. The conflict is then found while
-     wiring, not after the fact.
-   - An event's lookups keep today's specificity order, which comes from the event, never from the order the commands
-     were given in: the typed key, then the physical key, then the layout letter, then syntax lookups
-     (`keys.js:162-167`), then `anyModifiers`.
-   - The first lookup whose one command is allowed runs. A lookup whose command's `when` is false falls through to the
-     next. That fixes a specific binding hiding a general one.
-   - On AZERTY, Ctrl+Z still runs undo, because the typed key comes before the physical one, exactly as now.
-   - Sequences resolve through the same function (`core.js:254`). Assuming that is enough for them: I didn't trace
-     sequences, holds or releases.
-7. **Async commands.** Whether a command applies is decided synchronously by `when`. `execute` may be async, and taking
-   the event depends only on `when` being true. So Escape with the popup closed has `when: () => pop.open.get()`, is
-   false, and passes on to the keymap outside.
-8. **The hub.** `CommandHub` keeps the page-wide keymap and the `BindingsStore`. Component keymaps take the same store,
-   so rebinding a component's command works. The settings panel and the cheatsheet list component commands because the
-   app adds each composition's schema to the hub as a source (`hub.d.ts` `Source`), the way it adds any other source of
-   commands. There is no registry.
+3. **Releases follow their press.** The key-up, hold or release of a press goes to the keymap that took its key-down,
+   whatever the conditions say at release time. Today the release is blocked separately (`keys.js:276`).
+4. **No fall-through.** The first lookup that has any binding decides, as today (`core.js:215-223`). If its command
+   isn't allowed, the event passes on to the keymap outside. On QWERTZ, Ctrl+Z still never runs redo (`keys.js:162-166`).
+5. **Text takers, instead of `$char`.** `textTakers` is a list of `{ wants(event) → boolean, take(event) }`.
+   - When one wants an event, keybinds calls its `take` and stops the event, and no ordinary binding runs. Otherwise
+     only ordinary bindings may run.
+   - `typedCharacter(event) → string | undefined` is defined once, in keybinds. It is one character that types:
+     - with AltGr (`getModifierState('AltGraph')`, though Windows also sets Ctrl and Alt, `binding-mods.js:103-105`);
+     - with Option on a Mac;
+     - never with Ctrl or Meta otherwise.
+   - The app writes the taker, so typeahead doesn't import keybinds. A taker for typeahead might be:
 
-## A huge list held by a server: every question from an index
+     ```js
+     { wants: (e) => { const c = typedCharacter(e); return c !== undefined && (c !== ' ' || ta.typing.get()) },
+       take: (e) => focus.go(ta.type(typedCharacter(e))) }
+     ```
 
-Each module's question, implemented two ways. No module changes between the two.
-
-| Question (owner) | Array implementation | Index implementation |
-| --- | --- | --- |
-| `order.next/previous/step` (listNavigation) | index arithmetic | keyset seek on the view's order index |
-| `firstFrom(k, t)` (typeahead) | scan from k | a seek when the order is by text. For any other order, Assuming an index that gives a text prefix's items in view order. I don't know one whose cost doesn't grow with the matches. |
-| `around(k, before, after)` live (windowed views) | slice | keyset reads both ways from k; the server pushes a new answer when the window changes |
-| `groupOf(k)`, `members(g)`, `groups.around` (groupedView) | maps | relation indexes, as in worldbuilding's design |
-| `describe.all/range` (multipleSelection) | values | values, stamped with the view |
-| `membership` live (multipleSelection) | evaluate | per key asked: comparing order keys for a range, a filter test for "all" |
-| `count` (multipleSelection) | count | a count up to a cap |
-| `below/above` (gridNavigation) | the grid view's layout, plus `around` | the same |
-| `parent/firstChild` (treeNavigation) | tree walk | parent and child indexes |
-| `moveTarget` (reorder) | neighbours | group indexes |
-
-Batching, prefetching and stale answers are left to implementations. The one rule they must keep is to settle every
-promise. A push from the server replaces a live answer and cancels nothing.
+     That makes Space continuing a search, and letters going to typeahead instead of letter bindings, choices visible
+     in the wiring (UX proposals).
+6. **One command per binding string.**
+   - Among default bindings, a duplicate is an error from `validateCommands`, so it is found in development.
+   - A person's rebinding that collides is first handled by the settings panel's conflict prompt, as today. If one is
+     still left, the person's binding is kept, the default's is dropped, and it is reported. The hub's page-wide keymap
+     never fails as a whole (today the hub drops bindings one command at a time, `hub.js:650-660`).
+7. **Async commands.** Whether a command applies is decided synchronously by `when`, so Escape with the popup closed
+   passes on. A command that is allowed takes the event, as today (`core.js:357-366`).
+8. **A keymap that runs a command stops the event** (today's `core.js:362-363`), so the keymaps outside it don't see it.
+9. **The hub.**
+   - Component keymaps take their bindings from `hub.bindingsFor(id, 'keys')` (`hub.d.ts:233`), and build themselves
+     again on the hub's change event. They never hold a `BindingsStore`, because the hub makes a new one on every
+     refresh (`hub.js:645-647`).
+   - The settings panel and the cheatsheet list component commands because the app adds each composition's schema to
+     the hub as a source marked `listen: false`. The hub's page-wide keymap then doesn't bind them, and they need no
+     `execute`. This is a new hub option; today a source without `execute` throws (`hub.js:171-174`).
 
 ## Combination tests
 
-Each test lists the wiring, then what happens, then checks that no module's parameters name another module.
+Every test runs top to bottom as written, given `state` (the library's), `data` (the app's implementation of every
+data function) and the app's own `fill`, `drawSection` and element variables. Each test then checks that no module's
+parameters name another module.
+
+### Common wiring (W)
+
+```js
+const active = state(undefined)
+const range = state('all')
+const drawn = state(new Map())
+const focus = rovingFocus({ container, active, drawn, holdFocus: container, exists: data.exists, whenRemoved: data.neighbour, entry: data.first })
+const nav = listNavigation({ order: data.order, pageSize: () => pageSize({ geometry: layout.geometry, scroller }) })
+const sel = multipleSelection({ terms: data.terms, whichSelected: data.whichSelected })
+const write = combine(focus.item, sel.item, listboxRoles.option)
+const layout = listLayout({ container, items: data.itemsNear, range, drawn, fill, write, axis: 'block' })
+const win = windowing({ scroller, geometry: layout.geometry, range, keepVisible: active, margin: 400 })
+focus.list.apply(container)
+```
+
+`pageSize` refers to `layout` only inside a function that runs on PageDown, after `layout` exists.
+
+The app's commands:
+
+```js
+const down = () => focus.go((k) => (k === undefined ? nav.first() : nav.next(k)))
+const shiftDown = () => focus.go(async (k) => { const n = await nav.next(k); sel.extendTo(n); return n })
+```
+
+`down` also calls `sel.setRangeStart` in multiple mode, as a UX proposal.
 
 ### 1. Selection with grouping
 
-```js
-const data = worldServer(transport, view)            // implements every question below
-const v = groupedView({ container, scroller, groups: data.groups, groupOf: data.groupOf,
-  members: (g) => windowedList({ around: data.membersAround(g), draw: drawCard }), drawGroup, follow: focus.active })
-const focus = rovingFocus({ container, elements: v, replacement: data.neighbour, start: () => nav.first() })
-const nav = listNavigation({ order: data.order })
-const sel = multipleSelection({ describe: data.describe, membership: data.membership })
-// The view applies decorations from focus, sel and listboxRoles.
-```
+W, with `sectionsLayout({ ..., arrange: listArrangement, drawSection, emptySections: true })` in place of `listLayout`.
 
-1. ArrowDown on the last item of group A runs `down`. `nav.next(kA)` answers `kB`.
-2. `focus.go(kB)`. The view follows `kB`: it asks `groupOf(kB)`, and B's member view draws `kB`. `rovingFocus` focuses
-   it when its decoration is applied.
-3. Shift+ArrowDown runs `shiftDown`, so `sel.extendTo(k)`. The description is made synchronously, and `membership`
-   answers for the drawn keys.
+1. ArrowDown on the last item of section A. `nav.next` answers the first item of B, and `active` is set. Windowing
+   scrolls to it. If it wasn't drawn, the range moves and the layout draws it. `rovingFocus` focuses it when it appears
+   in `drawn`.
+2. Shift+ArrowDown runs `shiftDown`, which calls `sel.extendTo`. Its writer asks `whichSelected` for the drawn keys.
+3. Headings are section elements, not items, so no module ever sees one.
 
-No module sees a heading or a position. Wiring check: every parameter is a question, a state or an element handle.
-**Passes.**
+Wiring check: every parameter is a state, a function, an element or a writer. **Passes.**
 
-### 2. Reorder in a grouped, windowed list: across groups, into an empty group
+### 2. Reorder in a grouped, windowed list: across sections and into an empty one
 
 ```js
-const re = reorder({ container, elements: v, handle: isGrip, targetAt: v.targetAt, moveTarget: data.moveTarget, moved: data.move, scroller })
+const re = reorder({ container, drawn, handle: (el) => el.matches('[part~=grip]'),
+  dropAt: (p) => sectionAt(p) ?? itemDropPlace({ geometry: layout.geometry })(p),
+  moveTarget: data.moveTarget, moved: data.move, ghost: drawGhost, autoScroll: { scroller, speed: 600 } })
 ```
 
-1. Alt+ArrowDown on the last item of A. `moveTarget(k, 'down')` answers `{ before: firstOfB }`, or `{ into: B }` if B is
-   empty. `moved` sends the move.
-2. The live answers of A's and B's member views change, and the views reconcile by key. The item's key is a membership
-   id, so it survives, and focus and selection keep it.
-3. A pointer drag. Reorder floats its copy, the view scrolls and drops rows freely, and `v.targetAt` gives `{ into: D }`
-   over D's empty member view.
+1. Alt+ArrowDown on A's last item. `moveTarget(k, 'forward')` answers `{ precedes: B's first }`, or `{ into: B }` if B is
+   empty. `moved` sends it.
+2. The layout's items state changes. The key is unchanged, so focus asks nothing, and selection keeps it.
+3. A pointer drag over an empty section: `sectionAt` (the app's, using `elementFromPoint`) gives `{ into: D }`.
+   Windowing may drop the original row, because the ghost is reorder's own element.
 
 **Passes.**
 
-### 3. Typeahead over ten billion items held by a server
+### 3. Typeahead over a huge server-held list
 
 ```js
-const ta = typeahead({ textSearch: data.textSearch, wait: 500 })
-// List keymap: takesText: [ta.takes]; $char runs: focus.go(ta.type(event.key, focus.active.get()))
+const ta = typeahead({ textSearch: data.textSearch, wait: 500, wrap: true })
+keybinds(listCommands, ctx, { target: container, inputs: [keys()], unless: [notFromTextField], textTakers: [typeaheadTaker] })
 ```
 
-1. "s": `firstFrom(active, 's')`, which a server answers from its index.
-2. "a" before the answer arrives: `ta` asks again, and its own latest-wins ignores the first answer. An ArrowDown
-   meanwhile calls `focus.go`, and focus's own latest-wins ignores typeahead's older promise. A late answer can't move
-   focus back.
-3. The view follows the found key with `around`. Whether the server answered that ahead of time is its own business.
+`typeaheadTaker` is the taker shown under keybinds, point 5.
 
-**Passes**, on the index assumption in the table.
+1. "s": `focus.go(ta.type('s'))`. The server answers `textSearch` from an index (see the table).
+2. "a" before that answer arrives: queued after it in `go`. It searches from where "s" landed, so the order of keys is
+   kept.
+3. `keepVisible` brings the found key into view.
+
+**Passes**, on the typeahead index assumption.
 
 ### 4. Two listboxes in one view
 
-Two of everything, on two containers. Ids come from each container's own `id`. Keymaps sit on each container. Each
-view's handles and `targetAt` see only its own elements. **Passes.**
+W twice, with two containers, two sets of states and two keymaps. **Passes:**
 
-### 5. A feature nobody planned: a grid of cards, and cell editing
+- ids come from each container's `id`;
+- each keymap targets its own container;
+- `drawn` and geometry belong to each list's own layout.
 
-```js
-const v = windowedGrid({ container, scroller, around: data.around, minColumnWidth, follow: focus.active })
-const grid = gridNavigation({ grid: v })
-```
+### 5. A grid of cards, and cell editing
 
-- ArrowDown is `focus.go(grid.below(k))`. Focus, selection, typeahead and reorder are unchanged.
-- `cellEditing` keeps its draft in a state, and the editor input has its own keymap. The list keymap's
-  `notFromTextField` keeps list keys and typeahead out of the editor.
+W, with `gridLayout({ ..., minColumnWidth: 240 })` and
+`const grid = gridNavigation({ geometry: layout.geometry })`, declared after `layout`.
+
+- ArrowDown is `focus.go((k) => grid.below(k))`.
+- `cellEditing`'s draft is in a state, and `fill` draws the editor. The editor input has its own keymap, and the list's
+  keymap has `notFromTextField`, so typing never reaches the list.
 
 **Passes.**
 
 ### 6. A tree with multiple selection
 
 ```js
-const exp = expansion()
-const data = treeServer(transport, { expanded: exp.expanded })
-const v = windowedList({ around: data.around, ... })   // the server answers in visible-tree order
+const open = state({ allOpen: false, except: new Set() })
+const data = treeData(transport, { open })          // the app's; built after `open`
+const exp = expansion({ open, expandable: (item) => item.value.hasChildren })
 const tree = treeNavigation({ tree: data.tree })
 ```
 
-1. ArrowRight on a closed node calls `exp.expand(k)`. The implementation sends "open k". The live `around` answer now
-   includes the children, and they appear.
-2. "Expand all" is `exp.expandAll()`, one value.
-3. Shift+ArrowDown and `multipleSelection` work over visible keys, and `treeRoles` and the view write `aria-level`.
+Then W, with its `write` line as `const write = combine(focus.item, sel.item, exp.item, treeRoles.item)`.
+
+1. ArrowRight: `focus.go(async (k) => { if (!exp.isOpen(k)) { exp.expand(k); return k } return tree.firstChild(k) })`.
+   The data's `itemsNear` state then includes the children.
+2. `expandAll()` is one value.
 
 **Passes.**
 
 ### 7. A combobox with server-side suggestions, under windowing
 
 ```js
-const pop = overlay({ element: popup, returnFocus: returnToPrevious() })
-const v = windowedList({ container: optionsElement, scroller: popup, around: data.suggestions.around, follow: focus.active })
-const focus = activeDescendant({ container: input, elements: v, replacement: () => Promise.resolve(undefined), start: ... })
-input.addEventListener('input', () => { data.suggestions.setText(input.value); pop.show() })
-// Input keymap: ArrowDown / ArrowUp / Enter (when open) / Escape (when open: pop.close('escape'))
+const active = state(undefined); const range = state('all'); const drawn = state(new Map())
+const pop = overlay({ element: popup, returnFocus: () => input.focus() })
+const focus = activeDescendant({ container: listElement, active, drawn, exists: data.suggestionExists, whenRemoved: async () => undefined, entry: async () => undefined })
+const layout = listLayout({ container: listElement, items: data.suggestionsNear, range, drawn, fill, write: combine(focus.item, comboboxRoles.option), axis: 'block' })
+const win = windowing({ scroller: popup, geometry: layout.geometry, range, keepVisible: active, margin: 200 })
+combine(focus.list, pop.expanded, comboboxRoles.input).apply(input)
+input.addEventListener('input', () => { data.setSuggestionText(input.value); pop.show() })
 ```
 
-1. Typing replaces the live answer, and the view reconciles. The active option, if it is gone, gets `replacement`, and
-   `aria-activedescendant` disappears with its element.
-2. Escape and Enter with the popup closed: `when` is false, so they pass on to the keymap outside.
+1. Typing changes the suggestions. If the active option no longer exists, `whenRemoved` makes nothing active, and the
+   input's `aria-activedescendant` goes.
+2. The input's keymap has Escape and Enter with `when: () => pop.open.get()`. With the popup closed, they pass on.
 
 **Passes.**
 
 ### 8. A live list, with pushes while navigating and selecting
 
-1. The server pushes an insert above the viewport. The live `around` answer changes, and scroll anchoring by key keeps
-   what is shown still: no layout shift.
-2. Focus holds a key, so it stays put. `nav.next` asks with the current data.
-3. A pushed insert that the selection's "all matching" covers: the live `membership` answer turns it on.
-4. The focused item is deleted: `gone` with `removed`, then `replacement(k)`, the app's choice of where focus goes.
-5. Nothing in flight is cancelled by a push.
+W, with a server pushing changes.
+
+1. An insert above the view: the items state changes. The layout keeps the drawn keys at their screen positions, so
+   nothing shifts.
+2. A pushed item covered by "all matching": the `whichSelected` state turns it on.
+3. The active item is deleted: its element leaves `drawn`, `exists` is false, and focus goes to `whenRemoved`.
 
 **Passes.**
 
 ### 9. A context menu on a windowed item, with a "Move to…" combobox
 
 ```js
-const menu = overlay({ element: menuEl, returnFocus: returnTo(v.elementOf(k)) })
-anchored({ element: menuEl, anchor: v.elementOf(k), anchorGone: () => menu.close('anchor gone') })
-// The menu keymap is on menuEl. "Move to…" opens test 7's combobox inside the menu.
+const menu = overlay({ element: menuEl, returnFocus: () => focus.go(() => k) })
+anchored({ element: menuEl, anchor: () => drawn.get().get(k), placement: 'right-start', anchorGone: () => menu.close('anchor gone') })
 ```
 
-1. If the list scrolls the item away, the handle reports `gone` and the app's `anchorGone` closes the menu.
-2. Escape in the combobox input with suggestions open closes the suggestions. With them closed, it passes on to the menu
-   keymap, which closes the menu. Focus returns to the item, or to the list container if the item isn't drawn (a UX
-   proposal).
-3. Choosing a target calls `data.move`.
+The combobox from test 7 sits in the menu.
+
+1. Escape in the combobox input with the popup open closes the popup. With it closed, Escape passes on to the menu's
+   keymap, which closes the menu. `returnFocus` makes the item active again, and `keepVisible` brings it into view.
+2. Scrolling the item away calls `anchorGone` (closing the menu is a UX proposal).
 
 **Passes.**
 
 ### 10. The command palette in a modal dialog, with a nested menu
 
 ```js
-const dlg = overlay({ element: dialog, modal: true, returnFocus: returnToPrevious() })
-const search = memoryCommands(hub.commandSystem())     // implements around(k) over searchCommands' ranked results
-const more = overlay({ element: resultMenu, returnFocus: returnToPrevious() })
+const dlg = overlay({ element: dialog, modal: true, returnFocus: () => opener.focus() })
+const more = overlay({ element: resultMenu, returnFocus: () => input.focus() })
 const stack = overlayStack(); stack.add(dlg); stack.add(more, dlg)
 closeOnOutsidePress({ overlay: more, page: document, inside: stack.inside(more) })
 ```
 
-1. The page-wide keymap has `insideNoOpenOverlay`, so page shortcuts stop. The dialog's input keymap runs.
-2. Escape in the nested menu closes the menu. Escape in the input reaches the dialog's native `cancel`, which the
-   overlay turns into `close('escape')`.
-3. A press inside the dialog but outside the menu closes only the menu.
+The results list is test 7's wiring over `memoryCommands(hub.commandSystem())`.
+
+1. The page-wide keymap has `notInOpenOverlay`, so it stops.
+2. Closing the dialog closes the menu with it, through the stack.
 
 **Passes.**
 
+### 11. A windowed tree with grouped sections
+
+W with `sectionsLayout` and `listArrangement`, plus test 6's expansion and `treeRoles`.
+
+- Sections come from the data's section starts. Tree levels come from item data, through `treeRoles`.
+- No layout writes `aria-level`, so nothing collides.
+- One windowing over one scroller.
+
+Open: how the ARIA tree pattern should express sections. APG has none, and choosing one is the owner's call.
+**Passes** in the wiring.
+
+### 12. A horizontal carousel with drag to reorder
+
+W with `listLayout({ ..., axis: 'inline' })`, and test 2's reorder with `itemDropPlace`. Geometry's `axis` makes the drop
+halves left and right. Alt+ArrowLeft and Alt+ArrowRight move items (a UX proposal). **Passes.**
+
+### 13. A module written later that asks the layout something new
+
+`firstOnScreen({ geometry: layout.geometry, scroller })`, as above: one call to `keyAt`. Likewise "the item nearest to
+the right" is `hit` on a rect beside `box(k)`, and "the item at a point" is `hit` on a point-sized rect. No layout
+changes. **Passes.**
+
+## A huge server-held list: each abstraction from an index
+
+| Abstraction (owner) | From an array | From an index |
+| --- | --- | --- |
+| `order` (listNavigation) | index arithmetic | keyset seek on the order index |
+| `textSearch` (typeahead) | scan | a seek when the order is by text; for any other order, Assuming an index giving a prefix's items in view order |
+| `itemsNear`, returning a state (layouts) | slice | keyset reads both ways, pushed when they change |
+| section starts in `itemsNear` (sectionsLayout) | computed | the relation indexes |
+| `terms`, `whichSelected`, `count` (multipleSelection) | evaluate | order-key comparison per key; a count up to a cap |
+| `tree`, open state (treeNavigation, expansion) | walk | parent and child indexes; changes sent as they happen |
+| `exists`, `whenRemoved` (focus) | lookup | key lookup; the neighbour from the order index |
+| `moveTarget` (reorder) | neighbours | section indexes |
+| geometry, from the layout | measured and estimated | the same; it needs no index, because estimates come from the drawn items |
+
 ## What I couldn't fix
 
-1. **Typeahead at ten billion for any order.** I know no index that answers "the first item after k in this order whose
-   text starts with t" for an arbitrary order at a cost that doesn't grow with the matches. When the order is by text,
-   it is a seek. The design doesn't change either way; whether the engine can do it, I don't know.
-2. **Positions.** `aria-posinset`, `aria-setsize` and a proportional scrollbar need the server to know positions, which
-   needs an order index that keeps counts. Without one, the view leaves them out, or writes `aria-setsize="-1"` (a UX
-   proposal).
-3. **The palette copies once.** In-memory search produces one ranked array.
-4. **The one exact-over-`anyModifiers` tie-break** stays, as a lookup-specificity rule, not registration order.
-5. **Not traced:** keybinds sequences, holds, releases and gamepad under the new rules. Hydration of the views'
-   own DOM. Assuming: a view can adopt server-drawn items by their key attribute.
-6. **Focus moving to the scroller** when a focused element scrolls away is a UX proposal, not a guarantee from any
-   abstraction. Without it, a windowed list with roving focus would lose focus.
+1. **Typeahead for any order.** I know no index that answers "the first item after k in this order starting with t" at
+   a cost that doesn't grow with the matches, unless the order is by text.
+2. **Geometry estimates for undrawn items** are only estimates, so a scrollbar dragged far lands near, not exactly on,
+   the key. Exactness needs positions from an index that keeps counts. Without them, `span` of a far key is
+   `undefined`, and windowing re-anchors there.
+3. **Grid navigation needs the item below to be drawn.** Windowing's `margin` covers that when it is at least one row.
+   It is a contract between two parameters, not something either module can check.
+4. **Sections in an ARIA tree** have no APG pattern.
+5. **The palette copies its ranked results once.**
+6. **Not traced:** keybinds sequences and holds under rules 3-6, and how layouts adopt server-drawn items for
+   hydration.
 
 ## Decisions for the owner
 
-- Keys instead of positions, which replaces the accepted positional source model.
-- keybinds' overlay and text-field policies become opt-in conditions, which breaks apps that rely on the old defaults.
-- One binding per binding string per keymap.
-- Selecting an entry shown in two places: the server's membership decides.
-- Whether a selection survives a change of view.
-- What `replacement` does by default in the compositions.
+- Keys instead of the positional source model accepted earlier.
+- keybinds' policies become opt-in conditions, a breaking change.
+- One command per binding string, with a person's binding kept over a default's.
+- The hub's `listen: false` sources.
+- Selecting an entry that shows in two places: the server's `whichSelected` decides.
 
 ## UX proposals
 
-- Selection follows focus in single mode; the anchor moves with plain arrow keys in multiple mode.
-- Shift+Arrow extends; Ctrl/Cmd+Arrow moves without selecting; Space toggles; Ctrl/Cmd+A selects all matching.
-- `next` with nothing active goes to the first item; `previous` to the last.
-- Page size: as many items as fit in the viewport.
-- Typeahead: what counts as a character (`$char`, including AltGr and Option, excluding Alt elsewhere); Space continues
-  a search in progress; the `wait`; wrapping round at the end.
-- The keys a text field keeps: all of them, unless its own keymap binds them.
-- Escape closes an overlay, in the keymap that has focus. Escape and Enter pass on when the popup is closed.
-- The combobox popup shows on every input event.
-- Focus returns to the element focused before, or to a given item.
-- A press outside, or focus leaving, closes an overlay.
-- An overlay closes when its anchor is scrolled away.
-- Alt+ArrowUp and Alt+ArrowDown move an item; at a group's end, into the next group's start.
-- Dragging only from a grip; auto-scroll near the edges; a floating copy while dragging.
-- Drop halves before and after; a tree item's middle means "child of".
-- A focused element scrolled out of a windowed view gives focus to its scroller.
-- A membership flag that isn't known yet shows as not selected.
-- A conflicting binding is refused when the keymap is made.
-- `aria-setsize="-1"` when the total isn't known.
+Each item is a proposal, with the parameter that holds it where there is one.
+
+- **Selection:** single selection follows focus. In multiple selection, plain arrow keys move `rangeStart`.
+  Shift+Arrow extends, and `extendTo` empties the exceptions. Ctrl/Cmd+Arrow moves without selecting. Space toggles.
+  Ctrl/Cmd+A selects all matching.
+- **`aria-checked` instead of `aria-selected`** (`checked`), for menus and lists of options.
+- **Focus:**
+  - with nothing active, ArrowDown goes to the first item;
+  - focus goes to `entry` on entering;
+  - `rovingFocus` focuses the active element only while DOM focus is in the list;
+  - DOM focus goes to `holdFocus` while the active item isn't drawn;
+  - a removed item's focus goes to `whenRemoved`'s answer.
+- **Page size:** `pageSize`, the items that fit.
+- **Typeahead:** the `wait`; `wrap`; Space continuing a search in progress; letters going to typeahead instead of
+  letter bindings; what counts as a typed character, including AltGr and Option.
+- **Text fields keep every key** unless their own keymap binds it.
+- **Overlays:**
+  - Escape and Enter pass on when the popup is closed;
+  - the combobox popup shows on every input;
+  - Escape on a modal goes through the dialog's native `cancel`;
+  - `returnFocus` targets;
+  - a press outside, or focus leaving, closes an overlay;
+  - nested overlays close with their parent;
+  - an anchored overlay closes when its anchor is scrolled away.
+- **Reorder:** Alt+Arrow moves an item, by the axis; a move at a section's end goes to the next section's start;
+  dragging only from a grip; the `ghost` drawing; `autoScroll`; drop halves by the axis; `{ into }` for sections; the
+  modifiers passed to `moved`.
+- **Sections:** sticky headings; `emptySections` drawn, and droppable.
+- **Grid:** drawing whole rows.
+- **Selection count:** capped at 1,000, shown as "1,000+".
+- **Rows** whose selected state isn't known yet show as not selected.
+- **keybinds:** the `textTakers` split; a keymap stopping the event when it runs a command; a person's rebinding beating
+  a default's.
 
 ## Names (proposals)
 
-These replace the clashing names of the last draft:
+The clashing and unclear names of the last draft are replaced:
 
-- Module functions are **operations**, not commands, since commands are keybinds'.
-- An element's `keybinds()` is a **keymap**, not a scope, since `@scope` is CSS.
-- "Rows" is gone.
-- `toggle` is now `toggleSelected` and `toggleExpanded`.
-- An **item** is `{ key, value }`. "Entry" and "place" are gone.
+| Old | New |
+| --- | --- |
+| Question | data function |
+| Live | returns a state |
+| Decoration | attribute writer |
+| `takes` | `wants`, `take` |
+| `follow` | `keepVisible` |
+| `around` | `itemsNear` |
+| `describe` | `terms` (`allMatching`, `between`) |
+| `membership` | `whichSelected` |
+| `insideNoOpenOverlay` | `notInOpenOverlay` |
+| `anchor` (selection) | `rangeStart` |
+| `target` (reorder) | `dropAt`, `dropPlace` |
+| `before` / `after` (drop places) | `precedes`, `follows` |
+| `start` (focus) | `entry` |
+| `start` (cell editing) | `edit` |
+| `all` | `allOpen`, `allMatching` |
+| `added` / `removed` | `plus`, `minus` |
+| `parent` (overlay stack) | `within` |
+| Element handle | gone |
+| `bind` | unused, dropped |
 
 The full list:
 
-- **Concepts:** key, item, state, question (one-shot, live), element handle, decoration, condition, drop target,
-  operation, keymap, text taker, composition.
-- **Views:** `listView`, `windowedList`, `windowedGrid`, `groupedView`.
-- **Modules:** `activeDescendant`, `rovingFocus`, `listNavigation`, `treeNavigation`, `gridNavigation`, `typeahead`,
-  `singleSelection`, `multipleSelection`, `expansion`, `reorder`, `cellEditing`, `overlay`, `anchored`,
-  `closeOnOutsidePress`, `closeOnFocusLeaving`, `overlayStack`, `listboxRoles`, `menuRoles`, `comboboxRoles`,
-  `treeRoles`, `gridRoles`, `submenus`, `submenuPointer`, `inlineCompletion`.
-- **Helpers:** `returnTo`, `returnToPrevious`, `state`.
-- **Operations:** `go`, `next`, `previous`, `first`, `last`, `step`, `parent`, `firstChild`, `below`, `above`, `type`,
-  `takes`, `select`, `setAnchor`, `toggleSelected`, `extendTo`, `addRangeTo`, `selectAllMatching`, `clear`, `expand`,
-  `collapse`, `toggleExpanded`, `expandAll`, `moveUp`, `moveDown`, `start`, `setDraft`, `commit`, `cancel`, `show`,
-  `close`, `add`, `inside`.
-- **States and reads:** `active`, `selected`, `value`, `expanded`, `dragging`, `target`, `editing`, `open`, `answer`.
-- **Questions:** `order`, `textSearch`, `firstFrom`, `around`, `groups`, `groupOf`, `members`, `describe`, `all`,
-  `range`, `membership`, `count`, `tree`, `grid`, `moveTarget`, `targetAt`.
-- **Parameters:** `container`, `scroller`, `elements`, `elementOf`, `gone`, `removed`, `replacement`, `follow`, `draw`,
-  `drawGroup`, `decorations`, `groupDecorations`, `minColumnWidth`, `wait`, `attribute`, `handle`, `moved`, `element`,
-  `modal`, `allowClose`, `returnFocus`, `anchor`, `anchorGone`, `placement`, `page`, `parent`, `roleOf`, `hasSubmenu`,
-  `openSubmenu`, `closeSubmenu`, `input`, `textOf`, `writes`, `apply`, `watch`.
-- **Values:** `ranges`, `added`, `removed`, `anchor`, `all`, `except`, `draft`; drop targets `before`, `after`, `into`,
-  `childOf`.
-- **keybinds additions:** `unless`, `takesText`, `insideNoOpenOverlay`, `noOverlayOpen`, `notFromTextField`, `chars`,
-  `$char`.
-- **Names that appear only in the tests,** as an app's own: `bind`, `down`, `shiftDown`, `data`, `worldServer`,
-  `treeServer`, `memoryCommands`, `isGrip`, `drawCard`, `neighbour`.
+- **Concepts:** key, item, state, attribute writer, geometry, drawing range, drawn elements, keymap.
+- **Modules:** `listLayout`, `gridLayout`, `masonryLayout`, `sectionsLayout`, `listArrangement`, `gridArrangement`,
+  `windowing`, `scrollToKeep`, `firstOnScreen`, `pageSize`, `gridNavigation`, `itemDropPlace`, `listNavigation`,
+  `treeNavigation`, `typeahead`, `singleSelection`, `multipleSelection`, `expansion`, `rovingFocus`,
+  `activeDescendant`, `reorder`, `cellEditing`, `overlay`, `anchored`, `closeOnOutsidePress`, `closeOnFocusLeaving`,
+  `overlayStack`, `listboxRoles`, `menuRoles`, `comboboxRoles`, `treeRoles`, `gridRoles`, `submenus`,
+  `submenuPointer`, `inlineCompletion`, `combine`, `state`.
+- **Geometry:** `axis` (`'block'`, `'inline'`), `span`, `keyAt` (`'start'`, `'end'`), `box`, `hit`, `watch`.
+- **Drawing range:** `'all'`, `near`, `ahead`, `behind`.
+- **Layout parameters:** `container`, `items`, `range`, `drawn`, `fill`, `write`, `axis`, `minColumnWidth`, `columns`,
+  `arrange`, `drawSection`, `emptySections`, `section`, `'start'`.
+- **Windowing:** `scroller`, `geometry`, `keepVisible`, `margin`.
+- **Focus:** `active`, `exists`, `whenRemoved`, `entry`, `holdFocus`, `go`, `item`, `list`.
+- **Navigation:** `order`, `pageSize`, `next`, `previous`, `first`, `last`, `pageDown`, `pageUp`, `tree`, `parent`,
+  `firstChild`, `below`, `above`.
+- **Typeahead:** `textSearch`, `wait`, `wrap`, `type`, `typing`.
+- **Selection:** `selected`, `select`, `checked`, `terms`, `allMatching`, `between`, `whichSelected`, `plus`, `minus`,
+  `rangeStart`, `setRangeStart`, `toggleSelected`, `extendTo`, `addRangeTo`, `selectAllMatching`, `clear`, `count`.
+- **Expansion:** `open`, `allOpen`, `except`, `expandable`, `isOpen`, `expand`, `collapse`, `toggleExpanded`, `expandAll`.
+- **Reorder:** `handle`, `dropAt`, `moveTarget`, `'forward'`, `'back'`, `moved`, `ghost`, `autoScroll`, `speed`,
+  `moveForward`, `moveBack`, `dragging`, `dropPlace`, `data-drop`, `precedes`, `follows`, `into`, `under`, `styles`.
+- **Cell editing:** `editing`, `draft`, `edit`, `setDraft`, `commit`, `cancel`.
+- **Overlays:** `element`, `modal`, `open`, `allowClose`, `returnFocus`, `show`, `close`, `expanded`, `anchor`,
+  `placement`, `anchorGone`, `page`, `inside`, `add`, `within`.
+- **Attribute writers:** `attributes`, `'single'`, `'tokens'`, `apply`, `roleOf`.
+- **keybinds additions:** `unless`, `notInOpenOverlay`, `notFromTextField`, `textTakers`, `wants`, `take`,
+  `typedCharacter`, `listen: false`.
+- **The tests' own app names:** `data`, `fill`, `drawSection`, `drawGhost`, `sectionAt`, `down`, `shiftDown`,
+  `listCommands`, `typeaheadTaker`, `memoryCommands`, `treeData`, `transport`, `suggestionsNear`, `setSuggestionText`, `suggestionExists`,
+  `neighbour`.
 - **Element names:** `<interact-listbox>`, `<interact-menu>`, `<interact-combobox>`, `<interact-palette>`,
   `<interact-tree>`, with the prefix the app's.
