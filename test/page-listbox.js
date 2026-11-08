@@ -1,7 +1,8 @@
 /**
- * A plain listbox of fruit, wired by hand from `@interact/list`, with its keys bound by keybinds, for the browser test.
+ * A plain listbox of fruit, wired by hand from `@pterror/interact-list`, with its keys bound by keybinds, for the browser test.
  */
 
+import { keybinds, keys } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayList,
@@ -15,8 +16,7 @@ import {
   render,
   reveal,
   withHeaders,
-} from '@interact/list'
-import { keybinds, keys } from 'keybinds'
+} from '@pterror/interact-list'
 
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig', 'Grape', 'Honeydew']
 

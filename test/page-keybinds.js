@@ -2,7 +2,7 @@
  * A page where a keybinds CommandHub drives `@interact/components`' command palette, a context menu and command
  * buttons through the command bridge, for the browser test: neither package imports the other.
  * @import { DomMode } from '@interact/dom/css'
- * @import { Command } from 'keybinds/command'
+ * @import { Command } from '@pterror/interact-keybinds/command'
  */
 
 import {
@@ -18,7 +18,7 @@ import {
   showCommands,
 } from '@interact/components'
 import { register } from '@interact/dom'
-import { CommandHub, defaultScorer, keysUI } from 'keybinds'
+import { CommandHub, defaultScorer, keysUI } from '@pterror/interact-keybinds'
 
 import { note, settle } from './seen-keybinds.js'
 

@@ -12,7 +12,7 @@ through the hub as a command system: see [Palette, Context Menus and Buttons](#p
 ## Setup
 
 ```js
-import { registerComponents } from 'keybinds'
+import { registerComponents } from '@pterror/interact-keybinds'
 
 registerComponents() // Defines keybinds' own custom elements
 ```
@@ -45,7 +45,7 @@ import {
   showCommands,
 } from '@interact/components'
 import { register } from '@interact/dom'
-import { CommandHub, defaultScorer, keysUI } from 'keybinds'
+import { CommandHub, defaultScorer, keysUI } from '@pterror/interact-keybinds'
 
 const hub = new CommandHub({ context: () => ({ selection: editor.hasSelection() }), inputs: [keysUI()] })
 hub.setSource('editor', () => editorCommands)
@@ -194,7 +194,7 @@ Rebindable keyboard shortcuts panel with conflict detection.
 ### Usage
 
 ```js
-import { BindingsStore, defineSchema, registerComponents, keysUI, mouseUI } from 'keybinds'
+import { BindingsStore, defineSchema, registerComponents, keysUI, mouseUI } from '@pterror/interact-keybinds'
 
 const schema = defineSchema({
   save: { label: 'Save', category: 'File', keys: ['$mod+s'] },
@@ -231,7 +231,7 @@ settings.addEventListener('change', (e) => {
 For custom hold-to-show behavior:
 
 ```js
-import { onModifierHold } from 'keybinds'
+import { onModifierHold } from '@pterror/interact-keybinds'
 
 const cleanup = onModifierHold(
   'Control',
@@ -265,7 +265,7 @@ Ctrl+B never shows the cheatsheet, however long Ctrl stays down), and the key's 
 For double-tapping a modifier (pressing and releasing it by itself), as in double-tapping Shift:
 
 ```js
-import { onModifierTaps } from 'keybinds'
+import { onModifierTaps } from '@pterror/interact-keybinds'
 
 const cleanup = onModifierTaps(
   'Control',

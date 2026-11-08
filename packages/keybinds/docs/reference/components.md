@@ -11,7 +11,7 @@ function registerComponents(): void
 ```
 
 ```js
-import { registerComponents } from 'keybinds'
+import { registerComponents } from '@pterror/interact-keybinds'
 registerComponents()
 ```
 

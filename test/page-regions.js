@@ -1,9 +1,10 @@
 /**
  * Entries in a grid grouped by region, each region under a header as wide as the grid, drawn only around what is in
- * view, from groups in memory, wired by hand from `@interact/list`, with its keys bound by keybinds, for the browser
+ * view, from groups in memory, wired by hand from `@pterror/interact-list`, with its keys bound by keybinds, for the browser
  * test.
  */
 
+import { keybinds, keys } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayCount,
@@ -33,8 +34,7 @@ import {
   visibleRanks,
   widthOf,
   windowing,
-} from '@interact/list'
-import { keybinds, keys } from 'keybinds'
+} from '@pterror/interact-list'
 
 const REGIONS = 200
 const CARD_WIDTH = 120
@@ -128,7 +128,7 @@ function dragTest(dragging, holds) {
  * @param {string} id - The command
  * @param {string} key - Its key
  * @param {() => Promise<void>} run - What it does
- * @returns {import('keybinds').Command} The command
+ * @returns {import('@pterror/interact-keybinds').Command} The command
  */
 function later(id, key, run) {
   return {

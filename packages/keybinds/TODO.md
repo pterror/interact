@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Publish to npm as `@pterror/keybinds`
+- [x] Publish to npm as `@pterror/interact-keybinds`
 - [x] Support keybindless actions — stop filtering out unbound commands in search/palette/cheatsheet
 - [x] Context menu support — add `menu` tag to commands, `<keybinds-basic-context-menu>` web component filtered by tag,
       positioning, dismissal, keyboard nav. Motivating use case: graph editor (delete/edit node, create node, etc.).

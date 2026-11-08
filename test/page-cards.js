@@ -1,8 +1,9 @@
 /**
  * Five thousand cards in a grid, drawn only around what is in view, from a list in memory, wired by hand from
- * `@interact/list`, with its keys bound by keybinds, for the browser tests.
+ * `@pterror/interact-list`, with its keys bound by keybinds, for the browser tests.
  */
 
+import { keybinds, keys } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayCount,
@@ -30,8 +31,7 @@ import {
   visibleRanks,
   widthOf,
   windowing,
-} from '@interact/list'
-import { keybinds, keys } from 'keybinds'
+} from '@pterror/interact-list'
 
 const CARDS = 5000
 const CARD_WIDTH = 120
@@ -104,7 +104,7 @@ function create(key) {
  * @param {string} id - The command
  * @param {string} key - Its key
  * @param {() => Promise<void>} run - The move
- * @returns {import('keybinds').Command} The command
+ * @returns {import('@pterror/interact-keybinds').Command} The command
  */
 function moving(id, key, run) {
   return {

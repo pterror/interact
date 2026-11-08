@@ -1,10 +1,21 @@
 {
-  "name": "keybinds",
+  "name": "@pterror/interact-keybinds",
   "version": "0.1.0",
+  "description": "Declarative, contextual keybindings for the web: keys, mouse, gamepad and axes, with a palette, cheatsheet and settings panel",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pterror/interact.git",
+    "directory": "packages/keybinds"
+  },
   "files": [
     "src",
+    "!src/**/*.test.js",
+    "!src/test-*.js",
     "styles",
-    "dist"
+    "dist",
+    "!dist/**/*.test.d.ts",
+    "!dist/test-*.d.ts"
   ],
   "type": "module",
   "sideEffects": [
@@ -22,6 +33,9 @@
       "default": "./src/*.js"
     },
     "./styles/palette.css": "./styles/palette.css"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "check": "tsgo --noEmit",

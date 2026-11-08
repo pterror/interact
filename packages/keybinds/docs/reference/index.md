@@ -39,7 +39,7 @@ press fired, and that key or button hasn't come up), for controls read every fra
 `axis(id)`.
 
 ```js
-import { keybinds, keys } from 'keybinds'
+import { keybinds, keys } from '@pterror/interact-keybinds'
 
 const kb = keybinds(commands, () => ({ editing: false }), { inputs: [keys()] })
 if (kb.held('forward')) walk()

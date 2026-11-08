@@ -4,14 +4,8 @@ keybinds is a declarative, contextual keybinding system for web applications.
 
 ## Installation
 
-Not yet published on npm. Install from source:
-
 ```bash
-git clone https://github.com/pterror/keybinds.git
-cd keybinds
-npm link
-# Then in your project:
-npm link keybinds
+npm install @pterror/interact-keybinds
 ```
 
 ## Minimal Setup
@@ -20,9 +14,9 @@ npm link keybinds
 <keybinds-cheatsheet auto-trigger></keybinds-cheatsheet>
 
 <script type="module">
-  import { keybinds, keys, registerComponents } from 'keybinds'
+  import { keybinds, keys, registerComponents } from '@pterror/interact-keybinds'
 
-  import 'keybinds/styles/palette.css'
+  import '@pterror/interact-keybinds/styles/palette.css'
 
   const commands = [
     {

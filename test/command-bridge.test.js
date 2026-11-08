@@ -1,15 +1,15 @@
 /**
  * The keybinds CommandHub driving `@interact/components`' menus and command buttons through the command bridge: neither
  * package imports the other; the hub's `commandSystem()` has the shape the bridge asks for.
- * @import { Command } from 'keybinds/command'
- * @import { CommandSystem } from 'keybinds/command-system'
+ * @import { Command } from '@pterror/interact-keybinds/command'
+ * @import { CommandSystem } from '@pterror/interact-keybinds/command-system'
  */
 
 import { describe, expect, test } from 'bun:test'
 
 import { CommandBridge, Menu, bindCommandButtons, menuExtensions, showCommands } from '@interact/components'
 import { keyInput } from '@interact/core'
-import { CommandHub } from 'keybinds'
+import { CommandHub } from '@pterror/interact-keybinds'
 
 /**
  * A key pressed in a menu.

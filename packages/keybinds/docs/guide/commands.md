@@ -27,7 +27,7 @@ Each kind of binding is read by an input, passed to `keybinds()`: `keys()` reads
 nothing else. A command with bindings no input reads is an error, rather than bindings that silently do nothing.
 
 ```js
-import { keybinds, keys, mouse } from 'keybinds'
+import { keybinds, keys, mouse } from '@pterror/interact-keybinds'
 
 keybinds(commands, getContext, { inputs: [keys(), mouse()] })
 ```
@@ -45,7 +45,7 @@ is an error naming what to add.
 | `k:hold`, `k:tap`: holding and tapping        | `keybinds(..., { holds: holds() })`               |
 
 ```js
-import { keybinds, keys, symbols, aliases, releases, holds, sequences, anyModifiers } from 'keybinds'
+import { keybinds, keys, symbols, aliases, releases, holds, sequences, anyModifiers } from '@pterror/interact-keybinds'
 
 keybinds(commands, getContext, {
   inputs: [keys(symbols(), aliases())],
@@ -241,7 +241,7 @@ Physical keys (`slash`, `digit1`, `bracketleft`) are shown as the character they
 can tell the person's own layout (Chromium, through `navigator.keyboard`), show them as that types them instead:
 
 ```js
-import { followLayout, keysUI } from 'keybinds'
+import { followLayout, keysUI } from '@pterror/interact-keybinds'
 
 const input = keysUI(followLayout()) // shift+slash shows as "Shift -" on a German layout
 ```
@@ -329,7 +329,7 @@ execute: (ctx, event) => {
 For larger apps, separate binding definitions from handlers:
 
 ```js
-import { defineSchema, fromBindings, BindingsStore } from 'keybinds'
+import { defineSchema, fromBindings, BindingsStore } from '@pterror/interact-keybinds'
 
 // Define bindings (can be serialized, edited by users)
 const schema = defineSchema({
@@ -389,9 +389,9 @@ for keys, and keeps its components up to date. As a command system (`hub.command
 and command buttons from `@interact/components` up to date too.
 
 ```js
-import { CommandHub, keysUI, mouseUI, releases, KeybindCheatsheet, KeybindSettings } from 'keybinds'
+import { CommandHub, keysUI, mouseUI, releases, KeybindCheatsheet, KeybindSettings } from '@pterror/interact-keybinds'
 
-import 'keybinds/styles/palette.css'
+import '@pterror/interact-keybinds/styles/palette.css'
 
 const hub = new CommandHub({
   context: () => ({ editing: editor.hasFocus() }), // the app's state, which `when` conditions see
@@ -471,15 +471,15 @@ const settings = createComponent(KeybindSettings)
 ### Without a Bundler
 
 Each part is its own module, so a page loading keybinds straight from a CDN can import only what it uses, mapping
-`keybinds/` to the `src/` directory:
+`@pterror/interact-keybinds/` to the `src/` directory:
 
 ```html
 <script type="importmap">
-  { "imports": { "keybinds/": "https://cdn.jsdelivr.net/gh/pterror/keybinds@<commit>/src/" } }
+  { "imports": { "@pterror/interact-keybinds/": "https://cdn.jsdelivr.net/npm/@pterror/interact-keybinds@0.1.0/src/" } }
 </script>
 <script type="module">
-  import { CommandHub } from 'keybinds/hub.js'
-  import { keysUI } from 'keybinds/keys-ui.js'
-  import { KeybindSettings } from 'keybinds/settings'
+  import { CommandHub } from '@pterror/interact-keybinds/hub.js'
+  import { keysUI } from '@pterror/interact-keybinds/keys-ui.js'
+  import { KeybindSettings } from '@pterror/interact-keybinds/settings'
 </script>
 ```

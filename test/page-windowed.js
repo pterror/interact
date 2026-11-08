@@ -1,8 +1,9 @@
 /**
  * Half a million options in groups of ten, worked out from their ranks and drawn only around what is in view, wired
- * by hand from `@interact/list`, with its keys bound by keybinds, for the browser test.
+ * by hand from `@pterror/interact-list`, with its keys bound by keybinds, for the browser test.
  */
 
+import { keybinds, keys } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   cell,
@@ -23,8 +24,7 @@ import {
   viewport,
   visibleRanks,
   windowing,
-} from '@interact/list'
-import { keybinds, keys } from 'keybinds'
+} from '@pterror/interact-list'
 
 const OPTIONS = 500_000
 const PER_GROUP = 10
@@ -125,7 +125,7 @@ function fixed(value) {
  * @param {string} id - The command
  * @param {string} key - The key
  * @param {() => Promise<void>} run - The move
- * @returns {import('keybinds').Command} The command
+ * @returns {import('@pterror/interact-keybinds').Command} The command
  */
 function moving(id, key, run) {
   return {

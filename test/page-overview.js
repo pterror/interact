@@ -2,9 +2,10 @@
  * The worldbuilding overview: a hundred thousand top-level entries, every third a region, each region's members cut
  * at three, nested three levels deep, with "+N more" tiles, a region that contains itself (cut where it recurs) and an
  * entry in two regions. Answered by an in-memory stand-in for the server that works members out from ids rather than
- * storing them, drawn only near what is in view, wired by hand from `@interact/list`, for the browser test.
+ * storing them, drawn only near what is in view, wired by hand from `@pterror/interact-list`, for the browser test.
  */
 
+import { keybinds, keys } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   byEntry,
@@ -35,8 +36,7 @@ import {
   viewport,
   visibleRanks,
   windowing,
-} from '@interact/list'
-import { keybinds, keys } from 'keybinds'
+} from '@pterror/interact-list'
 
 const TOPS = 100_000
 const FEW = 3
@@ -510,7 +510,7 @@ function dragTest(dragging, holds) {
  * @param {string} id - The command
  * @param {string} key - Its key
  * @param {() => Promise<void>} run - What it does
- * @returns {import('keybinds').Command} The command
+ * @returns {import('@pterror/interact-keybinds').Command} The command
  */
 function later(id, key, run) {
   return {
@@ -625,7 +625,7 @@ function putOverview() {
 
   /** @type {ReturnType<typeof items<string>>} */
   const all = items()
-  /** @type {import('@interact/list/render').Facet<string>[]} */
+  /** @type {import('@pterror/interact-list/render').Facet<string>[]} */
   const facets = []
   const nested = nest((/** @type {string} */ key, /** @type {Element} */ element) => {
     const group = element.querySelector(':scope > [role=group]')

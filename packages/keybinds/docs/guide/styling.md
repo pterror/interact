@@ -8,7 +8,7 @@ Import the optional stylesheet, which styles keybinds' own components (cheatshee
 and menus from `@interact/components` take their look from its theme (`@interact/theme`):
 
 ```js
-import 'keybinds/styles/palette.css'
+import '@pterror/interact-keybinds/styles/palette.css'
 ```
 
 Its colors follow the page's `color-scheme`: with `:root { color-scheme: light dark }` it's light or dark along with the

@@ -1,6 +1,6 @@
 /**
  * A list of options people move through, pick from and see, as small modules the app wires by hand. Each is also
- * its own module (`@interact/list/move`, ...).
+ * its own module (`@pterror/interact-list/move`, ...).
  */
 
 export { activeDescendant } from './active-descendant.js'

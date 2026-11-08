@@ -33,7 +33,7 @@ export default defineConfig({
       ],
     },
 
-    socialLinks: [{ icon: 'github', link: 'https://github.com/pterror/keybinds' }],
+    socialLinks: [{ icon: 'github', link: 'https://github.com/pterror/interact' }],
 
     search: {
       provider: 'local',

@@ -2,7 +2,7 @@
  * keybinds - styles for every component: cheatsheet, settings (rebinding) and the radial menu.
  *
  * Usage:
- *   import 'keybinds/styles/palette.css'
+ *   import '@pterror/interact-keybinds/styles/palette.css'
  *
  * Components are selected by the data-keybinds attribute they set on themselves, so this works
  * whatever tag names they're registered under.

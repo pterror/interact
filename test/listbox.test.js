@@ -1,5 +1,5 @@
 /**
- * A plain listbox built from `@interact/list` in every browser: moved through by keys, picked by Enter, Space and
+ * A plain listbox built from `@pterror/interact-list` in every browser: moved through by keys, picked by Enter, Space and
  * clicks, and told to a screen reader by its attributes.
  * @import { Page } from 'playwright-core'
  * @import { ListboxSeen } from './page-listbox.js'
