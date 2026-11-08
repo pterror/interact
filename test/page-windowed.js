@@ -138,11 +138,56 @@ function moving(id, key, run) {
   }
 }
 
+/** How late, in milliseconds, a late list answers */
+const LATE_MS = 40
+
+/** Each time `aria-activedescendant` named an element that wasn't there */
+/** @type {string[]} */
+const wrong = []
+
 /**
- * Puts the list in the page
+ * An answer, late if asked
+ * @template T
+ * @param {boolean} late - Whether to answer late, as a server would
+ * @param {() => Promise<T>} answer - The answer
+ * @returns {Promise<T>} It
+ */
+async function answering(late, answer) {
+  if (late) {
+    /** @type {PromiseWithResolvers<void>} */
+    const waited = Promise.withResolvers()
+    setTimeout(waited.resolve, LATE_MS)
+    await waited.promise
+  }
+  return answer()
+}
+
+/**
+ * Notes, whenever the listbox changes, whether `aria-activedescendant` names an element that isn't there
+ * @param {Element} box - The listbox
  * @returns {void}
  */
-function putWindowed() {
+function watchNamed(box) {
+  const check = () => {
+    const id = box.getAttribute('aria-activedescendant')
+    if (id !== null && box.querySelector(`#${CSS.escape(id)}`) === null) {
+      wrong.push(id)
+    }
+  }
+  new MutationObserver(check).observe(box, {
+    attributeFilter: ['aria-activedescendant'],
+    attributes: true,
+    childList: true,
+    subtree: true,
+  })
+}
+
+/**
+ * Puts the list in the page
+ * @param {Readonly<{ late?: boolean }>} [options] - Whether the list answers late, as a server would
+ * @returns {void}
+ */
+function putWindowed({ late = false } = {}) {
   const scroller = document.createElement('div')
   scroller.style.cssText = `height: ${String(ROW_HEIGHT * 10)}px; overflow: auto`
   const box = document.createElement('div')
@@ -158,6 +203,9 @@ function putWindowed() {
   const layout = rows(ROW_HEIGHT)
   const count = fixed((OPTIONS / PER_GROUP) * ROW)
   const shown = viewport(scroller)
+  const rowsAt = computedKeysAt({ count: count.get(), keyAt: rowAt })
+  const locateRow = computedLocate(rowOf)
+  watchNamed(box)
   const drawn = windowing({
     keep: {
       get() {
@@ -166,8 +214,11 @@ function putWindowed() {
       },
       watch: (listener) => active.watch(listener),
     },
-    keysAt: computedKeysAt({ count: count.get(), keyAt: rowAt }),
-    locate: computedLocate(rowOf),
+    keysAt: {
+      keysAt: async (from, to) => answering(late, async () => rowsAt.keysAt(from, to)),
+      watch: rowsAt.watch,
+    },
+    locate: async (key) => answering(late, async () => locateRow(key)),
     ranks: visibleRanks({ count, layout, visible: shown }),
   })
   sizer({ count, element: box, layout })
@@ -176,6 +227,7 @@ function putWindowed() {
     drawn,
     facets: [
       ids(idOf),
+      activeDescendant({ active, element: box, idOf }),
       place({ layout, rank: drawn }),
       posInSet({ count: fixed(OPTIONS), position: { rank: optionIndex, watchRanks: () => () => undefined } }),
       mark({ attribute: 'data-active', on: '', test: active }),
@@ -184,7 +236,6 @@ function putWindowed() {
     ],
     mount: groupMount({ container: box, groupOf, labelIdOf: (group) => idOf(`h${String(group)}`) }),
   })
-  activeDescendant({ active, element: box, idOf })
   pick({
     element: box,
     itemOf: rendered.itemOf,
@@ -260,4 +311,12 @@ function seenWindowed() {
   }
 }
 
-export { putWindowed, scrollTo, seenWindowed }
+/**
+ * Each time `aria-activedescendant` named an element that wasn't there
+ * @returns {readonly string[]} The ids it named
+ */
+function wronglyNamed() {
+  return wrong
+}
+
+export { putWindowed, scrollTo, seenWindowed, wronglyNamed }

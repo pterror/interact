@@ -159,6 +159,7 @@ function putCards() {
     drawn,
     facets: [
       ids(idOf),
+      activeDescendant({ active, element: box, idOf }),
       place({ layout, rank: drawn }),
       posInSet({ count, position: drawn }),
       mark({ attribute: 'data-active', on: '', test: active }),
@@ -178,7 +179,6 @@ function putCards() {
     ],
     mount: flowMount(box),
   })
-  activeDescendant({ active, element: box, idOf })
   pick({
     element: box,
     itemOf: rendered.itemOf,

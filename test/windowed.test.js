@@ -81,4 +81,27 @@ describe.each(BROWSERS)('half a million grouped options drawn by the screen, in 
       expect(await audit(page, '[role=listbox]')).toEqual([])
     })
   })
+
+  test('never names an element that is not drawn, while the list answers late as a server would', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const windowed = await import('./page-windowed.js')
+        windowed.putWindowed({ late: true })
+      })
+      await page.focus('[role=listbox]')
+      await page.keyboard.press('ArrowDown')
+      expect(await look(page, 'Option 1')).toMatchObject({ inView: true })
+      await page.keyboard.press('End')
+      expect(await look(page, 'Option 500000')).toMatchObject({ inView: true })
+      await page.keyboard.press('Home')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ArrowDown')
+      expect(await look(page, 'Option 3')).toMatchObject({ inView: true })
+      const wrong = await page.evaluate(async () => {
+        const windowed = await import('./page-windowed.js')
+        return windowed.wronglyNamed()
+      })
+      expect(wrong).toEqual([])
+    })
+  })
 })

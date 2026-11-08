@@ -19,28 +19,28 @@ Every name and every UX choice here is a proposal for the owner, not decided. Pr
 
 Each is owned by the module(s) named, which declare it.
 
-| Abstraction | Shape                                                               | Owned by                                              |
-| ----------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
-| Value       | `() → T`                                                            | move (`from`), typeahead (`from`)                     |
-| Watched     | `get() → T`, `watch(fn) → stop`                                     | activeDescendant, popover, windowing, sizer, posInSet |
-| Set         | `(T) → void`                                                        | move (`to`), typeahead (`to`), pick (`to`)            |
-| Step        | `step(k \| none, n) → later key \| none`                            | move                                                  |
-| Find        | `find(prefix, after: k \| none) → later key \| none`                | typeahead                                             |
-| Drawn       | `keys() → Key[]`, `watch(fn)`                                       | render                                                |
-| Mount       | `put(key, element, before: element \| none)`, `remove(element)`     | render                                                |
-| Facet       | `apply(key, element)`, `watch(fn(keys?))`                           | render                                                |
-| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                      | pick, drag, gaps                                      |
-| Test        | `has(key) → bool`, `watch(fn(keys?))`                               | mark                                                  |
-| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`               | windowing                                             |
-| Locate      | `locate(key) → later rank \| none`                                  | windowing                                             |
-| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`            | place, posInSet                                       |
-| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate) | rangeSelection                                        |
-| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`    | visibleRanks                                          |
-| Place       | `place(rank) → rect`, `watch(fn)`                                   | place                                                 |
-| Extent      | `extent(count) → size`, `watch(fn)`                                 | sizer                                                 |
-| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                 | drag                                                  |
-| Reorder     | `move(key, target: key, after: bool)`                               | drag                                                  |
-| Scroll      | `scrollBy(px)`                                                      | edgeScroll                                            |
+| Abstraction | Shape                                                                    | Owned by                                              |
+| ----------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| Value       | `() → T`                                                                 | move (`from`), typeahead (`from`)                     |
+| Watched     | `get() → T`, `watch(fn) → stop`                                          | activeDescendant, popover, windowing, sizer, posInSet |
+| Set         | `(T) → void`                                                             | move (`to`), typeahead (`to`), pick (`to`)            |
+| Step        | `step(k \| none, n) → later key \| none`                                 | move                                                  |
+| Find        | `find(prefix, after: k \| none) → later key \| none`                     | typeahead                                             |
+| Drawn       | `keys() → Key[]`, `watch(fn)`                                            | render                                                |
+| Mount       | `put(key, element, before: element \| none)`, `remove(element)`          | render                                                |
+| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)` | render                                                |
+| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                           | pick, drag, gaps                                      |
+| Test        | `has(key) → bool`, `watch(fn(keys?))`                                    | mark                                                  |
+| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                    | windowing                                             |
+| Locate      | `locate(key) → later rank \| none`                                       | windowing                                             |
+| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                 | place, posInSet                                       |
+| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)      | rangeSelection                                        |
+| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`         | visibleRanks                                          |
+| Place       | `place(rank) → rect`, `watch(fn)`                                        | place                                                 |
+| Extent      | `extent(count) → size`, `watch(fn)`                                      | sizer                                                 |
+| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                      | drag                                                  |
+| Reorder     | `move(key, target: key, after: bool)`                                    | drag                                                  |
+| Scroll      | `scrollBy(px)`                                                           | edgeScroll                                            |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
 edge; `none` comes back only for an empty list. `Find` returns the first key after `after` (wrapping) whose text starts
@@ -63,7 +63,7 @@ in that list, or none. The list updates it inside the edit that removes its key,
 | `flowMount`        | puts elements into one container in order                                                                                                       | container                                      | Mount                                        |
 | `mark`             | an attribute set while a test holds, and another or none while it doesn't                                                                       | test, attribute, on, off                       | Facet                                        |
 | `ids`              | gives each element an id from its key                                                                                                           | idOf (`key → string`)                          | Facet                                        |
-| `activeDescendant` | points an element's `aria-activedescendant` at a key's id                                                                                       | element, active (Watched), idOf                | `stop()`                                     |
+| `activeDescendant` | names the active key's element in an element's `aria-activedescendant`, only while render has it drawn                                          | element, active (Watched), idOf                | Facet                                        |
 | `pick`             | a click on an item hands its key on                                                                                                             | element, itemOf, to                            | `stop()`                                     |
 | `reveal`           | scrolls a key's element into view when the key changes, after the pass that applies it                                                          | target (Watched)                               | Facet                                        |
 
@@ -183,9 +183,14 @@ Adds:
 the shape didn't carry it). The layout shapes gained `watch`, since a layout that depends on the page (case 9's columns,
 measured rows) changes. Rank gained `watchRanks`, since ranks move when items are added above.
 
-**Found while building, open:** between a move and `windowing` locating the new active key (a microtask in memory, a
-round trip on a server), `aria-activedescendant` names an element not yet drawn. Revealing a group's first option
-scrolls its header out of view **(P: reveal the header too)**.
+**Changed while building:** `activeDescendant` set the attribute when the active key changed, so between a move and
+`windowing` locating the new key (a round trip on a server) it named an element not yet drawn. Only `render` knows what
+is drawn, so `activeDescendant` became a Facet: it names a key when render applies it to that key's element, and clears
+the attribute when the key changes or render drops the element. Facet gained an optional `drop(key, element)`, which
+render calls before taking an element out; any facet holding an element needs it. Tested with a list that answers late.
+
+**Found while building, open:** revealing a group's first option scrolls its header out of view **(P: reveal the header
+too)**.
 
 ## Case 9: a grid of cards
 
@@ -281,7 +286,7 @@ owns what it uses.
 | render                                       | Drawn, Mount, Facet                    | ItemOf                  | elements for keys              | Mount extracted (case 6)    | never relies on which keys are drawn             | no selection, focus or layout | owns all     |
 | flowMount, groupMount, rowMount              | —                                      | Mount                   | where an element goes          | new Mounts                  | render behaves alike                             | —                             | —            |
 | mark, ids, reveal, place, posInSet           | Test / Watched / Rank, Place           | Facet                   | one attribute, style or scroll | new Facets                  | apply depends on no other facet                  | one shape each                | owns all     |
-| activeDescendant                             | Watched, idOf                          | —                       | one attribute                  | field or list, by parameter | the key is always drawn                          | —                             | owns all     |
+| activeDescendant                             | Watched, idOf                          | Facet                   | one attribute                  | field or list, by parameter | names only what render has applied it to         | —                             | owns all     |
 | pick, hoverIntent                            | ItemOf, Set                            | —                       | pointer → key                  | —                           | —                                                | —                             | owns all     |
 | rangeSelection                               | held keys, Compare                     | Test, toggle/extend/all | selected intervals             | —                           | any Compare                                      | —                             | owns all     |
 | typeahead                                    | Find, Value, Set                       | `type`, Watched         | prefix → key                   | —                           | late answers dropped if superseded               | —                             | owns all     |

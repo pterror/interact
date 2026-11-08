@@ -18,10 +18,12 @@
  */
 
 /**
- * Something an element shows for its key. `watch` hears the keys whose state changed, or none for any
+ * Something an element shows for its key. `watch` hears the keys whose state changed, or none for any; `drop` hears
+ * that an element is about to be taken out
  * @template K
  * @typedef {Readonly<{ apply: (key: K, element: Element) => void,
- *   watch: (listener: (keys?: readonly K[]) => void) => () => void }>} Facet
+ *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
+ *   drop?: (key: K, element: Element) => void }>} Facet
  */
 
 /**
@@ -59,6 +61,9 @@ function render({ create, drawn, facets, mount }) {
     const wanted = new Set(keys)
     for (const [key, element] of elements) {
       if (!wanted.has(key)) {
+        for (const facet of facets) {
+          facet.drop?.(key, element)
+        }
         elements.delete(key)
         mount.remove(element)
       }

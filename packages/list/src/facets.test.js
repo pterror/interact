@@ -1,6 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test'
 
-import { activeDescendant } from './active-descendant.js'
 import { arrayList } from './array-list.js'
 import { ids } from './ids.js'
 import { mark } from './mark.js'
@@ -34,20 +33,6 @@ describe('ids', () => {
     const element = document.createElement('div')
     ids((key) => `option-${key}`).apply('a', element)
     expect(element.id).toBe('option-a')
-  })
-})
-
-describe('activeDescendant', () => {
-  test('names the active key, and removes the attribute without one', () => {
-    const list = arrayList(['a', 'b'])
-    const active = list.hold(undefined, 'next')
-    const element = document.createElement('div')
-    activeDescendant({ active, element, idOf: (key) => `option-${key}` })
-    expect(element.hasAttribute('aria-activedescendant')).toBe(false)
-    active.set('b')
-    expect(element.getAttribute('aria-activedescendant')).toBe('option-b')
-    list.set(['a'])
-    expect(element.getAttribute('aria-activedescendant')).toBe('option-a')
   })
 })
 

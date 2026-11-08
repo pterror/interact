@@ -106,6 +106,7 @@ function putListbox({ grouped = false } = {}) {
     drawn: grouped ? withHeaders({ drawn: list, groupOf: kindOf, headerOf }) : list,
     facets: [
       ids(idOf),
+      activeDescendant({ active, element: box, idOf }),
       mark({ attribute: 'data-active', on: '', test: active }),
       mark({ attribute: 'aria-selected', on: 'true', test: selected }),
       reveal(active),
@@ -114,7 +115,6 @@ function putListbox({ grouped = false } = {}) {
       ? groupMount({ container: box, groupOf: kindOf, labelIdOf: (kind) => idOf(headerOf(kind)) })
       : flowMount(box),
   })
-  activeDescendant({ active, element: box, idOf })
   pick({
     element: box,
     itemOf: rendered.itemOf,
