@@ -8,6 +8,7 @@
         "@interact/components": "workspace:*",
         "@interact/core": "workspace:*",
         "@interact/dom": "workspace:*",
+        "@interact/list": "workspace:*",
         "@types/bun": "^1.3.7",
         "@typescript/native-preview": "^7.0.0-dev.20260129.1",
         "axe-core": "^4.14.0",
@@ -46,6 +47,10 @@
       "name": "keybinds",
       "version": "0.1.0",
     },
+    "packages/list": {
+      "name": "@interact/list",
+      "version": "0.0.0",
+    },
     "packages/theme": {
       "name": "@interact/theme",
       "version": "0.0.0",
@@ -59,6 +64,8 @@
     "@interact/core": ["@interact/core@workspace:packages/core"],
 
     "@interact/dom": ["@interact/dom@workspace:packages/dom"],
+
+    "@interact/list": ["@interact/list@workspace:packages/list"],
 
     "@interact/theme": ["@interact/theme@workspace:packages/theme"],
 

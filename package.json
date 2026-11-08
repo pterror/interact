@@ -13,6 +13,7 @@
     "@interact/components": "workspace:*",
     "@interact/core": "workspace:*",
     "@interact/dom": "workspace:*",
+    "@interact/list": "workspace:*",
     "@types/bun": "^1.3.7",
     "@typescript/native-preview": "^7.0.0-dev.20260129.1",
     "axe-core": "^4.14.0",
