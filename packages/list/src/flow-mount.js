@@ -5,12 +5,12 @@
 /**
  * A mount into one container, which holds only what is put there
  * @param {Element} container - The container
- * @returns {Readonly<{ put: (element: Element, before: Element | undefined) => void,
+ * @returns {Readonly<{ put: (key: unknown, element: Element, before: Element | undefined) => void,
  *   remove: (element: Element) => void }>} The mount
  */
 function flowMount(container) {
   return {
-    put(element, before) {
+    put(_key, element, before) {
       if (before === undefined) {
         if (container.lastChild !== element) {
           container.append(element)

@@ -32,7 +32,7 @@ describe.each(BROWSERS)('a plain listbox, in %s', (engine) => {
         listbox.putListbox()
       })
       await page.focus('[role=listbox]')
-      expect(await look(page)).toEqual({ active: undefined, focused: true, options: 8, selected: [] })
+      expect(await look(page)).toEqual({ active: undefined, focused: true, groups: [], options: 8, selected: [] })
       await page.keyboard.press('ArrowDown')
       await page.keyboard.press('ArrowDown')
       expect(await look(page)).toMatchObject({ active: 'Banana', selected: [] })
@@ -46,7 +46,13 @@ describe.each(BROWSERS)('a plain listbox, in %s', (engine) => {
       await page.keyboard.press('ArrowUp')
       expect(await look(page)).toMatchObject({ active: 'Apple' })
       await page.click('#fruit-Cherry')
-      expect(await look(page)).toEqual({ active: 'Cherry', focused: true, options: 8, selected: ['Cherry'] })
+      expect(await look(page)).toEqual({
+        active: 'Cherry',
+        focused: true,
+        groups: [],
+        options: 8,
+        selected: ['Cherry'],
+      })
       expect(await audit(page, '[role=listbox]')).toEqual([])
     })
   })
@@ -63,6 +69,30 @@ describe.each(BROWSERS)('a plain listbox, in %s', (engine) => {
         listbox.removeItem('Date')
       })
       expect(await look(page)).toMatchObject({ active: 'Elderberry', options: 7, selected: [] })
+    })
+  })
+
+  test('grouped by kind: labels each group, steps over the headers, and picks across groups', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const listbox = await import('./page-listbox.js')
+        listbox.putListbox({ grouped: true })
+      })
+      await page.focus('[role=listbox]')
+      expect(await look(page)).toMatchObject({
+        groups: ['Tree', 'Palm', 'Shrub', 'Vine'],
+        options: 8,
+      })
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('Space')
+      expect(await look(page)).toMatchObject({ active: 'Date', selected: ['Date'] })
+      await page.click('#fruit-Grape')
+      await page.keyboard.press('ArrowDown')
+      expect(await look(page)).toMatchObject({ active: 'Honeydew', selected: ['Grape'] })
+      expect(await audit(page, '[role=listbox]')).toEqual([])
     })
   })
 })

@@ -27,7 +27,7 @@ Each is owned by the module(s) named, which declare it.
 | Step        | `step(k \| none, n) → later key \| none`                            | move                                                  |
 | Find        | `find(prefix, after: k \| none) → later key \| none`                | typeahead                                             |
 | Drawn       | `keys() → Key[]`, `watch(fn)`                                       | render                                                |
-| Mount       | `put(element, before: element \| none)`, `remove(element)`          | render                                                |
+| Mount       | `put(key, element, before: element \| none)`, `remove(element)`     | render                                                |
 | Facet       | `apply(key, element)`, `watch(fn(keys?))`                           | render                                                |
 | ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                      | pick, drag, gaps                                      |
 | Test        | `has(key) → bool`, `watch(fn(keys?))`                               | mark                                                  |
@@ -125,9 +125,16 @@ text into the field and closes the list **(P)**.
 
 **Changed:** `render` first took a `container` and inserted elements itself. Nesting options inside `role=group`
 elements needed that changed, so the container became the Mount abstraction and `flowMount` its first implementation.
-Adds `groupMount` (Mount: puts each element into its group's element, making the group when its first row arrives and
-removing it with its last; parameters: container, groupOf) and `withHeaders` (Drawn: a header row before each group's
-first key, from a Drawn and groupOf). Step has no headers in it, so navigation skips them.
+Adds `groupMount` (Mount: puts each element into its group's `role=group` element, making the group when its first row
+arrives and removing it with its last; parameters: container, groupOf, labelIdOf, the id of the row that labels a group)
+and `withHeaders` (Drawn: a header row before each group's first key; parameters: drawn, groupOf, headerOf, a group's
+header key, of the same key type so every facet applies to it). A group's keys must come together. Step has no headers
+in it, so navigation skips them. A header is `role=presentation`, so facets that mark options leave their "off" value
+out (`aria-selected` is not allowed on it) **(P)**.
+
+**Changed while building:** Mount's `put(element, before)` became `put(key, element, before)`. `groupMount` can't tell
+an element's group from the element, and `rowMount` (case 9) can't tell its row; any Mount that places by what an item
+is needs its key. `flowMount` ignores it.
 
 ## Case 7: drag to reorder
 

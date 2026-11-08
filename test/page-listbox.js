@@ -7,23 +7,58 @@ import {
   arrayList,
   arrayStep,
   flowMount,
+  groupMount,
   ids,
   mark,
   move,
   pick,
   render,
   reveal,
+  withHeaders,
 } from '@interact/list'
 import { keybinds, keys } from 'keybinds'
 
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig', 'Grape', 'Honeydew']
 
+/** @type {ReadonlyMap<string, string>} */
+const KINDS = new Map([
+  ['Apple', 'Tree'],
+  ['Banana', 'Tree'],
+  ['Cherry', 'Tree'],
+  ['Date', 'Palm'],
+  ['Elderberry', 'Shrub'],
+  ['Fig', 'Shrub'],
+  ['Grape', 'Vine'],
+  ['Honeydew', 'Vine'],
+])
+
+/** A header row's key starts with this, which no fruit does */
+const HEADER = '#'
+
 const list = arrayList(FRUIT)
+
+/**
+ * A key's group: a header's own, or a fruit's kind
+ * @param {string} key - The key
+ * @returns {string} Its group
+ */
+function kindOf(key) {
+  return key.startsWith(HEADER) ? key.slice(HEADER.length) : (KINDS.get(key) ?? '')
+}
+
+/**
+ * A group's header key
+ * @param {string} kind - The group
+ * @returns {string} Its header's key
+ */
+function headerOf(kind) {
+  return `${HEADER}${kind}`
+}
 
 /**
  * What the listbox shows a screen reader, and where focus is
  * @typedef {Readonly<{ focused: boolean, active: string | undefined, selected: readonly string[],
- *   options: number }>} ListboxSeen
+ *   groups: readonly string[], options: number }>} ListboxSeen
  */
 
 /**
@@ -41,17 +76,23 @@ function idOf(key) {
  * @returns {Element} The option
  */
 function create(key) {
-  const option = document.createElement('div')
-  option.setAttribute('role', 'option')
-  option.textContent = key
-  return option
+  const row = document.createElement('div')
+  if (key.startsWith(HEADER)) {
+    row.setAttribute('role', 'presentation')
+    row.textContent = kindOf(key)
+  } else {
+    row.setAttribute('role', 'option')
+    row.textContent = key
+  }
+  return row
 }
 
 /**
  * Puts the listbox in the page
+ * @param {Readonly<{ grouped?: boolean }>} [options] - Whether its fruit is grouped by kind, with a header each
  * @returns {void}
  */
-function putListbox() {
+function putListbox({ grouped = false } = {}) {
   const box = document.createElement('div')
   box.setAttribute('role', 'listbox')
   box.setAttribute('aria-label', 'Fruit')
@@ -62,14 +103,16 @@ function putListbox() {
   const selected = list.hold(undefined, 'none')
   const rendered = render({
     create,
-    drawn: list,
+    drawn: grouped ? withHeaders({ drawn: list, groupOf: kindOf, headerOf }) : list,
     facets: [
       ids(idOf),
       mark({ attribute: 'data-active', on: '', test: active }),
-      mark({ attribute: 'aria-selected', off: 'false', on: 'true', test: selected }),
+      mark({ attribute: 'aria-selected', on: 'true', test: selected }),
       reveal(active),
     ],
-    mount: flowMount(box),
+    mount: grouped
+      ? groupMount({ container: box, groupOf: kindOf, labelIdOf: (kind) => idOf(headerOf(kind)) })
+      : flowMount(box),
   })
   activeDescendant({ active, element: box, idOf })
   pick({
@@ -149,6 +192,10 @@ function seenListbox() {
   return {
     active: active?.textContent ?? undefined,
     focused: box !== null && document.activeElement === box,
+    groups: [...document.querySelectorAll('[role=group]')].map((group) => {
+      const label = group.getAttribute('aria-labelledby')
+      return label === null ? '' : (document.querySelector(`#${CSS.escape(label)}`)?.textContent ?? '')
+    }),
     options: document.querySelectorAll('[role=option]').length,
     selected: [...document.querySelectorAll('[role=option][aria-selected=true]')].map((each) => each.textContent),
   }

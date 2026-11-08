@@ -11,8 +11,9 @@
  */
 
 /**
- * Where elements go: putting one before another (none: at the end), taking one out
- * @typedef {Readonly<{ put: (element: Element, before: Element | undefined) => void,
+ * Where elements go: putting a key's element before another (none: at the end), taking one out
+ * @template K
+ * @typedef {Readonly<{ put: (key: K, element: Element, before: Element | undefined) => void,
  *   remove: (element: Element) => void }>} Mount
  */
 
@@ -25,7 +26,7 @@
 
 /**
  * @template K
- * @typedef {Readonly<{ drawn: Drawn<K>, create: (key: K) => Element, mount: Mount, facets: readonly Facet<K>[] }>}
+ * @typedef {Readonly<{ drawn: Drawn<K>, create: (key: K) => Element, mount: Mount<K>, facets: readonly Facet<K>[] }>}
  *   RenderOptions
  */
 
@@ -74,7 +75,7 @@ function render({ create, drawn, facets, mount }) {
         keyOf.set(element, key)
         made.push({ element, key })
       }
-      mount.put(element, before)
+      mount.put(key, element, before)
       before = element
     }
     for (const item of made) {
