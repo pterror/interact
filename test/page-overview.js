@@ -23,6 +23,7 @@ import {
   move,
   nest,
   pick,
+  relationStep,
   place,
   posInSet,
   render,
@@ -433,6 +434,28 @@ function reorder(key, target, after) {
 }
 
 /**
+ * The server's answer: the region an occurrence is shown in, as an occurrence
+ * @param {string} key - The occurrence
+ * @returns {Promise<string | undefined>} The region's occurrence; none at the top level
+ */
+function parentKey(key) {
+  const cut = key.lastIndexOf('/')
+  return Promise.resolve(cut === -1 ? undefined : key.slice(0, cut))
+}
+
+/**
+ * The server's answer: a region's first member, as an occurrence
+ * @param {string} key - The occurrence
+ * @returns {Promise<string | undefined>} Its first member; none for anything but a region
+ */
+function firstChildKey(key) {
+  const rank = rankOf(key)
+  const order = rank === undefined ? [] : orderAt(rank)
+  const next = order[order.indexOf(key) + 1]
+  return Promise.resolve(next?.startsWith(`${key}/`) === true ? next : undefined)
+}
+
+/**
  * A key's element id
  * @param {string} key - The occurrence
  * @returns {string} Its id
@@ -569,7 +592,6 @@ function putOverview() {
     head.style.cssText = node?.kind === 'more' ? 'font-style: italic' : 'border: 1px solid; padding: 4px'
     item.append(head)
     if (node?.children !== undefined) {
-      item.setAttribute('aria-expanded', 'true')
       const group = document.createElement('div')
       group.setAttribute('role', 'group')
       group.style.paddingLeft = '20px'
@@ -657,12 +679,16 @@ function putOverview() {
     scrollBy: shown.scrollBy,
   })
   const moves = move({ from: active.get, step, to: active.set })
+  const out = move({ from: active.get, step: relationStep(parentKey), to: active.set })
+  const into = move({ from: active.get, step: relationStep(firstChildKey), to: active.set })
   keybinds(
     [
       later('next', 'ArrowDown', async () => moves.by(1)),
       later('previous', 'ArrowUp', async () => moves.by(-1)),
       later('first', 'Home', async () => moves.edge(1)),
       later('last', 'End', async () => moves.edge(-1)),
+      later('parent', 'ArrowLeft', async () => out.by(1)),
+      later('first-member', 'ArrowRight', async () => into.by(1)),
       {
         execute: () => {
           const key = active.get()

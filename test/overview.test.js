@@ -98,6 +98,35 @@ describe.each(BROWSERS)('the worldbuilding overview, in %s', (engine) => {
     })
   })
 
+  test('moves to a region’s head by Left and into its first member by Right, regions always open', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await page.evaluate(async () => {
+        const overview = await import('./page-overview.js')
+        overview.putOverview()
+      })
+      await page.focus('[role=tree]')
+      expect(await press(page, 'ArrowDown')).toMatchObject({ active: 'Region 0', depth: 0 })
+      for (const [key, active, depth] of [
+        ['ArrowLeft', 'Region 0', 0],
+        ['ArrowRight', 'Region M0.0', 1],
+        ['ArrowRight', 'Entry M0.0.0', 2],
+        ['ArrowRight', 'Entry M0.0.0', 2],
+        ['ArrowDown', 'Region 0 (shown above)', 2],
+        ['ArrowRight', 'Region 0 (shown above)', 2],
+        ['ArrowLeft', 'Region M0.0', 1],
+        ['ArrowLeft', 'Region 0', 0],
+        ['End', '+5 more', 1],
+        ['ArrowRight', '+5 more', 1],
+        ['ArrowLeft', 'Region 99999', 0],
+        ['ArrowLeft', 'Region 99999', 0],
+      ]) {
+        // oxlint-disable-next-line no-await-in-loop -- one key after another
+        expect(await press(page, String(key))).toMatchObject({ active, depth, focused: true, inView: true })
+      }
+      expect(await page.locator('[aria-expanded]').count()).toBe(0)
+    })
+  })
+
   test('drags an entry from one region into another', async () => {
     await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
       await page.evaluate(async () => {

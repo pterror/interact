@@ -281,17 +281,21 @@ whose items size themselves.
 
 **ARIA.** A listbox can't hold groups inside groups: its required owned elements are `group → option` and `option`
 (WAI-ARIA 1.2, https://www.w3.org/TR/wai-aria-1.2/#listbox). A tree can: `tree` owns `treeitem` and `group → treeitem`,
-and a `treeitem` with children holds a `group` and has `aria-expanded` (https://www.w3.org/TR/wai-aria-1.2/#tree,
-#treeitem, #group; APG Tree View, https://www.w3.org/WAI/ARIA/apg/patterns/treeview/). So the overview is a `tree` with
-`aria-activedescendant`; each occurrence is a `treeitem`, a region's holds its members in a `group`, and "+N more" is a
-`treeitem` **(P)**. The treeitem is named from its content. Chrome leaves the nested group out of that name and gives
-levels 1 to 3, as its accessibility tree shows (checked over CDP). `aria-labelledby` on the head instead fails axe's
+and a `treeitem` with children holds a `group` (https://www.w3.org/TR/wai-aria-1.2/#tree, #treeitem, #group; APG Tree
+View, https://www.w3.org/WAI/ARIA/apg/patterns/treeview/). So the overview is a `tree` with `aria-activedescendant`;
+each occurrence is a `treeitem`, a region's holds its members in a `group`, and "+N more" is a `treeitem` **(P)**. The
+treeitem is named from its content. Chrome leaves the nested group out of that name and gives levels 1 to 3, as its
+accessibility tree shows (checked over CDP). `aria-labelledby` on the head instead fails axe's
 `label-content-name-mismatch`. Top-level items carry `aria-posinset` and `aria-setsize`; nested ones are counted by the
 browser. What screen readers announce was not tested.
 
-**Found while building, open:**
-
-- Regions are always expanded; Left/Right (collapse, to parent) are not built **(P)**.
+**Left and Right** (the owner's provisional choice): regions are always open and never collapse; Left moves to the
+parent region's head, Right on a head to its first member, and either stays put where there is nowhere to go. There is
+no `aria-expanded`: ARIA lists it as supported on a `treeitem`, not required, and with nothing to collapse there is no
+state to announce; the APG pattern does give parent nodes `aria-expanded`, so screen readers won't hear that a region
+has members until they reach them. Adds `relationStep`: a Step from one hop the source answers, now or later ("the
+parent of k", "the first child of k"), so Left and Right are `move`s like the others. The overview's source answers both
+from its occurrence keys.
 
 ## Changed after review
 
