@@ -31,13 +31,13 @@ Each is owned by the module(s) named, which declare it.
 | Facet       | `apply(key, element)`, `watch(fn(keys?))`                           | render                                                |
 | ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                      | pick, drag, gaps                                      |
 | Test        | `has(key) → bool`, `watch(fn(keys?))`                               | mark                                                  |
-| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`                            | windowing                                             |
+| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`               | windowing                                             |
 | Locate      | `locate(key) → later rank \| none`                                  | windowing                                             |
-| Rank        | `rank(key) → rank \| none` (drawn keys only, immediate)             | place, posInSet                                       |
+| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`            | place, posInSet                                       |
 | Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate) | rangeSelection                                        |
-| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`                 | visibleRanks                                          |
-| Place       | `place(rank) → rect`                                                | place                                                 |
-| Extent      | `extent(count) → size`                                              | sizer                                                 |
+| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`    | visibleRanks                                          |
+| Place       | `place(rank) → rect`, `watch(fn)`                                   | place                                                 |
+| Extent      | `extent(count) → size`, `watch(fn)`                                 | sizer                                                 |
 | Gap         | `gapAt(point) → before: key \| none`                                | drag                                                  |
 | Reorder     | `move(key, before: key \| none)`                                    | drag                                                  |
 | Scroll      | `scrollBy(px)`                                                      | edgeScroll                                            |
@@ -153,18 +153,29 @@ it, which is a modification; so each question became its own module over the arr
 Adds:
 
 - `viewport`: a scroll container's visible range (Watched) and Scroll.
-- `rows`: a layout of rows of one estimated height **(P)**; gives RanksIn, Place and Extent.
+- `rows`: a layout of rows of one height **(P)**; gives RanksIn, Place and Extent.
 - `visibleRanks`: the ranks in view, from the visible range, RanksIn and the count (Watched).
-- `windowing`: the ranks in view plus an overscan **(P)** one screen each way, and every key the list holds for others,
-  placed by Locate. Parameters: ranks, keysAt, held, locate. Gives Drawn and Rank.
+- `windowing`: the ranks in view plus an overscan **(P)** one screen each way, and every key in `keep` (the app's held
+  keys, as a Watched list), placed by Locate. Parameters: ranks, keysAt, keep, locate. Gives Drawn and Rank.
 - `place`: Facet placing each element at `Place(Rank(key))`, so elements never move each other (no layout shift).
 - `sizer`: sets the scrollable size from Extent and the count.
-- `posInSet`: Facet setting `aria-posinset` and `aria-setsize` from Rank and the count.
-- `arrayKeysAt`, `arrayLocate`.
+- `posInSet`: Facet setting `aria-posinset` and `aria-setsize` from a position (a Rank) and a count. With header rows in
+  the ranks, the app gives each option's position among options, not `windowing`'s Rank.
+- `arrayKeysAt`, `arrayLocate`, `arrayCount`.
+- For a list worked out from ranks, never stored: `computedKeysAt`, `computedLocate`, `computedStep`, with `cell`s as
+  its held keys (it never changes, so nothing moves them). The browser test runs half a million grouped options this
+  way, drawing about thirty.
 
-`render`, `move`, `mark`, `pick`, `reveal`, `drag` and `gaps` are unchanged: the active key is always drawn, at its
-place, so `reveal` scrolls to it and `aria-activedescendant` always names an element; the pointer is always over drawn
-items, so `gaps` needs no layout.
+`render`, `move`, `mark`, `pick`, `reveal`, `drag` and `gaps` are unchanged: the active key is drawn, at its place, so
+`reveal` scrolls to it; the pointer is always over drawn items, so `gaps` needs no layout.
+
+**Changed while building:** KeysAt gained `watch` (the design already said `windowing` asks again when the list changes;
+the shape didn't carry it). The layout shapes gained `watch`, since a layout that depends on the page (case 9's columns,
+measured rows) changes. Rank gained `watchRanks`, since ranks move when items are added above.
+
+**Found while building, open:** between a move and `windowing` locating the new active key (a microtask in memory, a
+round trip on a server), `aria-activedescendant` names an element not yet drawn. Revealing a group's first option
+scrolls its header out of view **(P: reveal the header too)**.
 
 ## Case 9: a grid of cards
 
