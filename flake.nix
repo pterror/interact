@@ -15,6 +15,7 @@
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             bun
+            nodejs
           ];
           # Firefox and WebKit for the browser tests, patched for NixOS, at the revisions playwright-core expects
           PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
