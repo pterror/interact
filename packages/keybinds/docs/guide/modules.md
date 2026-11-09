@@ -114,3 +114,6 @@ Watched glyph map, where the browser can tell.
 `modifierHold({ modifiers, delay, to })` is true once a modifier is held on its own for `delay` ms, false when let go;
 `modifierTaps({ modifiers, count, within, run })` runs on a modifier tapped `count` times; both are made from
 `modifierAlone`. The cheatsheet's trigger (`cheatsheetTrigger`) is the two together.
+
+`modifierHeld({ modifier })` is whether a modifier is held now, with or without other keys, as a Watched: what a drag
+reads to keep both places while Alt is held.

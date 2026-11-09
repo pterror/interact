@@ -171,6 +171,15 @@ under the pointer, so "after the last item" or "after X" would need X's neighbou
 pointer the drop place was stale. It now also asks on any scroll in the page (a capturing listener), with the pointer
 where it last was. Touch dragging is not handled.
 
+**Found while building SillyTavern's overview:** a drop there changes or, while Alt is held, adds a relation, and the
+label on the dragged card says which as Alt goes down and up, with the pointer still. Nothing told whether a modifier
+was held between pointer events. Adds `modifierHeld` (keybinds): whether a modifier is held now, alone or with other
+keys, as a Watched over the modifier flags of every key and pointer event, let go when the window loses focus.
+
+**Found while building, open:** `drag` hands `showing` none while the pointer is over the dragged item itself, the same
+as when the drag ends, so an app can't tell the two apart from `showing` alone. SillyTavern's Gap never names the
+dragged item (it answers "into itself", which changes nothing), so its drag stays shown.
+
 **Between groups** (built with case 10): Reorder puts the key into the target's group; a group's header as the target
 puts it first in that group, so an empty group can be dropped into. Alt+arrow across a group's end puts the item at the
 near end of the next group **(P)**.

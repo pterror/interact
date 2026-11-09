@@ -291,6 +291,21 @@ type ModifierTapsOptions = Readonly<{
 A modifier pressed and let go on its own: held for `delay` ms (default 200); tapped `count` times (default 2), each
 within `within` ms (default 400). Anything else while it is down spoils it.
 
+## Modifiers held: modifierHeld(options)
+
+```ts
+function modifierHeld(options: ModifierHeldOptions): ModifierHeld
+type ModifierHeldOptions = Readonly<{
+  modifier: 'Alt' | 'Control' | 'Meta' | 'Shift'
+  target?: EventTarget
+}>
+type ModifierHeld = Readonly<{ get: () => boolean; watch: (listener: () => void) => () => void; stop: () => void }>
+```
+
+Whether a modifier is held now, alone or with other keys, as a Watched (Alt held during a drag to keep both places). It
+follows the modifier flags every key and pointer event carries, so a press it missed is caught up by the next event; the
+window losing focus lets go.
+
 ## Rebinding: bindingStore(storage), localStorageBindings(key, view?), bound(schema, overrides), rebind(options), changedFields(defaults, bindings), findConflict(bindings, candidate), bindingLookup(parse), flipRelease(binding)
 
 ```ts

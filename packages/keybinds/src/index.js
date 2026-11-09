@@ -39,6 +39,7 @@ export { layout } from './layout.js'
 export { localStorageBindings } from './local-storage.js'
 export { looseTable } from './loose-table.js'
 export { modifierAlone } from './modifier-alone.js'
+export { modifierHeld } from './modifier-held.js'
 export { modifierHold } from './modifier-hold.js'
 export { modifierTaps } from './modifier-taps.js'
 export {
