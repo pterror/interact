@@ -65,6 +65,7 @@ describe('JavaScript', () => {
       'packages/keybinds/src/core.js',
       'packages/list/src/render.js',
       'packages/solid/src/to-watched.js',
+      'scripts/release.js',
       'test/repo.js',
     ]
     expect(known.filter((path) => !found.has(path))).toEqual([])

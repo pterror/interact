@@ -144,13 +144,17 @@ async function escapesIn(path) {
 }
 
 /**
- * Every JavaScript file the rules check: the packages' sources and the repo's tests. One glob each, as Bun's globs
+ * Every JavaScript file the rules check: the packages' sources, the repo's tests and its scripts. One glob each, as Bun's globs
  * match nothing for a brace around a path with `**` after it
  * @returns {Promise<string[]>} Their paths, from the repo root
  */
 async function javascriptFiles() {
-  const [sources, tests] = await Promise.all([paths('packages/*/src/**/*.js'), paths('test/**/*.js')])
-  return [...sources, ...tests]
+  const [sources, tests, scripts] = await Promise.all([
+    paths('packages/*/src/**/*.js'),
+    paths('test/**/*.js'),
+    paths('scripts/**/*.js'),
+  ])
+  return [...sources, ...tests, ...scripts]
 }
 
 /**
