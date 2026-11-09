@@ -44,6 +44,7 @@ Each is owned by the module(s) named, which declare it.
 | Gap         | `gapAt(point) → {target: key, after: bool} \| none`                      | drag                                                                           |
 | Reorder     | `move(key, target: key, after: bool)`                                    | drag                                                                           |
 | Scroll      | `scrollBy(px)`                                                           | edgeScroll                                                                     |
+| Pages       | `read(from: cursor \| none, count) → later Page[]`, `watch(fn)`          | cursorPages                                                                    |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
 edge; `none` comes back only for an empty list. `Find` returns the first key after `after` (wrapping) whose text starts
@@ -294,6 +295,17 @@ children changes size) and `viewFrom` (a view and Scroll counted from a Watched 
 **Found while building SillyTavern's entry page:** the entry's text is committed on a pause in typing, and the page may
 not wait on timers itself. Adds `rested`: a Watched value handed on once it has stopped changing for a while **(P: 800
 ms)**, with `flush` (hand on a waiting change now, as when the field loses focus) and `waiting`.
+
+**Found while building SillyTavern's search:** a search's results have no ranks and no total: they are read a page at a
+time after a cursor as the reader scrolls. Adds `cursorPages`, over Pages (the pages from a cursor, each the page after
+the one before, at most `count` of them, in one question; a Page is `{cursor, keys, next}`): KeysAt and Locate over
+ranks counted from the pages read so far, a `count` (Watched) that grows as later pages are read, `ended` (whether the
+last page has been read), and a Step through the held keys that stops at their ends. It holds one run of consecutive
+pages, the run the latest question needs (asking past the pages known reads on, guessing the pages needed from the
+largest page seen), and keeps every page's cursor and size, so ranks stay put when a page is dropped and a dropped page
+is read again by its cursor. A run is read in one question so its pages always follow one another; when the source
+changes, the held run is read again, and the pages known after a page whose `next` moved are forgotten. Reads go one at
+a time; only the latest question's answer is used, and a read that fails answers with what is held.
 
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.

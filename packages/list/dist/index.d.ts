@@ -17,6 +17,7 @@ export { cell } from './cell.js';
 export { collapse } from './collapse.js';
 export { computedKeysAt, computedLocate, computedStep } from './computed.js';
 export { content } from './content.js';
+export { cursorPages } from './cursor-pages.js';
 export { dismiss } from './dismiss.js';
 export { drag } from './drag.js';
 export { edgeScroll } from './edge-scroll.js';
