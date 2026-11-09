@@ -4,8 +4,7 @@ Components use Shadow DOM with `::part()` selectors and BEM class names for styl
 
 ## Quick Start
 
-Import the optional stylesheet, which styles keybinds' own components (cheatsheet, settings, radial menu). The palette
-and menus from `@interact/components` take their look from its theme (`@interact/theme`):
+Import the optional stylesheet, which styles keybinds' own components (cheatsheet, settings, radial menu):
 
 ```js
 import '@pterror/interact-keybinds/styles/palette.css'

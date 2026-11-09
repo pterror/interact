@@ -9,14 +9,7 @@ import {
   sideEffectsBeyondStylesheets,
   typeEscapes,
 } from './repo.js'
-import {
-  cssTemplates,
-  selectorsOf,
-  styleRules,
-  styledFiles,
-  stylesheetViolations,
-  zeroSpecificity,
-} from './stylesheets.js'
+import { selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecificity } from './stylesheets.js'
 
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
@@ -46,17 +39,8 @@ describe('stylesheets', () => {
 
   test('are looked for in every package', async () => {
     const found = new Set(await styledFiles())
-    const known = [
-      'packages/components/src/listbox-styles.js',
-      'packages/keybinds/styles/palette.css',
-      'packages/theme/tokens.css',
-    ]
+    const known = ['packages/keybinds/styles/palette.css', 'packages/theme/tokens.css']
     expect(known.filter((path) => !found.has(path))).toEqual([])
-  })
-
-  test("are read from modules' css`` templates too", () => {
-    const sheets = cssTemplates('const a = css`@layer x { :where(p) {} }`\nconst b = css`q {}`')
-    expect(sheets).toEqual(['@layer x { :where(p) {} }', 'q {}'])
   })
 
   test('are checked for exactly that', () => {
@@ -78,9 +62,9 @@ describe('JavaScript', () => {
   test('is looked for in every package and the tests', async () => {
     const found = new Set(await javascriptFiles())
     const known = [
-      'packages/core/src/selection.js',
-      'packages/dom/src/render.js',
       'packages/keybinds/src/core.js',
+      'packages/list/src/render.js',
+      'packages/solid/src/to-watched.js',
       'test/repo.js',
     ]
     expect(known.filter((path) => !found.has(path))).toEqual([])

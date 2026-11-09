@@ -96,5 +96,5 @@ cheatsheet.commands = commands
 cheatsheet.context = getContext() // Commands with failing `when` appear disabled
 ```
 
-With a `CommandHub`, `hub.syncContext()` does that whenever state changes, and tells its command system's bridge, so a
-palette, menus and command buttons from `@interact/components` follow too.
+With a `CommandHub`, `hub.syncContext()` does that whenever state changes, and tells whatever subscribed to its command
+system, so your palette, menus and buttons can follow too.

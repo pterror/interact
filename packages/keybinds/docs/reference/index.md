@@ -364,7 +364,7 @@ is `(scope) => BindingsStorage`, for keeping rebindings somewhere other than loc
 | `setAxes(owner, get)`                | Add axes, rebindable like commands                                                                 |
 | `axis(id)`                           | An axis's value                                                                                    |
 | `matches(id, event)`                 | Whether an event is one of the command's press bindings (a mouse press, say)                       |
-| `commandSystem(options?)`            | The hub as a command system, for `@interact/components`' `CommandBridge`: see below                |
+| `commandSystem(options?)`            | The hub as a command system, for an app's own palette, menus and buttons: see below                |
 | `destroy()`                          | Stop listening                                                                                     |
 
 Properties: `cheatsheet`, `settings` (when made with `host`; otherwise undefined), `store`, `inputs`.

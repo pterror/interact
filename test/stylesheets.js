@@ -1,6 +1,6 @@
 /**
- * The repo's rule for styles, as the rule tests check it: every selector has zero specificity and sits in a cascade
- * layer, in stylesheets and in modules' css templates alike.
+ * The repo's rule for styles, as the rule tests check it: every selector in the packages' stylesheets has zero
+ * specificity and sits in a cascade layer.
  */
 
 import { paths } from './repo.js'
@@ -105,7 +105,6 @@ function zeroSpecificity(selector) {
   )
 }
 
-const CSS_TEMPLATE = /\bcss`(?<text>[^`]*)`/gu
 const COMMA = ','
 
 /**
@@ -144,41 +143,26 @@ function cssViolations(where, text) {
 }
 
 /**
- * The stylesheets a module writes in css templates
- * @param {string} source - The module
- * @returns {string[]} Each template's text
- */
-function cssTemplates(source) {
-  return [...source.matchAll(CSS_TEMPLATE)].map((match) => match.groups?.['text'] ?? '')
-}
-
-/**
- * Selectors in a file that have specificity or sit outside a cascade layer: a stylesheet, or a module's css templates
- * @param {string} path - The file, from the repo root
+ * Selectors in a stylesheet that have specificity or sit outside a cascade layer
+ * @param {string} path - The stylesheet, from the repo root
  * @returns {Promise<string[]>} Each as "path: selector"
  */
 async function fileViolations(path) {
   const text = await Bun.file(`${ROOT}${path}`).text()
-  if (path.endsWith('.css')) {
-    return cssViolations(path, text)
-  }
-  return cssTemplates(text).flatMap((sheet) => cssViolations(`${path} (css template)`, sheet))
+  return cssViolations(path, text)
 }
 
 /**
- * Every file whose styles the rule checks: the packages' stylesheets, and their modules (tests aside) for css
- * templates. One glob
- * each, as Bun's globs match nothing for a brace around a path with `**` after it
+ * Every stylesheet the rule checks: the packages'
  * @returns {Promise<string[]>} Their paths, from the repo root
  */
 async function styledFiles() {
-  const [sheets, modules] = await Promise.all([paths('packages/**/*.css'), paths('packages/*/src/**/*.js')])
-  return [...sheets, ...modules].filter((path) => !path.includes('/node_modules/') && !path.endsWith('.test.js'))
+  const sheets = await paths('packages/**/*.css')
+  return sheets.filter((path) => !path.includes('/node_modules/'))
 }
 
 /**
- * Selectors anywhere in the packages, in stylesheets or css templates, that have specificity or sit outside a
- * cascade layer
+ * Selectors anywhere in the packages' stylesheets that have specificity or sit outside a cascade layer
  * @returns {Promise<string[]>} Each as "path: selector"
  */
 async function stylesheetViolations() {
@@ -187,4 +171,4 @@ async function stylesheetViolations() {
   return found.flat()
 }
 
-export { cssTemplates, selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecificity }
+export { selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecificity }

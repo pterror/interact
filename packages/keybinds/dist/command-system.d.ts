@@ -1,7 +1,6 @@
 /**
- * A CommandHub as a command system (`hub.commandSystem()`), for a bridge that keeps menus, a palette and buttons in
- * step with it, such as `@interact/components`' CommandBridge: it has the shape such a bridge asks for, and imports
- * nothing of it. It lists, searches and ranks its own commands, so how they rank stays keybinds', by its own matcher
+ * A CommandHub as a command system (`hub.commandSystem()`), for an app's own menus, palette and buttons to list,
+ * search and run its commands and follow its context. It lists, searches and ranks its own commands, so how they rank stays keybinds', by its own matcher
  * and scorer, and, if the app gives one, with further commands from a source asked once typing pauses. A command found
  * only in the source's answer runs from that answer.
  * @import { Command, Context } from './command.js'

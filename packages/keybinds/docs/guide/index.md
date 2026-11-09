@@ -55,8 +55,8 @@ keybinds' own web components, via `registerComponents()`:
 - `<keybinds-settings>` — rebindable keyboard shortcuts panel
 - `<keybinds-radial-menu>` — up to eight commands around a point
 
-A command palette, context menus and command buttons come from `@interact/components`, driven by a `CommandHub`: see
-[Components](/guide/components#palette-context-menus-and-buttons).
+Your own command palette, menus and buttons can list, search and run a `CommandHub`'s commands: see
+[Components](/guide/components#a-command-system).
 
 ## Going Further
 

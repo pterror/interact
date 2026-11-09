@@ -2,9 +2,7 @@
 
 ## registerComponents()
 
-Register keybinds' own web components: the cheatsheet, the settings panel and the radial menu. Call once at startup. The
-palette and context menus come from `@interact/components` (see
-[Components](../guide/components.md#palette-context-menus-and-buttons)).
+Register keybinds' own web components: the cheatsheet, the settings panel and the radial menu. Call once at startup.
 
 ```ts
 function registerComponents(): void

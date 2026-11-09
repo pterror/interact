@@ -293,8 +293,8 @@ The `menu` property tags commands for context menus: a hub's command system list
 }
 ```
 
-See [Components > Palette, Context Menus and Buttons](./components.md#palette-context-menus-and-buttons) for showing
-these in an `@interact/components` menu.
+A command system lists a menu's commands by its tag: see
+[Components > A Command System](./components.md#a-command-system).
 
 ## Execution
 
@@ -385,8 +385,8 @@ const store = new BindingsStore(schema, {
 
 When commands come from several parts of an app, and come and go with its state, `CommandHub` does all of the above in
 one place: it collects commands from every source, derives the schema from them, keeps each person's rebindings, listens
-for keys, and keeps its components up to date. As a command system (`hub.commandSystem()`), it keeps a palette, menus
-and command buttons from `@interact/components` up to date too.
+for keys, and keeps its components up to date. As a command system (`hub.commandSystem()`), it gives an app's own
+palette, menus and buttons its commands, and tells them when which apply may have changed.
 
 ```js
 import { CommandHub, keysUI, mouseUI, releases, KeybindCheatsheet, KeybindSettings } from '@pterror/interact-keybinds'
@@ -413,25 +413,7 @@ hub.settings.open = true // rebinding: changes take effect immediately
 hub.bindingsFor('save', 'keys') // ["Ctrl+S"], after any rebinding
 hub.held('forward') // whether that command is held down right now
 hub.syncContext() // when state changes, so unavailable commands gray out
-hub.commandSystem() // for @interact/components' CommandBridge: a palette, menus and command buttons
-```
-
-### Command Buttons
-
-Any element with `data-command` becomes a button for that command: clicking runs it, and it's disabled while the command
-isn't available. `@interact/components`' `bindCommandButtons` does this through the hub as a command system:
-
-```html
-<nav id="toolbar">
-  <button data-command="save">Save</button>
-  <button data-command="undo">Undo</button>
-</nav>
-```
-
-```js
-import { CommandBridge, bindCommandButtons } from '@interact/components'
-
-bindCommandButtons(document.getElementById('toolbar'), new CommandBridge(hub.commandSystem()), () => undefined)
+hub.commandSystem() // for your own palette, menus and buttons: list, search, run, subscribe
 ```
 
 ### Definitions That Aren't Commands

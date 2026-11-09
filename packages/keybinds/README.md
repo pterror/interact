@@ -32,8 +32,8 @@ registerComponents()
 document.querySelector('keybinds-cheatsheet').commands = commands
 ```
 
-A command palette, context menus and command buttons come from `@interact/components`, driven by a `CommandHub` as a
-command system (`hub.commandSystem()`): see the [Components guide](docs/guide/components.md).
+An app's own command palette, menus and buttons can list, search and run a `CommandHub`'s commands through it as a
+command system (`hub.commandSystem()`): see the [Components guide](docs/guide/components.md#a-command-system).
 
 `$mod` maps to `Cmd` on Mac, `Ctrl` elsewhere.
 
@@ -42,8 +42,8 @@ command system (`hub.commandSystem()`): see the [Components guide](docs/guide/co
 - **Schema-driven** — define bindings as data, separate triggers from handlers
 - **Context-aware** — commands activate based on application state
 - **User-rebindable** — `BindingsStore` persists overrides to localStorage, or to any storage you give it
-- **Discoverable** — built-in `<keybinds-cheatsheet>` and `<keybinds-settings>`; a palette and menus through
-  `@interact/components`
+- **Discoverable** — built-in `<keybinds-cheatsheet>`, `<keybinds-settings>` and `<keybinds-radial-menu>`; a command
+  system for an app's own palette and menus
 - **Framework-agnostic** — pure JS core, works anywhere
 
 ## Docs

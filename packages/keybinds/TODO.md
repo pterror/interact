@@ -51,8 +51,8 @@
       modules too, and the hub takes the component classes it should make. Keyboard-only `keybinds()` went from 5.1 KB
       to 3.6 KB gzipped.
 - [x] The three menus (basic context menu, searchable context menu, radial menu) were about 880 lines between them, each
-      with its own rendering, keyboard navigation and dismissal. The two context menus are gone: menus are
-      `@interact/components'`, driven through `hub.commandSystem()`. The radial menu is still keybinds' own.
+      with its own rendering, keyboard navigation and dismissal. The two context menus are gone: an app draws its own
+      menus through `hub.commandSystem()`. The radial menu is still keybinds' own.
 - [x] `src/index.test.js` was one file covering every module, and a test could pass only because another registered a
       component first. Each module has its own test file now, importing only that module and `src/test-helpers.js`, and
       each passes run alone.
@@ -81,8 +81,5 @@
 - [x] `styles/palette.css` selectors had specificity and sat outside cascade layers. Every selector is now `:where()`
       inside `@layer keybinds.theme`, so a page's own unlayered rules win over it; the components' computed styles are
       the same as before in Chrome, Firefox and WebKit.
-- [ ] The components move to `@interact/components`, rewritten there; the old modules are deleted in the same change.
-      Done for the palette, both context menus and `data-command` buttons, with the hub's wiring for them: they run
-      through `hub.commandSystem()`. Left: the cheatsheet, the settings panel and the radial menu, still keybinds' own
-      web components, and the hub's wiring for the cheatsheet and settings panel. See `docs/design.md`, "What moves out
-      of keybinds".
+- [x] The palette, both context menus and `data-command` buttons are out of keybinds: an app draws them itself, through
+      `hub.commandSystem()`. The cheatsheet, the settings panel and the radial menu stay keybinds' own web components.

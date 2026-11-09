@@ -6,8 +6,8 @@ keybinds has three web components of its own for discoverability and customizati
 - **`<keybinds-settings>`** - Rebindable keyboard shortcuts panel
 - **`<keybinds-radial-menu>`** - Up to eight commands around a point
 
-A command palette, context menus and command buttons come from `@interact/components`, kept in step with keybinds
-through the hub as a command system: see [Palette, Context Menus and Buttons](#palette-context-menus-and-buttons).
+A command palette, context menus and command buttons are the app's own, kept in step with keybinds through the hub as a
+command system: see [A Command System](#a-command-system).
 
 ## Setup
 
@@ -23,64 +23,39 @@ Then use in HTML:
 <keybinds-cheatsheet></keybinds-cheatsheet> <keybinds-settings></keybinds-settings>
 ```
 
-## Palette, Context Menus and Buttons
+## A Command System
 
-`hub.commandSystem()` is a `CommandHub` as a command system: what `@interact/components`' `CommandBridge` asks for.
-Through the bridge, its `Palette`, its menus and any `data-command` buttons list, search and run the hub's commands, and
-follow its context as it changes. Neither package imports the other. Each component is a small core plus the extensions
-it is given: `menuExtensions()` and `paletteExtensions()` are what a menu and a palette are made of by default, and an
-app can give others.
+`hub.commandSystem()` is a `CommandHub` as a command system: an app's own palette, menus and buttons list, search and
+run the hub's commands through it, and follow its context as it changes. keybinds draws none of them.
 
 ```js
-import {
-  CommandBridge,
-  Menu,
-  Palette,
-  bindCommandButtons,
-  contextMenuElement,
-  menuExtensions,
-  openOnContextMenu,
-  paletteElement,
-  paletteExtensions,
-  showCommands,
-} from '@interact/components'
-import { register } from '@interact/dom'
 import { CommandHub, defaultScorer, keysUI } from '@pterror/interact-keybinds'
 
 const hub = new CommandHub({ context: () => ({ selection: editor.hasSelection() }), inputs: [keysUI()] })
 hub.setSource('editor', () => editorCommands)
 hub.refresh()
 
-const bridge = new CommandBridge(hub.commandSystem({ scorer: defaultScorer(history) }))
+const system = hub.commandSystem({ scorer: defaultScorer(history) })
 
-// The palette lists every command (its context is no menu's tag), and searches and ranks through keybinds; it is
-// made of the extensions paletteExtensions() gives (the keys, the pointer, windowing, the rendering)
-const palette = new Palette({ bridge, context: () => undefined, extensions: paletteExtensions() })
-hub.setSource('palette', () => [
-  {
-    id: 'palette',
-    label: 'Commands',
-    keys: ['$mod+k'],
-    hidden: true,
-    captureInput: true,
-    execute: () => palette.open(),
-  },
-])
+// A palette: every command (no tag), searched and ranked by keybinds
+const found = await system.search(query, undefined) // [{ id, label, enabled, shortcut?, positions? }, ...]
+system.run(found[0].id)
 
-// A context menu over the editor, with the commands tagged 'editor'
-const menu = new Menu({ label: 'Edit', extensions: menuExtensions() })
-showCommands(menu, bridge, () => 'editor')
-openOnContextMenu(editorElement, menu)
+// A context menu over the editor: the commands tagged 'editor'
+const showMenu = () => drawMenu(system.list('editor'))
 
-register([paletteElement(() => palette), contextMenuElement(() => menu)], { prefix: 'app' })
-document.body.append(document.createElement('app-command-palette'), document.createElement('app-context-menu'))
-
-// <button data-command="save">Save</button> runs Save, and is disabled while it doesn't apply
-bindCommandButtons(toolbar, bridge, () => undefined)
+// A button, disabled while its command doesn't apply
+const showSave = () => {
+  saveButton.disabled = !system.list(undefined).find((command) => command.id === 'save')?.enabled
+}
+const stop = system.subscribe(() => {
+  showSave()
+  showMenu()
+})
 ```
 
-The hub tells the bridge whenever its context syncs (`hub.syncContext()`, which `refresh()` also does), so menus, the
-palette and buttons follow it live.
+The hub tells its subscribers whenever its context syncs (`hub.syncContext()`, which `refresh()` also does), so the
+palette, menus and buttons follow it live.
 
 ### What the command system does
 
@@ -109,13 +84,13 @@ To hear a command run, wrap the system:
 
 ```js
 const system = hub.commandSystem()
-const bridge = new CommandBridge({
+const logged = {
   ...system,
   run: (id) => {
     log(id)
     return system.run(id)
   },
-})
+}
 ```
 
 ## Keybind Cheatsheet
