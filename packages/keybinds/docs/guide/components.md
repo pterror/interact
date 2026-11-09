@@ -2,19 +2,21 @@
 
 keybinds has three web components of its own for discoverability and customization:
 
-- **`<keybinds-cheatsheet>`** - Glanceable reference (like ChatGPT's hold-Ctrl overlay)
-- **`<keybinds-settings>`** - Rebindable keyboard shortcuts panel
-- **`<keybinds-radial-menu>`** - Up to eight commands around a point
-
-A command palette, context menus and command buttons are the app's own, kept in step with keybinds through the hub as a
-command system: see [A Command System](#a-command-system).
+- **`KeybindCheatsheet`** - Glanceable reference (like ChatGPT's hold-Ctrl overlay)
+- **`KeybindSettings`** - Rebindable keyboard shortcuts panel
+- **`RadialMenu`** - Up to eight commands around a point
 
 ## Setup
 
-```js
-import { registerComponents } from '@pterror/interact-keybinds'
+Importing keybinds defines no element. Define each component you use under a name of your choosing; the examples here
+use `keybinds-<kind>`:
 
-registerComponents() // Defines keybinds' own custom elements
+```js
+import { KeybindCheatsheet, KeybindSettings, RadialMenu } from '@pterror/interact-keybinds'
+
+customElements.define('keybinds-cheatsheet', KeybindCheatsheet)
+customElements.define('keybinds-settings', KeybindSettings)
+customElements.define('keybinds-radial-menu', RadialMenu)
 ```
 
 Then use in HTML:
@@ -23,75 +25,7 @@ Then use in HTML:
 <keybinds-cheatsheet></keybinds-cheatsheet> <keybinds-settings></keybinds-settings>
 ```
 
-## A Command System
-
-`hub.commandSystem()` is a `CommandHub` as a command system: an app's own palette, menus and buttons list, search and
-run the hub's commands through it, and follow its context as it changes. keybinds draws none of them.
-
-```js
-import { CommandHub, defaultScorer, keysUI } from '@pterror/interact-keybinds'
-
-const hub = new CommandHub({ context: () => ({ selection: editor.hasSelection() }), inputs: [keysUI()] })
-hub.setSource('editor', () => editorCommands)
-hub.refresh()
-
-const system = hub.commandSystem({ scorer: defaultScorer(history) })
-
-// A palette: every command (no tag), searched and ranked by keybinds
-const found = await system.search(query, undefined) // [{ id, label, enabled, shortcut?, positions? }, ...]
-system.run(found[0].id)
-
-// A context menu over the editor: the commands tagged 'editor'
-const showMenu = () => drawMenu(system.list('editor'))
-
-// A button, disabled while its command doesn't apply
-const showSave = () => {
-  saveButton.disabled = !system.list(undefined).find((command) => command.id === 'save')?.enabled
-}
-const stop = system.subscribe(() => {
-  showSave()
-  showMenu()
-})
-```
-
-The hub tells its subscribers whenever its context syncs (`hub.syncContext()`, which `refresh()` also does), so the
-palette, menus and buttons follow it live.
-
-### What the command system does
-
-| Call                  | Does                                                                            |
-| --------------------- | ------------------------------------------------------------------------------- |
-| `list(tag)`           | The commands tagged `tag` (every command for `undefined`), hidden ones left out |
-| `search(query, tag)`  | The commands matching what was typed, best first, with where each label matched |
-| `run(id)`             | Runs a command if it applies now                                                |
-| `subscribe(listener)` | Hears whenever which commands apply may have changed                            |
-
-Each command is listed with whether it applies now and its first binding through any of the hub's inputs, as people read
-it ("Ctrl+S").
-
-### Options
-
-`hub.commandSystem(options)`:
-
-| Option        | Type                                         | Description                                                                                                                                                                                                                       |
-| ------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `matcher`     | `Matcher`                                    | How labels and ids match what was typed (default `fuzzyMatcher`)                                                                                                                                                                  |
-| `scorer`      | `Scorer`                                     | Ranks a menu's commands, and is added to each search result's score. `defaultScorer(history)` ranks by specificity and by what ran recently; with a scorer, a command whose `when` fails scores nothing and is left out of a menu |
-| `source`      | `(query) => Command[] \| Promise<Command[]>` | Further commands for a query, from elsewhere (a server), asked once typing pauses; a command found only there runs from its answer, and a source that fails adds none                                                             |
-| `sourceDelay` | `number`                                     | Milliseconds typing must pause before `source` is asked (default 200)                                                                                                                                                             |
-
-To hear a command run, wrap the system:
-
-```js
-const system = hub.commandSystem()
-const logged = {
-  ...system,
-  run: (id) => {
-    log(id)
-    return system.run(id)
-  },
-}
-```
+The stylesheet selects them by the `data-keybinds` attribute they set on themselves, so any name works.
 
 ## Keybind Cheatsheet
 
@@ -145,12 +79,12 @@ Rebindable keyboard shortcuts panel with conflict detection.
 
 ### Properties
 
-| Property                         | Type            | Description                                                                                                                                           |
-| -------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `store`                          | `BindingsStore` | Reactive bindings store instance                                                                                                                      |
-| `inputs`                         | `InputUI[]`     | Which bindings are shown and can be recorded (default: keys only)                                                                                     |
-| `releases`, `holds`, `sequences` | `boolean`       | Offer recording release bindings (`k:up`), holds and taps (`k:hold`, `k:tap`), and steps (`g i`); the hub sets them from its options (default: false) |
-| `open`                           | `boolean`       | Show/hide the settings panel                                                                                                                          |
+| Property                         | Type            | Description                                                                                                       |
+| -------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `store`                          | `BindingsStore` | Reactive bindings store instance                                                                                  |
+| `inputs`                         | `InputUI[]`     | Which bindings are shown and can be recorded (default: keys only)                                                 |
+| `releases`, `holds`, `sequences` | `boolean`       | Offer recording release bindings (`k:up`), holds and taps (`k:hold`, `k:tap`), and steps (`g i`) (default: false) |
+| `open`                           | `boolean`       | Show/hide the settings panel                                                                                      |
 
 ### Attributes
 
@@ -169,7 +103,7 @@ Rebindable keyboard shortcuts panel with conflict detection.
 ### Usage
 
 ```js
-import { BindingsStore, defineSchema, registerComponents, keysUI, mouseUI } from '@pterror/interact-keybinds'
+import { BindingsStore, KeybindSettings, defineSchema, keysUI, mouseUI } from '@pterror/interact-keybinds'
 
 const schema = defineSchema({
   save: { label: 'Save', category: 'File', keys: ['$mod+s'] },
@@ -177,7 +111,7 @@ const schema = defineSchema({
 })
 
 const store = new BindingsStore(schema, 'myapp:keybinds')
-registerComponents()
+customElements.define('keybinds-settings', KeybindSettings)
 
 const settings = document.querySelector('keybinds-settings')
 settings.inputs = [keysUI(), mouseUI()]

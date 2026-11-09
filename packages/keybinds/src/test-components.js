@@ -1,6 +1,6 @@
 /**
  * What the component tests share: reaching into a component's shadow DOM, typing into a field, and defining an
- * element under a name of the test's choosing.
+ * element under a name of the test's choosing, and making one.
  */
 
 /**
@@ -77,4 +77,21 @@ function defineOnce(name, element) {
   }
 }
 
-export { defineOnce, partOf, shadowOf, sortedTextsOf, textsOf, typeInto }
+/**
+ * A component, defined under a name first if nothing is
+ * @template {HTMLElement} E
+ * @param {string} name - The name
+ * @param {new () => E} component - The class
+ * @returns {E} A new element of it
+ * @throws {TypeError} If the name makes something else
+ */
+function elementOf(name, component) {
+  defineOnce(name, component)
+  const element = document.createElement(name)
+  if (!(element instanceof component)) {
+    throw new TypeError(`<${name}> isn't a ${component.name}`)
+  }
+  return element
+}
+
+export { defineOnce, elementOf, partOf, shadowOf, sortedTextsOf, textsOf, typeInto }

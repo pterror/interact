@@ -107,6 +107,7 @@ Target shadow DOM elements using CSS `::part()`:
 | `binding-key`       | Individual key (`<kbd>`)                                                       |
 | `binding-remove`    | Remove (×) button                                                              |
 | `binding-release`   | Press/release switch on a binding (`binding-release-on` while it is a release) |
+| `binding-invert`    | An axis source's Invert switch (`binding-invert-on` when inverted)             |
 | `item-add`          | Add binding container                                                          |
 | `add-key`           | Add Key button                                                                 |
 | `add-mouse`         | Add Mouse button                                                               |

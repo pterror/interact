@@ -7,18 +7,17 @@ Commands are the core unit of keybinds. Each command is an object describing wha
 ```ts
 interface Command {
   id: string // Unique identifier
-  label: string // Display name (for palette/cheatsheet)
-  description?: string // Extended description (shown in palette)
-  category?: string // Group for organization
+  label: string // Display name (for the cheatsheet and settings panel)
+  description?: string // Extended description
+  category?: string // Group in the cheatsheet and settings panel
   keys?: string[] // Keyboard triggers
   mouse?: string[] // Mouse triggers
   gamepad?: string[] // Gamepad button triggers
   when?: (ctx) => bool // Activation condition
   execute: (ctx) => any // Action to perform
-  hidden?: bool // Hide from search
+  hidden?: bool // Left out of the cheatsheet and radial menu
   captureInput?: bool // Fire even in input fields
   anyModifiers?: bool // Match whatever other modifiers are held
-  menu?: string | string[] // Context menu tag(s)
 }
 ```
 
@@ -191,8 +190,7 @@ is scaled by a speed and the frame's time, a delta by a sensitivity. An axis who
 does one read while an overlay (a dialog, a popover such as a palette or menu, or the settings panel) holds focus, or is
 open outside any shadow root.
 
-With `CommandHub`, `hub.setAxes(owner, () => axes)` adds them; they're rebindable in the settings panel (where each
-source has an Invert switch) and read with `hub.axis(id)`.
+Axes in a `BindingsStore`'s schema are rebindable in the settings panel, where each source has an Invert switch.
 
 ## Ignoring Other Modifiers
 
@@ -270,31 +268,6 @@ A scroll binding runs once per step of scrolling: a mouse-wheel notch is one ste
 deltas adds up to one every 50 pixels. While a bound gesture is going, the page doesn't scroll or zoom in between steps;
 a pause of 200 ms ends it. Both numbers are options of the mouse input (`mouse({ wheel: { step, idle } })`). If the
 command returns `false`, the rest of that gesture goes to the page.
-
-## Context Menu Tags
-
-The `menu` property tags commands for context menus: a hub's command system lists a menu's commands by its tag
-(`list('editor')`):
-
-```js
-{
-  id: 'copy',
-  label: 'Copy',
-  keys: ['$mod+c'],
-  menu: 'editor',               // Show in the 'editor' context menu
-  execute: () => copy(),
-}
-
-{
-  id: 'rename',
-  label: 'Rename',
-  menu: ['sidebar', 'editor'],  // Show in multiple context menus
-  execute: () => rename(),
-}
-```
-
-A command system lists a menu's commands by its tag: see
-[Components > A Command System](./components.md#a-command-system).
 
 ## Execution
 
@@ -381,76 +354,7 @@ const store = new BindingsStore(schema, {
 })
 ```
 
-## Commands From Many Places: CommandHub
-
-When commands come from several parts of an app, and come and go with its state, `CommandHub` does all of the above in
-one place: it collects commands from every source, derives the schema from them, keeps each person's rebindings, listens
-for keys, and keeps its components up to date. As a command system (`hub.commandSystem()`), it gives an app's own
-palette, menus and buttons its commands, and tells them when which apply may have changed.
-
-```js
-import { CommandHub, keysUI, mouseUI, releases, KeybindCheatsheet, KeybindSettings } from '@pterror/interact-keybinds'
-
-import '@pterror/interact-keybinds/styles/palette.css'
-
-const hub = new CommandHub({
-  context: () => ({ editing: editor.hasFocus() }), // the app's state, which `when` conditions see
-  inputs: [keysUI(), mouseUI()], // what it listens to; the UI halves, since its components show and record them
-  releases: releases(), // and anyModifiers: anyModifiers(), as for keybinds()
-  components: { cheatsheet: KeybindCheatsheet, settings: KeybindSettings },
-  host: document.body, // where the components go
-  storageKey: 'myapp:keys', // rebindings are kept under "myapp:keys:<scope>"; or pass
-  // storage: (scope) => ({ load, save }) to keep them elsewhere
-  listen: { capture: true }, // keybinds() options; capture lets a command take a key before an editor does
-})
-
-hub.setSource('editor', () => editor.commands())
-hub.setSource('file', () => fileCommands)
-hub.addContext(() => ({ selection: editor.selection() })) // parts laid over the context, from elsewhere in the app
-hub.refresh() // call again whenever the sources' commands change
-
-hub.settings.open = true // rebinding: changes take effect immediately
-hub.bindingsFor('save', 'keys') // ["Ctrl+S"], after any rebinding
-hub.held('forward') // whether that command is held down right now
-hub.syncContext() // when state changes, so unavailable commands gray out
-hub.commandSystem() // for your own palette, menus and buttons: list, search, run, subscribe
-```
-
-### Definitions That Aren't Commands
-
-If your sources describe commands in their own shape, `adapt` turns each one into a command:
-
-```js
-const hub = new CommandHub({ adapt: (def) => ({ ...def, execute: def.run }), context: () => ({}) })
-```
-
-`hub.get(id)` and `hub.all()` return the definitions as the sources gave them. Without `adapt`, a definition is taken as
-a command only if it is one: it needs an `execute` function, and any `when`, `rank`, `menu`, `captureInput` or
-`anyModifiers` it has must be of a command's type. One that isn't is left out and reported.
-
-### When a Source or Binding Fails
-
-A source that throws, or a command binding that can't be read, is left out so the rest keep working, and the hub reports
-it as an `error` event (an `ErrorEvent`, its `error` saying what failed). One nobody prevents goes to `reportError()`,
-which the browser logs:
-
-```js
-hub.addEventListener('error', (event) => {
-  event.preventDefault()
-  showProblem(event.error)
-})
-```
-
-### Components From Another Copy of the Library
-
-A custom element name stays bound to the first class defined for it. `createComponent(cls)` (which the hub uses) gives
-each copy of keybinds on a page its own names, so two bundles, or a script reloaded after a deploy, don't clash:
-
-```js
-const settings = createComponent(KeybindSettings)
-```
-
-### Without a Bundler
+## Without a Bundler
 
 Each part is its own module, so a page loading keybinds straight from a CDN can import only what it uses, mapping
 `@pterror/interact-keybinds/` to the `src/` directory:
@@ -460,8 +364,8 @@ Each part is its own module, so a page loading keybinds straight from a CDN can 
   { "imports": { "@pterror/interact-keybinds/": "https://cdn.jsdelivr.net/npm/@pterror/interact-keybinds@0.1.0/src/" } }
 </script>
 <script type="module">
-  import { CommandHub } from '@pterror/interact-keybinds/hub.js'
-  import { keysUI } from '@pterror/interact-keybinds/keys-ui.js'
-  import { KeybindSettings } from '@pterror/interact-keybinds/settings'
+  import { keybinds } from '@pterror/interact-keybinds/core.js'
+  import { keys } from '@pterror/interact-keybinds/keys.js'
+  import { KeybindSettings } from '@pterror/interact-keybinds/settings.js'
 </script>
 ```

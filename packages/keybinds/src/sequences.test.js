@@ -3,11 +3,11 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 import { formatBinding } from './binding-format.js'
-import { keybinds, validateCommands } from './core.js'
+import { keybinds } from './core.js'
 import { keysUI } from './keys-ui.js'
 import { keys } from './keys.js'
 import { sequences } from './sequences.js'
-import { kbd } from './test-helpers.js'
+import { accepts, kbd } from './test-helpers.js'
 
 const ONCE = 1
 const TIMEOUT = 20
@@ -121,10 +121,10 @@ describe('sequences with other keys', () => {
 
   test('cannot start with a step that is a binding of its own, nor be used without sequences()', () => {
     const both = [{ execute: () => undefined, id: 'go', keys: ['g'], label: 'Go' }, inbox()]
-    expect(() => validateCommands(both, { inputs: [keys()], sequences: sequences() })).toThrow(
+    expect(() => accepts(both, { inputs: [keys()], sequences: sequences() })).toThrow(
       'both a binding and the start of a sequence',
     )
-    expect(() => validateCommands([inbox()], { inputs: [keys()] })).toThrow('needs sequences()')
+    expect(() => accepts([inbox()], { inputs: [keys()] })).toThrow('needs sequences()')
   })
 
   test('are shown step by step', () => {

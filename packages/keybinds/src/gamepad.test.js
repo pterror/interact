@@ -6,10 +6,9 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test'
 
 import { findConflict } from './binding.js'
-import { validateCommands } from './core.js'
 import { parseGamepad } from './gamepad.js'
 import { withOverride } from './schema.js'
-import { keybinds, recording } from './test-helpers.js'
+import { accepts, keybinds, recording } from './test-helpers.js'
 import { ALL, INPUT } from './test-inputs.js'
 import { fakePads } from './test-pads.js'
 
@@ -18,17 +17,14 @@ describe('gamepad bindings', () => {
     expect(parseGamepad('South')).toBe('a')
     expect(parseGamepad('dpadUp')).toBe('up')
     expect(() =>
-      validateCommands(
-        [{ execute: () => undefined, gamepad: ['a', 'south', 'rt:up', 'dpadUp'], id: 'j', label: 'J' }],
-        ALL,
-      ),
+      accepts([{ execute: () => undefined, gamepad: ['a', 'south', 'rt:up', 'dpadUp'], id: 'j', label: 'J' }], ALL),
     ).not.toThrow()
   })
 
   test('take no modifiers, and no unknown buttons', () => {
-    expect(() =>
-      validateCommands([{ execute: () => undefined, gamepad: ['shift+a'], id: 'j', label: 'J' }], ALL),
-    ).toThrow(/Unknown gamepad button/u)
+    expect(() => accepts([{ execute: () => undefined, gamepad: ['shift+a'], id: 'j', label: 'J' }], ALL)).toThrow(
+      /Unknown gamepad button/u,
+    )
   })
 
   test('conflict by button whatever name they use, and can be overridden', () => {

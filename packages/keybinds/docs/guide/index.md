@@ -14,7 +14,7 @@ npm install @pterror/interact-keybinds
 <keybinds-cheatsheet auto-trigger></keybinds-cheatsheet>
 
 <script type="module">
-  import { keybinds, keys, registerComponents } from '@pterror/interact-keybinds'
+  import { KeybindCheatsheet, keybinds, keys } from '@pterror/interact-keybinds'
 
   import '@pterror/interact-keybinds/styles/palette.css'
 
@@ -38,8 +38,8 @@ npm install @pterror/interact-keybinds
   // Register keybinds
   keybinds(commands, undefined, { inputs: [keys()] })
 
-  // Register and connect the cheatsheet
-  registerComponents()
+  // Define and connect the cheatsheet
+  customElements.define('keybinds-cheatsheet', KeybindCheatsheet)
   document.querySelector('keybinds-cheatsheet').commands = commands
 </script>
 ```
@@ -49,14 +49,11 @@ That's it. You get:
 - `$mod+S` / `$mod+O` keybinds working
 - Hold `Control` for a second shows cheatsheet
 
-keybinds' own web components, via `registerComponents()`:
+keybinds' own web components, which you define under names of your choosing (`customElements.define`):
 
-- `<keybinds-cheatsheet>` — hold-to-show keybinding reference
-- `<keybinds-settings>` — rebindable keyboard shortcuts panel
-- `<keybinds-radial-menu>` — up to eight commands around a point
-
-Your own command palette, menus and buttons can list, search and run a `CommandHub`'s commands: see
-[Components](/guide/components#a-command-system).
+- `KeybindCheatsheet` — hold-to-show keybinding reference
+- `KeybindSettings` — rebindable keyboard shortcuts panel
+- `RadialMenu` — up to eight commands around a point
 
 ## Going Further
 

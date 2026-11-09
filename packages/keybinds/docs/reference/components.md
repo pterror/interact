@@ -1,17 +1,18 @@
 # Components Reference
 
-## registerComponents()
+## Defining the components
 
-Register keybinds' own web components: the cheatsheet, the settings panel and the radial menu. Call once at startup.
-
-```ts
-function registerComponents(): void
-```
+Importing keybinds defines no element. Define each component under a name of your choosing, once:
 
 ```js
-import { registerComponents } from '@pterror/interact-keybinds'
-registerComponents()
+import { KeybindCheatsheet, KeybindSettings, RadialMenu } from '@pterror/interact-keybinds'
+
+customElements.define('keybinds-cheatsheet', KeybindCheatsheet)
+customElements.define('keybinds-settings', KeybindSettings)
+customElements.define('keybinds-radial-menu', RadialMenu)
 ```
+
+The names below are those; the stylesheet selects each by the `data-keybinds` attribute it sets, whatever its name.
 
 ---
 
@@ -63,7 +64,7 @@ Custom element: `<keybinds-cheatsheet>`
 
 ## KeybindSettings
 
-Custom element: `<keybinds-settings>`, from `keybinds/settings`
+Custom element: `<keybinds-settings>`, also from `@pterror/interact-keybinds/settings`
 
 ### Properties
 
@@ -211,20 +212,6 @@ formatGamepadParts('up') // ["D-pad ↑"]
 formatAxisParts('mouse:x') // ["Mouse ↔"]
 formatAxisParts('-pad:ry') // ["Right stick ↕", "Inverted"]
 formatAxisParts('keys:a/d') // ["A", "/", "D"]
-```
-
----
-
-## inMenu(command, menu)
-
-Whether a command is in a menu, by its `menu` tag: with `menu` undefined, every command is.
-
-```ts
-function inMenu(command: Command, menu: string | undefined): boolean
-```
-
-```js
-const items = commands.filter((command) => inMenu(command, 'editor'))
 ```
 
 ---

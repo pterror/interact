@@ -1,8 +1,11 @@
+/**
+ * @import { Command, Context } from './command.js'
+ */
+
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { KeybindCheatsheet } from './cheatsheet.js'
-import { createComponent } from './create-component.js'
-import { textsOf } from './test-components.js'
+import { KeybindCheatsheet, groupByCategory } from './cheatsheet.js'
+import { elementOf, textsOf } from './test-components.js'
 
 const HOLD = 10
 const LONGER = 30
@@ -44,7 +47,7 @@ function tap(modifier) {
  * @returns {KeybindCheatsheet} The cheatsheet
  */
 function sheet(modifier) {
-  const element = createComponent(KeybindCheatsheet)
+  const element = elementOf('keybinds-cheatsheet', KeybindCheatsheet)
   element.setAttribute('trigger-key', modifier)
   element.setAttribute('trigger-delay', String(HOLD))
   element.toggleAttribute('auto-trigger', true)
@@ -140,5 +143,66 @@ describe('an open cheatsheet', () => {
     expect(textsOf(element, '.cheatsheet__group-title')).toEqual(['File', 'Other'])
     expect(textsOf(element, '.cheatsheet__item-label')).toEqual(['Save', 'Quit'])
     expect(textsOf(element, '.cheatsheet__item-key')).toEqual(['Ctrl', 'S', 'Ctrl', 'Q'])
+  })
+})
+
+/**
+ * A command that does nothing
+ * @param {Omit<Command, 'execute'>} fields - Everything but what it does
+ * @returns {Command} The command
+ */
+function commandWith(fields) {
+  return { ...fields, execute: () => undefined }
+}
+
+/**
+ * The ids of some grouped commands, in order
+ * @param {readonly Readonly<{ command: Command }>[]} [entries] - The entries, none if missing
+ * @returns {string[]} Their ids
+ */
+function ids(entries = []) {
+  return entries.map(({ command }) => command.id)
+}
+
+/**
+ * A `when` reading whether the context is ready
+ * @param {Context} context - The app's state
+ * @returns {boolean} Whether `ready` is true
+ */
+function whenReady(context) {
+  return context['ready'] === true
+}
+
+describe('grouping the commands shown', () => {
+  const GROUPED = [
+    commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save document' }),
+    commandWith({ category: 'File', id: 'open', keys: ['$mod+o'], label: 'Open file' }),
+    commandWith({ category: 'Edit', id: 'delete', keys: ['Backspace'], label: 'Delete' }),
+    commandWith({ id: 'misc', keys: ['m'], label: 'Misc' }),
+  ]
+
+  test('groups by category, "Other" for none', () => {
+    const groups = groupByCategory(GROUPED)
+    expect(Object.keys(groups).toSorted()).toEqual(['Edit', 'File', 'Other'])
+    expect(ids(groups['Other'])).toEqual(['misc'])
+  })
+
+  test('leaves out hidden and unbound commands, and takes the last under an id', () => {
+    const groups = groupByCategory([
+      ...GROUPED,
+      commandWith({ hidden: true, id: 'h', keys: ['h'], label: 'H' }),
+      commandWith({ id: 'u', label: 'U' }),
+      commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save v2' }),
+    ])
+    expect(ids(Object.values(groups).flat())).not.toContain('h')
+    expect(ids(Object.values(groups).flat())).not.toContain('u')
+    expect(groups['File']?.map(({ command }) => command.label)).toEqual(['Save v2', 'Open file'])
+  })
+
+  test('says whether each command applies', () => {
+    const groups = groupByCategory([commandWith({ id: 'a', keys: ['a'], label: 'A', when: whenReady })], {
+      ready: false,
+    })
+    expect(groups['Other']?.[FIRST]?.active).toBe(false)
   })
 })

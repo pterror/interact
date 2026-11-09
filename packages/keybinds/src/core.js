@@ -190,18 +190,6 @@ class BindingIndex {
     }
   }
 
-  /**
-   * Checks every binding, as building an index does
-   * @param {readonly Command[]} commands - The commands
-   * @param {Input} input - The input
-   * @param {KeybindsOptions} options - Which syntax modules are on
-   * @returns {BindingIndex} The index
-   * @throws {Error} If a binding is invalid or uses syntax that isn't on
-   */
-  static check(commands, input, options) {
-    return new BindingIndex(commands, input, options)
-  }
-
   /** @returns {boolean} Whether any command has a binding here */
   get bound() {
     return this.#exact.size > 0 || (this.#loose?.size() ?? 0) > 0
@@ -550,24 +538,4 @@ function keybinds(commands, getContext = () => ({}), options = {}) {
   }, reads)
 }
 
-/**
- * Checks every command up front, to catch typos early
- * @param {readonly Command[]} commands - The commands
- * @param {KeybindsOptions} options - As for keybinds(): the inputs, and the syntax modules used
- * @returns {true} When every command is fine
- * @throws {Error} If a command has no id, or a binding is invalid
- */
-function validateCommands(commands, options) {
-  for (const command of commands) {
-    if (!command.id) {
-      throw new Error('Command missing id')
-    }
-  }
-  checkInputs(commands, options)
-  for (const input of options.inputs ?? []) {
-    BindingIndex.check(commands, input, options)
-  }
-  return true
-}
-
-export { keybinds, validateCommands }
+export { keybinds }

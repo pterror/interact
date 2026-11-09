@@ -4,9 +4,9 @@
 
 import { describe, expect, mock, test } from 'bun:test'
 
-import { keybinds as listen, validateCommands } from './core.js'
+import { keybinds as listen } from './core.js'
 import { keys as keysInput } from './keys.js'
-import { kbd, keybinds, mouse } from './test-helpers.js'
+import { accepts, kbd, keybinds, mouse } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
 
 const ONCE = 1
@@ -21,25 +21,19 @@ function command(fields) {
   return { execute: () => undefined, id: 'x', label: 'X', ...fields }
 }
 
-describe('validateCommands', () => {
+describe('checking the commands it is given', () => {
   test('passes commands whose bindings are all valid', () => {
-    expect(validateCommands([command({ id: 'save', keys: ['$mod+s'] }), command({ mouse: ['Click'] })], ALL)).toBe(true)
-  })
-
-  test('throws for a command without an id, which a caller without types can give', () => {
-    const nameless = command({})
-    Reflect.deleteProperty(nameless, 'id')
-    expect(() => validateCommands([nameless], ALL)).toThrow('Command missing id')
+    expect(accepts([command({ id: 'save', keys: ['$mod+s'] }), command({ mouse: ['Click'] })], ALL)).toBe(true)
   })
 
   test('throws for a binding to an unknown key, to modifiers only, or to several keys', () => {
-    expect(() => validateCommands([command({ keys: ['$mod+banana'] })], ALL)).toThrow('Unknown key "banana"')
-    expect(() => validateCommands([command({ keys: ['$mod'] })], ALL)).toThrow('no key (only modifiers)')
-    expect(() => validateCommands([command({ keys: ['a+b'] })], ALL)).toThrow('multiple keys')
+    expect(() => accepts([command({ keys: ['$mod+banana'] })], ALL)).toThrow('Unknown key "banana"')
+    expect(() => accepts([command({ keys: ['$mod'] })], ALL)).toThrow('no key (only modifiers)')
+    expect(() => accepts([command({ keys: ['a+b'] })], ALL)).toThrow('multiple keys')
   })
 
   test('throws for an unknown mouse button', () => {
-    expect(() => validateCommands([command({ mouse: ['DoubleClick'] })], ALL)).toThrow('Unknown mouse button')
+    expect(() => accepts([command({ mouse: ['DoubleClick'] })], ALL)).toThrow('Unknown mouse button')
   })
 })
 

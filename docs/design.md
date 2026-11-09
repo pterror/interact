@@ -386,9 +386,9 @@ Where it doesn't fit these rules otherwise:
   kind of input means editing those files.
 - **Module as parameter.** `inputs`, `releases`, `holds`, `sequences` and `anyModifiers` are module instances handed to
   `keybinds()`.
-- **Interface segregation.** `Command` makes `label` required and carries palette and menu fields (`category`,
-  `description`, `menu`, `rank`, `hidden`) that binding a key doesn't use. `Dispatch`, given to every input, bundles
-  context, presses, candidates, axes and execution.
+- **Interface segregation.** `Command` makes `label` required and carries the cheatsheet's fields (`category`,
+  `description`, `hidden`) that binding a key doesn't use. `Dispatch`, given to every input, bundles context, presses,
+  candidates, axes and execution.
 - **Dependency inversion.** `Input` and `Dispatch` are declared in `input.js`, beside the inputs, not by `core.js`,
   which uses them.
 

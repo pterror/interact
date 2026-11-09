@@ -13,7 +13,7 @@
  *
  * Classes: .settings, __backdrop, __dialog, __header, __title, __reset-all, __group, __group-title, __list, __item,
  * __item-label, __item-bindings, __item-reset, __binding (--recording), __binding-keys, __binding-key,
- * __binding-remove, __item-add, __recording-overlay, __conflict.
+ * __binding-release, __binding-invert, __binding-remove, __item-add, __recording-overlay, __conflict.
  *
  * It shows a group per category, a row per command or axis with its bindings, the prompt where one is being recorded,
  * and the question where a binding is taken. Recording captures a press, or a release, hold or tap, in one step or

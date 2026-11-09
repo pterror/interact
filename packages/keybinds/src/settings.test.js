@@ -2,10 +2,9 @@
 
 import { afterEach, describe, expect, mock, test } from 'bun:test'
 
-import { createComponent } from './create-component.js'
 import { KeybindSettings } from './settings.js'
 import { BindingsStore } from './store.js'
-import { shadowOf, textsOf } from './test-components.js'
+import { elementOf, shadowOf, textsOf } from './test-components.js'
 import { kbd, keybinds } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
 import { fakePads } from './test-pads.js'
@@ -51,7 +50,7 @@ function place(panel) {
  * @returns {Readonly<{ panel: KeybindSettings, store: BindingsStore<T> }>} The panel, and its store
  */
 function openPanel(schema, syntax = {}) {
-  const panel = createComponent(KeybindSettings)
+  const panel = elementOf('keybinds-settings', KeybindSettings)
   panel.inputs = ALL.inputs
   panel.holds = syntax.holds === true
   panel.releases = syntax.releases === true
@@ -388,6 +387,10 @@ describe('recording pads and axes', () => {
     globalThis.dispatchEvent(kbd('keydown', { code: 'KeyJ', key: 'j' }))
     globalThis.dispatchEvent(kbd('keydown', { code: 'KeyL', key: 'l' }))
     expect(store.get('strafe').axes).toEqual(['keys:a/d', 'keys:j/l'])
+    expect(partsNamed(panel, 'binding-invert').map((part) => part.className)).toEqual([
+      'settings__binding-invert',
+      'settings__binding-invert',
+    ])
     clickPart(panel, 'binding-invert')
     expect(store.get('strafe').axes).toEqual(['-keys:a/d', 'keys:j/l'])
   })

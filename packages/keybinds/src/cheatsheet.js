@@ -18,18 +18,43 @@
  */
 
 /**
- * @import { Command, Context } from './command.js'
+ * @import { ActiveCommand, BindingField, Command, Context } from './command.js'
  * @import { InputUI } from './input.js'
- * @import { ActiveCommand } from './search.js'
  */
 
 import { bindingParts } from './binding-format.js'
 import { isMac } from './binding-mods.js'
+import { bindingsOf, isActive } from './command.js'
 import { OVERLAY_STYLE, make, namesOf, styleOf } from './component-dom.js'
 import { keysUI } from './keys-ui.js'
 import { markKind } from './modal.js'
 import { onModifierHold, onModifierTaps } from './modifiers.js'
-import { groupByCategory } from './search.js'
+
+const OTHER = 'Other'
+
+/** @type {readonly BindingField[]} */
+const BINDING_FIELDS = ['keys', 'mouse', 'gamepad']
+
+/**
+ * The commands to show, by category: each id once (the last given), leaving out hidden commands and those with no
+ * bindings through `fields`
+ * @param {readonly Command[]} commands - The commands
+ * @param {Context} [context] - The app's state, for whether each applies (default: empty)
+ * @param {readonly BindingField[]} [fields] - Which bindings count (default: keys, mouse and gamepad)
+ * @returns {Record<string, ActiveCommand[]>} The commands, by category ("Other" for none)
+ */
+function groupByCategory(commands, context = {}, fields = BINDING_FIELDS) {
+  /** @type {Record<string, ActiveCommand[]>} */
+  const groups = {}
+  for (const command of new Map(commands.map((each) => [each.id, each])).values()) {
+    const bound = fields.some((field) => bindingsOf(command, field).length > 0)
+    if (command.hidden !== true && bound) {
+      const category = command.category === undefined || command.category === '' ? OTHER : command.category
+      groups[category] = [...(groups[category] ?? []), { active: isActive(command, context), command }]
+    }
+  }
+  return groups
+}
 
 /**
  * How long the trigger's modifier is held before it opens: long enough that pausing with the modifier down to find the
@@ -288,4 +313,4 @@ class KeybindCheatsheet extends HTMLElement {
   }
 }
 
-export { KeybindCheatsheet }
+export { KeybindCheatsheet, groupByCategory }

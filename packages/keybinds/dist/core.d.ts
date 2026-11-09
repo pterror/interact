@@ -108,12 +108,4 @@ export type Happened = Readonly<{
  * ], () => ({ hasSelection: selectedId() !== undefined }), { inputs: [keys(), mouse()] })
  */
 declare function keybinds(commands: readonly Command[], getContext?: () => Context, options?: KeybindsOptions): Keybinds;
-/**
- * Checks every command up front, to catch typos early
- * @param {readonly Command[]} commands - The commands
- * @param {KeybindsOptions} options - As for keybinds(): the inputs, and the syntax modules used
- * @returns {true} When every command is fine
- * @throws {Error} If a command has no id, or a binding is invalid
- */
-declare function validateCommands(commands: readonly Command[], options: KeybindsOptions): true;
-export { keybinds, validateCommands };
+export { keybinds };

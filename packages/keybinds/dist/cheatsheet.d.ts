@@ -16,8 +16,17 @@
  * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
  * __item-keys, __item-binding, __item-key.
  */
-import type { Command, Context } from './command.js';
+import type { ActiveCommand, BindingField, Command, Context } from './command.js';
 import type { InputUI } from './input.js';
+/**
+ * The commands to show, by category: each id once (the last given), leaving out hidden commands and those with no
+ * bindings through `fields`
+ * @param {readonly Command[]} commands - The commands
+ * @param {Context} [context] - The app's state, for whether each applies (default: empty)
+ * @param {readonly BindingField[]} [fields] - Which bindings count (default: keys, mouse and gamepad)
+ * @returns {Record<string, ActiveCommand[]>} The commands, by category ("Other" for none)
+ */
+declare function groupByCategory(commands: readonly Command[], context?: Context, fields?: readonly BindingField[]): Record<string, ActiveCommand[]>;
 /** A cheatsheet of bindings */
 declare class KeybindCheatsheet extends HTMLElement {
     #private;
@@ -54,4 +63,4 @@ declare class KeybindCheatsheet extends HTMLElement {
     /** @returns {void} */
     disconnectedCallback(): void;
 }
-export { KeybindCheatsheet };
+export { KeybindCheatsheet, groupByCategory };

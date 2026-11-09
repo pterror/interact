@@ -14,11 +14,11 @@ export type CommandFields = {
      */
     label: string;
     /**
-     * - Extended description for the palette
+     * - Extended description
      */
     description?: string | undefined;
     /**
-     * - Group for the palette
+     * - Its group in the cheatsheet
      */
     category?: string | undefined;
     /**
@@ -42,7 +42,7 @@ export type CommandFields = {
      */
     execute: (ctx: Context, event?: Event) => unknown;
     /**
-     * - Left out of search
+     * - Left out of the cheatsheet and the radial menu
      */
     hidden?: boolean | undefined;
     /**
@@ -54,16 +54,12 @@ export type CommandFields = {
      * are still required), as a game's movement keys should; a binding that matches exactly still comes first
      */
     anyModifiers?: boolean | undefined;
-    /**
-     * - Context menu tags
-     */
-    menu?: string | readonly string[] | undefined;
-    /**
-     * - Where it's listed among matches, before relevance: higher first (default 0)
-     */
-    rank?: number | undefined;
 };
 export type Command = Readonly<CommandFields>;
+export type ActiveCommand = Readonly<{
+    active: boolean;
+    command: Command;
+}>;
 export type AxisFields = {
     /**
      * - Unique identifier
@@ -107,11 +103,11 @@ export type BindingSchemaFields = {
      */
     label: string;
     /**
-     * - Extended description for the palette
+     * - Extended description
      */
     description?: string | undefined;
     /**
-     * - Group for the palette
+     * - Its group in the settings panel
      */
     category?: string | undefined;
     /**
@@ -131,13 +127,9 @@ export type BindingSchemaFields = {
      */
     axes?: readonly string[] | undefined;
     /**
-     * - Left out of search and the settings panel
+     * - Left out of the settings panel
      */
     hidden?: boolean | undefined;
-    /**
-     * - Context menu tags
-     */
-    menu?: string | readonly string[] | undefined;
 };
 export type BindingSchema = Readonly<BindingSchemaFields>;
 export type Schema = Readonly<Record<string, BindingSchema>>;
@@ -159,23 +151,25 @@ export type BindingOverrides = Readonly<Record<string, Readonly<{
  * @typedef {object} CommandFields
  * @property {string} id - Unique identifier
  * @property {string} label - Display name
- * @property {string | undefined} [description] - Extended description for the palette
- * @property {string | undefined} [category] - Group for the palette
+ * @property {string | undefined} [description] - Extended description
+ * @property {string | undefined} [category] - Its group in the cheatsheet
  * @property {readonly string[] | undefined} [keys] - Keyboard triggers
  * @property {readonly string[] | undefined} [mouse] - Mouse triggers
  * @property {readonly string[] | undefined} [gamepad] - Gamepad button triggers ("a", "rt", "start:up")
  * @property {((ctx: Context) => boolean) | undefined} [when] - Whether it applies now
  * @property {(ctx: Context, event?: Event) => unknown} execute - What it does; returning false passes the event on
- * @property {boolean | undefined} [hidden] - Left out of search
+ * @property {boolean | undefined} [hidden] - Left out of the cheatsheet and the radial menu
  * @property {boolean | undefined} [captureInput] - Fires even while text is typed into a field
  * @property {boolean | undefined} [anyModifiers] - Bindings match whatever other modifiers are held (their own
  *   are still required), as a game's movement keys should; a binding that matches exactly still comes first
- * @property {string | readonly string[] | undefined} [menu] - Context menu tags
- * @property {number | undefined} [rank] - Where it's listed among matches, before relevance: higher first (default 0)
  */
 /**
  * A command: an action, its triggers, and when it applies
  * @typedef {Readonly<CommandFields>} Command
+ */
+/**
+ * A command and whether it applies now
+ * @typedef {Readonly<{ active: boolean, command: Command }>} ActiveCommand
  */
 /**
  * @typedef {object} AxisFields
@@ -202,14 +196,13 @@ export type BindingOverrides = Readonly<Record<string, Readonly<{
 /**
  * @typedef {object} BindingSchemaFields
  * @property {string} label - Display name
- * @property {string | undefined} [description] - Extended description for the palette
- * @property {string | undefined} [category] - Group for the palette
+ * @property {string | undefined} [description] - Extended description
+ * @property {string | undefined} [category] - Its group in the settings panel
  * @property {readonly string[] | undefined} [keys] - Default keyboard triggers
  * @property {readonly string[] | undefined} [mouse] - Default mouse triggers
  * @property {readonly string[] | undefined} [gamepad] - Default gamepad button triggers
  * @property {readonly string[] | undefined} [axes] - Default sources, for an axis
- * @property {boolean | undefined} [hidden] - Left out of search and the settings panel
- * @property {string | readonly string[] | undefined} [menu] - Context menu tags
+ * @property {boolean | undefined} [hidden] - Left out of the settings panel
  */
 /**
  * A command's or axis's bindings without its handler: what a person can rebind
@@ -240,12 +233,4 @@ declare function isActive(command: Readonly<{
  * @returns {readonly string[]} Its bindings there, none if it has no such field
  */
 declare function bindingsOf(command: Command, field: BindingField): readonly string[];
-/**
- * Runs a command by id if it applies
- * @param {readonly Command[]} commands - Where to find it
- * @param {string} id - Which
- * @param {Context} [context] - The app's state (default: empty)
- * @returns {boolean} Whether it ran
- */
-declare function executeCommand(commands: readonly Command[], id: string, context?: Context): boolean;
-export { bindingsOf, executeCommand, isActive };
+export { bindingsOf, isActive };

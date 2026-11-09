@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
-import { createComponent } from './create-component.js'
 import { RadialMenu, slotForKey } from './radial-menu.js'
-import { shadowOf, textsOf } from './test-components.js'
+import { elementOf, shadowOf, textsOf } from './test-components.js'
 import { kbd } from './test-helpers.js'
 
 const FIRST = 0
@@ -44,7 +43,7 @@ function heardEvents() {
 function opened(specs) {
   /** @type {string[]} */
   const ran = []
-  const menu = createComponent(RadialMenu)
+  const menu = elementOf('keybinds-radial-menu', RadialMenu)
   const heard = { close: heardEvents(), command: heardEvents() }
   menu.addEventListener('close', heard.close.listener)
   menu.addEventListener('command', heard.command.listener)

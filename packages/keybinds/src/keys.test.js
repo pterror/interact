@@ -5,11 +5,10 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 import { findConflict } from './binding.js'
-import { validateCommands } from './core.js'
 import { aliases } from './keys-aliases.js'
 import { symbols } from './keys-symbols.js'
 import { keys as keysInput } from './keys.js'
-import { kbd, keybinds, mouse, recording } from './test-helpers.js'
+import { accepts, kbd, keybinds, mouse, recording } from './test-helpers.js'
 import { ALL, INPUT } from './test-inputs.js'
 
 const ONCE = 1
@@ -132,19 +131,17 @@ describe('typed characters and shifted keys', () => {
 
 describe('key binding errors', () => {
   test('name an unknown key as it was typed', () => {
-    expect(() => validateCommands([bound('x', ['nope'])], ALL)).toThrow('Unknown key "nope"')
+    expect(() => accepts([bound('x', ['nope'])], ALL)).toThrow('Unknown key "nope"')
   })
 
   test('name the module that syntax nobody added needs', () => {
     const keysOnly = { inputs: [keysInput()] }
-    expect(() => validateCommands([bound('q', ['?'])], keysOnly)).toThrow('Unknown key "?"')
-    expect(() => validateCommands([bound('u', ['up'])], keysOnly)).toThrow('Unknown key "up"')
-    expect(() => validateCommands([bound('k', ['k:up'])], keysOnly)).toThrow('needs releases()')
-    expect(() => validateCommands([{ ...bound('w', ['w']), anyModifiers: true }], keysOnly)).toThrow(
-      'needs anyModifiers()',
-    )
+    expect(() => accepts([bound('q', ['?'])], keysOnly)).toThrow('Unknown key "?"')
+    expect(() => accepts([bound('u', ['up'])], keysOnly)).toThrow('Unknown key "up"')
+    expect(() => accepts([bound('k', ['k:up'])], keysOnly)).toThrow('needs releases()')
+    expect(() => accepts([{ ...bound('w', ['w']), anyModifiers: true }], keysOnly)).toThrow('needs anyModifiers()')
     const withSyntax = { inputs: [keysInput(symbols(), aliases())] }
-    expect(validateCommands([bound('q', ['?', 'up', 'shift+slash'])], withSyntax)).toBe(true)
+    expect(accepts([bound('q', ['?', 'up', 'shift+slash'])], withSyntax)).toBe(true)
   })
 })
 

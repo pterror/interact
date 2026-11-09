@@ -3,12 +3,12 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 import { formatBinding } from './binding-format.js'
-import { keybinds, validateCommands } from './core.js'
+import { keybinds } from './core.js'
 import { holds } from './holds.js'
 import { keysUI } from './keys-ui.js'
 import { keys } from './keys.js'
 import { mouse } from './mouse.js'
-import { kbd } from './test-helpers.js'
+import { accepts, kbd } from './test-helpers.js'
 
 const DELAY = 30
 const LONG = 60
@@ -83,13 +83,13 @@ describe('holds beyond keys', () => {
     expect(execute).toHaveBeenCalledTimes(ONCE)
     listening()
     const scroll = { execute: () => undefined, id: 'z', label: 'Z', mouse: ['scrollup:hold'] }
-    expect(() => validateCommands([scroll], { holds: holds(), inputs: [mouse()] })).toThrow('Scroll has no ":hold"')
+    expect(() => accepts([scroll], { holds: holds(), inputs: [mouse()] })).toThrow('Scroll has no ":hold"')
   })
 
   test('holding and tapping need holds()', () => {
     for (const binding of ['k:hold', 'k:tap']) {
       const command = { execute: () => undefined, id: 'k', keys: [binding], label: 'K' }
-      expect(() => validateCommands([command], { inputs: [keys()] })).toThrow('needs holds()')
+      expect(() => accepts([command], { inputs: [keys()] })).toThrow('needs holds()')
     }
   })
 

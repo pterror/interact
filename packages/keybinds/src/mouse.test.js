@@ -5,9 +5,8 @@
 import { describe, expect, mock, test } from 'bun:test'
 
 import { findConflict } from './binding.js'
-import { validateCommands } from './core.js'
 import { mouseMatches, parseMouse, wheelDirection } from './mouse.js'
-import { kbd, keybinds, mouse, recording } from './test-helpers.js'
+import { accepts, kbd, keybinds, mouse, recording } from './test-helpers.js'
 import { ALL, INPUT } from './test-inputs.js'
 
 const LEFT = 0
@@ -32,10 +31,7 @@ describe('parseMouse', () => {
       mods: { alt: false, ctrl: true, meta: false, shift: false },
     })
     expect(() =>
-      validateCommands(
-        [{ execute: () => false, id: 'x', label: 'X', mouse: ['Back', 'forward', 'ctrl+BackClick'] }],
-        ALL,
-      ),
+      accepts([{ execute: () => false, id: 'x', label: 'X', mouse: ['Back', 'forward', 'ctrl+BackClick'] }], ALL),
     ).not.toThrow()
   })
 

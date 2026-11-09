@@ -2,8 +2,7 @@
 
 import { describe, expect, mock, test } from 'bun:test'
 
-import { validateCommands } from './core.js'
-import { kbd, keybinds, mouse, recording } from './test-helpers.js'
+import { accepts, kbd, keybinds, mouse, recording } from './test-helpers.js'
 import { ALL } from './test-inputs.js'
 
 const ONCE = 1
@@ -217,9 +216,9 @@ describe('releases in text fields and in validation', () => {
 
   test('accept ":up" on keys and buttons, but not on scrolling or alone', () => {
     const valid = command(['ctrl+k:up', 'Escape:UP'], { mouse: ['middle:up'] })
-    expect(validateCommands([valid], ALL)).toBe(true)
-    expect(() => validateCommands([{ ...command([]), mouse: ['scrollup:up'] }], ALL)).toThrow('scroll')
-    expect(() => validateCommands([command([':up'])], ALL)).toThrow('Invalid key binding')
-    expect(() => validateCommands([command(['ctrl+:up'])], ALL)).toThrow('no key (only modifiers)')
+    expect(accepts([valid], ALL)).toBe(true)
+    expect(() => accepts([{ ...command([]), mouse: ['scrollup:up'] }], ALL)).toThrow('scroll')
+    expect(() => accepts([command([':up'])], ALL)).toThrow('Invalid key binding')
+    expect(() => accepts([command(['ctrl+:up'])], ALL)).toThrow('no key (only modifiers)')
   })
 })

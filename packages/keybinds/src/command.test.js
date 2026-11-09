@@ -1,24 +1,6 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, test } from 'bun:test'
 
-import { bindingsOf, executeCommand, isActive } from './command.js'
-
-describe('executeCommand', () => {
-  test('runs the command with that id, and says it ran', () => {
-    const execute = mock(() => undefined)
-    expect(executeCommand([{ execute, id: 'save', label: 'Save' }], 'save')).toBe(true)
-    expect(execute).toHaveBeenCalled()
-  })
-
-  test('runs nothing for an unknown id', () => {
-    expect(executeCommand([], 'nonexistent')).toBe(false)
-  })
-
-  test('runs nothing that does not apply', () => {
-    const execute = mock(() => undefined)
-    expect(executeCommand([{ execute, id: 'x', label: 'X', when: () => false }], 'x')).toBe(false)
-    expect(execute).not.toHaveBeenCalled()
-  })
-})
+import { bindingsOf, isActive } from './command.js'
 
 describe('commands', () => {
   test('apply without a `when`, and with one that holds in the context', () => {

@@ -44,7 +44,7 @@
 - [x] Axes: continuous inputs read every frame (`keybinds(..., { axes })`, `kb.axis(id)` → `{ position, delta }`), from
       mouse movement, sticks, triggers or key pairs, with a leading `-` to invert. Rebindable in the settings panel;
       `hub.setAxes`, `hub.axis`, `hub.axesFor`.
-- [ ] The cheatsheet and the command system (so a palette) don't list axes.
+- [ ] The cheatsheet doesn't list axes.
 - [x] Everything was one 5,400-line file and `keybinds()` handled every kind of input in one closure, so a keyboard-only
       app shipped gamepad polling and axis code too. Each input (`keys()`, `mouse()`, `gamepad()`, `axes()`) is now its
       own module passed in as `inputs`; a binding no input reads is an error. Components and the hub are separate
@@ -52,7 +52,7 @@
       to 3.6 KB gzipped.
 - [x] The three menus (basic context menu, searchable context menu, radial menu) were about 880 lines between them, each
       with its own rendering, keyboard navigation and dismissal. The two context menus are gone: an app draws its own
-      menus through `hub.commandSystem()`. The radial menu is still keybinds' own.
+      menus. The radial menu is still keybinds' own.
 - [x] `src/index.test.js` was one file covering every module, and a test could pass only because another registered a
       component first. Each module has its own test file now, importing only that module and `src/test-helpers.js`, and
       each passes run alone.
@@ -74,12 +74,16 @@
       the settings panel and an open cheatsheet.
 - [x] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime, but their generated declarations didn't have the
       property, so a page creating them with `createComponent` had to cast to set it (seen in pteraworld's
-      src/input.ts). Both are gone; a command system shows each command's first binding through the hub's inputs.
+      src/input.ts). Both are gone.
 - [x] keybinds wasn't under the repo's rules: lint, the no-casts rule and the stylesheet rule skipped it behind a fence.
       Now nothing is fenced, and `bun run check` and the rule tests cover all of it. Its JSDoc casts are gone, the menus
       share one list, and the settings panel is split by what each part owns.
 - [x] `styles/palette.css` selectors had specificity and sat outside cascade layers. Every selector is now `:where()`
       inside `@layer keybinds.theme`, so a page's own unlayered rules win over it; the components' computed styles are
       the same as before in Chrome, Firefox and WebKit.
-- [x] The palette, both context menus and `data-command` buttons are out of keybinds: an app draws them itself, through
-      `hub.commandSystem()`. The cheatsheet, the settings panel and the radial menu stay keybinds' own web components.
+- [x] The palette, both context menus and `data-command` buttons are out of keybinds: an app draws them itself. The
+      cheatsheet, the settings panel and the radial menu stay keybinds' own web components.
+- [x] With the palette and menus gone, `CommandHub`, its command system, searching (`searchCommands`, the matchers,
+      `defaultScorer`, `inMenu`), `createComponent`, `registerComponents`, `executeCommand` and `validateCommands` had
+      no users left, and are deleted, with the `menu` and `rank` command fields only they read. An app defines the
+      components under names of its own (`customElements.define`); `keybinds()` checks bindings as it starts.

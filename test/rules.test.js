@@ -4,6 +4,7 @@ import {
   escapes,
   importEveryModule,
   javascriptFiles,
+  licenseMismatches,
   manifests,
   outsideDependencies,
   sideEffectsBeyondStylesheets,
@@ -14,6 +15,10 @@ import { selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecifi
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
     expect(outsideDependencies(await manifests())).toEqual(['@pterror/interact-solid -> solid-js'])
+  })
+
+  test('name in their README the license their manifest gives', async () => {
+    expect(await licenseMismatches()).toEqual([])
   })
 
   test('declare that only stylesheets have side effects', async () => {

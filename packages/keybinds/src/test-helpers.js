@@ -80,4 +80,16 @@ function recording() {
   }
 }
 
-export { kbd, keybinds, mouse, recording }
+/**
+ * Whether keybinds() takes some commands with some options: true, or it throws what it found
+ * @param {readonly Command[]} commands - The commands
+ * @param {KeybindsOptions} options - As for keybinds()
+ * @returns {true} When it takes them
+ */
+function accepts(commands, options) {
+  const stop = listen(commands, undefined, options)
+  stop()
+  return true
+}
+
+export { accepts, kbd, keybinds, mouse, recording }

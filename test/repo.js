@@ -167,10 +167,34 @@ async function typeEscapes() {
   return found.flat()
 }
 
+/**
+ * Packages whose README names a license other than their manifest's
+ * @returns {Promise<string[]>} Each as "package: README says X, package.json Y"
+ */
+async function licenseMismatches() {
+  const files = await paths('packages/*/package.json')
+  const found = await Promise.all(
+    files.map(async (file) => {
+      /** @type {unknown} */
+      const raw = await Bun.file(`${ROOT}${file}`).json()
+      const license = typeof raw === 'object' && raw !== null && 'license' in raw ? String(raw.license) : undefined
+      const readme = Bun.file(`${ROOT}${file.replace(/package\.json$/u, 'README.md')}`)
+      const exists = await readme.exists()
+      const text = exists ? await readme.text() : ''
+      const said = /^## License\s*\n\s*\n(?<said>[^\n]+)/mu.exec(text)?.groups?.['said']?.trim()
+      return said === undefined || said === license
+        ? []
+        : [`${file}: README says ${said}, package.json ${String(license)}`]
+    }),
+  )
+  return found.flat()
+}
+
 export {
   escapes,
   importEveryModule,
   javascriptFiles,
+  licenseMismatches,
   manifests,
   outsideDependencies,
   paths,

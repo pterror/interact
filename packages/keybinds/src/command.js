@@ -17,24 +17,27 @@
  * @typedef {object} CommandFields
  * @property {string} id - Unique identifier
  * @property {string} label - Display name
- * @property {string | undefined} [description] - Extended description for the palette
- * @property {string | undefined} [category] - Group for the palette
+ * @property {string | undefined} [description] - Extended description
+ * @property {string | undefined} [category] - Its group in the cheatsheet
  * @property {readonly string[] | undefined} [keys] - Keyboard triggers
  * @property {readonly string[] | undefined} [mouse] - Mouse triggers
  * @property {readonly string[] | undefined} [gamepad] - Gamepad button triggers ("a", "rt", "start:up")
  * @property {((ctx: Context) => boolean) | undefined} [when] - Whether it applies now
  * @property {(ctx: Context, event?: Event) => unknown} execute - What it does; returning false passes the event on
- * @property {boolean | undefined} [hidden] - Left out of search
+ * @property {boolean | undefined} [hidden] - Left out of the cheatsheet and the radial menu
  * @property {boolean | undefined} [captureInput] - Fires even while text is typed into a field
  * @property {boolean | undefined} [anyModifiers] - Bindings match whatever other modifiers are held (their own
  *   are still required), as a game's movement keys should; a binding that matches exactly still comes first
- * @property {string | readonly string[] | undefined} [menu] - Context menu tags
- * @property {number | undefined} [rank] - Where it's listed among matches, before relevance: higher first (default 0)
  */
 
 /**
  * A command: an action, its triggers, and when it applies
  * @typedef {Readonly<CommandFields>} Command
+ */
+
+/**
+ * A command and whether it applies now
+ * @typedef {Readonly<{ active: boolean, command: Command }>} ActiveCommand
  */
 
 /**
@@ -65,14 +68,13 @@
 /**
  * @typedef {object} BindingSchemaFields
  * @property {string} label - Display name
- * @property {string | undefined} [description] - Extended description for the palette
- * @property {string | undefined} [category] - Group for the palette
+ * @property {string | undefined} [description] - Extended description
+ * @property {string | undefined} [category] - Its group in the settings panel
  * @property {readonly string[] | undefined} [keys] - Default keyboard triggers
  * @property {readonly string[] | undefined} [mouse] - Default mouse triggers
  * @property {readonly string[] | undefined} [gamepad] - Default gamepad button triggers
  * @property {readonly string[] | undefined} [axes] - Default sources, for an axis
- * @property {boolean | undefined} [hidden] - Left out of search and the settings panel
- * @property {string | readonly string[] | undefined} [menu] - Context menu tags
+ * @property {boolean | undefined} [hidden] - Left out of the settings panel
  */
 
 /**
@@ -111,20 +113,4 @@ function bindingsOf(command, field) {
   return command[field] ?? []
 }
 
-/**
- * Runs a command by id if it applies
- * @param {readonly Command[]} commands - Where to find it
- * @param {string} id - Which
- * @param {Context} [context] - The app's state (default: empty)
- * @returns {boolean} Whether it ran
- */
-function executeCommand(commands, id, context = {}) {
-  const command = commands.find((each) => each.id === id)
-  if (command === undefined || !isActive(command, context)) {
-    return false
-  }
-  command.execute(context)
-  return true
-}
-
-export { bindingsOf, executeCommand, isActive }
+export { bindingsOf, isActive }

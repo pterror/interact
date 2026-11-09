@@ -10,7 +10,7 @@ function keybinds(
   getContext?: () => Record<string, unknown>,
   options?: {
     inputs?: Input[]
-    releases?: Releases // releases()
+    releases?: Phase // releases()
     anyModifiers?: AnyModifiers // anyModifiers()
     holds?: Phase // holds()
     sequences?: Sequences // sequences()
@@ -100,78 +100,22 @@ sequences do their part. `lookups(suffix, mods)` gives the event's lookups. See 
 
 ---
 
-## searchCommands(commands, query, options?)
+## formatKeyParts(binding, syntax?) and formatBinding(input, binding)
 
-Search commands, as a hub's command system does for a palette.
-
-```ts
-function searchCommands(
-  commands: Command[],
-  query: string,
-  options?: { context?: Record<string, unknown>; matcher?: Matcher; scorer?: Scorer },
-): ScoredCommand[]
-```
-
-Returns the commands matching `query`, most relevant first: those that apply, then by `rank`, then by score. Labels and
-ids match by `matcher` (default `fuzzyMatcher`), descriptions and categories by the words as typed; a `scorer` adds its
-ranking to each score. Each result wraps its command: `{ command, active, score, positions? }`.
-
----
-
-## groupByCategory(commands, context?)
-
-Group commands by category for cheatsheet display.
+A binding as the parts shown for it, each on its own key cap.
 
 ```ts
-function groupByCategory(
-  commands: Command[],
-  context?: Record<string, unknown>,
-  fields?: ('keys' | 'mouse' | 'gamepad')[],
-): Record<string, { command: Command; active: boolean }[]>
-```
-
-Commands with no bindings in `fields` (default all three) are left out, as are hidden ones.
-
----
-
-## executeCommand(commands, id, context?)
-
-Execute a command by ID.
-
-```ts
-function executeCommand(commands: Command[], id: string, context?: Record<string, unknown>): boolean
-```
-
-Returns `true` if command was found and executed.
-
----
-
-## validateCommands(commands, options)
-
-Validate all command bindings upfront, with the same options as `keybinds()`: its inputs, and `releases`/`anyModifiers`
-if used.
-
-```ts
-function validateCommands(commands: Command[], options: { inputs: Input[]; releases?; anyModifiers? }): true
-```
-
-Throws if any binding is invalid. Call on init to catch typos early.
-
----
-
-## formatKey(key)
-
-Format key binding for display.
-
-```ts
-function formatKey(key: string): string
+function formatKeyParts(binding: string, syntax?: KeySyntax[]): string[]
+function formatBinding(input: InputUI, binding: string): string[]
 ```
 
 ```js
-formatKey('$mod+k') // "⌘K" on Mac, "CTRLK" on Windows
-formatKey('Escape') // "ESC"
+formatKeyParts('$mod+k') // ["⌘", "K"] on a Mac, ["Ctrl", "K"] elsewhere
+formatBinding(keysUI(), 'Escape') // the same, through an input's UI half: ["Esc"]
 ```
 
+`syntax` is what was given to `keys()`; with a `layout()` among it, physical keys show as the layout types them.
+`formatMouseParts`, `formatGamepadParts` and `formatAxisParts` do the same for the other inputs.
 ---
 
 ## defineSchema(schema)
@@ -339,55 +283,6 @@ if (conflict) {
 
 ---
 
-## CommandHub
-
-`new CommandHub({ context, adapt?, inputs?, releases?, holds?, sequences?, anyModifiers?, components?, host?, storageKey?, storage?, listen? })`.
-`context` gives the app's state, which `when` conditions see and parts added with `addContext` are laid over; `adapt`
-turns the sources' definitions into commands when they aren't commands already. `inputs` are what it listens to and what
-its components show and record (with components, their UI halves); `releases`, `holds`, `sequences` and `anyModifiers`
-are as for `keybinds()`, and with `releases` the settings panel offers release bindings; `components` are the classes to
-make inside `host`, by slot: `{ cheatsheet?: KeybindCheatsheet, settings?: KeybindSettings }` (or subclasses). `storage`
-is `(scope) => BindingsStorage`, for keeping rebindings somewhere other than localStorage. See
-[Commands From Many Places](../guide/commands.md#commands-from-many-places-commandhub).
-
-| Method                               | Description                                                                                        |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `setSource(owner, get \| undefined)` | Set or remove the commands owned by `owner`                                                        |
-| `addContext(get)`                    | Lay a part over the context `when` sees; returns a remover                                         |
-| `setScope(scope)`                    | Keep rebindings separately per scope                                                               |
-| `refresh()`                          | Re-read sources, rebuild bindings, update components (fires `refresh`)                             |
-| `syncContext()`                      | Push the current context to the cheatsheet, and tell the command system's bridge                   |
-| `run(id, event?)`                    | Run a command if it's available; returns whether it ran                                            |
-| `get(id)`, `all()`                   | The definitions as the sources gave them                                                           |
-| `bindingsFor(id, field)`             | Current bindings through one input (`'keys'`, `'mouse'`, `'gamepad'`, `'axes'`) as shown to people |
-| `held(id)`                           | Whether a command is held down right now                                                           |
-| `setAxes(owner, get)`                | Add axes, rebindable like commands                                                                 |
-| `axis(id)`                           | An axis's value                                                                                    |
-| `matches(id, event)`                 | Whether an event is one of the command's press bindings (a mouse press, say)                       |
-| `commandSystem(options?)`            | The hub as a command system, for an app's own palette, menus and buttons: see below                |
-| `destroy()`                          | Stop listening                                                                                     |
-
-Properties: `cheatsheet`, `settings` (when made with `host`; otherwise undefined), `store`, `inputs`.
-
-`commandSystem({ matcher?, scorer?, source?, sourceDelay? })` gives
-`{ list(tag), search(query, tag), run(id), subscribe(listener) }`: a menu's commands by tag (every command for
-`undefined`), each with whether it applies and its first binding; a search by keybinds' matcher and scorer, with where
-each label matched; and further commands from `source`, asked once typing pauses for `sourceDelay` ms (200). With a
-`scorer`, a menu's commands are ranked, and one whose `when` fails scores nothing and is left out. See
-[Palette, Context Menus and Buttons](../guide/components.md#palette-context-menus-and-buttons).
-
-Events: `refresh` after each refresh; `error` (an `ErrorEvent`) when a source throws or a binding can't be read and is
-left out. An `error` nobody prevents goes to `reportError()`.
-
----
-
-## createComponent(cls)
-
-Creates a component from its class (`KeybindCheatsheet`, `KeybindSettings`, `RadialMenu`) under a tag name this copy of
-the library owns.
-
----
-
 ## Types
 
 ```ts
@@ -404,14 +299,6 @@ interface Command {
   hidden?: boolean
   captureInput?: boolean
   anyModifiers?: boolean // match whatever other modifiers are held
-  menu?: string | string[]
-}
-
-interface ScoredCommand {
-  command: Command
-  active: boolean // whether its `when` holds
-  score: number
-  positions?: number[] // where the query matched its label, for highlighting
 }
 
 interface BindingSchema {

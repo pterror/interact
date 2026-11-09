@@ -18,7 +18,7 @@ import { mouseUI } from './mouse-ui.js'
 import { releases } from './releases.js'
 
 /**
- * One of each input, shown and recorded too, for findConflict(), the settings panel and the hub
+ * One of each input, shown and recorded too, for findConflict() and the settings panel
  * @type {Readonly<{ axes: InputUI, gamepad: InputUI, keys: InputUI, mouse: InputUI }>}
  */
 const INPUT = {
@@ -29,7 +29,7 @@ const INPUT = {
 }
 
 /**
- * Every input and feature: options for keybinds(), validateCommands() and the hub
+ * Every input and feature: options for keybinds()
  * @type {Readonly<{ anyModifiers: AnyModifiers, inputs: InputUI[], releases: Phase }>}
  */
 const ALL = { anyModifiers: anyModifiers(), inputs: Object.values(INPUT), releases: releases() }

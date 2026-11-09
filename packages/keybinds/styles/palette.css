@@ -268,7 +268,8 @@
   :where([data-keybinds='settings'])::part(conflict-accept),
   :where([data-keybinds='settings'])::part(conflict-cancel),
   :where([data-keybinds='settings'])::part(recording-release),
-  :where([data-keybinds='settings'])::part(binding-release) {
+  :where([data-keybinds='settings'])::part(binding-release),
+  :where([data-keybinds='settings'])::part(binding-invert) {
     padding: 2px 8px;
     font: 12px var(--kb-font);
     color: var(--kb-fg);
@@ -284,7 +285,8 @@
   }
 
   :where([data-keybinds='settings'])::part(recording-release-on),
-  :where([data-keybinds='settings'])::part(binding-release-on) {
+  :where([data-keybinds='settings'])::part(binding-release-on),
+  :where([data-keybinds='settings'])::part(binding-invert-on) {
     background: var(--kb-accent-soft);
     border-color: var(--kb-accent);
   }

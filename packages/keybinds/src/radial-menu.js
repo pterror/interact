@@ -17,8 +17,7 @@
  */
 
 /**
- * @import { Command, Context } from './command.js'
- * @import { ActiveCommand } from './search.js'
+ * @import { ActiveCommand, Command, Context } from './command.js'
  */
 
 import { isActive } from './command.js'

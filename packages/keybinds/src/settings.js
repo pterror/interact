@@ -13,7 +13,7 @@
  *
  * Classes: .settings, __backdrop, __dialog, __header, __title, __reset-all, __group, __group-title, __list, __item,
  * __item-label, __item-bindings, __item-reset, __binding (--recording), __binding-keys, __binding-key,
- * __binding-remove, __item-add, __recording-overlay, __conflict.
+ * __binding-release, __binding-invert, __binding-remove, __item-add, __recording-overlay, __conflict.
  *
  * It shows a group per category, a row per command or axis with its bindings, the prompt where one is being recorded,
  * and the question where a binding is taken. Recording captures a press, or a release, hold or tap, in one step or
@@ -774,12 +774,9 @@ class KeybindSettings extends HTMLElement {
     if (input.invert === true) {
       const inverted = trimmed.startsWith('-')
       switches.push(
-        toggle(
-          { className: 'settings__binding-release', label: 'Invert', name: 'binding-invert', on: inverted },
-          () => {
-            this.#flip(slot, inverted ? trimmed.slice('-'.length) : `-${trimmed}`)
-          },
-        ),
+        toggle({ className: 'settings__binding-invert', label: 'Invert', name: 'binding-invert', on: inverted }, () => {
+          this.#flip(slot, inverted ? trimmed.slice('-'.length) : `-${trimmed}`)
+        }),
       )
     }
     const isRelease = splitRelease(binding.toLowerCase()).release
