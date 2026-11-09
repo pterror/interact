@@ -38,7 +38,6 @@
     "access": "public"
   },
   "scripts": {
-    "check": "tsgo --noEmit",
-    "build:types": "rm -rf dist && tsgo --noEmit false --declaration --emitDeclarationOnly --outDir dist --rootDir src && find dist -name '*.test.d.ts' -delete && rm -f dist/test-*.d.ts"
+    "check": "tsgo --noEmit"
   }
 }

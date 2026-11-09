@@ -1,6 +1,7 @@
 /**
- * Declarative, contextual keybindings: everything, from one place. Each part is also its own module (keybinds/core,
- * keybinds/keys, keybinds/settings, ...) for pages that load them without a bundler.
+ * Declarative, contextual keybindings: everything, from one place. Each part is also its own module
+ * (`@pterror/interact-keybinds/core`, `@pterror/interact-keybinds/keys`, ...) for pages that load them without a
+ * bundler.
  */
 export type Command = import('./command.js').Command;
 export type AxisDef = import('./command.js').AxisDef;

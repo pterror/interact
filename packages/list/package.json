@@ -10,13 +10,23 @@
   },
   "files": [
     "src",
-    "!src/**/*.test.js"
+    "!src/**/*.test.js",
+    "dist",
+    "!dist/**/*.test.d.ts"
   ],
   "type": "module",
   "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
-    "./*": "./src/*.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
   },
   "publishConfig": {
     "access": "public"
