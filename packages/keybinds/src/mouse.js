@@ -324,7 +324,7 @@ class MouseListener {
    */
   #down(event) {
     const name = pointerButtonName(event.button)
-    if (name === undefined || overlayOpen(event)) {
+    if (name === undefined || overlayOpen(event, this.#dispatch.target)) {
       return
     }
     this.#swallowAux.delete(name)
@@ -345,7 +345,7 @@ class MouseListener {
     if (name === undefined) {
       return
     }
-    const ended = this.#dispatch.up(name, event, { blocked: overlayOpen(event) })
+    const ended = this.#dispatch.up(name, event, { blocked: overlayOpen(event, this.#dispatch.target) })
     if (ended !== undefined && SIDE_BUTTONS.has(name) && (ended.consumed || ended.press.fired.size > 0)) {
       event.preventDefault()
       this.#swallowAux.add(name)
@@ -371,7 +371,7 @@ class MouseListener {
    */
   #bound(event) {
     const direction = wheelDirection(event)
-    if (direction === undefined || overlayOpen(event)) {
+    if (direction === undefined || overlayOpen(event, this.#dispatch.target)) {
       return undefined
     }
     const mods = eventMods(event)

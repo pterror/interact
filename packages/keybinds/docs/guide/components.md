@@ -196,9 +196,17 @@ binding also has a **Release** switch that flips it between its press and releas
 
 ## Your Own Dialogs
 
-Bindings don't fire inside an open overlay: an open `<dialog>`, an open popover (the palette, a menu, a combobox's
-list), or any element with `data-keybinds-modal` and `open`, found along the event's path, inside shadow roots too. A
-page's own overlay that is neither a dialog nor a popover can take the keyboard the same way:
+An open overlay takes the keyboard from bindings listening outside it: keys typed inside an open `<dialog>`, an open
+popover (a palette, a menu, a combobox's list), or any element with `data-keybinds-modal` and `open`, found along the
+event's path (inside shadow roots too), don't fire bindings listening around it, such as the page's. Bindings listening
+on the overlay itself, or inside it, are its own keyboard handling and do fire, so a menu level binds its keys on its
+own element:
+
+```js
+keybinds(menuCommands, undefined, { inputs: [keys()], target: menuElement })
+```
+
+A page's own overlay that is neither a dialog nor a popover can take the keyboard the same way:
 
 ```html
 <div data-keybinds-modal open>...</div>

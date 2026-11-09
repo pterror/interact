@@ -1,8 +1,9 @@
 /**
- * Elements that take the keyboard while they're open, so bindings don't fire inside them: an open `<dialog>`, an open
- * popover (a menu, a palette, a combobox's list, whoever made it), or any element with `data-keybinds-modal` and
- * `open`, which a page's own overlays can carry. They're found along an event's composed path, inside shadow roots
- * too.
+ * Elements that take the keyboard while they're open, so bindings listening outside them don't fire for keys inside
+ * them: an open `<dialog>`, an open popover (a menu, a palette, a combobox's list, whoever made it), or any element
+ * with `data-keybinds-modal` and `open`, which a page's own overlays can carry. They're found along an event's
+ * composed path, inside shadow roots too. Bindings listening on such an element, or inside it, are its own keyboard
+ * handling, and fire: a menu level's keys, bound on the level.
  */
 
 const OVERLAYS = '[data-keybinds-modal][open], dialog[open], :popover-open'
@@ -34,12 +35,16 @@ function takesKeyboard(target) {
 }
 
 /**
- * Whether an event happened inside an element whose own keyboard handling takes over while it's open
+ * Whether an event happened inside an open element whose own keyboard handling takes over from a listener: one between
+ * the event's target and where the listener listens
  * @param {Event} event - The event
+ * @param {EventTarget} listener - Where the listener listens
  * @returns {boolean} Whether it did
  */
-function overlayOpen(event) {
-  return event.composedPath().some((target) => takesKeyboard(target))
+function overlayOpen(event, listener) {
+  const path = event.composedPath()
+  const at = path.indexOf(listener)
+  return (at === -1 ? path : path.slice(0, at)).some((target) => takesKeyboard(target))
 }
 
 /**

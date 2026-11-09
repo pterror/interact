@@ -37,7 +37,7 @@ function keyInOverlay(element) {
    * @returns {void}
    */
   function judge(event) {
-    inside = overlayOpen(event)
+    inside = overlayOpen(event, document)
   }
   document.addEventListener('keydown', judge, { once: true })
   element.dispatchEvent(kbd('keydown', { code: 'KeyS', composed: true, key: 's' }))
@@ -69,6 +69,24 @@ describe('modal elements', () => {
     dialog.removeAttribute('open')
     dialog.dispatchEvent(kbd('keydown', { code: 'KeyS', ctrlKey: true, key: 's' }))
     expect(execute).toHaveBeenCalled()
+    stop()
+  })
+
+  test('leave keys typed inside them to bindings listening on them or inside them', () => {
+    const execute = mock(() => undefined)
+    const outer = mock(() => undefined)
+    const { dialog, stop } = page(outer)
+    dialog.setAttribute('open', '')
+    const inner = document.createElement('div')
+    dialog.append(inner)
+    const own = keybinds([{ execute, id: 'down', keys: ['ArrowDown'], label: 'Down' }], undefined, { target: dialog })
+    const deeper = keybinds([{ execute, id: 'up', keys: ['ArrowUp'], label: 'Up' }], undefined, { target: inner })
+    inner.dispatchEvent(kbd('keydown', { code: 'ArrowDown', key: 'ArrowDown' }))
+    inner.dispatchEvent(kbd('keydown', { code: 'ArrowUp', key: 'ArrowUp' }))
+    inner.dispatchEvent(kbd('keydown', { code: 'KeyS', ctrlKey: true, key: 's' }))
+    expect([execute.mock.calls.length, outer.mock.calls.length]).toEqual([2, 0])
+    own()
+    deeper()
     stop()
   })
 
