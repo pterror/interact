@@ -1,6 +1,7 @@
 /**
- * An element shown as a popover, placed against another, while a Watched boolean is true. It is a `manual` popover:
- * what closes it is the app's (dismiss, a key), never the browser's light dismiss. While shown it is placed again
+ * An element shown as a popover, placed against an anchor, while a Watched boolean is true. It is a `manual` popover:
+ * what closes it is the app's (dismiss, a key), never the browser's light dismiss. The anchor is anything with a box:
+ * an element, or a point (`{ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) }`). While shown it is placed again
  * when the page scrolls or resizes.
  */
 
@@ -10,13 +11,34 @@
  */
 
 /**
- * Where it goes against its anchor: under it, starting at its left edge, or beside it, starting at its top
- * @typedef {'below' | 'right'} Side
+ * What it is placed against: something with a box in the viewport's coordinates
+ * @typedef {Readonly<{
+ *   getBoundingClientRect: () => Readonly<{ left: number, top: number, right: number, bottom: number }>,
+ * }>} Anchor
  */
 
 /**
- * @typedef {Readonly<{ element: HTMLElement, anchor: Element, open: Open, side?: Side }>} PopoverOptions
+ * Where it goes against its anchor: under it, starting at its left edge; beside it, starting at its top; or with its
+ * centre on the anchor's centre
+ * @typedef {'below' | 'right' | 'center'} Side
  */
+
+/**
+ * @typedef {Readonly<{ element: HTMLElement, anchor: Anchor, open: Open, side?: Side }>} PopoverOptions
+ */
+
+/**
+ * The point of an anchor's box a side places the element's corner (or, centred, its centre) at
+ * @param {ReturnType<Anchor['getBoundingClientRect']>} box - The anchor's box
+ * @param {Side} side - The side
+ * @returns {Readonly<{ x: number, y: number }>} The point
+ */
+function pointOf(box, side) {
+  if (side === 'center') {
+    return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }
+  }
+  return side === 'below' ? { x: box.left, y: box.bottom } : { x: box.right, y: box.top }
+}
 
 /**
  * Shows an element as a popover while `open` is true
@@ -27,11 +49,14 @@
 function popover({ anchor, element, open, side = 'below' }) {
   element.popover = 'manual'
   const place = () => {
-    const at = anchor.getBoundingClientRect()
+    const { x, y } = pointOf(anchor.getBoundingClientRect(), side)
     element.style.margin = '0'
     element.style.inset = 'auto'
-    element.style.left = `${String(side === 'below' ? at.left : at.right)}px`
-    element.style.top = `${String(side === 'below' ? at.bottom : at.top)}px`
+    element.style.left = `${String(x)}px`
+    element.style.top = `${String(y)}px`
+    if (side === 'center') {
+      element.style.translate = '-50% -50%'
+    }
   }
   /** @type {Window | undefined} */
   let following = undefined

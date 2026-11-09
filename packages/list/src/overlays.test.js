@@ -80,6 +80,20 @@ describe('popover', () => {
     open.set(true)
     expect(shown()).toHaveLength(4)
   })
+
+  test('centres its element on a point, or on any box', () => {
+    const { element } = popoverElement()
+    const at = { x: 120, y: 80 }
+    const point = {
+      getBoundingClientRect: () => ({ bottom: at.y, left: at.x, right: at.x, top: at.y }),
+    }
+    cleanups.push(popover({ anchor: point, element, open: cell(true), side: 'center' }))
+    expect([element.style.left, element.style.top, element.style.translate]).toEqual(['120px', '80px', '-50% -50%'])
+    const other = popoverElement().element
+    const box = { getBoundingClientRect: () => ({ bottom: 300, left: 0, right: 400, top: 100 }) }
+    cleanups.push(popover({ anchor: box, element: other, open: cell(true), side: 'center' }))
+    expect([other.style.left, other.style.top]).toEqual(['200px', '200px'])
+  })
 })
 
 describe('focusWhen', () => {

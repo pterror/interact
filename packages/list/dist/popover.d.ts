@@ -1,30 +1,28 @@
 /**
- * An element shown as a popover, placed against another, while a Watched boolean is true. It is a `manual` popover:
- * what closes it is the app's (dismiss, a key), never the browser's light dismiss. While shown it is placed again
+ * An element shown as a popover, placed against an anchor, while a Watched boolean is true. It is a `manual` popover:
+ * what closes it is the app's (dismiss, a key), never the browser's light dismiss. The anchor is anything with a box:
+ * an element, or a point (`{ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) }`). While shown it is placed again
  * when the page scrolls or resizes.
  */
 export type Open = Readonly<{
     get: () => boolean;
     watch: (listener: () => void) => () => void;
 }>;
-export type Side = 'below' | 'right';
+export type Anchor = Readonly<{
+    getBoundingClientRect: () => Readonly<{
+        left: number;
+        top: number;
+        right: number;
+        bottom: number;
+    }>;
+}>;
+export type Side = 'below' | 'right' | 'center';
 export type PopoverOptions = Readonly<{
     element: HTMLElement;
-    anchor: Element;
+    anchor: Anchor;
     open: Open;
     side?: Side;
 }>;
-/**
- * Whether it is shown, and hearing that change
- * @typedef {Readonly<{ get: () => boolean, watch: (listener: () => void) => () => void }>} Open
- */
-/**
- * Where it goes against its anchor: under it, starting at its left edge, or beside it, starting at its top
- * @typedef {'below' | 'right'} Side
- */
-/**
- * @typedef {Readonly<{ element: HTMLElement, anchor: Element, open: Open, side?: Side }>} PopoverOptions
- */
 /**
  * Shows an element as a popover while `open` is true
  * @param {PopoverOptions} options - The element, what it is placed against, whether it is shown, and on which side
