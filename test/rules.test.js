@@ -19,8 +19,8 @@ import {
 } from './stylesheets.js'
 
 describe('packages', () => {
-  test('depend at runtime on nothing outside this repo', async () => {
-    expect(outsideDependencies(await manifests())).toEqual([])
+  test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
+    expect(outsideDependencies(await manifests())).toEqual(['@pterror/interact-solid -> solid-js'])
   })
 
   test('declare that only stylesheets have side effects', async () => {

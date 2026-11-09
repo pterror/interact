@@ -54,18 +54,18 @@ in that list, or none. The list updates it inside the edit that removes its key,
 
 ## Case 1: a plain listbox
 
-| Module             | Does                                                                                                                                            | Parameters                                     | Gives                                        |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------- |
-| `arrayList`        | holds keys in memory, and the keys held from it                                                                                                 | initial keys                                   | `set(keys)`, `keys()` (Value), Drawn, `hold` |
-| `arrayStep`        | steps through an array                                                                                                                          | keys (Value)                                   | Step                                         |
-| `move`             | moves a key by `n` steps, or from an edge; moves made while one is under way queue from its result, and a change from elsewhere drops the queue | from, step, to                                 | `by(n)`, `edge(n)`                           |
-| `render`           | keeps one element per drawn key, in order                                                                                                       | drawn, create (`key → element`), mount, facets | ItemOf, `stop()`                             |
-| `flowMount`        | puts elements into one container in order                                                                                                       | container                                      | Mount                                        |
-| `mark`             | an attribute set while a test holds, and another or none while it doesn't                                                                       | test, attribute, on, off                       | Facet                                        |
-| `ids`              | gives each element an id from its key                                                                                                           | idOf (`key → string`)                          | Facet                                        |
-| `activeDescendant` | names the active key's element in an element's `aria-activedescendant`, only while render has it drawn                                          | element, active (Watched), idOf                | Facet                                        |
-| `pick`             | a click on an item hands its key on                                                                                                             | element, itemOf, to                            | `stop()`                                     |
-| `reveal`           | scrolls a key's element into view when the key changes, after the pass that applies it                                                          | target (Watched)                               | Facet                                        |
+| Module             | Does                                                                                                                                            | Parameters                                           | Gives                                        |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| `arrayList`        | holds keys in memory, and the keys held from it                                                                                                 | initial keys                                         | `set(keys)`, `keys()` (Value), Drawn, `hold` |
+| `arrayStep`        | steps through an array                                                                                                                          | keys (Value)                                         | Step                                         |
+| `move`             | moves a key by `n` steps, or from an edge; moves made while one is under way queue from its result, and a change from elsewhere drops the queue | from, step, to                                       | `by(n)`, `edge(n)`                           |
+| `render`           | keeps one element per drawn key, in order                                                                                                       | drawn, create (`key → element`), drop, mount, facets | ItemOf, `stop()`                             |
+| `flowMount`        | puts elements into one container in order                                                                                                       | container                                            | Mount                                        |
+| `mark`             | an attribute set while a test holds, and another or none while it doesn't                                                                       | test, attribute, on, off                             | Facet                                        |
+| `ids`              | gives each element an id from its key                                                                                                           | idOf (`key → string`)                                | Facet                                        |
+| `activeDescendant` | names the active key's element in an element's `aria-activedescendant`, only while render has it drawn                                          | element, active (Watched), idOf                      | Facet                                        |
+| `pick`             | a click on an item hands its key on                                                                                                             | element, itemOf, to                                  | `stop()`                                     |
+| `reveal`           | scrolls a key's element into view when the key changes, after the pass that applies it                                                          | target (Watched)                                     | Facet                                        |
 
 Wiring (the app, by hand): `active = list.hold(none, next)`, `selected = list.hold(none, none)`. Down/Up are
 `move.by(±1)`, Home/End `move.edge(±1)`, all on `active`; Enter and Space set `selected` to `active`; `pick` sets
@@ -325,6 +325,24 @@ above it closes or opens.
 - **Releasing a held key** (found building case 1). A list keeps every held key it gave out, for the list's lifetime. A
   short-lived hold (a closed menu's active key) needs `release()`; not built, as case 1 never drops one. Open.
 - **Typeahead.** It read key events itself. Now it takes characters, and keybinds gains a `printed` key (below).
+
+## Solid (`packages/solid`)
+
+One bridge per abstraction, none per module: `toValue`, `toWatched`, `toDrawn` and `toSet` make a signal or memo a
+Value, Watched, Drawn or Set; `fromWatched`, `fromTest` and `fromKeyed` make a Watched, a Test, or any answer per key
+with its changed keys, a Solid accessor; `componentItems` makes a component what `render` draws. Reads of either side
+are untracked by the other; a Watched is told only of a new value. The per-key accessors follow only the keys a
+computation reads, so their cost is what is drawn. Each item is a root of its own, owned (for context and disposal) by
+the owner `componentItems` is called in, as Solid's own lists own their rows.
+
+**Changed while building:** render told facets that an element was no longer drawn, but not what made it. A maker that
+holds something per element (a framework's root, a pool) had no way to hear it: as a facet beside `create` it is two
+parameters that must be passed together. Render gained `drop(key, element)`, called once per element `create` made,
+after the facets' drops, when render takes it out or stops.
+
+**Found while building, open:** render puts an element in place after `create` returns, so an item's Solid effects
+(`onMount`) run before it is in place unless a Solid update is under way (then they run at its end). Layout belongs to
+facets, which render applies after placing.
 
 ## The huge case: a server with billions of items
 

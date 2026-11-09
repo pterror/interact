@@ -1,0 +1,44 @@
+{
+  "name": "@pterror/interact-solid",
+  "version": "0.1.0",
+  "description": "SolidJS and interact's abstractions both ways: signals as Values and Watched, Watched and Tests as accessors, components as what a list draws",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pterror/interact.git",
+    "directory": "packages/solid"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.js",
+    "dist",
+    "!dist/**/*.test.d.ts"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "check": "tsgo --noEmit",
+    "build:types": "rm -rf dist && tsgo --noEmit false --declaration --emitDeclarationOnly --outDir dist --rootDir src && find dist -name '*.test.d.ts' -delete"
+  },
+  "devDependencies": {
+    "solid-js": "1.9.17"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  }
+}
