@@ -275,6 +275,13 @@ its members, so a region taller than the view was left where it was when its hea
 the view: `scrollIntoView` with `nearest` does nothing). Adds `revealPart`: a Facet like `reveal` that scrolls the part
 of the element the app names (the head's card), or the element when it names none.
 
+**Found while building SillyTavern's entry page:** an entry's page holds one windowed list per relation pointing at it,
+one below the other in one scroller, under text that grows as it is edited. `viewport` gives the scroller's view from
+its content's top, so each list needs the view from its own top, which moves when anything above it changes size. Adds
+`topIn` (an element's top in its scroll container's content, a Watched heard when the element or one of the container's
+children changes size) and `viewFrom` (a view and Scroll counted from a Watched top). `windowing`, `visibleRanks` and
+`keepInPlace` take the result as they take `viewport`.
+
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
 
