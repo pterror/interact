@@ -7,10 +7,14 @@ import {
   licenseMismatches,
   manifests,
   outsideDependencies,
-  sideEffectsBeyondStylesheets,
+  packageFiles,
+  shippedModules,
+  shippedStyles,
+  stylesIn,
+  stylesheetFiles,
   typeEscapes,
+  withSideEffects,
 } from './repo.js'
-import { selectorsOf, styleRules, styledFiles, stylesheetViolations, zeroSpecificity } from './stylesheets.js'
 
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
@@ -21,8 +25,8 @@ describe('packages', () => {
     expect(await licenseMismatches()).toEqual([])
   })
 
-  test('declare that only stylesheets have side effects', async () => {
-    expect(sideEffectsBeyondStylesheets(await manifests())).toEqual([])
+  test('declare that importing them has no side effects', async () => {
+    expect(withSideEffects(await manifests())).toEqual([])
   })
 })
 
@@ -38,24 +42,33 @@ describe('importing every module', () => {
 })
 
 describe('stylesheets', () => {
-  test('give every selector zero specificity, inside a cascade layer', async () => {
-    expect(await stylesheetViolations()).toEqual([])
+  test('are shipped by no package, as a file or in a module', async () => {
+    expect(await shippedStyles()).toEqual([])
   })
 
-  test('are looked for in every package', async () => {
-    const found = new Set(await styledFiles())
-    const known = ['packages/keybinds/styles/palette.css']
+  test('are looked for in every package and its modules', async () => {
+    const [files, modules] = await Promise.all([packageFiles(), shippedModules()])
+    const found = new Set([...files, ...modules])
+    const known = [
+      'packages/keybinds/README.md',
+      'packages/keybinds/src/radial-menu.js',
+      'packages/list/src/popover.js',
+    ]
     expect(known.filter((path) => !found.has(path))).toEqual([])
+    expect(modules.filter((path) => path.endsWith('.test.js') || path.includes('/test-'))).toEqual([])
   })
 
-  test('are checked for exactly that', () => {
-    const rules = styleRules('@layer a { :where(.x)::part(y) { color: red } .z { color: red } } :where(.w) {}')
-    expect(rules.map(({ layered, selector }) => [zeroSpecificity(selector), layered])).toEqual([
-      [true, true],
-      [false, true],
-      [true, false],
-    ])
-    expect(selectorsOf(':where(.a, .b) , .c')).toEqual([':where(.a, .b)', '.c'])
+  test('are found by exactly that', () => {
+    // Each sample is built from pieces, so this file's own text holds none of them
+    expect(stylesheetFiles(['a/b.css', 'a/b.js', 'a/css.md'])).toEqual(['a/b.css'])
+    expect(stylesIn(['new CSS', 'StyleSheet()'].join(''))).toEqual(['a constructed stylesheet'])
+    expect(stylesIn(['root.adopted', 'StyleSheets = []'].join(''))).toEqual(['adopted stylesheets'])
+    expect(stylesIn(['sheet.insert', 'Rule(rule)'].join(''))).toEqual(['an inserted rule'])
+    expect(stylesIn(["document.createElement('st", "yle')"].join(''))).toEqual(['a style element'])
+    expect(stylesIn(['`<st', 'yle>a {}</style>`'].join(''))).toEqual(['a style element'])
+    expect(stylesIn(["import './a.c", "ss'"].join(''))).toEqual(['an imported stylesheet'])
+    expect(stylesIn(["await import('./a.c", "ss')"].join(''))).toEqual(['an imported stylesheet'])
+    expect(stylesIn("element.style.left = '4px'")).toEqual([])
   })
 })
 
@@ -67,7 +80,7 @@ describe('JavaScript', () => {
   test('is looked for in every package and the tests', async () => {
     const found = new Set(await javascriptFiles())
     const known = [
-      'packages/keybinds/src/core.js',
+      'packages/keybinds/src/keybinds.js',
       'packages/list/src/render.js',
       'packages/solid/src/to-watched.js',
       'scripts/release.js',

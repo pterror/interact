@@ -5,7 +5,7 @@
  * storing them, drawn only near what is in view, wired by hand from `@pterror/interact-list`, for the browser test.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   byEntry,
@@ -506,20 +506,17 @@ function dragTest(dragging, holds) {
 }
 
 /**
- * A command that starts something that finishes later
- * @param {string} id - The command
+ * A binding that starts something that finishes later
  * @param {string} key - Its key
- * @param {() => Promise<void>} run - What it does
- * @returns {import('@pterror/interact-keybinds').Command} The command
+ * @param {() => Promise<void>} start - What it does
+ * @returns {Readonly<{ keys: readonly string[], run: () => void }>} The binding
  */
-function later(id, key, run) {
+function later(key, start) {
   return {
-    execute: () => {
-      void run()
-    },
-    id,
     keys: [key],
-    label: id,
+    run: () => {
+      void start()
+    },
   }
 }
 
@@ -725,15 +722,15 @@ function putOverview() {
   }
   keybinds(
     [
-      later('next', 'ArrowDown', async () => moves.by(1)),
-      later('previous', 'ArrowUp', async () => moves.by(-1)),
-      later('first', 'Home', async () => moves.edge(1)),
-      later('last', 'End', async () => moves.edge(-1)),
-      later('parent', 'ArrowLeft', async () => {
+      later('ArrowDown', async () => moves.by(1)),
+      later('ArrowUp', async () => moves.by(-1)),
+      later('Home', async () => moves.edge(1)),
+      later('End', async () => moves.edge(-1)),
+      later('ArrowLeft', async () => {
         const region = activeRegion()
         return region === undefined || region.closed ? out.by(1) : opening.close(region.key)
       }),
-      later('first-member', 'ArrowRight', async () => {
+      later('ArrowRight', async () => {
         const region = activeRegion()
         if (region?.closed === true) {
           opening.open(region.key)
@@ -742,17 +739,14 @@ function putOverview() {
         return into.by(1)
       }),
       {
-        execute: () => {
+        keys: ['Space'],
+        run: () => {
           const key = active.get()
           selectedEntry.set(key === undefined ? undefined : entryOf(key))
         },
-        id: 'choose',
-        keys: ['Space'],
-        label: 'Choose',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: box },
+    { target: box },
   )
 }
 

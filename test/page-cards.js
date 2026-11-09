@@ -3,7 +3,7 @@
  * `@pterror/interact-list`, with its keys bound by keybinds, for the browser tests.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayCount,
@@ -100,20 +100,17 @@ function create(key) {
 }
 
 /**
- * A command that starts a move
- * @param {string} id - The command
+ * A binding that starts a move
  * @param {string} key - Its key
- * @param {() => Promise<void>} run - The move
- * @returns {import('@pterror/interact-keybinds').Command} The command
+ * @param {() => Promise<void>} start - The move
+ * @returns {Readonly<{ keys: readonly string[], run: () => void }>} The binding
  */
-function moving(id, key, run) {
+function moving(key, start) {
   return {
-    execute: () => {
-      void run()
-    },
-    id,
     keys: [key],
-    label: id,
+    run: () => {
+      void start()
+    },
   }
 }
 
@@ -220,25 +217,22 @@ function putCards() {
   const moves = move({ from: active.get, step, to: active.set })
   keybinds(
     [
-      moving('right', 'ArrowRight', async () => moves.by(1)),
-      moving('left', 'ArrowLeft', async () => moves.by(-1)),
-      moving('down', 'ArrowDown', async () => moves.by(layout.columns.get())),
-      moving('up', 'ArrowUp', async () => moves.by(-layout.columns.get())),
-      moving('first', 'Home', async () => moves.edge(1)),
-      moving('last', 'End', async () => moves.edge(-1)),
-      moving('shift-right', 'alt+ArrowRight', async () => shift(1)),
-      moving('shift-left', 'alt+ArrowLeft', async () => shift(-1)),
+      moving('ArrowRight', async () => moves.by(1)),
+      moving('ArrowLeft', async () => moves.by(-1)),
+      moving('ArrowDown', async () => moves.by(layout.columns.get())),
+      moving('ArrowUp', async () => moves.by(-layout.columns.get())),
+      moving('Home', async () => moves.edge(1)),
+      moving('End', async () => moves.edge(-1)),
+      moving('alt+ArrowRight', async () => shift(1)),
+      moving('alt+ArrowLeft', async () => shift(-1)),
       {
-        execute: () => {
+        keys: ['Enter', 'Space'],
+        run: () => {
           selected.set(active.get())
         },
-        id: 'choose',
-        keys: ['Enter', 'Space'],
-        label: 'Choose',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: box },
+    { target: box },
   )
   grid = { box, list, scroller }
   return grid

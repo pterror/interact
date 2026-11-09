@@ -2,7 +2,7 @@
  * A plain listbox of fruit, wired by hand from `@pterror/interact-list`, with its keys bound by keybinds, for the browser test.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayList,
@@ -127,48 +127,37 @@ function putListbox({ grouped = false } = {}) {
   keybinds(
     [
       {
-        execute: () => {
+        keys: ['ArrowDown'],
+        run: () => {
           void moves.by(1)
         },
-        id: 'next',
-        keys: ['ArrowDown'],
-        label: 'Next',
       },
       {
-        execute: () => {
+        keys: ['ArrowUp'],
+        run: () => {
           void moves.by(-1)
         },
-        id: 'previous',
-        keys: ['ArrowUp'],
-        label: 'Previous',
       },
       {
-        execute: () => {
+        keys: ['Home'],
+        run: () => {
           void moves.edge(1)
         },
-        id: 'first',
-        keys: ['Home'],
-        label: 'First',
       },
       {
-        execute: () => {
+        keys: ['End'],
+        run: () => {
           void moves.edge(-1)
         },
-        id: 'last',
-        keys: ['End'],
-        label: 'Last',
       },
       {
-        execute: () => {
+        keys: ['Enter', 'Space'],
+        run: () => {
           selected.set(active.get())
         },
-        id: 'choose',
-        keys: ['Enter', 'Space'],
-        label: 'Choose',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: box },
+    { target: box },
   )
 }
 

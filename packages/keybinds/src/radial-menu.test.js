@@ -1,148 +1,143 @@
-import { afterEach, describe, expect, test } from 'bun:test'
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from 'bun:test'
 
-import { RadialMenu, slotForKey } from './radial-menu.js'
-import { elementOf, shadowOf, textsOf } from './test-components.js'
-import { kbd } from './test-helpers.js'
+import { keybinds } from './keybinds.js'
+import { radialMenu } from './radial-menu.js'
+import { kbd } from './test-keys.js'
+import { fakePopovers } from './test-popover.js'
 
-const FIRST = 0
-const SLOTS = 8
-const RIGHT = 2
-const ONCE = 1
+/** @type {(() => void)[]} */
+const cleanups = []
 
-/** @type {Element[]} */
-const placed = []
+/** @type {() => void} */
+let unfake = () => undefined
+
+beforeAll(() => {
+  unfake = fakePopovers()
+})
+
+afterAll(() => {
+  unfake()
+})
 
 afterEach(() => {
-  for (const element of placed.splice(FIRST)) {
-    element.remove()
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup()
   }
 })
 
 /**
- * A listener that keeps the detail of each event it hears, as a CustomEvent carries it
- * @returns {Readonly<{ details: readonly unknown[], listener: (event: Event) => void }>} The listener, and the details
- *   as they're heard
- */
-function heardEvents() {
-  /** @type {unknown[]} */
-  const details = []
-  return {
-    details,
-    listener: (event) => {
-      details.push(event instanceof CustomEvent ? event.detail : undefined)
-    },
-  }
-}
-
-/**
- * An open radial menu in the page, with commands that note when they run
- * @param {readonly Readonly<{ id: string, when?: () => boolean }>[]} specs - The commands' ids, and when they apply
- * @returns {Readonly<{ heard: Readonly<{ close: readonly unknown[], command: readonly unknown[] }>, menu: RadialMenu,
- *   ran: readonly string[] }>} The menu, what ran, and the detail of each 'command' and 'close' it dispatched
+ * An open radial menu in the page, with items that note when they run
+ * @param {readonly Readonly<{ id: string, when?: () => boolean }>[]} specs - The items' names, and when they apply
+ * @returns {Readonly<{ element: HTMLElement, menu: ReturnType<typeof radialMenu>, ran: readonly string[] }>} Its
+ *   element, the menu, and what ran
  */
 function opened(specs) {
   /** @type {string[]} */
   const ran = []
-  const menu = elementOf('keybinds-radial-menu', RadialMenu)
-  const heard = { close: heardEvents(), command: heardEvents() }
-  menu.addEventListener('close', heard.close.listener)
-  menu.addEventListener('command', heard.command.listener)
-  document.body.append(menu)
-  placed.push(menu)
-  menu.commands = specs.map(({ id, when }) => ({
-    execute: () => ran.push(id),
-    id,
+  const element = document.createElement('div')
+  document.body.append(element)
+  const items = specs.map(({ id, when }) => ({
     label: id.toUpperCase(),
+    run: () => {
+      ran.push(id)
+    },
     ...(when === undefined ? {} : { when }),
   }))
+  const menu = radialMenu({ element, items: () => items })
+  cleanups.push(menu.stop, () => {
+    element.remove()
+  })
   menu.openAt({ x: 100, y: 100 })
-  return { heard: { close: heard.close.details, command: heard.command.details }, menu, ran }
+  return { element, menu, ran }
 }
 
 /**
- * A key going down on the page
+ * A key going down where focus is, as the menu has it
+ * @param {Element} element - The menu
  * @param {string} key - The key
- * @returns {void}
+ * @param {KeyboardEventInit} [init] - More of the event
+ * @returns {KeyboardEvent} The event
  */
-function press(key) {
-  document.dispatchEvent(kbd('keydown', { key }))
+function press(element, key, init = {}) {
+  const event = kbd('keydown', { code: key, key, ...init })
+  element.dispatchEvent(event)
+  return event
+}
+
+/**
+ * The labels of the slots shown, and which is active
+ * @param {Element} element - The menu
+ * @returns {readonly (string | undefined)[]} The labels, then the active one's
+ */
+function slots(element) {
+  return [
+    ...[...element.querySelectorAll('[role=menuitem]')].map((slot) => slot.textContent),
+    element.querySelector('[data-active]')?.textContent ?? undefined,
+  ]
 }
 
 describe('a radial menu', () => {
-  test('shows its first eight commands in slots, with eight spokes', () => {
-    const { menu } = opened(Array.from({ length: 10 }, (_unused, index) => ({ id: `c${index}` })))
-    expect(textsOf(menu, '.radial-menu__label')).toEqual(['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7'])
-    expect(shadowOf(menu).querySelectorAll('.radial-menu__spoke')).toHaveLength(SLOTS)
+  test('is a popover centred on the point while open, showing its first eight items in slots round it', () => {
+    const { element, menu } = opened(Array.from({ length: 10 }, (_unused, index) => ({ id: `c${String(index)}` })))
+    expect(slots(element)).toEqual(['C0', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', undefined])
+    expect([element.matches(':popover-open[role=menu]'), element.popover]).toEqual([true, 'manual'])
+    const { height, left, top, translate, width } = element.style
+    expect([left, top, translate, width, height]).toEqual(['100px', '100px', '-50% -50%', '264px', '264px'])
+    const first = element.querySelector('[role=menuitem]')
+    expect(first instanceof HTMLElement ? [first.style.left, first.style.top] : []).toEqual(['100px', '0px'])
+    menu.close()
+    expect([element.children.length, element.matches(':popover-open')]).toEqual([0, false])
   })
 
-  test('runs the slot an arrow chose on Enter, closing first, and says which', () => {
-    const { heard, menu, ran } = opened([{ id: 'up' }, { id: 'next' }, { id: 'right' }])
-    press('ArrowRight')
-    press('Enter')
-    expect([ran, menu.open]).toEqual([['right'], false])
-    expect(heard.command).toEqual([{ command: menu.commands[RIGHT] }])
+  test('runs the slot an arrow chose on Enter, closing first; Tab goes round', () => {
+    const { element, menu, ran } = opened([{ id: 'up' }, { id: 'next' }, { id: 'right' }])
+    press(element, 'ArrowRight')
+    expect(slots(element).at(-1)).toBe('RIGHT')
+    expect(element.getAttribute('aria-activedescendant')).toBe(element.querySelector('[data-active]')?.id ?? '')
+    press(element, 'ArrowDown')
+    expect(slots(element).at(-1)).toBe('RIGHT')
+    let closed = false
+    menu.open.watch(() => {
+      closed = !menu.open.get() && ran.length === 0
+    })
+    press(element, 'Enter')
+    expect([ran, closed, menu.open.get()]).toEqual([['right'], true, false])
   })
 
-  test('runs a slot clicked, but not one whose command does not apply', () => {
-    const { menu, ran } = opened([{ id: 'yes' }, { id: 'no', when: () => false }])
-    for (const slot of shadowOf(menu).querySelectorAll('[data-slot]')) {
-      slot.dispatchEvent(new MouseEvent('click'))
+  test('goes round with Tab and Shift+Tab', async () => {
+    const { element } = opened([{ id: 'a' }, { id: 'b' }])
+    press(element, 'Tab')
+    await Bun.sleep(0)
+    expect(slots(element).at(-1)).toBe('A')
+    press(element, 'Tab', { shiftKey: true })
+    await Bun.sleep(0)
+    expect(slots(element).at(-1)).toBe('B')
+  })
+
+  test('runs a slot clicked, but not one whose item does not apply, which is marked', () => {
+    const { element, ran } = opened([{ id: 'yes' }, { id: 'no', when: () => false }])
+    expect([...element.querySelectorAll('[aria-disabled=true]')].map((slot) => slot.textContent)).toEqual(['NO'])
+    for (const slot of [...element.querySelectorAll('[role=menuitem]')].toReversed()) {
+      slot.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     }
     expect(ran).toEqual(['yes'])
   })
 
-  test('closes on Escape, saying so', () => {
-    const { heard, menu } = opened([{ id: 'one' }])
-    press('Escape')
-    expect([menu.open, heard.close.length]).toEqual([false, ONCE])
-  })
-})
-
-const NONE = -1
-const FULL = 8
-const EMPTY = 0
-const THREE = 3
-const TOP = 0
-const BOTTOM = 4
-const LEFT = 6
-
-/**
- * A key going down
- * @param {string} key - The key
- * @param {boolean} [shiftKey] - Whether Shift is held (default false)
- * @returns {Readonly<{ key: string, shiftKey: boolean }>} The key
- */
-function pressed(key, shiftKey = false) {
-  return { key, shiftKey }
-}
-
-describe('the slot a key makes active', () => {
-  test.each([
-    ['ArrowUp', TOP],
-    ['ArrowRight', RIGHT],
-    ['ArrowDown', BOTTOM],
-    ['ArrowLeft', LEFT],
-  ])('is the one %s points at, when every slot is filled', (key, slot) => {
-    expect(slotForKey(pressed(key), { active: NONE, filled: FULL })).toBe(slot)
-  })
-
-  test('is the nearest filled one, clockwise first, when the one pointed at is empty', () => {
-    expect(slotForKey(pressed('ArrowDown'), { active: NONE, filled: THREE })).toBe(RIGHT)
-    expect(slotForKey(pressed('ArrowLeft'), { active: NONE, filled: THREE })).toBe(TOP)
-  })
-
-  test('goes round the filled slots with Tab, and back with Shift+Tab', () => {
-    expect(slotForKey(pressed('Tab'), { active: NONE, filled: THREE })).toBe(TOP)
-    expect(slotForKey(pressed('Tab'), { active: RIGHT, filled: THREE })).toBe(TOP)
-    expect(slotForKey(pressed('Tab', true), { active: TOP, filled: THREE })).toBe(RIGHT)
-    expect(slotForKey(pressed('Tab', true), { active: NONE, filled: THREE })).toBe(RIGHT)
-  })
-
-  test('is -1 for a key that moves when nothing is filled, and undefined for a key that does not move', () => {
-    expect([
-      slotForKey(pressed('ArrowUp'), { active: NONE, filled: EMPTY }),
-      slotForKey(pressed('Tab'), { active: NONE, filled: EMPTY }),
-    ]).toEqual([NONE, NONE])
-    expect(slotForKey(pressed('Enter'), { active: TOP, filled: FULL })).toBeUndefined()
+  test("closes on Escape, keeps the page's bindings from firing while open, and gives focus back", async () => {
+    const outside = mock(() => undefined)
+    const stop = keybinds([{ keys: ['Enter', 'Escape'], run: outside }], { target: document })
+    cleanups.push(stop)
+    const button = document.createElement('button')
+    document.body.append(button)
+    cleanups.push(() => {
+      button.remove()
+    })
+    button.focus()
+    const { element, menu } = opened([{ id: 'one' }])
+    await Bun.sleep(0)
+    expect(document.activeElement).toBe(element)
+    press(element, 'Enter')
+    press(element, 'Escape')
+    expect([menu.open.get(), outside.mock.calls.length, document.activeElement]).toEqual([false, 0, button])
   })
 })

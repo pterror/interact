@@ -1,66 +1,58 @@
 /**
- * <keybinds-cheatsheet>: every command's bindings, grouped by category, those that don't apply now grayed out.
- *
- * Attributes: `open`; `auto-trigger` (open while a modifier is held on its own; tapping it twice keeps it open);
- * `trigger-key` (the modifier: $mod by default, which is Meta on Mac and Control elsewhere, or Control, Alt, Shift,
- * Meta); `trigger-delay` (how long to hold it before opening, in ms; default 1000).
- *
- * Properties: `commands`, `context` (what `when` conditions see), `open`, `inputs` (which bindings are shown, and how;
- * default keys only).
- *
- * Events: `open` when it opens, however that happened; `close` when it's dismissed.
- *
- * Held open by its trigger, it shows while the modifier is held; tapping the modifier twice keeps it open, and tapping
- * twice again, Escape or a click outside closes it.
- *
- * Classes: .cheatsheet, __backdrop, __dialog, __group, __group-title, __list, __item (--disabled), __item-label,
- * __item-keys, __item-binding, __item-key.
+ * A ready-made cheatsheet, wired from small pieces: every binding in effect, grouped by category under a header row,
+ * those whose command doesn't apply now marked `aria-disabled`, shown while a modifier is held or after it is tapped
+ * twice, and closed by Escape or a press outside. While open it is a manual popover centred on the viewport, that
+ * has focus (given back as it closes), so by the overlay rule the page's bindings don't fire. Unstyled, in the light
+ * DOM: each group is a `role=group` labelled by its header; the only inline style is the popover's place. An app that
+ * wants one piece otherwise wires the rest itself: cheatsheetKeys() (which ids), bindingParts() (how bindings look),
+ * cheatsheetRow() (a row's contents), cheatsheetTrigger() (when it opens), categoryHeaders(), focusReturn(), with list's
+ * render, groupMount, mark, popover, focusWhen and dismiss.
  */
-import type { ActiveCommand, BindingField, Command, Context } from './command.js';
-import type { InputUI } from './input.js';
+export type Entry = Readonly<{
+    label: string;
+    category?: string;
+    hidden?: boolean;
+    keys?: readonly string[];
+    mouse?: readonly string[];
+    pad?: readonly string[];
+    axes?: readonly string[];
+}>;
+export type Overrides = Readonly<Record<string, Readonly<{
+    keys?: readonly string[];
+    mouse?: readonly string[];
+    pad?: readonly string[];
+    axes?: readonly string[];
+}>>>;
+export type Watched<T> = Readonly<{
+    get: () => T;
+    watch: (listener: () => void) => () => void;
+}>;
+export type CheatsheetOptions = Readonly<{
+    element: HTMLElement;
+    schema: Readonly<Record<string, Entry>>;
+    overrides?: Watched<Overrides>;
+    applies?: (id: string) => boolean;
+    layout?: Watched<ReadonlyMap<string, string> | undefined>;
+    modifier?: string;
+    delay?: number;
+    target?: EventTarget;
+}>;
 /**
- * The commands to show, by category: each id once (the last given), leaving out hidden commands and those with no
- * bindings through `fields`
- * @param {readonly Command[]} commands - The commands
- * @param {Context} [context] - The app's state, for whether each applies (default: empty)
- * @param {readonly BindingField[]} [fields] - Which bindings count (default: keys, mouse and gamepad)
- * @returns {Record<string, ActiveCommand[]>} The commands, by category ("Other" for none)
+ * Builds a cheatsheet in an element
+ * @param {CheatsheetOptions} options - Its element; the schema, and a person's overrides (bindingStore()); whether an
+ *   id's command applies now (default: all do); the person's keyboard layout (layout()); and its trigger, as for
+ *   cheatsheetTrigger()
+ * @returns {Readonly<{ open: Readonly<{ get: () => boolean, set: (open: boolean) => void,
+ *   watch: (listener: () => void) => () => void }>, stop: () => void }>} Whether it is open, and stopping
+ * @example
+ * const sheet = cheatsheet({ element, overrides: bindingStore(localStorageBindings('app:keys')), schema })
  */
-declare function groupByCategory(commands: readonly Command[], context?: Context, fields?: readonly BindingField[]): Record<string, ActiveCommand[]>;
-/** A cheatsheet of bindings */
-declare class KeybindCheatsheet extends HTMLElement {
-    #private;
-    static kind: string;
-    static observedAttributes: string[];
-    /** Builds the cheatsheet's shadow DOM */
-    constructor();
-    /** @returns {readonly InputUI[]} Which bindings are shown, and how */
-    get inputs(): readonly InputUI[];
-    /** @param {readonly InputUI[]} inputs - Which bindings are shown, and how */
-    set inputs(inputs: readonly InputUI[]);
-    /** @returns {readonly Command[]} The commands shown */
-    get commands(): readonly Command[];
-    /** @param {readonly Command[]} commands - The commands shown */
-    set commands(commands: readonly Command[]);
-    /** @returns {Context} What `when` conditions see */
-    get context(): Context;
-    /** @param {Context} context - What `when` conditions see */
-    set context(context: Context);
-    /** @returns {boolean} Whether it's open */
-    get open(): boolean;
-    /** @param {boolean} open - Whether it's open */
-    set open(open: boolean);
-    /**
-     * Follows its attributes
-     * @param {string} name - Which changed
-     * @param {string | null} _previous - Its value before
-     * @param {string | null} value - Its value now
-     * @returns {void}
-     */
-    attributeChangedCallback(name: string, _previous: string | null, value: string | null): void;
-    /** @returns {void} */
-    connectedCallback(): void;
-    /** @returns {void} */
-    disconnectedCallback(): void;
-}
-export { KeybindCheatsheet, groupByCategory };
+declare function cheatsheet({ applies, delay, element, layout, modifier, overrides, schema, target, }: CheatsheetOptions): Readonly<{
+    open: Readonly<{
+        get: () => boolean;
+        set: (open: boolean) => void;
+        watch: (listener: () => void) => () => void;
+    }>;
+    stop: () => void;
+}>;
+export { cheatsheet };

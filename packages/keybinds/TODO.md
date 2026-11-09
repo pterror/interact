@@ -1,89 +1,39 @@
 # TODO
 
 - [x] Publish to npm as `@pterror/interact-keybinds`
-- [x] Support keybindless actions — stop filtering out unbound commands in search/palette/cheatsheet
-- [x] Context menu support — add `menu` tag to commands, `<keybinds-basic-context-menu>` web component filtered by tag,
-      positioning, dismissal, keyboard nav. Motivating use case: graph editor (delete/edit node, create node, etc.).
-      High value precisely because this is hard to get right — absorb the complexity so users don't have to.
-- [x] `<keybinds-settings>` component — rebindable keybindings panel with recording, conflict detection/resolution,
-      per-command and global reset, store integration. Includes `eventToBindingString`, `eventToMouseBindingString`, and
-      `findConflict` utilities.
-- [x] Scroll (wheel) shortcuts. Scroll bindings now run once per step of scrolling (a notch, or 50px of trackpad
-      deltas), hold the page still between steps, end a gesture after 200 ms idle, and both numbers are options.
-- [x] Shifted punctuation bindings can never fire. Now any single character can be bound as itself and matches however
-      it's typed (`?` fires on Shift+/), `shift+<symbol>` / `shift+<digit>` are normalized to the physical key
-      (`shift+slash`, `shift+digit1`), and recording a shifted symbol stores the character.
-- [x] `styles/palette.css` didn't cover `<keybind-settings>` and hard-coded dark colors. It now styles every component,
-      selected by their `data-keybinds` kind, with all colors and fonts from `--keybinds-*` custom properties whose
-      defaults follow the page's color scheme.
-- [x] `formatKeyParts` showed code-name keys raw (`shift+slash` as "SLASH"). Physical key names now show as the
-      character they type.
-- [x] `<keybind-cheatsheet auto-trigger>` always held Control for 200 ms. It now holds `$mod` by default (Meta on Mac),
-      and `trigger-key` / `trigger-delay` attributes choose the modifier and delay.
-- [x] `dist/index.d.ts` was behind `src/index.js` and `build:types` failed on type errors; the four "failing" tests only
-      failed because `node_modules/happy-dom` was a symlink into another repo's newer happy-dom, whose elements reject
-      Bun's native events. The test setup now installs happy-dom's own DOM and event classes, so the suite passes on
-      either version.
-- [ ] `<keybinds-settings>` shows a "Release" switch on every binding, which makes the panel busy for something few
-      people use (seen in cyoa). Consider showing it only for bindings that are releases, or behind a per-binding menu.
-- [x] `BindingsStore` could only keep overrides in localStorage, so an app with its own state (or a server) had two
-      copies of a person's bindings. It now takes any `BindingsStorage` (`load`, `save`, optional `subscribe` to follow
-      changes made elsewhere); a string still means a localStorage key. `CommandHub` takes the same as
-      `storage: (scope) => BindingsStorage`.
-- [x] A binding only fired with exactly its modifiers, so a game's `w` stopped working while Shift was held for
-      something else. Commands can now set `anyModifiers: true`: their bindings match whatever else is held (their own
-      modifiers still required), with exact bindings still first.
-- [x] A key held while the window lost focus never got its release (the keyup goes to whatever has focus), so holds
-      stayed open. Held keys are now released on blur; held mouse buttons are checked against `MouseEvent.buttons` on
-      the next mouse event instead, since they may still be down.
-- [x] Held controls (a game's movement) had to be pieced together from press and release bindings. `keybinds()` now
-      returns its cleanup with `held(id)`, and `CommandHub` has `held(id)`.
-- [x] Gamepad buttons as triggers: `gamepad: ['a', 'rt:up']` on commands and schemas, rebindable in
-      `<keybinds-settings>` (shown while a pad is connected), listed in the cheatsheet, `hub.gamepadFor(id)`. Pads are
-      read each frame only while something binds a gamepad button and a pad is connected.
-- [x] Axes: continuous inputs read every frame (`keybinds(..., { axes })`, `kb.axis(id)` → `{ position, delta }`), from
-      mouse movement, sticks, triggers or key pairs, with a leading `-` to invert. Rebindable in the settings panel;
-      `hub.setAxes`, `hub.axis`, `hub.axesFor`.
-- [ ] The cheatsheet doesn't list axes.
-- [x] Everything was one 5,400-line file and `keybinds()` handled every kind of input in one closure, so a keyboard-only
-      app shipped gamepad polling and axis code too. Each input (`keys()`, `mouse()`, `gamepad()`, `axes()`) is now its
-      own module passed in as `inputs`; a binding no input reads is an error. Components and the hub are separate
-      modules too, and the hub takes the component classes it should make. Keyboard-only `keybinds()` went from 5.1 KB
-      to 3.6 KB gzipped.
-- [x] The three menus (basic context menu, searchable context menu, radial menu) were about 880 lines between them, each
-      with its own rendering, keyboard navigation and dismissal. The two context menus are gone: an app draws its own
-      menus. The radial menu is still keybinds' own.
-- [x] `src/index.test.js` was one file covering every module, and a test could pass only because another registered a
-      component first. Each module has its own test file now, importing only that module and `src/test-helpers.js`, and
-      each passes run alone.
-- [x] Each input was one object holding parsing, listening, formatting and recording, so a keyboard-only app shipped the
-      settings panel's recorder and the cheatsheet's glyph table. Formatting and recording are now each input's UI half
-      (`keysUI()` in `keys-ui.js`, ...), which only the components need. The modal check named every component in a
-      selector; components now carry `data-keybinds-modal` instead, which a page's own dialogs can use too.
-      Keyboard-only `keybinds()` is 2.7 KB gzipped, from 3.6.
-- [x] The key parser handled every piece of syntax at once. Releases (`:up`), `anyModifiers`, typed characters (`?`) and
-      key aliases (`up`, `plus`) are now each a module (`releases()`, `anyModifiers()`, `symbols()`, `aliases()`);
-      without one, its syntax is an error naming it. They turned out to be about 0.5 KB together; the bare keyboard is
-      2.57 KB, mostly the dispatcher, the listener and binding validation.
-- [x] No key sequences, no hold/tap bindings, and keys shown as on a US layout whatever the person's layout. Now
-      `sequences()` (`g i`, `ctrl+k ctrl+s`, `j j`), `holds()` (`k:hold`, `k:tap`) and
-      `keysUI(layout(await loadLayout()))`, each opt-in. To make room, inputs report presses starting and ending and the
-      core runs what's bound, with releases and holds as phases hooked into that.
-- [x] The settings panel couldn't record a sequence or a hold, and a layout was read once. Recording now has Hold, Tap
-      and Steps switches (with `holds`/`sequences` on), and `layout()` follows the person switching layouts, updating
-      the settings panel and an open cheatsheet.
-- [x] `CommandPalette` and `ContextMenu` set `this.inputs` at runtime, but their generated declarations didn't have the
-      property, so a page creating them with `createComponent` had to cast to set it (seen in pteraworld's
-      src/input.ts). Both are gone.
-- [x] keybinds wasn't under the repo's rules: lint, the no-casts rule and the stylesheet rule skipped it behind a fence.
-      Now nothing is fenced, and `bun run check` and the rule tests cover all of it. Its JSDoc casts are gone, the menus
-      share one list, and the settings panel is split by what each part owns.
-- [x] `styles/palette.css` selectors had specificity and sat outside cascade layers. Every selector is now `:where()`
-      inside `@layer keybinds.theme`, so a page's own unlayered rules win over it; the components' computed styles are
-      the same as before in Chrome, Firefox and WebKit.
-- [x] The palette, both context menus and `data-command` buttons are out of keybinds: an app draws them itself. The
-      cheatsheet, the settings panel and the radial menu stay keybinds' own web components.
-- [x] With the palette and menus gone, `CommandHub`, its command system, searching (`searchCommands`, the matchers,
-      `defaultScorer`, `inMenu`), `createComponent`, `registerComponents`, `executeCommand` and `validateCommands` had
-      no users left, and are deleted, with the `menu` and `rank` command fields only they read. An app defines the
-      components under names of its own (`customElements.define`); `keybinds()` checks bindings as it starts.
+- [x] Scroll (wheel) shortcuts: a press per notch or per 50 px of trackpad deltas, the page held still during a bound
+      gesture, which 200 ms idle ends; both numbers are options.
+- [x] Shifted punctuation: any single character can be bound as itself (`symbols()`) and fires however it is typed (`?`
+      on Shift+/); `shift+<symbol>` and `shift+<digit>` mean the physical key (`shift+slash`, `shift+digit1`), and
+      recording a shifted symbol writes the character.
+- [x] Physical key names show as the character they type on the person's layout (`layout()`, followed as it changes).
+- [x] Overrides kept in any storage (`bindingStore({ load, save, subscribe? })`), localStorage among them.
+- [x] `anyModifiers`: a binding that matches whatever other modifiers are held, its own still required.
+- [x] Held keys released when the window loses focus; held mouse buttons checked against the next mouse event.
+- [x] Gamepad buttons as presses, read each frame only while a pad is connected and something watches.
+- [x] Axes from mouse movement, sticks, triggers and key pairs, with `-` to invert.
+- [x] Sequences (`g i`), holds and taps (`k:hold`, `k:tap`), recordable in the settings panel.
+- [x] The rebuild: the package is small modules wired by hand (the engine as Sinks over Finds, each input, each piece of
+      key syntax, each axis, each format and recorder its own module), with `keybinds()` as one ready-made wiring and
+      the cheatsheet, radial menu and settings panel as unstyled compositions over `@pterror/interact-list`. No context
+      bag, no command shape beyond the fields a module reads, no custom elements, no stylesheet.
+- [x] The settings panel shows a Release switch only on a binding that is a release (it turns it back into a press);
+      recording a release is a switch in the prompt, offered while releases are on.
+- [x] The cheatsheet lists axes.
+- [x] Space bound with `when: not typing` no longer hides the key from a `printed` binding: a table gives every lookup's
+      handlers, best first.
+
+## Open
+
+- [ ] A centred popover (the radial menu, the cheatsheet) isn't kept inside the viewport.
+- [ ] The browser's default popover styles (border, background) apply until the app styles them. The radial menu sets
+      its box's padding to 0 inline, as its slots are placed inside it.
+- [ ] The cheatsheet takes focus while open, so a shortcut pressed while it is open goes to it, not the page.
+- [ ] Escape doesn't cancel the settings panel's conflict question.
+- [ ] Rebuilding a settings row moves focus off the button that was clicked.
+- [ ] Should gamepad presses be blocked by any open overlay, or (as now) only while focus is inside one?
+- [ ] Is a click in a text field typing?
+- [ ] `axis()` given a binding it wasn't given throws; should it read zero?
+- [ ] The binding field `typing` sits beside typeahead's `typing` state, which means something else.
+- [ ] `isMac` is read once, at load.
+- [ ] `keybinds()` returns stopping (and `axis`) but not `held(id)`.

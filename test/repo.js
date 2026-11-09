@@ -1,5 +1,5 @@
 /**
- * What the repo's rule tests check: its packages' manifests, modules and stylesheets.
+ * What the repo's rule tests check: its packages' manifests and modules, and that they ship no stylesheet.
  */
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -74,24 +74,70 @@ function outsideDependencies(all) {
 }
 
 /**
- * Whether a `sideEffects` field says only stylesheets have side effects
- * @param {unknown} sideEffects - The field's value
- * @returns {boolean} Whether it is false, or lists only .css files
- */
-function onlyStylesheets(sideEffects) {
-  return (
-    sideEffects === false ||
-    (Array.isArray(sideEffects) && sideEffects.every((entry) => typeof entry === 'string' && entry.endsWith('.css')))
-  )
-}
-
-/**
- * Packages whose `sideEffects` allows anything but stylesheets
+ * Packages whose `sideEffects` isn't false: importing any of their modules may do something
  * @param {readonly Manifest[]} all - Every package's manifest
  * @returns {string[]} Their names
  */
-function sideEffectsBeyondStylesheets(all) {
-  return all.filter(({ sideEffects }) => !onlyStylesheets(sideEffects)).map(({ name }) => name)
+function withSideEffects(all) {
+  return all.filter(({ sideEffects }) => sideEffects !== false).map(({ name }) => name)
+}
+
+/**
+ * Every file in the packages, their dependencies aside
+ * @returns {Promise<string[]>} Their paths, from the repo root
+ */
+async function packageFiles() {
+  const all = await paths('packages/**/*')
+  return all.filter((path) => !path.includes('/node_modules/'))
+}
+
+/**
+ * The stylesheets among some files
+ * @param {readonly string[]} files - The files, from the repo root
+ * @returns {string[]} Those that are .css
+ */
+function stylesheetFiles(files) {
+  return files.filter((path) => path.endsWith('.css'))
+}
+
+/** @type {readonly Readonly<{ pattern: RegExp, what: string }>[]} */
+const STYLES = [
+  { pattern: /\bCSSStyleSheet\b/u, what: 'a constructed stylesheet' },
+  { pattern: /\badoptedStyleSheets\b/u, what: 'adopted stylesheets' },
+  { pattern: /\binsertRule\s*\(/u, what: 'an inserted rule' },
+  { pattern: /createElement\(\s*['"`]style['"`]\s*\)/u, what: 'a style element' },
+  { pattern: /<style[\s>]/u, what: 'a style element' },
+  { pattern: /(?:from|import)\s*\(?\s*['"`][^'"`]*\.css['"`]/u, what: 'an imported stylesheet' },
+]
+
+/**
+ * Ways some JavaScript carries CSS of its own (inline geometry, set property by property, is behaviour, not this)
+ * @param {string} text - The JavaScript
+ * @returns {string[]} What each is
+ */
+function stylesIn(text) {
+  return [...new Set(STYLES.filter(({ pattern }) => pattern.test(text)).map(({ what }) => what))]
+}
+
+/**
+ * The modules the packages ship: their sources, tests and test helpers aside
+ * @returns {Promise<string[]>} Their paths, from the repo root
+ */
+async function shippedModules() {
+  const all = await paths('packages/*/src/**/*.js')
+  return all.filter((path) => !path.endsWith('.test.js') && !/(?:^|\/)test-[^/]*\.js$/u.test(path))
+}
+
+/**
+ * CSS the packages ship: stylesheet files, and CSS in their modules
+ * @returns {Promise<string[]>} Each as a path, or "path: what"
+ */
+async function shippedStyles() {
+  const [files, modules] = await Promise.all([packageFiles(), shippedModules()])
+  const inModules = await Promise.all(
+    modules.map(async (path) => stylesIn(await Bun.file(`${ROOT}${path}`).text()).map((what) => `${path}: ${what}`)),
+  )
+  return [...stylesheetFiles(files), ...inModules.flat()]
 }
 
 /**
@@ -104,12 +150,11 @@ async function load(path) {
 }
 
 /**
- * Imports every module in the packages' sources, tests and their helpers aside
+ * Imports every module the packages ship
  * @returns {Promise<void>} When all have loaded
  */
 async function importEveryModule() {
-  const all = await paths('packages/*/src/**/*.js')
-  const modules = all.filter((path) => !path.endsWith('.test.js') && !path.endsWith('/test-helpers.js'))
+  const modules = await shippedModules()
   await Promise.all(modules.map(async (path) => load(`${ROOT}${path}`)))
 }
 
@@ -197,7 +242,12 @@ export {
   licenseMismatches,
   manifests,
   outsideDependencies,
+  packageFiles,
   paths,
-  sideEffectsBeyondStylesheets,
+  shippedModules,
+  shippedStyles,
+  stylesIn,
+  stylesheetFiles,
   typeEscapes,
+  withSideEffects,
 }

@@ -1,35 +1,18 @@
-# Design Notes
+# Design notes
 
-## Why keybinds has a settings UI but not a general settings UI
+The design, its rules and what changed in review are in the repo's
+[docs/design.md](https://github.com/pterror/interact/blob/master/docs/design.md), under "Keybinds". In short:
 
-A general-purpose settings component doesn't make sense as a library in this style. Here's why.
+- Each module does one thing and declares the shapes it uses (Find, Sink, Handler, Query, ...); the app wires them by
+  hand. `keybinds()` is one such wiring, for pages and simple apps.
+- Which table a binding goes in is the syntax it uses (`k:up` is a release), decided by the composition, not the engine;
+  the engine has no list of phases or inputs.
+- An overlay blocks a binding by where the binding listens: inside the overlay, or on it, it hears its keys.
 
-### Settings UIs are almost entirely opinion
+## Why it ships UI, and no stylesheet
 
-The hard part of a settings UI is layout, grouping, responsive behavior, visual hierarchy, and information architecture.
-The data model is trivial: key-value pairs with types. Every framework already has form primitives (`<input>`,
-`<select>`, `<textarea>`). The real challenge is deciding _what goes where_ — and that's entirely application-specific.
-
-A library that tries to solve this either:
-
-- Ships an opinionated layout that won't match your app (useless)
-- Ships a headless data layer for something trivially simple (pointless)
-
-### `<keybinds-settings>` works because the scope is locked
-
-Keybind settings are different. The library owns the data model: binding strings, conflict detection, recording state
-machines, `$mod` normalization, modifier parsing. This is genuinely hard to get right and users shouldn't have to
-reimplement it.
-
-The UI surface is also constrained: show bindings, let users record new ones, handle conflicts. There's one right way to
-do it (record → detect conflict → resolve or cancel). The component can be unstyled via `::part()` selectors without
-losing its value.
-
-### Contrast with the keybinds library itself
-
-The keybinds library succeeds for the same reason: the hard part is the data model (key combos, modifier normalization,
-context conditions, conflict detection, event dispatch) and the UI is minimal (a few `<kbd>` elements, a search input).
-The complexity is in the engine, not the presentation.
-
-A settings library would be the inverse: trivial engine, complex presentation. That's a bad fit for a zero-dependency
-library.
+The cheatsheet, the radial menu and the settings panel own hard parts an app shouldn't redo: recording a binding with
+its modifiers and suffix, asking before taking another command's binding, writing only what differs from the defaults, a
+radial menu's directions, focus going in and coming back, the overlay rule while open. How they look is the app's: they
+are light DOM with their state in `aria-*` and `data-*` attributes, so the app's own CSS styles them with no specificity
+or shadow boundary to fight, and a piece the app wants otherwise is replaced by copying a few lines of wiring.

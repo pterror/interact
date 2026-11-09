@@ -3,7 +3,7 @@
  * by hand from `@pterror/interact-list`, with its keys bound by keybinds, for the browser test.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   cell,
@@ -121,20 +121,17 @@ function fixed(value) {
 }
 
 /**
- * Binds a key to a move
- * @param {string} id - The command
+ * A binding of a key to a move
  * @param {string} key - The key
- * @param {() => Promise<void>} run - The move
- * @returns {import('@pterror/interact-keybinds').Command} The command
+ * @param {() => Promise<void>} start - The move
+ * @returns {Readonly<{ keys: readonly string[], run: () => void }>} The binding
  */
-function moving(id, key, run) {
+function moving(key, start) {
   return {
-    execute: () => {
-      void run()
-    },
-    id,
     keys: [key],
-    label: id,
+    run: () => {
+      void start()
+    },
   }
 }
 
@@ -253,22 +250,19 @@ function putWindowed({ late = false } = {}) {
   })
   keybinds(
     [
-      moving('next', 'ArrowDown', async () => moves.by(1)),
-      moving('previous', 'ArrowUp', async () => moves.by(-1)),
-      moving('first', 'Home', async () => moves.edge(1)),
-      moving('last', 'End', async () => moves.edge(-1)),
-      moving('page', 'PageDown', async () => moves.by(Math.floor(scroller.clientHeight / ROW_HEIGHT))),
+      moving('ArrowDown', async () => moves.by(1)),
+      moving('ArrowUp', async () => moves.by(-1)),
+      moving('Home', async () => moves.edge(1)),
+      moving('End', async () => moves.edge(-1)),
+      moving('PageDown', async () => moves.by(Math.floor(scroller.clientHeight / ROW_HEIGHT))),
       {
-        execute: () => {
+        keys: ['Enter', 'Space'],
+        run: () => {
           selected.set(active.get())
         },
-        id: 'choose',
-        keys: ['Enter', 'Space'],
-        label: 'Choose',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: box },
+    { target: box },
   )
 }
 

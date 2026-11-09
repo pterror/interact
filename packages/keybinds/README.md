@@ -1,50 +1,35 @@
 # @pterror/interact-keybinds
 
-Declarative, contextual keybindings for the web. Zero dependencies.
-
-## Install
+Keybindings for the web, built from small modules the app wires by hand: the keyboard, the mouse and gamepads as
+presses; an engine that runs what they are bound to (presses, releases, holds, sequences); axes read when the app asks;
+showing, recording and keeping people's rebindings; and an unstyled cheatsheet, radial menu and settings panel made of
+those modules and `@pterror/interact-list`. No stylesheet, no custom elements; importing a module does nothing.
 
 ```bash
 npm install @pterror/interact-keybinds
 ```
 
-## Usage
-
 ```js
-import { KeybindCheatsheet, keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 
-import '@pterror/interact-keybinds/styles/palette.css'
-
-const commands = [
-  {
-    id: 'save',
-    label: 'Save document',
-    category: 'File',
-    keys: ['$mod+s'],
-    execute: () => save(),
-  },
-]
-
-keybinds(commands, undefined, { inputs: [keys()] })
-
-// Optional: keybinds' own UI components (cheatsheet, settings, radial menu), defined under names of your choosing
-customElements.define('keybinds-cheatsheet', KeybindCheatsheet)
-document.querySelector('keybinds-cheatsheet').commands = commands
+const stop = keybinds([
+  { keys: ['$mod+s'], run: () => save() },
+  { keys: ['Escape'], run: () => close(), when: () => isOpen() },
+])
 ```
 
-`$mod` maps to `Cmd` on Mac, `Ctrl` elsewhere.
+`$mod` is Meta on a Mac and Ctrl elsewhere. `keybinds()` is a ready-made composition; an app that wants something else
+wires the modules itself (`presses`, `keyListen`, `bindingTable`, ...). Each module is also its own entry point
+(`@pterror/interact-keybinds/key-listen`, ...).
 
-## Features
-
-- **Schema-driven** — define bindings as data, separate triggers from handlers
-- **Context-aware** — commands activate based on application state
-- **User-rebindable** — `BindingsStore` persists overrides to localStorage, or to any storage you give it
-- **Discoverable** — a cheatsheet, a settings panel for rebinding and a radial menu, as custom elements
-- **Framework-agnostic** — pure JS core, works anywhere
+The ready-made UI (`cheatsheet()`, `radialMenu()`, `settings()`) builds into an element the app gives it, in the light
+DOM, and shows its state only as `aria-*` and `data-*` attributes; the app styles it. Each is a few lines wiring
+exported pieces, so an app replaces one piece and keeps the rest.
 
 ## Docs
 
-[pterror.github.io/keybinds](https://pterror.github.io/keybinds/)
+[pterror.github.io/keybinds](https://pterror.github.io/keybinds/); the design is in
+[docs/design.md](https://github.com/pterror/interact/blob/master/docs/design.md).
 
 ## License
 

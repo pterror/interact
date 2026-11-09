@@ -7,8 +7,8 @@ import { describe, expect, test } from 'bun:test'
 
 const keybinds = await import('./index.js')
 const PACKAGE = new URL('..', import.meta.url).pathname
-const REFERENCE = ['docs/reference/index.md', 'docs/reference/components.md']
-const TYPESCRIPT_OWN = new Set(['Omit', 'Partial', 'Pick', 'Readonly', 'Record', 'Window'])
+const REFERENCE = ['docs/reference/index.md', 'docs/reference/ui.md']
+const TYPESCRIPT_OWN = new Set(['Omit', 'Partial', 'Pick', 'Readonly', 'ReadonlyMap', 'Record', 'Window'])
 const TYPE_PARAMETER = /^[A-Z]$/u
 
 /**

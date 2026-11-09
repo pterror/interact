@@ -14,6 +14,9 @@ Every name and every UX choice here is a proposal for the owner, not decided. Pr
   answers arriving in order (a module applies only the answer to its latest question), on how big anything is, or on
   which elements exist at a given moment.
 - Keys are opaque item identities. Nothing reads their contents.
+- Ready-made UI is unstyled: light DOM, no shadow root, no stylesheet; its state shows only as `aria-*` and `data-*`
+  attributes; the only inline style is geometry that is behaviour (a popover's place, a radial slot's place). The app
+  styles it.
 
 ## Abstractions
 
@@ -346,6 +349,30 @@ above it closes or opens.
   they listen), and bindings on the overlay or inside it fire. No option was needed: where a listener listens already
   says whose keys it handles.
 
+- **Keybinds, from the review's proposed structure** (built in the rebuild):
+  - `Sink.down` returns the handler that took the press, not a boolean, and `up` takes `{ id, event, typing, blocked }`:
+    release bindings need to know which handler took the press, so a held key's release always comes, and an unrelated
+    release whose `when` fails doesn't run.
+  - `releases` takes `took(id)`; `holds` returns `held`, `took` and `stop`; the wiring order is
+    `keyListen → sequences → releases → holds → presses`.
+  - A Handler has `typing?`: a `when()` can't know the press was in a text field, and the default must stay "not while
+    typing".
+  - `blocked` lives only on the listeners, since it depends on where they listen; `presses` has none. Pads have no event
+    path, so they are blocked by `focusInOverlay(target)`, the same rule applied to the focused element.
+  - `keyListen` takes `query: (event) → Query`, and its held keys are keyed by lookups without modifiers, so a
+    `keys:a/d` axis follows the layout; key syntax pieces gained `fallback` and `accepts`.
+  - Axes: `axisWhen(value, when)` wraps a Value (nothing global in each axis); `mouseAxis` returns `{ read, stop }`;
+    `scaleAxis` added (inversion and sensitivity); `modifierAlone`, shared by `modifierHold` and `modifierTaps`.
+  - Scroll bindings need `wheel.bound(query)`, so the page is held still only during a bound gesture.
+  - `formatX` formats one step; `formatSteps` adds then/Release/Hold/Tap; `splitBinding` is the one step/suffix
+    splitter.
+  - list's `popover` gained an Anchor shape (anything with `getBoundingClientRect`, so a point) and a centred side, so
+    the radial menu and the cheatsheet are manual popovers (in the top layer, blocking the page's bindings by the
+    overlay rule) rather than hidden and positioned by the app; `radialPlace` lost its centre.
+  - `recording` hands `done(slot, binding)` and leaves the conflict question to the settings panel; `rebind` writes a
+    replace in one set.
+  - The `gamepad` field is now `pad` (a hard cutover).
+
 ## Solid (`packages/solid`)
 
 One bridge per abstraction, none per module: `toValue`, `toWatched`, `toDrawn` and `toSet` make a signal or memo a
@@ -384,33 +411,62 @@ Each server module asks for what a window needs in one request, and caches what 
 
 ## Keybinds (`packages/keybinds`)
 
-No module here depends on keybinds. The app may use `keybinds(commands, context, { target, inputs: [keys()] })` to call
-`move.by`, `toggle` and the rest, with `target` the focused element of each level. Where it fits: per-element `target`,
-`captureInput` (the combobox's field), `execute` returning false to pass a key on.
+No module of list depends on keybinds. The app binds `move.by`, `toggle` and the rest with keybinds, per element
+(`target`: the focused element of each level), `typing` on the combobox's field, and `run` returning false to pass a key
+on.
 
-**Designed change, for typeahead.**
+**Shapes** (each module declares those it uses; keybinds' Find is its own, not typeahead's):
 
-- A key syntax piece `printed()` **(P)**, beside `symbols()` and `aliases()`: it accepts the key name `printed`, and
-  adds the lookup `printed` to every key event that types one character with no Ctrl, Alt or Meta (Shift allowed). The
-  command gets the event, and so `event.key`. This adds a module; nothing in keybinds changes for it.
-- `BindingIndex.exact` in `core.js` returns the commands of the first lookup that has any, so a command bound to Space
-  whose `when` doesn't hold stops the event reaching the `printed` binding. Lookups are already "best first"; the index
-  should return every lookup's commands in that order, so the first command that applies runs. That is a fix to the
-  abstraction, and changes which command runs only where the first lookup's commands don't apply.
+| Shape   | Is                                                                                                       |
+| ------- | -------------------------------------------------------------------------------------------------------- |
+| Query   | `{ exact, bare, mods }`: a press's lookups best first, the same without modifiers, the modifiers held    |
+| Handler | `{ run(event) → bool \| void, when?, typing? }`: runs unless `when()` is false; `false` leaves the event |
+| Find    | `(query) → Handler[]`: every lookup's handlers, best first                                               |
+| Press   | `{ id, query, event, typing, repeat }`                                                                   |
+| Release | `{ id, event, typing, blocked }`                                                                         |
+| Sink    | `down(press) → Handler \| none` (the handler that took it), `up(release)`                                |
 
-Where it doesn't fit these rules otherwise:
+**Modules.**
 
-- **Open/closed.** `core.js` names each optional piece as its own option (`releases`, `holds`, `sequences`,
-  `anyModifiers`) and calls them by name; `binding.js` hard-codes the suffixes `:up`, `:hold`, `:tap` and the modules
-  they need; `command.js` hard-codes the input kinds (`BINDING_FIELDS`: keys, mouse, gamepad). A new phase, suffix or
-  kind of input means editing those files.
-- **Module as parameter.** `inputs`, `releases`, `holds`, `sequences` and `anyModifiers` are module instances handed to
-  `keybinds()`.
-- **Interface segregation.** `Command` makes `label` required and carries the cheatsheet's fields (`category`,
-  `description`, `hidden`) that binding a key doesn't use. `Dispatch`, given to every input, bundles context, presses,
-  candidates, axes and execution.
-- **Dependency inversion.** `Input` and `Dispatch` are declared in `input.js`, beside the inputs, not by `core.js`,
-  which uses them.
+- Engine: `presses(find)` (runs the first handler that applies, takes the event; `held`, `took(id)`),
+  `releases({ find, to, took })`, `holds({ hold, tap, delay, to })`, `sequences({ entries, timeout, to })`, each a Sink
+  handing on to `to`; `bindingTable` (by `exact`), `looseTable` (by `bare`, the binding's own modifiers required),
+  `anyOf` (Finds in turn); `runFirst`, `applies`, `take`.
+- Inputs: `keyListen` (keys by `event.code`; `held`, keyed by lookups without modifiers), `mouseListen` (buttons, and
+  scrolling as steps with `wheel.bound(query)`), `pads` (one polling loop) and `padButtons`. Each takes `blocked`.
+- Syntax: `keyParse`/`keyQuery` with the pieces `symbols()`, `aliases()` and `printed()`; `mouseParse`, `padParse`,
+  `axisParse`; `splitBinding`, the one step/suffix splitter; `modifiers`; `punctuation`.
+- Axes, as Values `() → { position, delta }`: `keyPairAxis`, `mouseAxis`, `padAxis`, `sumAxis`, `scaleAxis`, `axisWhen`.
+- Display: `formatKey`, `formatMouse`, `formatPad`, `formatAxis` (one step each), `formatSteps`, `bindingParts`,
+  `layout` (a Watched glyph map).
+- Modifiers alone: `modifierAlone`, and `modifierHold`, `modifierTaps` made from it.
+- Rebinding: `bindingStore` over a storage (`localStorageBindings`), `bound`, `rebind`, `changedFields`, `findConflict`,
+  `bindingLookup`, `flipRelease`; `recording` (the state machine) and `recordKey`, `recordMouse`, `recordPad`,
+  `recordAxis`.
+- Compositions: `keybinds(bindings, options)`, and the ready-made UI `cheatsheet`, `radialMenu`, `settings`, each wiring
+  exported pieces (`cheatsheetKeys`, `cheatsheetRow`, `cheatsheetTrigger`, `categoryHeaders`, `focusReturn`;
+  `radialPlace`, a Place, and `radialStep`, a Step; `settingsKeys`, `settingsRow`, `settingsChip`, `settingsPrompt`,
+  `settingsQuestion`, `settingsRecorder`, `conflictQuestion`, `rebindKeys`/`Mouse`/`Pad`/`Axes`) with list's render,
+  groupMount, mark, move, pick, hoverIntent, popover, focusWhen and dismiss.
+
+Wiring, for one input: `keyListen → sequences → releases → holds → presses`; `releases` is given `took` from holds and
+presses. Which table a binding goes in is the syntax it names (`k:up`, `k:hold`, `k:tap`, `g i`), decided in
+`keybinds()`, not in the engine; no module lists phases or kinds of input.
+
+**The overlay rule.** An open `<dialog>`, popover or `[data-keybinds-modal][open]` blocks a listener when it lies
+between the event's target and where the listener listens: `outsideOverlay(listener)`, passed as `blocked`. Bindings on
+the overlay or inside it fire, so a menu level binds its keys on itself. Gamepads and axes have no event path, so they
+are blocked by `focusInOverlay(listener)`, the same rule from the focused element. The radial menu and the cheatsheet
+are manual popovers with focus while open, so the page's bindings don't fire then.
+
+**Typeahead.** `printed()` adds the key name `printed`: a fallback lookup, after every other, for a key typing one
+character with no Ctrl, Alt or Meta. Find gives every lookup's handlers best first, so Space bound with
+`when: not typing` leaves a Space inside a prefix to the `printed` binding.
+
+UX **(P)**: the radial menu's radius 100 px and slot 64 px; the cheatsheet opens after its modifier is held 1000 ms;
+recording takes the steps so far after a 1000 ms pause; the settings panel shows a Release switch only on a binding that
+is a release (it turns it back into a press), and recording a release is a switch in the prompt; the panel's texts
+("Press a key...", "+ Key", "Reset", "Reset all", "Already bound to …", "Replace", "Cancel").
 
 ## SOLID check
 

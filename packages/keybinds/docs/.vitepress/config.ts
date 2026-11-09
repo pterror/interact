@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'keybinds',
-  description: 'Declarative, contextual keybindings for the web',
+  description: 'Keybindings for the web, as small modules',
   base: '/keybinds/',
 
   themeConfig: {
@@ -17,17 +17,15 @@ export default defineConfig({
           text: 'Guide',
           items: [
             { text: 'Getting Started', link: '/guide/' },
-            { text: 'Commands', link: '/guide/commands' },
-            { text: 'Context', link: '/guide/context' },
-            { text: 'Components', link: '/guide/components' },
-            { text: 'Styling', link: '/guide/styling' },
+            { text: 'Modules', link: '/guide/modules' },
+            { text: 'Ready-made UI', link: '/guide/ui' },
           ],
         },
         {
           text: 'Reference',
           items: [
             { text: 'API', link: '/reference/' },
-            { text: 'Components', link: '/reference/components' },
+            { text: 'Ready-made UI', link: '/reference/ui' },
           ],
         },
       ],

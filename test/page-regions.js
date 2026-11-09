@@ -4,7 +4,7 @@
  * test.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayCount,
@@ -124,20 +124,17 @@ function dragTest(dragging, holds) {
 }
 
 /**
- * A command that starts something that finishes later
- * @param {string} id - The command
+ * A binding that starts something that finishes later
  * @param {string} key - Its key
- * @param {() => Promise<void>} run - What it does
- * @returns {import('@pterror/interact-keybinds').Command} The command
+ * @param {() => Promise<void>} start - What it does
+ * @returns {Readonly<{ keys: readonly string[], run: () => void }>} The binding
  */
-function later(id, key, run) {
+function later(key, start) {
   return {
-    execute: () => {
-      void run()
-    },
-    id,
     keys: [key],
-    label: id,
+    run: () => {
+      void start()
+    },
   }
 }
 
@@ -262,25 +259,22 @@ function putRegions() {
   }
   keybinds(
     [
-      later('right', 'ArrowRight', async () => sideways.by(1)),
-      later('left', 'ArrowLeft', async () => sideways.by(-1)),
-      later('down', 'ArrowDown', async () => vertical.by(1)),
-      later('up', 'ArrowUp', async () => vertical.by(-1)),
-      later('first', 'Home', async () => sideways.edge(1)),
-      later('last', 'End', async () => sideways.edge(-1)),
-      later('shift-right', 'alt+ArrowRight', async () => shift(1)),
-      later('shift-left', 'alt+ArrowLeft', async () => shift(-1)),
+      later('ArrowRight', async () => sideways.by(1)),
+      later('ArrowLeft', async () => sideways.by(-1)),
+      later('ArrowDown', async () => vertical.by(1)),
+      later('ArrowUp', async () => vertical.by(-1)),
+      later('Home', async () => sideways.edge(1)),
+      later('End', async () => sideways.edge(-1)),
+      later('alt+ArrowRight', async () => shift(1)),
+      later('alt+ArrowLeft', async () => shift(-1)),
       {
-        execute: () => {
+        keys: ['Enter', 'Space'],
+        run: () => {
           selected.set(active.get())
         },
-        id: 'choose',
-        keys: ['Enter', 'Space'],
-        label: 'Choose',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: box },
+    { target: box },
   )
 }
 

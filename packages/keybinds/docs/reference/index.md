@@ -1,327 +1,343 @@
-# API Reference
+# API
 
-## keybinds(commands, getContext?, options?)
+Every function here is exported from the package and from its own module (`@pterror/interact-keybinds/<file>`, the
+kebab-case name: `key-listen` for `keyListen`). The ready-made UI and its pieces are in [Ready-made UI](./ui).
 
-Main entry point. Listens through the inputs it's given.
+## Shapes
+
+```ts
+type Modifiers = Readonly<{ ctrl: boolean; alt: boolean; shift: boolean; meta: boolean }>
+type Query = Readonly<{ exact: readonly string[]; bare: readonly string[]; mods: Modifiers }>
+type Handler = Readonly<{ run: (event: Event) => boolean | void; when?: () => boolean; typing?: boolean }>
+type Find = (query: Query) => readonly Handler[]
+type Press = Readonly<{ id: string; query: Query; event: Event; typing: boolean; repeat: boolean }>
+type Release = Readonly<{ id: string; event: Event; typing: boolean; blocked: boolean }>
+type Sink = Readonly<{ down: (press: Press) => Handler | undefined; up: (release: Release) => void }>
+type Test<T> = Readonly<{
+  has: (value: T) => boolean
+  watch: (listener: (values?: readonly T[]) => void) => () => void
+}>
+type Watched<T> = Readonly<{ get: () => T; watch: (listener: () => void) => () => void }>
+type AxisValue = Readonly<{ position: number; delta: number }>
+```
+
+The engine's modules are generic over the query and handler types (`presses<Q, H>`); the signatures below write them as
+Query and Handler.
+
+## keybinds(bindings, options?)
 
 ```ts
 function keybinds(
-  commands: Command[],
-  getContext?: () => Record<string, unknown>,
-  options?: {
-    inputs?: Input[]
-    releases?: Phase // releases()
-    anyModifiers?: AnyModifiers // anyModifiers()
-    holds?: Phase // holds()
-    sequences?: Sequences // sequences()
-    target?: EventTarget
-    onExecute?: (cmd, ctx) => void
-    capture?: boolean
-    axes?: AxisDef[]
-  },
-): (() => void) & { held(id: string): boolean; axis(id: string): { position: number; delta: number } }
+  bindings: readonly Binding[],
+  options?: KeybindsOptions,
+): (() => void) & { axis: (axis: Axis) => AxisValue }
+type Binding = Command | Axis
+type Command = Readonly<{
+  keys?: readonly string[]
+  mouse?: readonly string[]
+  pad?: readonly string[]
+  run: (event: Event) => boolean | void
+  when?: () => boolean
+  typing?: boolean
+  anyModifiers?: boolean
+}>
+type Axis = Readonly<{ axes: readonly string[]; when?: () => boolean }>
+type KeybindsOptions = Readonly<{
+  target?: EventTarget // default the window
+  capture?: boolean
+  syntax?: readonly KeySyntax[]
+  releases?: boolean // "k:up"
+  holds?: boolean | Readonly<{ delay?: number }> // "k:hold", "k:tap"; default 500 ms
+  sequences?: boolean | Readonly<{ timeout?: number }> // "g i"; default 1000 ms
+  wheel?: Readonly<{ step?: number; idle?: number }> // default 50 px, 200 ms
+  pads?: Pads
+}>
 ```
 
-| Option         | Default  | Description                                                                                                                                                                                                   |
-| -------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `inputs`       | `[]`     | What to listen to, e.g. `[keys(), mouse()]`. A command with bindings no input reads (gamepad bindings without `gamepad()`, say) is an error                                                                   |
-| `releases`     | -        | `releases()`: bindings to an input coming up (`k:up`). Without it, such a binding is an error                                                                                                                 |
-| `anyModifiers` | -        | `anyModifiers()`: commands with `anyModifiers: true` match whatever other modifiers are held. Without it, such a command is an error                                                                          |
-| `holds`        | -        | `holds({ delay? })`: `k:hold` runs once held `delay` ms (default 500), `k:tap` on a shorter press                                                                                                             |
-| `sequences`    | -        | `sequences({ timeout? })`: bindings of several steps (`g i`, `ctrl+k ctrl+s`), each within `timeout` ms (default 1000) of the last                                                                            |
-| `target`       | `window` | Where to listen                                                                                                                                                                                               |
-| `onExecute`    | -        | Called after a command consumes an event                                                                                                                                                                      |
-| `capture`      | `false`  | Listen in the capture phase, so a bound key reaches its command before anything under `target` (an editor, say) handles it. A key with no active command, or whose command returns `false`, goes on as usual. |
-| `axes`         | `[]`     | Continuous inputs, read with `axis(id)`; needs `axes()` among the inputs                                                                                                                                      |
+The ready-made composition: routes each binding string by its suffix and steps to the table that runs it, and listens to
+each input with the overlay rule (`outsideOverlay(target)`; `focusInOverlay(target)` for gamepads and axes). Returns
+stopping, and `axis(axis)`: one of the axes given, read now (zero while its `when` is false or an overlay holds focus).
+Throws, naming the binding, for invalid syntax, syntax whose option is off, a sequence ending in a suffix, a binding
+that is also the start of a sequence, or `axis()` given an axis it wasn't.
 
-**Returns:** Cleanup function to remove listeners. It also has `held(id)`: whether a command is held right now (its
-press fired, and that key or button hasn't come up), for controls read every frame rather than per event, and
-`axis(id)`.
-
-```js
-import { keybinds, keys } from '@pterror/interact-keybinds'
-
-const kb = keybinds(commands, () => ({ editing: false }), { inputs: [keys()] })
-if (kb.held('forward')) walk()
-// Later:
-kb()
-```
-
----
-
-## Inputs
-
-Each kind of input is its own module, so an app only ships the ones it uses. Each also has a UI half, which shows and
-records its bindings for the settings panel, the cheatsheet, and a command system's menus and palette; an app without
-those components doesn't ship it.
-
-| Input                                     | With its UI half                         | Bindings                                                      |
-| ----------------------------------------- | ---------------------------------------- | ------------------------------------------------------------- |
-| `keys()` from `keybinds/keys`             | `keysUI()` from `keybinds/keys-ui`       | `keys: ['$mod+k', 'Escape', '?', 'k:up']`                     |
-| `mouse({ wheel? })` from `keybinds/mouse` | `mouseUI()` from `keybinds/mouse-ui`     | `mouse: ['$mod+Click', 'MiddleClick', 'Back:up', 'ScrollUp']` |
-| `gamepad()` from `keybinds/gamepad`       | `gamepadUI()` from `keybinds/gamepad-ui` | `gamepad: ['a', 'rt', 'start:up']`                            |
-| `axes()` from `keybinds/axes`             | `axesUI()` from `keybinds/axes-ui`       | an axis's `axes: ['mouse:x', '-pad:ry', 'keys:a/d']`          |
-
-A UI half is the input plus more, so it goes in the same `inputs` list: `[keysUI(), mouseUI()]`.
-
-`mouse({ wheel: { step, idle } })`: a scroll binding runs once per `step` pixels scrolled (default 50, about one
-mouse-wheel notch), and `idle` ms without scrolling (default 200) ends a gesture.
-
-An input is a plain object, so a new kind of input (a MIDI controller, say) is written the same way:
+## presses(find)
 
 ```ts
-interface Input {
-  field: string // the command field holding its bindings
-  axis?: boolean // its bindings are an axis's sources
-  parse(step: string, suffix: string): { lookup: string; loose: string; mods: Modifiers } // one step, without its suffix; throws if invalid
-  matches?(cmd: Command, event: Event): boolean
-  listen(d: Dispatch): (() => void) & { axis?(id: string): AxisValue }
-}
-
-interface InputUI extends Input {
-  ui: true // says it's a UI half; a bare input has no ui, or ui: false
-  label: string // what one binding is called, for "+ Key"
-  format(binding: string): string[]
-  release?(binding: string): boolean // whether a binding can be its ":up" form
-  invert?: boolean // bindings can be inverted with a leading "-"
-  available?(): boolean // whether it can be recorded right now
-  watch?(onChange: () => void): () => void
-  record?(
-    options: { release: boolean; ignore(e: Event): boolean; target?: Window },
-    done: (binding: string) => void,
-  ): () => void
-  prompt?(release: boolean): string
-}
+function presses(find: Find): Presses
+type Presses = Sink & Readonly<{ held: Test<Handler>; took: (id: string) => readonly Handler[] }>
 ```
 
-`listen` gets a `Dispatch`: the target, the context, this input's held presses, and `down(id, event, { mods, lookups })`
-/ `up(id, event)` to report a press starting and ending. The core runs what's bound and lets releases, holds and
-sequences do their part. `lookups(suffix, mods)` gives the event's lookups. See `src/keys.js` for a complete one.
+Runs the first handler that applies and doesn't return `false`, and takes the event (prevents its default, stops it). A
+repeat runs again; an up ends the press. `held` holds a handler while a press it took is down.
 
----
-
-## formatKeyParts(binding, syntax?) and formatBinding(input, binding)
-
-A binding as the parts shown for it, each on its own key cap.
+## releases({ find, to, took })
 
 ```ts
-function formatKeyParts(binding: string, syntax?: KeySyntax[]): string[]
-function formatBinding(input: InputUI, binding: string): string[]
+function releases(options: ReleasesOptions): Sink
+type ReleasesOptions = Readonly<{ find: Find; to: Sink; took: (id: string) => readonly Handler[] }>
 ```
 
-```js
-formatKeyParts('$mod+k') // ["⌘", "K"] on a Mac, ["Ctrl", "K"] elsewhere
-formatBinding(keysUI(), 'Escape') // the same, through an input's UI half: ["Esc"]
-```
+Release handlers (`k:up`), found by the press's query as it went down, run as it comes up. A handler that took the
+press's down (`took`) gets its release whatever its `when` says; the others run as usual, not while `blocked`.
 
-`syntax` is what was given to `keys()`; with a `layout()` among it, physical keys show as the layout types them.
-`formatMouseParts`, `formatGamepadParts` and `formatAxisParts` do the same for the other inputs.
----
-
-## defineSchema(schema)
-
-Identity function for type inference when defining binding schemas.
+## holds({ hold, tap, delay?, to })
 
 ```ts
-function defineSchema<T extends Schema>(schema: T): T
+function holds(options: HoldsOptions): Holds
+type HoldsOptions = Readonly<{ hold: Find; tap: Find; delay?: number; to: Sink }>
+type Holds = Sink & Readonly<{ held: Test<Handler>; took: (id: string) => readonly Handler[]; stop: () => void }>
 ```
 
-```js
-const schema = defineSchema({
-  save: { label: 'Save', keys: ['$mod+s'] },
-})
-```
+Hold handlers run once a press lasts `delay` ms (default 500); tap handlers on an up before that. The press goes on to
+`to` as usual.
 
----
-
-## withOverride(binding, override)
-
-One command's or axis's bindings with a person's override laid over them. The fields an override can set (`keys`,
-`mouse`, `gamepad`, `axes`) come back typed as any list of bindings, since an override can hold any binding.
+## sequences({ entries, timeout?, to })
 
 ```ts
-function withOverride<B extends BindingSchema>(binding: B, override: BindingOverride | undefined): Bound<B>
-type Bound<B> = Readonly<Omit<B, 'axes' | 'gamepad' | 'keys' | 'mouse'>> & Rebindable
+function sequences(options: SequencesOptions): Sink
+type SequencesOptions = Readonly<{
+  entries: readonly (readonly [readonly string[], Handler])[]
+  timeout?: number
+  to: Sink
+}>
 ```
 
----
+Bindings of several steps, each a lookup. A press that starts or continues a sequence that may run is taken; one that
+completes it runs its first handler that applies; others go on to `to`. Each step within `timeout` ms (default 1000).
 
-## fromBindings(bindings, handlers, options?)
-
-Create commands from a schema, or from a store (its overrides apply), and handlers. Handler and option ids are the
-schema's ids, so a misspelled one is a type error.
+## bindingTable(entries), looseTable(entries), anyOf(...finds)
 
 ```ts
-function fromBindings<T extends Schema>(
-  bindings: T | BindingsStore<T>,
-  handlers: Partial<Record<Id<T>, (ctx, event?) => unknown>>,
-  options?: Partial<Record<Id<T>, { when?: (ctx) => boolean; captureInput?: boolean; anyModifiers?: boolean }>>,
-): Command[]
+function bindingTable(entries: readonly (readonly [string, Handler])[]): Find
+function looseTable(entries: readonly (readonly [string, Modifiers, Handler])[]): Find
+function anyOf(...finds: readonly Find[]): Find
 ```
 
-Throws if a handler has no bindings, since it would never run (for a schema whose ids aren't known to the types).
+`bindingTable` finds every one of `query.exact`'s lookups' handlers, best first. `looseTable` finds by `query.bare`,
+whatever other modifiers are held, the binding's own required. `anyOf` is each in turn, each handler once.
 
----
-
-## listBindings(bindings) and entriesOf(bindings)
-
-Each id with its bindings, in the schema's order: from a store as they are in effect, from a schema as given.
-`listBindings` leaves out hidden ones, for a settings UI.
+## runFirst(handlers, event, typing), applies(handler, typing), take(event)
 
 ```ts
-function entriesOf<T extends Schema>(bindings: T | BindingsStore<T>): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
-function listBindings<T extends Schema>(bindings: T | BindingsStore<T>): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
+function runFirst(handlers: readonly Handler[], event: Event, typing: boolean): Handler | undefined
+function applies(handler: Handler, typing: boolean): boolean
+function take(event: Event): void
 ```
 
----
+The rule the engine runs by: a handler applies when its `when` holds and, while typing, it has `typing`. `take` prevents
+the default and stops the event.
 
-## BindingsStore
-
-Reactive store of people's overrides, kept in localStorage or anywhere else. The schema and the overrides stay apart:
-each id's bindings in effect are read one id at a time, typed by that id's own schema entry.
+## keyListen({ target, to, capture?, blocked?, query? })
 
 ```ts
-class BindingsStore<T extends Schema> extends EventTarget {
-  constructor(schema: T, storage: string | BindingsStorage)
-  readonly schema: T
-  ids(): Id<T>[]
-  get<K extends Id<T>>(id: K): Bound<T[K]> // a misspelled id is a type error
-  entries(): { binding: Bound<T[Id<T>]>; id: Id<T> }[]
-  has(id: string): id is Id<T>
-  lookup(id: string): Bound<T[Id<T>]> | undefined // for ids from elsewhere
-  defaults(id: string): T[Id<T>] | undefined
-  getOverrides(): BindingOverrides
-  save(overrides: BindingOverrides): void
-  dispose(): void
-}
-
-type AnyBindingsStore // what code taking a store over any schema reads: everything but get(id), whose ids are T's
-
-type BindingsStorage = {
-  load(): BindingOverrides
-  save(overrides: BindingOverrides): void
-  subscribe?(onChange: (overrides: BindingOverrides) => void): () => void
-}
-
-function localStorageBindings(key: string): BindingsStorage
+function keyListen(options: KeyListenOptions): Readonly<{ held: Test<string>; stop: () => void }>
+type KeyListenOptions = Readonly<{
+  target: EventTarget
+  to: Sink
+  capture?: boolean
+  blocked?: (event: Event) => boolean
+  query?: (event: KeyboardEvent) => Query
+}>
 ```
 
-A string is a localStorage key (the same as `localStorageBindings(key)`), whose overrides are read back field by field:
-anything stored that isn't a list of bindings is left out. Any other storage only needs `load` and `save`. If it can
-change from elsewhere (another tab, an undo, sync), give it `subscribe` too and the store follows it; `dispose()` stops
-following.
+Keys as presses, known by `event.code`; typing is a press in an input, textarea or contenteditable. A modifier alone
+never presses; every held key is released when the window loses focus. `held` has each held key's lookups without
+modifiers (for `keyPairAxis`).
 
-Dispatches a `BindingsChangeEvent` (`'change'`, with the `overrides` now) when overrides are saved, or when the storage
-changes. Read the bindings in effect from the store.
-
-```js
-const store = new BindingsStore(schema, 'app:keybinds')
-store.addEventListener('change', () => {
-  console.log(store.get('save').keys)
-})
-store.save({ save: { keys: ['$mod+Shift+s'] } })
-```
-
----
-
-## eventToBindingString(event)
-
-Convert a KeyboardEvent to a canonical binding string.
+## mouseListen({ target, to, capture?, blocked?, wheel? })
 
 ```ts
-function eventToBindingString(event: KeyboardEvent, syntax?: readonly KeySyntax[]): string | undefined
+function mouseListen(options: MouseListenOptions): () => void
+type MouseListenOptions = Readonly<{
+  target: EventTarget
+  to: Sink
+  capture?: boolean
+  blocked?: (event: Event) => boolean
+  wheel?: WheelOptions
+}>
+type WheelOptions = Readonly<{ bound: (query: Query) => boolean; step?: number; idle?: number }>
 ```
 
-Returns `undefined` for bare modifier presses and keys that can't be bound.
+Buttons as presses; a side button whose press or release was taken doesn't navigate. With `wheel`, scrolling is a press
+per notch or per `step` px (default 50); the page is held still while `bound` says a step has a binding, and a pause of
+`idle` ms (default 200) ends the gesture.
 
-```js
-// In a keydown handler:
-const binding = eventToBindingString(event) // e.g. "$mod+shift+k"
-```
-
----
-
-## eventToMouseBindingString(event)
-
-Convert a MouseEvent or WheelEvent to a canonical binding string.
+## pads(view?), padButtons({ pads, to, blocked? })
 
 ```ts
-function eventToMouseBindingString(event: MouseEvent): string | undefined
+function pads(view?: EventTarget): Pads
+type Pads = Readonly<{ get: () => readonly Pad[]; watch: (listener: () => void) => () => void }>
+type Pad = Readonly<{
+  index: number
+  axes: readonly number[]
+  buttons: readonly Readonly<{ pressed: boolean; value: number }>[]
+}>
+function padButtons(options: PadButtonsOptions): () => void
+type PadButtonsOptions = Readonly<{ pads: Pads; to: Sink; blocked?: () => boolean }>
 ```
 
-```js
-// In a mousedown handler:
-const binding = eventToMouseBindingString(event) // e.g. "$mod+click"
+`pads` reads the connected gamepads each animation frame, only while one is connected and something watches.
+`padButtons` gives each button going down as a press, looked up by its standard name.
 
-// Also works with WheelEvent:
-const scroll = eventToMouseBindingString(wheelEvent) // e.g. "$mod+scrollup"
-
-// Side buttons are "back" and "forward"; a mouseup / keyup event gives a ":up" binding:
-eventToMouseBindingString(mouseupEvent) // e.g. "middle:up"
-```
-
----
-
-## findConflict(bindings, { binding, input, except? })
-
-Check if a binding conflicts with any command in a schema, or in a list of entries such as `store.entries()` (the
-bindings in effect). `except` is a command not to check, usually the one being rebound.
+## outsideOverlay(listener), focusInOverlay(listener)
 
 ```ts
-function findConflict(
-  bindings: Schema | readonly { binding: BindingSchema; id: string }[],
-  candidate: { binding: string; input: Input; except?: string },
-): { commandId: string; label: string } | undefined
+function outsideOverlay(listener: EventTarget): (event: Event) => boolean
+function focusInOverlay(listener: EventTarget): () => boolean
 ```
 
-```js
-const conflict = findConflict(schema, { binding: '$mod+s', except: 'save', input: keys() })
-if (conflict) {
-  console.log(`Conflicts with ${conflict.label}`)
-}
-```
+The overlay rule: true when an open `<dialog>`, popover or `[data-keybinds-modal][open]` lies between the event's target
+(or the focused element) and `listener`, inside shadow roots too.
 
----
-
-## Types
+## keyParse(binding, syntax?), keyQuery(event, syntax?)
 
 ```ts
-interface Command {
-  id: string
-  label: string
-  description?: string
-  category?: string
-  keys?: string[]
-  mouse?: string[]
-  gamepad?: string[]
-  when?: (ctx: Record<string, unknown>) => boolean
-  execute: (ctx: Record<string, unknown>, event?: Event) => unknown
-  hidden?: boolean
-  captureInput?: boolean
-  anyModifiers?: boolean // match whatever other modifiers are held
-}
-
-interface BindingSchema {
-  label: string
-  description?: string
-  category?: string
-  keys?: string[]
-  mouse?: string[]
-  gamepad?: string[]
-  axes?: string[] // an axis's sources, for axes
-  hidden?: boolean
-}
-
-type Schema = Record<string, BindingSchema>
-type BindingOverrides = Record<string, { keys?: string[]; mouse?: string[]; gamepad?: string[]; axes?: string[] }>
-
-interface AxisDef {
-  id: string
-  label: string
-  category?: string
-  description?: string
-  axes: string[] // "mouse:x", "pad:rx", "keys:a/d", ... with a leading "-" to invert
-  when?: (ctx: Record<string, unknown>) => boolean
-  hidden?: boolean
-}
+function keyParse(binding: string, syntax?: readonly KeySyntax[]): ParsedKey
+function keyQuery(event: KeyEvent, syntax?: readonly KeySyntax[]): Query
+type ParsedKey = Readonly<{ lookup: string; bare: string; mods: Modifiers }>
+type KeySyntax = Readonly<{
+  alias?: (name: string) => string | undefined
+  accepts?: (key: string, mods: Modifiers) => boolean
+  shifted?: (key: string) => string | undefined
+  lookups?: (key: string, mods: Modifiers, held: Modifiers) => readonly string[]
+  fallback?: (key: string, held: Modifiers) => readonly string[]
+}>
 ```
+
+One step of a key binding, and a key event's lookups (the key typed, its code, its letter, then the syntax's, then the
+syntax's fallbacks). Syntax whose piece isn't given throws, naming the piece.
+
+## symbols(), aliases(), printed()
+
+```ts
+function symbols(): Symbols
+function aliases(): KeySyntax
+function printed(): Printed
+```
+
+Key syntax pieces: any typed character as itself; `up`/`down`/`left`/`right`/`plus` (also `keyAliases`); the key
+`printed`, a fallback lookup for any key typing one character with no Ctrl, Alt or Meta.
+
+## mouseParse(binding, suffix?), padParse(binding), splitBinding(binding)
+
+```ts
+function mouseParse(binding: string, suffix?: string): ParsedMouse
+function padParse(binding: string): ParsedPad
+function splitBinding(binding: string): Readonly<{ steps: readonly string[]; suffix: Suffix }>
+```
+
+One step of a mouse or gamepad binding (`mouseButtons`, `padAliases` and `padButtonNames` are their names; `mouseName`
+names an event's button); and a binding's steps and suffix (`:up`, `:hold`, `:tap`), whatever syntax is on.
+
+## Modifiers: parseModifiers(parts), eventModifiers(event), modifierPrefix(mods), eventModifierParts(event), formatModifier(part)
+
+`$mod` is Meta when `isMac`, Ctrl elsewhere; `noModifiers` has none held.
+
+## Axes: keyPairAxis(held, negative, positive), mouseAxis(options), padAxis(pads, axis), sumAxis(values), scaleAxis(value, factor), axisWhen(value, when), axisParse(binding, syntax?)
+
+```ts
+function keyPairAxis(
+  held: Readonly<{ has: (lookup: string) => boolean }>,
+  negative: string,
+  positive: string,
+): () => AxisValue
+function mouseAxis(
+  options: Readonly<{ target: EventTarget; axis: 'x' | 'y'; capture?: boolean }>,
+): Readonly<{ read: () => AxisValue; stop: () => void }>
+function padAxis(pads: Readonly<{ get: () => readonly Pad[] }>, axis: string): () => AxisValue
+function sumAxis(values: readonly (() => AxisValue)[]): () => AxisValue
+function scaleAxis(value: () => AxisValue, factor: number): () => AxisValue
+function axisWhen(value: () => AxisValue, when: () => boolean): () => AxisValue
+function axisParse(binding: string, syntax?: readonly KeySyntax[]): ParsedAxis
+```
+
+Each axis is read when the app asks: its position from -1 to 1 and its movement since the last read. `sumAxis` keeps the
+position from -1 to 1; `axisWhen` reads zero (still reading, so nothing is kept for later) while `when` is false.
+
+## Showing: formatKey(binding, layout?), formatMouse(binding), formatPad(binding), formatAxis(binding, layout?), formatSteps(binding, format), bindingParts(entry, layout?), layout(view?)
+
+```ts
+function formatKey(binding: string, layout?: ReadonlyMap<string, string>): string[]
+function formatSteps(binding: string, format: (step: string) => readonly string[]): string[]
+function bindingParts(entry: Entry, layout?: ReadonlyMap<string, string>): readonly (readonly string[])[]
+function layout(view?: EventTarget): Watched<Layout>
+```
+
+`formatKey`, `formatMouse`, `formatPad` and `formatAxis` format one step; `formatSteps` adds `then` between steps and
+`Release`, `Hold` or `Tap` for a suffix. `bindingParts` is every binding of an entry (keys, mouse, pad, axes).
+`layout()` is the keyboard layout's glyph map (`navigator.keyboard.getLayoutMap()`), followed as it changes; undefined
+where the browser can't tell. `punctuation` is the table of punctuation keys parsing and formatting share.
+
+## Modifiers alone: modifierAlone(options), modifierHold(options), modifierTaps(options)
+
+```ts
+function modifierHold(options: ModifierHoldOptions): () => void
+type ModifierHoldOptions = Readonly<{
+  modifiers: readonly string[]
+  to: (held: boolean) => void
+  delay?: number
+  target?: EventTarget
+}>
+function modifierTaps(options: ModifierTapsOptions): () => void
+type ModifierTapsOptions = Readonly<{
+  modifiers: readonly string[]
+  run: () => void
+  count?: number
+  within?: number
+  target?: EventTarget
+}>
+```
+
+A modifier pressed and let go on its own: held for `delay` ms (default 200); tapped `count` times (default 2), each
+within `within` ms (default 400). Anything else while it is down spoils it.
+
+## Rebinding: bindingStore(storage), localStorageBindings(key, view?), bound(schema, overrides), rebind(options), changedFields(defaults, bindings), findConflict(bindings, candidate), bindingLookup(parse), flipRelease(binding)
+
+```ts
+function bindingStore(
+  storage: Storage,
+): Watched<Overrides> & Readonly<{ set: (overrides: Overrides) => void; stop: () => void }>
+type Storage = Readonly<{
+  load: () => Overrides
+  save: (overrides: Overrides) => void
+  subscribe?: (listener: (overrides: Overrides) => void) => () => void
+}>
+type Overrides = Readonly<Record<string, Fields>>
+type Fields = Readonly<{
+  keys?: readonly string[]
+  mouse?: readonly string[]
+  pad?: readonly string[]
+  axes?: readonly string[]
+}>
+function bound(schema: Readonly<Record<string, Rebindable>>, overrides: Overrides): Readonly<Record<string, Rebindable>>
+```
+
+`bindingStore` keeps people's overrides in a storage; `localStorageBindings` is one in localStorage, read leniently,
+that hears other tabs. `bound` lays the overrides over a schema. `rebind({ schema, overrides })` gives the edits, each
+one write (`put`, `remove`, `replace`, `reset`, `resetAll`) and `changed(id)`; `changedFields` is what an override
+keeps. `findConflict` is the id a binding already belongs to, by `bindingLookup`'s normal form. `flipRelease` turns `k`
+into `k:up` and back.
+
+## Recording: recording(options), recordKey(options), recordMouse(options), recordPad(options), recordAxis(options)
+
+```ts
+function recording(options: RecordingOptions<Slot>): Recording<Slot>
+type RecordingOptions<S> = Readonly<{
+  done: (slot: S, binding: string) => void
+  pause?: number
+  takesSuffix?: (slot: S, binding: string) => boolean
+}>
+function recordKey(options: RecordKeyOptions): () => void
+type RecordKeyOptions = Readonly<{
+  done: (binding: string) => void
+  target?: EventTarget
+  release?: boolean
+  syntax?: readonly KeySyntax[]
+  ignore?: (event: Event) => boolean
+}>
+```
+
+`recording` is the state of recording one slot (a suffix, or steps taken after a pause of `pause` ms, default 1000),
+handing `done(slot, binding)`. Each recorder records from what is done next: a key (Escape and modifiers alone left
+alone), a click or scroll, a gamepad button, or an axis (the mouse moved, a stick pushed, or two keys).
+`keyBinding(event)` and `mouseBinding(event)` are an event as a binding.

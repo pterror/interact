@@ -4,7 +4,7 @@
  * aria and data attributes.
  */
 
-import { keybinds, keys } from '@pterror/interact-keybinds'
+import { keybinds } from '@pterror/interact-keybinds'
 import {
   activeDescendant,
   arrayList,
@@ -202,28 +202,40 @@ function putMenu() {
     })
     keybinds(
       [
-        { execute: async () => moves.by(1), id: 'next', keys: ['ArrowDown'], label: 'Next' },
-        { execute: async () => moves.by(-1), id: 'previous', keys: ['ArrowUp'], label: 'Previous' },
-        { execute: async () => moves.edge(1), id: 'first', keys: ['Home'], label: 'First' },
-        { execute: async () => moves.edge(-1), id: 'last', keys: ['End'], label: 'Last' },
         {
-          execute: () => {
+          keys: ['ArrowDown'],
+          run: () => {
+            void moves.by(1)
+          },
+        },
+        {
+          keys: ['ArrowUp'],
+          run: () => {
+            void moves.by(-1)
+          },
+        },
+        {
+          keys: ['Home'],
+          run: () => {
+            void moves.edge(1)
+          },
+        },
+        {
+          keys: ['End'],
+          run: () => {
+            void moves.edge(-1)
+          },
+        },
+        {
+          keys: ['Enter', 'Space'],
+          run: () => {
             run(active.get())
           },
-          id: 'run',
-          keys: ['Enter', 'Space'],
-          label: 'Run',
         },
-        { execute: () => enter(active.get()), id: 'enter', keys: ['ArrowRight'], label: 'Open submenu' },
-        {
-          execute: leave,
-          id: 'leave',
-          keys: parent === undefined ? ['Escape'] : ['ArrowLeft', 'Escape'],
-          label: 'Close',
-        },
+        { keys: ['ArrowRight'], run: () => enter(active.get()) },
+        { keys: parent === undefined ? ['Escape'] : ['ArrowLeft', 'Escape'], run: leave },
       ],
-      () => ({}),
-      { inputs: [keys()], target: element },
+      { target: element },
     )
     return { element, first: async () => moves.edge(1), name, open }
   }
@@ -243,18 +255,15 @@ function putMenu() {
   keybinds(
     [
       {
-        execute: () => {
+        keys: ['ArrowDown'],
+        run: () => {
           root.open.set(true)
           void root.first()
           focus.set('Edit')
         },
-        id: 'open',
-        keys: ['ArrowDown'],
-        label: 'Open',
       },
     ],
-    () => ({}),
-    { inputs: [keys()], target: button },
+    { target: button },
   )
 }
 

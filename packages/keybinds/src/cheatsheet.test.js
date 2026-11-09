@@ -1,208 +1,214 @@
-/**
- * @import { Command, Context } from './command.js'
- */
+import { afterAll, afterEach, beforeAll, describe, expect, mock, test } from 'bun:test'
 
-import { afterEach, describe, expect, test } from 'bun:test'
+import { cell } from '@pterror/interact-list'
 
-import { KeybindCheatsheet, groupByCategory } from './cheatsheet.js'
-import { elementOf, textsOf } from './test-components.js'
+import { cheatsheet } from './cheatsheet.js'
+import { keybinds } from './keybinds.js'
+import { kbd } from './test-keys.js'
+import { fakePopovers } from './test-popover.js'
 
 const HOLD = 10
-const LONGER = 30
-const FIRST = 0
 
-/** @type {Element[]} */
-const placed = []
+/**
+ * A layout whose Slash key types "-"
+ * @returns {ReadonlyMap<string, string> | undefined} The layout
+ */
+function dashOnSlash() {
+  return new Map([['Slash', '-']])
+}
+const LONGER = 30
+
+/** @type {(() => void)[]} */
+const cleanups = []
+
+/** @type {() => void} */
+let unfake = () => undefined
+
+beforeAll(() => {
+  unfake = fakePopovers()
+})
+
+afterAll(() => {
+  unfake()
+})
 
 afterEach(() => {
-  for (const element of placed.splice(FIRST)) {
-    element.remove()
+  for (const cleanup of cleanups.splice(0)) {
+    cleanup()
   }
 })
 
+const SCHEMA = {
+  internal: { hidden: true, keys: ['x'], label: 'Internal' },
+  look: { axes: ['mouse:x', '-pad:ry'], category: 'View', label: 'Look' },
+  quit: { keys: ['ctrl+q'], label: 'Quit' },
+  save: { category: 'File', keys: ['ctrl+s', 'g s'], label: 'Save', mouse: ['ctrl+click:up'] },
+  unbound: { label: 'Unbound' },
+}
+
 /**
- * A key event on the window
+ * A cheatsheet in the page, opened by Control held a short while on a fresh element
+ * @param {Partial<Parameters<typeof cheatsheet>[0]>} [options] - More options
+ * @returns {Readonly<{ element: HTMLElement, open: ReturnType<typeof cheatsheet>['open'], target: HTMLElement }>}
+ *   Its element, whether it is open, and where its modifier is pressed
+ */
+function sheet(options = {}) {
+  const element = document.createElement('div')
+  const target = document.createElement('div')
+  document.body.append(element, target)
+  const made = cheatsheet({ delay: HOLD, element, modifier: 'Control', schema: SCHEMA, target, ...options })
+  cleanups.push(made.stop, () => {
+    element.remove()
+    target.remove()
+  })
+  return { element, open: made.open, target }
+}
+
+/**
+ * A key event on a target
+ * @param {EventTarget} target - Where
  * @param {string} type - "keydown" or "keyup"
  * @param {string} name - The key
  * @param {KeyboardEventInit} [init] - More of the event
  * @returns {void}
  */
-function key(type, name, init = {}) {
-  globalThis.dispatchEvent(new KeyboardEvent(type, { key: name, ...init }))
+function key(target, type, name, init = {}) {
+  target.dispatchEvent(kbd(type, { key: name, ...init }))
 }
 
 /**
  * Taps a modifier: down and up again
+ * @param {EventTarget} target - Where
  * @param {string} modifier - The modifier
  * @returns {void}
  */
-function tap(modifier) {
-  key('keydown', modifier)
-  key('keyup', modifier)
+function tap(target, modifier) {
+  key(target, 'keydown', modifier)
+  key(target, 'keyup', modifier)
 }
 
 /**
- * A cheatsheet in the page that opens while a modifier is held a short while
- * @param {string} modifier - The modifier
- * @returns {KeybindCheatsheet} The cheatsheet
+ * What a cheatsheet shows: each group's header, and each row's label and bindings' parts
+ * @param {Element} element - The cheatsheet
+ * @returns {readonly (readonly unknown[])[]} Each group, its header first
  */
-function sheet(modifier) {
-  const element = elementOf('keybinds-cheatsheet', KeybindCheatsheet)
-  element.setAttribute('trigger-key', modifier)
-  element.setAttribute('trigger-delay', String(HOLD))
-  element.toggleAttribute('auto-trigger', true)
-  document.body.append(element)
-  placed.push(element)
-  return element
+function shown(element) {
+  return [...element.querySelectorAll('[role=group]')].map((group) => [
+    group.querySelector(`#${group.getAttribute('aria-labelledby') ?? ''}`)?.textContent,
+    ...[...group.children]
+      .slice(1)
+      .map((row) => [
+        row.firstElementChild?.textContent,
+        ...[...(row.lastElementChild?.children ?? [])].map((binding) =>
+          [...binding.children].map((part) => part.textContent),
+        ),
+      ]),
+  ])
 }
 
-describe('holding the trigger modifier', () => {
+describe('holding the modifier', () => {
   test('opens the cheatsheet for the chosen modifier, after the chosen time, until let go', async () => {
-    const element = sheet('Alt')
-    key('keydown', 'Control')
+    const { element, open, target } = sheet({ modifier: 'Alt' })
+    key(target, 'keydown', 'Control')
     await Bun.sleep(LONGER)
-    expect(element.open).toBe(false)
-    key('keyup', 'Control')
-    key('keydown', 'Alt')
+    expect([open.get(), element.matches(':popover-open')]).toEqual([false, false])
+    key(target, 'keyup', 'Control')
+    key(target, 'keydown', 'Alt')
     await Bun.sleep(LONGER)
-    expect(element.open).toBe(true)
-    key('keyup', 'Alt')
-    expect(element.open).toBe(false)
-  })
-
-  test("is spoiled by a shortcut, and the modifier's auto-repeat doesn't start it again", async () => {
-    const element = sheet('Control')
-    key('keydown', 'Control')
-    key('keydown', 'b', { ctrlKey: true })
-    key('keyup', 'b', { ctrlKey: true })
-    key('keydown', 'Control', { repeat: true })
-    await Bun.sleep(LONGER)
-    expect(element.open).toBe(false)
-    key('keyup', 'Control')
-  })
-
-  test.each(['pointerdown', 'wheel'])('is spoiled by a %s while holding', async (type) => {
-    const element = sheet('Control')
-    key('keydown', 'Control')
-    globalThis.dispatchEvent(new Event(type))
-    await Bun.sleep(LONGER)
-    expect(element.open).toBe(false)
-    key('keyup', 'Control')
+    expect([open.get(), element.matches(':popover-open')]).toEqual([true, true])
+    key(target, 'keyup', 'Alt')
+    expect(open.get()).toBe(false)
   })
 
   test('closes when another key is pressed', async () => {
-    const element = sheet('Control')
-    key('keydown', 'Control')
+    const { open, target } = sheet()
+    key(target, 'keydown', 'Control')
     await Bun.sleep(LONGER)
-    expect(element.open).toBe(true)
-    key('keydown', 'k', { ctrlKey: true })
-    expect(element.open).toBe(false)
-    key('keyup', 'Control')
+    expect(open.get()).toBe(true)
+    key(target, 'keydown', 'k', { ctrlKey: true })
+    expect(open.get()).toBe(false)
+    key(target, 'keyup', 'Control')
   })
 })
 
-describe('tapping the trigger modifier', () => {
+describe('tapping the modifier', () => {
   test('twice keeps it open; twice again closes it', () => {
-    const element = sheet('Control')
-    tap('Control')
-    expect(element.open).toBe(false)
-    tap('Control')
-    expect(element.open).toBe(true)
-    tap('Control')
-    tap('Control')
-    expect(element.open).toBe(false)
+    const { open, target } = sheet()
+    tap(target, 'Control')
+    expect(open.get()).toBe(false)
+    tap(target, 'Control')
+    expect(open.get()).toBe(true)
+    tap(target, 'Control')
+    tap(target, 'Control')
+    expect(open.get()).toBe(false)
   })
 
-  test('twice keeps it open until Escape', () => {
-    const element = sheet('Control')
-    tap('Control')
-    tap('Control')
-    key('keydown', 'Escape')
-    expect(element.open).toBe(false)
-  })
-
-  test('does not count a tap that was part of a shortcut', () => {
-    const element = sheet('Control')
-    tap('Control')
-    key('keydown', 'Control')
-    key('keydown', 'c', { ctrlKey: true })
-    key('keyup', 'Control')
-    tap('Control')
-    expect(element.open).toBe(false)
+  test('twice keeps it open until Escape, or a press outside', () => {
+    const { open, target } = sheet()
+    tap(target, 'Control')
+    tap(target, 'Control')
+    key(document, 'keydown', 'Escape')
+    expect(open.get()).toBe(false)
+    tap(target, 'Control')
+    tap(target, 'Control')
+    document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+    expect(open.get()).toBe(false)
   })
 })
 
 describe('an open cheatsheet', () => {
-  test("shows each category's commands, with their bindings", () => {
-    const element = sheet('Control')
-    element.commands = [
-      { category: 'File', execute: () => undefined, id: 'save', keys: ['ctrl+s'], label: 'Save' },
-      { execute: () => undefined, id: 'quit', keys: ['ctrl+q'], label: 'Quit' },
-    ]
-    element.open = true
-    expect(textsOf(element, '.cheatsheet__group-title')).toEqual(['File', 'Other'])
-    expect(textsOf(element, '.cheatsheet__item-label')).toEqual(['Save', 'Quit'])
-    expect(textsOf(element, '.cheatsheet__item-key')).toEqual(['Ctrl', 'S', 'Ctrl', 'Q'])
-  })
-})
-
-/**
- * A command that does nothing
- * @param {Omit<Command, 'execute'>} fields - Everything but what it does
- * @returns {Command} The command
- */
-function commandWith(fields) {
-  return { ...fields, execute: () => undefined }
-}
-
-/**
- * The ids of some grouped commands, in order
- * @param {readonly Readonly<{ command: Command }>[]} [entries] - The entries, none if missing
- * @returns {string[]} Their ids
- */
-function ids(entries = []) {
-  return entries.map(({ command }) => command.id)
-}
-
-/**
- * A `when` reading whether the context is ready
- * @param {Context} context - The app's state
- * @returns {boolean} Whether `ready` is true
- */
-function whenReady(context) {
-  return context['ready'] === true
-}
-
-describe('grouping the commands shown', () => {
-  const GROUPED = [
-    commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save document' }),
-    commandWith({ category: 'File', id: 'open', keys: ['$mod+o'], label: 'Open file' }),
-    commandWith({ category: 'Edit', id: 'delete', keys: ['Backspace'], label: 'Delete' }),
-    commandWith({ id: 'misc', keys: ['m'], label: 'Misc' }),
-  ]
-
-  test('groups by category, "Other" for none', () => {
-    const groups = groupByCategory(GROUPED)
-    expect(Object.keys(groups).toSorted()).toEqual(['Edit', 'File', 'Other'])
-    expect(ids(groups['Other'])).toEqual(['misc'])
-  })
-
-  test('leaves out hidden and unbound commands, and takes the last under an id', () => {
-    const groups = groupByCategory([
-      ...GROUPED,
-      commandWith({ hidden: true, id: 'h', keys: ['h'], label: 'H' }),
-      commandWith({ id: 'u', label: 'U' }),
-      commandWith({ category: 'File', id: 'save', keys: ['$mod+s'], label: 'Save v2' }),
+  test("is a popover centred on the viewport that has focus, so the page's bindings don't fire", async () => {
+    const outside = mock(() => undefined)
+    cleanups.push(keybinds([{ keys: ['ctrl+k'], run: outside }], { target: document }))
+    const { element, open } = sheet()
+    open.set(true)
+    await Bun.sleep(0)
+    const { left, top, translate } = element.style
+    expect([element.popover, left, top, translate, document.activeElement]).toEqual([
+      'manual',
+      `${String(window.innerWidth / 2)}px`,
+      `${String(window.innerHeight / 2)}px`,
+      '-50% -50%',
+      element,
     ])
-    expect(ids(Object.values(groups).flat())).not.toContain('h')
-    expect(ids(Object.values(groups).flat())).not.toContain('u')
-    expect(groups['File']?.map(({ command }) => command.label)).toEqual(['Save v2', 'Open file'])
+    element.dispatchEvent(kbd('keydown', { code: 'KeyK', ctrlKey: true, key: 'k' }))
+    expect(outside).not.toHaveBeenCalled()
   })
 
-  test('says whether each command applies', () => {
-    const groups = groupByCategory([commandWith({ id: 'a', keys: ['a'], label: 'A', when: whenReady })], {
-      ready: false,
-    })
-    expect(groups['Other']?.[FIRST]?.active).toBe(false)
+  test("shows each category's bindings under its header, axes too, leaving out hidden and unbound ids", () => {
+    const { element, open } = sheet()
+    expect(element.children).toHaveLength(0)
+    open.set(true)
+    expect(shown(element)).toEqual([
+      ['View', ['Look', ['Mouse ↔'], ['Right stick ↕', 'Inverted']]],
+      ['Other', ['Quit', ['Ctrl', 'Q']]],
+      ['File', ['Save', ['Ctrl', 'S'], ['G', 'then', 'S'], ['Ctrl', 'Click', 'Release']]],
+    ])
+  })
+
+  test('marks the ids whose command does not apply now, as of opening', () => {
+    let ready = false
+    const { element, open } = sheet({ applies: (id) => id !== 'save' || ready })
+    open.set(true)
+    const disabled = () =>
+      [...element.querySelectorAll('[aria-disabled=true]')].map((row) => row.firstElementChild?.textContent)
+    expect(disabled()).toEqual(['Save'])
+    ready = true
+    open.set(false)
+    open.set(true)
+    expect(disabled()).toEqual([])
+  })
+
+  test("shows a person's overrides as they change, and keys as the layout types them", () => {
+    const overrides = cell({})
+    const layout = cell(dashOnSlash())
+    const { element, open } = sheet({ layout, overrides, schema: { find: { keys: ['slash'], label: 'Find' } } })
+    open.set(true)
+    expect(shown(element)).toEqual([['Other', ['Find', ['-']]]])
+    overrides.set({ find: { keys: ['ctrl+f'], mouse: ['back'] } })
+    expect(shown(element)).toEqual([['Other', ['Find', ['Ctrl', 'F'], ['Back']]]])
+    overrides.set({ find: { keys: ['slash'] } })
+    layout.set(undefined)
+    expect(shown(element)).toEqual([['Other', ['Find', ['/']]]])
   })
 })

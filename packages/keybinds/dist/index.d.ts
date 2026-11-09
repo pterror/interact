@@ -1,62 +1,78 @@
 /**
- * Declarative, contextual keybindings: everything, from one place. Each part is also its own module
- * (`@pterror/interact-keybinds/core`, `@pterror/interact-keybinds/keys`, ...) for pages that load them without a
- * bundler.
+ * Keybindings as small modules the app wires by hand: an engine that runs presses (presses, releases, holds,
+ * sequences, over binding tables); the keyboard, mouse and gamepads as presses; axes as values read when the app
+ * asks; showing and recording bindings; modifiers alone as triggers; the overlay rule; people's rebindings, kept,
+ * laid over a schema and edited; and ready-made compositions of them: keybinds(), cheatsheet(), radialMenu(),
+ * settings(). Each is also its own module.
  */
-export type Command = import('./command.js').Command;
-export type AxisDef = import('./command.js').AxisDef;
-export type AxisValue = import('./command.js').AxisValue;
-export type BindingSchema = import('./command.js').BindingSchema;
-export type Schema = import('./command.js').Schema;
-export type BindingOverrides = import('./command.js').BindingOverrides;
-export type Context = import('./command.js').Context;
-export type Input = import('./input.js').Input;
-export type InputUI = import('./input.js').InputUI;
-export type Dispatch = import('./input.js').Dispatch;
-export type Press = import('./input.js').Press;
-export type Modifiers = import('./binding-mods.js').Modifiers;
-export type KeybindsOptions = import('./core.js').KeybindsOptions;
-export type BindingsStorage = import('./bindings-storage.js').BindingsStorage;
-export type AnyBindingsStore = import('./store.js').AnyBindingsStore;
-/** @typedef {import('./command.js').Command} Command */
-/** @typedef {import('./command.js').AxisDef} AxisDef */
-/** @typedef {import('./command.js').AxisValue} AxisValue */
-/** @typedef {import('./command.js').BindingSchema} BindingSchema */
-/** @typedef {import('./command.js').Schema} Schema */
-/** @typedef {import('./command.js').BindingOverrides} BindingOverrides */
-/** @typedef {import('./command.js').Context} Context */
-/** @typedef {import('./input.js').Input} Input */
-/** @typedef {import('./input.js').InputUI} InputUI */
-/** @typedef {import('./input.js').Dispatch} Dispatch */
-/** @typedef {import('./input.js').Press} Press */
-/** @typedef {import('./binding-mods.js').Modifiers} Modifiers */
-/** @typedef {import('./core.js').KeybindsOptions} KeybindsOptions */
-/** @typedef {import('./bindings-storage.js').BindingsStorage} BindingsStorage */
-/** @typedef {import('./store.js').AnyBindingsStore} AnyBindingsStore */
-export { anyModifiers } from './any-modifiers.js';
-export { axes } from './axes.js';
-export { axesUI, formatAxisParts } from './axes-ui.js';
-export { bindingLookup, findConflict, parseBinding, splitBinding } from './binding.js';
-export { bindingParts, formatBinding } from './binding-format.js';
-export { isActive } from './command.js';
-export { keybinds } from './core.js';
-export { gamepad } from './gamepad.js';
-export { formatGamepadParts, gamepadUI } from './gamepad-ui.js';
+export { aliases, keyAliases } from './aliases.js';
+export { anyOf } from './any-of.js';
+export { axisParse } from './axis-parse.js';
+export { axisWhen } from './axis-when.js';
+export { bindingLookup } from './binding-lookup.js';
+export { bindingParts } from './binding-parts.js';
+export { bindingStore } from './binding-store.js';
+export { bindingTable } from './binding-table.js';
+export { bound } from './bound.js';
+export { categoryHeaders } from './category-headers.js';
+export { changedFields } from './changed-fields.js';
+export { cheatsheetKeys } from './cheatsheet-keys.js';
+export { cheatsheetRow } from './cheatsheet-row.js';
+export { cheatsheetTrigger } from './cheatsheet-trigger.js';
+export { cheatsheet } from './cheatsheet.js';
+export { conflictQuestion } from './conflict-question.js';
+export { findConflict } from './find-conflict.js';
+export { flipRelease } from './flip-release.js';
+export { focusReturn } from './focus-return.js';
+export { formatAxis } from './format-axis.js';
+export { formatKey } from './format-key.js';
+export { formatMouse } from './format-mouse.js';
+export { formatPad } from './format-pad.js';
+export { formatSteps } from './format-steps.js';
 export { holds } from './holds.js';
-export { keys, parseKey } from './keys.js';
-export { aliases } from './keys-aliases.js';
-export { followLayout, layout, loadLayout } from './keys-layout.js';
-export { symbols } from './keys-symbols.js';
-export { eventToBindingString, formatKeyParts, keysUI } from './keys-ui.js';
-export { onModifierHold, onModifierTaps } from './modifiers.js';
-export { mouse, mouseMatches } from './mouse.js';
-export { eventToMouseBindingString, formatMouseParts, mouseUI } from './mouse-ui.js';
+export { keyListen } from './key-listen.js';
+export { keyPairAxis } from './key-pair-axis.js';
+export { keyParse, keyQuery } from './key-parse.js';
+export { keybinds } from './keybinds.js';
+export { layout } from './layout.js';
+export { localStorageBindings } from './local-storage.js';
+export { looseTable } from './loose-table.js';
+export { modifierAlone } from './modifier-alone.js';
+export { modifierHold } from './modifier-hold.js';
+export { modifierTaps } from './modifier-taps.js';
+export { eventModifierParts, eventModifiers, formatModifier, isMac, modifierPrefix, noModifiers, parseModifiers, } from './modifiers.js';
+export { mouseAxis } from './mouse-axis.js';
+export { mouseListen } from './mouse-listen.js';
+export { mouseButtons, mouseName, mouseParse } from './mouse-parse.js';
+export { focusInOverlay, outsideOverlay } from './overlay.js';
+export { padAxis } from './pad-axis.js';
+export { padButtons } from './pad-buttons.js';
+export { padAliases, padButtonNames, padParse } from './pad-parse.js';
+export { pads } from './pads.js';
+export { presses } from './presses.js';
+export { printed } from './printed.js';
+export { punctuation } from './punctuation.js';
+export { radialMenu } from './radial-menu.js';
+export { radialPlace } from './radial-place.js';
+export { radialStep } from './radial-step.js';
+export { rebind } from './rebind.js';
+export { rebindAxes, rebindKeys, rebindMouse, rebindPad } from './rebind-inputs.js';
+export { recordAxis } from './record-axis.js';
+export { keyBinding, recordKey } from './record-key.js';
+export { mouseBinding, recordMouse } from './record-mouse.js';
+export { recordPad } from './record-pad.js';
+export { recording } from './recording.js';
 export { releases } from './releases.js';
+export { applies, runFirst, take } from './run-first.js';
+export { scaleAxis } from './scale-axis.js';
 export { sequences } from './sequences.js';
-export { BindingsChangeEvent } from './bindings-change.js';
-export { localStorageBindings } from './bindings-storage.js';
-export { defineSchema, withOverride } from './schema.js';
-export { BindingsStore, entriesOf, fromBindings, listBindings } from './store.js';
-export { KeybindCheatsheet } from './cheatsheet.js';
-export { RadialMenu } from './radial-menu.js';
-export { KeybindSettings } from './settings.js';
+export { settings } from './settings.js';
+export { settingsChip } from './settings-chip.js';
+export { settingsKeys } from './settings-keys.js';
+export { settingsPrompt } from './settings-prompt.js';
+export { settingsQuestion } from './settings-question.js';
+export { settingsRecorder } from './settings-recorder.js';
+export { settingsRow } from './settings-row.js';
+export { splitBinding } from './split-binding.js';
+export { sumAxis } from './sum-axis.js';
+export { symbols } from './symbols.js';
