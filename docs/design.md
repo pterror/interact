@@ -19,28 +19,28 @@ Every name and every UX choice here is a proposal for the owner, not decided. Pr
 
 Each is owned by the module(s) named, which declare it.
 
-| Abstraction | Shape                                                                    | Owned by                                              |
-| ----------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
-| Value       | `() → T`                                                                 | move (`from`), typeahead (`from`)                     |
-| Watched     | `get() → T`, `watch(fn) → stop`                                          | activeDescendant, popover, windowing, sizer, posInSet |
-| Set         | `(T) → void`                                                             | move (`to`), typeahead (`to`), pick (`to`)            |
-| Step        | `step(k \| none, n) → later key \| none`                                 | move                                                  |
-| Find        | `find(prefix, after: k \| none) → later key \| none`                     | typeahead                                             |
-| Drawn       | `keys() → Key[]`, `watch(fn)`                                            | render                                                |
-| Mount       | `put(key, element, before: element \| none)`, `remove(element)`          | render                                                |
-| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)` | render                                                |
-| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                           | pick, drag, gaps                                      |
-| Test        | `has(key) → bool`, `watch(fn(keys?))`                                    | mark                                                  |
-| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                    | windowing                                             |
-| Locate      | `locate(key) → later rank \| none`                                       | windowing                                             |
-| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                 | place, posInSet                                       |
-| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)      | rangeSelection                                        |
-| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`         | visibleRanks                                          |
-| Place       | `place(rank) → rect`, `watch(fn)`                                        | place                                                 |
-| Extent      | `extent(count) → size`, `watch(fn)`                                      | sizer                                                 |
-| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                      | drag                                                  |
-| Reorder     | `move(key, target: key, after: bool)`                                    | drag                                                  |
-| Scroll      | `scrollBy(px)`                                                           | edgeScroll                                            |
+| Abstraction | Shape                                                                    | Owned by                                                                       |
+| ----------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Value       | `() → T`                                                                 | move (`from`), typeahead (`from`)                                              |
+| Watched     | `get() → T`, `watch(fn) → stop`                                          | activeDescendant, popover, focusWhen, windowing, sizer, posInSet               |
+| Set         | `(T) → void`                                                             | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`) |
+| Step        | `step(k \| none, n) → later key \| none`                                 | move                                                                           |
+| Find        | `find(prefix, after: k \| none) → later key \| none`                     | typeahead                                                                      |
+| Drawn       | `keys() → Key[]`, `watch(fn)`                                            | render                                                                         |
+| Mount       | `put(key, element, before: element \| none)`, `remove(element)`          | render                                                                         |
+| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)` | render                                                                         |
+| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                           | pick, drag, gaps, hoverIntent                                                  |
+| Test        | `has(key) → bool`, `watch(fn(keys?))`                                    | mark                                                                           |
+| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                    | windowing                                                                      |
+| Locate      | `locate(key) → later rank \| none`                                       | windowing                                                                      |
+| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                 | place, posInSet                                                                |
+| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)      | rangeSelection                                                                 |
+| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`         | visibleRanks                                                                   |
+| Place       | `place(rank) → rect`, `watch(fn)`                                        | place                                                                          |
+| Extent      | `extent(count) → size`, `watch(fn)`                                      | sizer                                                                          |
+| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                      | drag                                                                           |
+| Reorder     | `move(key, target: key, after: bool)`                                    | drag                                                                           |
+| Scroll      | `scrollBy(px)`                                                           | edgeScroll                                                                     |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
 edge; `none` comes back only for an empty list. `Find` returns the first key after `after` (wrapping) whose text starts
@@ -112,6 +112,20 @@ selecting. A submenu is another instance of the same modules. Adds:
 
 Each menu level binds its keys on its own element, so the focused level gets them. Right/Enter on an item with a submenu
 opens it and moves its active key to the first item; Left/Escape closes it and focus returns.
+
+**As built** (the browser test's page, `test/page-menu.js`): `popover({ element, anchor, open, side })` shows a `manual`
+popover (closing is `dismiss`'s and the keys', never the browser's light dismiss) placed below or beside its anchor, and
+again on scroll and resize. `focusWhen({ element, when })` focuses in a microtask after `when` becomes true, so an
+element the same change shows is shown by then, whatever order the wiring heard it in. `dismiss({ elements, to })` sets
+`false` on a press outside every element, or on an Escape whose default nothing prevented: a level that binds Escape
+(keybinds prevents what a command takes) closes alone. `hoverIntent({ element, itemOf, to, rest })` hands on the key the
+pointer rests on **(P: 100 ms)**; a move restarts the wait. Focus is one `cell` naming the level (or the button) that
+has it; hovering an item gives its level focus, so the keys follow the pointer.
+
+**Found while building:** a submenu's open state was first its own `cell`, which its parent's "which child is open" had
+to mirror; Left closed one and left the other. A submenu's open is now derived from its parent's choice, one source of
+truth. `mark` applies its off value to every key, so a submenu item's `aria-expanded="false"` (which a plain item
+mustn't carry) is a small facet in the page; open whether `mark` should take the keys it applies to.
 
 ## Case 5: a combobox
 
@@ -325,6 +339,12 @@ above it closes or opens.
 - **Releasing a held key** (found building case 1). A list keeps every held key it gave out, for the list's lifetime. A
   short-lived hold (a closed menu's active key) needs `release()`; not built, as case 1 never drops one. Open.
 - **Typeahead.** It read key events itself. Now it takes characters, and keybinds gains a `printed` key (below).
+- **Keys inside an open popover** (found building case 4). keybinds took an open `<dialog>`, popover or
+  `[data-keybinds-modal][open]` anywhere on a key's path to mean the key wasn't its to handle, so a menu level, an open
+  popover with its keys bound on itself, never got them. The rule meant that an overlay takes the keyboard from bindings
+  outside it; it now blocks only bindings listening outside the overlay (an overlay between the key's target and where
+  they listen), and bindings on the overlay or inside it fire. No option was needed: where a listener listens already
+  says whose keys it handles.
 
 ## Solid (`packages/solid`)
 
