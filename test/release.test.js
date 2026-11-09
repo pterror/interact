@@ -5,7 +5,7 @@
 
 import { afterAll, describe, expect, test } from 'bun:test'
 
-import { bump, publishedManifest, release } from '../scripts/release.js'
+import { bump, parseArguments, publishedManifest, release } from '../scripts/release.js'
 
 /**
  * A package in the made repo
@@ -284,5 +284,22 @@ describe('release', () => {
     expect(await failureOf(release({ dryRun: false, outside: standIn([]).outside, root }))).toContain(
       'The working tree has changes',
     )
+  })
+})
+
+describe('the command line', () => {
+  test('runs a release only when asked for nothing else, or a dry run', () => {
+    expect(parseArguments([])).toEqual({ run: 'release' })
+    expect(parseArguments(['--dry-run'])).toEqual({ run: 'dry-run' })
+  })
+
+  test('prints the usage for --help, whatever else is given', () => {
+    expect(parseArguments(['--help'])).toEqual({ refused: undefined, run: 'usage' })
+    expect(parseArguments(['--dry-run', '--help'])).toEqual({ refused: undefined, run: 'usage' })
+  })
+
+  test('refuses an argument it does not know, naming it, with the usage', () => {
+    expect(parseArguments(['-h'])).toEqual({ refused: 'Unknown argument: -h', run: 'usage' })
+    expect(parseArguments(['--dry-run', 'list'])).toEqual({ refused: 'Unknown argument: list', run: 'usage' })
   })
 })

@@ -602,13 +602,45 @@ const npm = {
   },
 }
 
-if (import.meta.main) {
-  const root = new URL('..', import.meta.url).pathname
-  const ok = await release({ dryRun: Bun.argv.includes('--dry-run'), outside: npm, root }).catch((error) => {
-    console.error(error instanceof Error ? error.message : String(error))
-    return false
-  })
-  process.exitCode = ok ? 0 : 1
+const USAGE = `Usage: bun run release [--dry-run]
+
+Releases the packages that changed since their last release: commits, tags and publishes them.
+  --dry-run  says what it would do, and does nothing
+  --help     prints this`
+
+/**
+ * What the command line asks for: a release, a dry run, or the usage, refusing anything else
+ * @param {readonly string[]} args - The arguments after the script
+ * @returns {Readonly<{ run: 'release' | 'dry-run' } | { run: 'usage', refused: string | undefined }>} What to do
+ */
+function parseArguments(args) {
+  if (args.includes('--help')) {
+    return { refused: undefined, run: 'usage' }
+  }
+  const unknown = args.find((arg) => arg !== '--dry-run')
+  if (unknown !== undefined) {
+    return { refused: `Unknown argument: ${unknown}`, run: 'usage' }
+  }
+  return { run: args.includes('--dry-run') ? 'dry-run' : 'release' }
 }
 
-export { bump, publishedManifest, release }
+if (import.meta.main) {
+  const asked = parseArguments(Bun.argv.slice(2))
+  if (asked.run === 'usage') {
+    if (asked.refused === undefined) {
+      console.log(USAGE)
+    } else {
+      console.error(`${asked.refused}\n\n${USAGE}`)
+      process.exitCode = 1
+    }
+  } else {
+    const root = new URL('..', import.meta.url).pathname
+    const ok = await release({ dryRun: asked.run === 'dry-run', outside: npm, root }).catch((error) => {
+      console.error(error instanceof Error ? error.message : String(error))
+      return false
+    })
+    process.exitCode = ok ? 0 : 1
+  }
+}
+
+export { bump, parseArguments, publishedManifest, release }
