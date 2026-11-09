@@ -39,7 +39,7 @@ describe('stylesheets', () => {
 
   test('are looked for in every package', async () => {
     const found = new Set(await styledFiles())
-    const known = ['packages/keybinds/styles/palette.css', 'packages/theme/tokens.css']
+    const known = ['packages/keybinds/styles/palette.css']
     expect(known.filter((path) => !found.has(path))).toEqual([])
   })
 
