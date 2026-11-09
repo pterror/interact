@@ -270,6 +270,11 @@ recurs. Ranks exist only at the top level. Adds:
 The arrow keys use one Step over the tree's reading order, from the server. `windowing` keeps the active occurrence's
 top-level key drawn; the nested lists under it are drawn whole.
 
+**Found while building SillyTavern's overview:** `reveal` scrolls a key's whole element, and a region's element holds
+its members, so a region taller than the view was left where it was when its head became active (both its edges outside
+the view: `scrollIntoView` with `nearest` does nothing). Adds `revealPart`: a Facet like `reveal` that scrolls the part
+of the element the app names (the head's card), or the element when it names none.
+
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
 

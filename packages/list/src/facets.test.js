@@ -4,6 +4,7 @@ import { arrayList } from './array-list.js'
 import { ids } from './ids.js'
 import { mark } from './mark.js'
 import { pick } from './pick.js'
+import { revealPart } from './reveal-part.js'
 import { reveal } from './reveal.js'
 
 describe('mark', () => {
@@ -82,5 +83,37 @@ describe('reveal', () => {
     await Promise.resolve()
     expect(scrolled).toHaveBeenCalledTimes(1)
     element.remove()
+  })
+})
+
+describe('revealPart', () => {
+  test("scrolls the part of a changed key's element that stands for it, or the element when it has none", async () => {
+    const list = arrayList(['a', 'b'])
+    const active = list.hold(undefined, 'next')
+    const facet = revealPart({ part: (_key, element) => element.querySelector('.head') ?? undefined, target: active })
+    facet.watch(() => undefined)
+    const region = document.createElement('div')
+    const head = document.createElement('div')
+    head.className = 'head'
+    region.append(head)
+    const plain = document.createElement('div')
+    document.body.append(region, plain)
+    const headScrolled = mock(() => undefined)
+    const regionScrolled = mock(() => undefined)
+    const plainScrolled = mock(() => undefined)
+    head.scrollIntoView = headScrolled
+    region.scrollIntoView = regionScrolled
+    plain.scrollIntoView = plainScrolled
+    active.set('a')
+    facet.apply('a', region)
+    await Promise.resolve()
+    expect(headScrolled).toHaveBeenCalledTimes(1)
+    expect(regionScrolled).not.toHaveBeenCalled()
+    active.set('b')
+    facet.apply('b', plain)
+    await Promise.resolve()
+    expect(plainScrolled).toHaveBeenCalledTimes(1)
+    region.remove()
+    plain.remove()
   })
 })
