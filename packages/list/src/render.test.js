@@ -116,4 +116,32 @@ describe('render', () => {
     rendered.stop()
     expect(dropped.toSorted()).toEqual(['a', 'b'])
   })
+
+  test('tells what made an element, once, that it is done with it: after the facets, when taken out or stopping', () => {
+    const container = document.createElement('div')
+    const list = arrayList(['a', 'b'])
+    /** @type {string[]} */
+    const heard = []
+    const rendered = render({
+      create,
+      drawn: list,
+      drop: (key, element) => {
+        heard.push(`made ${key}:${String(element.isConnected || element.parentNode === container)}`)
+      },
+      facets: [
+        {
+          apply: () => undefined,
+          drop: (key) => {
+            heard.push(`facet ${key}`)
+          },
+          watch: () => () => undefined,
+        },
+      ],
+      mount: flowMount(container),
+    })
+    list.set(['b'])
+    expect(heard).toEqual(['facet a', 'made a:false'])
+    rendered.stop()
+    expect(heard).toEqual(['facet a', 'made a:false', 'facet b', 'made b:true'])
+  })
 })

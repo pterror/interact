@@ -1,7 +1,8 @@
 /**
  * One element per drawn key, in the order drawn. Where an element goes is the mount's; what it shows beyond what
  * `create` made is the facets'. Each new element is mounted, then every facet is applied to it in one synchronous
- * pass; a facet that reports keys changed is applied again to theirs.
+ * pass; a facet that reports keys changed is applied again to theirs. `drop` hears once that an element `create` made
+ * is done with, after the facets have: taken out, or render stopping.
  */
 
 /**
@@ -28,8 +29,8 @@
 
 /**
  * @template K
- * @typedef {Readonly<{ drawn: Drawn<K>, create: (key: K) => Element, mount: Mount<K>, facets: readonly Facet<K>[] }>}
- *   RenderOptions
+ * @typedef {Readonly<{ drawn: Drawn<K>, create: (key: K) => Element, drop?: (key: K, element: Element) => void,
+ *   mount: Mount<K>, facets: readonly Facet<K>[] }>} RenderOptions
  */
 
 /**
@@ -47,10 +48,11 @@
 /**
  * Draws keys as elements, and keeps them drawn
  * @template K
- * @param {RenderOptions<K>} options - What to draw, how to make an element, where it goes, and what it shows
+ * @param {RenderOptions<K>} options - What to draw, how to make an element and hear it is done with, where it goes,
+ *   and what it shows
  * @returns {Rendered<K>} The items drawn, and stopping
  */
-function render({ create, drawn, facets, mount }) {
+function render({ create, drawn, drop, facets, mount }) {
   /** @type {Map<K, Element>} */
   const elements = new Map()
   /** @type {WeakMap<Node, K>} */
@@ -66,6 +68,7 @@ function render({ create, drawn, facets, mount }) {
         }
         elements.delete(key)
         mount.remove(element)
+        drop?.(key, element)
       }
     }
     /** @type {Item<K>[]} */
@@ -141,6 +144,7 @@ function render({ create, drawn, facets, mount }) {
         for (const facet of facets) {
           facet.drop?.(key, element)
         }
+        drop?.(key, element)
       }
       elements.clear()
     },
