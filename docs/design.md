@@ -392,6 +392,10 @@ holds something per element (a framework's root, a pool) had no way to hear it: 
 parameters that must be passed together. Render gained `drop(key, element)`, called once per element `create` made,
 after the facets' drops, when render takes it out or stops.
 
+**Found while building SillyTavern's overview:** `toWatched` made a root per watch, stopped only by the watcher; a
+module that never stops watching (`windowing`, `sizer`, `visibleRanks`) kept a component's signals running after the
+component was gone. A watch made inside a Solid owner is now stopped when that owner goes.
+
 **Found while building, open:** render puts an element in place after `create` returns, so an item's Solid effects
 (`onMount`) run before it is in place unless a Solid update is under way (then they run at its end). Layout belongs to
 facets, which render applies after placing.

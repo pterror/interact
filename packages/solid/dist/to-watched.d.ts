@@ -1,7 +1,7 @@
 /**
  * A Solid signal or memo as a Watched. A listener hears each change to the value, synchronously with the write that
  * made it (or at the end of the batch it is in), and only when the value is another one: an accessor that reran to
- * the same value tells no one.
+ * the same value tells no one. Made inside a Solid owner, it stops telling its listeners when that owner goes.
  */
 import type { Accessor } from 'solid-js';
 /**

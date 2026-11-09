@@ -64,6 +64,22 @@ describe('toWatched', () => {
     expect([runs, listened]).toEqual([1, 1])
   })
 
+  test('stops telling its listeners when the owner it was made in goes, for a watcher that never stops', () => {
+    const [count, setCount] = createSignal(1)
+    /** @type {number[]} */
+    const heard = []
+    createRoot((dispose) => {
+      const watched = toWatched(count)
+      watched.watch(() => {
+        heard.push(watched.get())
+      })
+      setCount(2)
+      dispose()
+    })
+    setCount(3)
+    expect(heard).toEqual([2])
+  })
+
   test('gives a memo of keys as a Drawn', () => {
     const [keys, setKeys] = createSignal(['a', 'b'])
     const drawn = toDrawn(createRoot(() => createMemo(keys)))

@@ -1,12 +1,12 @@
 /**
  * A Solid signal or memo as a Watched. A listener hears each change to the value, synchronously with the write that
  * made it (or at the end of the batch it is in), and only when the value is another one: an accessor that reran to
- * the same value tells no one.
+ * the same value tells no one. Made inside a Solid owner, it stops telling its listeners when that owner goes.
  */
 
 /** @import { Accessor } from 'solid-js' */
 
-import { createComputed, createRoot, untrack } from 'solid-js'
+import { createComputed, createRoot, getOwner, onCleanup, untrack } from 'solid-js'
 
 /**
  * A signal or memo as a Watched
@@ -16,10 +16,21 @@ import { createComputed, createRoot, untrack } from 'solid-js'
  *   change
  */
 function toWatched(accessor) {
+  const owner = getOwner()
+  /** @type {Set<() => void>} */
+  const stops = new Set()
+  if (owner !== null) {
+    onCleanup(() => {
+      for (const stop of stops) {
+        stop()
+      }
+      stops.clear()
+    })
+  }
   return {
     get: () => untrack(accessor),
     watch(listener) {
-      return createRoot((dispose) => {
+      const stop = createRoot((dispose) => {
         /** @type {{ value: T } | undefined} */
         let last = undefined
         createComputed(() => {
@@ -31,7 +42,12 @@ function toWatched(accessor) {
           }
         })
         return dispose
-      })
+      }, owner ?? undefined)
+      stops.add(stop)
+      return () => {
+        stops.delete(stop)
+        stop()
+      }
     },
   }
 }

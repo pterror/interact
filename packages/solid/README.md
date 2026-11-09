@@ -18,6 +18,9 @@ npm install @pterror/interact-solid solid-js
 | `fromKeyed(read, watch)` | any answer per key, with its changed keys   | an accessor per key                 |
 | `componentItems(Item)`   | a component of `{ key }` giving one element | `create` and `drop`, for `render`   |
 
+A Watched or Drawn made inside a Solid owner stops telling its listeners when that owner goes, so a module that never
+stops watching (`windowing`, `sizer`) leaves nothing running after the component that made it.
+
 The accessors per key follow only the keys some computation reads, and rerun only the computations reading a key whose
 answer changed, so a list drawn by windowing costs what is on screen. `componentItems` runs each item in its own root,
 owned by where it is called: items see that context, and are disposed when render drops them or when that owner goes.
