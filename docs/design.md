@@ -282,6 +282,10 @@ its content's top, so each list needs the view from its own top, which moves whe
 children changes size) and `viewFrom` (a view and Scroll counted from a Watched top). `windowing`, `visibleRanks` and
 `keepInPlace` take the result as they take `viewport`.
 
+**Found while building SillyTavern's entry page:** the entry's text is committed on a pause in typing, and the page may
+not wait on timers itself. Adds `rested`: a Watched value handed on once it has stopped changing for a while **(P: 800
+ms)**, with `flush` (hand on a waiting change now, as when the field loses focus) and `waiting`.
+
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
 

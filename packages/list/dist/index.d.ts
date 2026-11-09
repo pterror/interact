@@ -43,6 +43,7 @@ export { popover } from './popover.js';
 export { posInSet } from './pos-in-set.js';
 export { relationStep } from './relation-step.js';
 export { render } from './render.js';
+export { rested } from './rested.js';
 export { reveal } from './reveal.js';
 export { revealPart } from './reveal-part.js';
 export { rows } from './rows.js';
