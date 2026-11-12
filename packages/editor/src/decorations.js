@@ -5,7 +5,8 @@
  * (`EditorView.decorations`), so it is a state field: it moves through each change, and is rebuilt only for the
  * top-level nodes that are new or changed. Both are drawn again from scratch on `lookChanged`. While an IME composes,
  * the visible decorations only move with the text, since replacing them around the text being composed can break the
- * composition.
+ * composition. A block wrapper wraps the lines that start in its range, so it starts where its node's line does: a
+ * block nested on its parent's line (`> > quote`) starts after it.
  */
 
 import { syntaxTree } from '@codemirror/language'
@@ -233,7 +234,7 @@ function layoutUnder(state, top, look) {
           attributes: attributesOf(rule.class, rule.attributes?.(node, read)),
           rank: Math.max(0, 100 - depthOf(node)),
           tagName: rule.element ?? 'div',
-        }).range(node.from, node.to),
+        }).range(state.doc.lineAt(node.from).from, node.to),
       )
     }
     return rule.mark !== true

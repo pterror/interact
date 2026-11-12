@@ -594,7 +594,8 @@ when the piece is no longer drawn, as with list's `render`.
   - Decorations that change vertical layout can't come from a function of the view (`@codemirror/view`,
     `EditorView.decorations`): block wrappers, block widgets, and replaced ranges that cover a line break. These are a
     state field instead. It moves through each change, and is rebuilt only for the top-level blocks whose node changed
-    type or extent.
+    type or extent. A block wrapper wraps the lines starting in its range, so it starts where its node's line starts: a
+    block nested on its parent's line (`> > quote`) starts after the line.
 - **`reader({ grammar, look, overlays, textClass })`** returns
   `{ element, show(text), positionAt(node, offset), stop }`. It walks the syntax tree into DOM, using the same Look as
   the editor.

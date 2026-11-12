@@ -197,10 +197,10 @@ describe('the editor drawing a look', () => {
 
   test('wraps blocks, and keeps the wrappers of blocks an edit didn’t touch', () => {
     const state = stateOf('one\n\n> two\n\nthree')
-    expect(wrappersOf(state).toSorted()).toEqual(['0-3', '12-17', '5-10', '7-10'])
+    expect(wrappersOf(state).toSorted()).toEqual(['0-3', '12-17', '5-10', '5-10'])
     const next = state.update({ changes: { from: 17, insert: ' and four' } }).state
     ensureSyntaxTree(next, next.doc.length, 1000)
-    expect(wrappersOf(next).toSorted()).toEqual(['0-3', '12-26', '5-10', '7-10'])
+    expect(wrappersOf(next).toSorted()).toEqual(['0-3', '12-26', '5-10', '5-10'])
   })
 
   test('draws again when told the look changed, the text unchanged', () => {
@@ -234,5 +234,10 @@ describe('the editor drawing a look', () => {
     view.dispatch({ effects: lookChanged.of(undefined) })
     expect(view.contentDOM.textContent).toContain('two')
     view.destroy()
+  })
+
+  test('wraps a block nested on its parent\u2019s line from the start of that line', () => {
+    const state = stateOf('> > nested')
+    expect(wrappersOf(state).toSorted()).toEqual(['0-10', '0-10', '0-10'])
   })
 })
