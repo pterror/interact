@@ -509,6 +509,211 @@ recording takes the steps so far after a 1000 ms pause; the settings panel shows
 is a release (it turns it back into a press), and recording a release is a switch in the prompt; the panel's texts
 ("Press a key...", "+ Key", "Reset", "Reset all", "Already bound to …", "Replace", "Cancel").
 
+## Editor (`packages/editor`, `packages/markdown`), not built
+
+The requirements are SillyTavern's `docs/design/editor.md`. Its design comes from cyoa's `src/client/editor`, with what
+editor.md changes. In short:
+
+- The text is the source of truth, exactly as written. It's drawn over and never changed to draw it.
+- CodeMirror with a lezer grammar, reparsed incrementally.
+- An editor shows formatting marks dimmed, in place. A reader shows none. Both are drawn from one syntax tree and one
+  table, and differ only in the marks and in how pieces such as macros are styled.
+- Reading becomes editing by an explicit action.
+- Decorations cover the visible lines.
+- Nothing is reported as a side effect of drawing.
+- Inline HTML comes from the parser.
+- There is a general markdown core, and each user adds drawing for its own syntax.
+
+Names are **(P)**.
+
+### Packages
+
+| Package                      | Holds                                                                                                                                                                        | Depends on (all peers)                                                                                                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pterror/interact-editor`   | the text and its port, the look table, the editor's decorations, the reader, pieces, overlays, suggestions, the toolbar and the selection bar                                | `@lezer/common`; `@codemirror/state`, `view`, `language` and `autocomplete`, optional, since the reader's modules import only `@lezer/common`; `@pterror/interact-list` (`popover`) |
+| `@pterror/interact-markdown` | a markdown grammar (lezer markdown with tables, task lists, strikethrough, autolinks, and HTML parsed by an HTML grammar), its look table, its formatting state and commands | `@pterror/interact-editor`, `@lezer/markdown`, `@lezer/html`, and the editor's CodeMirror peers                                                                                     |
+
+- **The editor knows no markdown.** The grammar is passed in. cyoa draws markdown and wikitext with one look module, so
+  a second grammar is a package beside `markdown`, and `editor` doesn't change for it.
+- **Everything is a peer.** CodeMirror stops working when a page loads two copies of `@codemirror/state`: an extension
+  from the other copy is "unrecognized". A `workspace:^` dependency between interact packages also blocks pnpm git
+  dependencies, which is how SillyTavern installs interact. The release rewrites peer ranges as well
+  (`scripts/release.js`, `DEPENDENCY_FIELDS`).
+
+### Abstractions
+
+| Abstraction | Shape                                                                                                      | Owned by              |
+| ----------- | ---------------------------------------------------------------------------------------------------------- | --------------------- |
+| Text        | `get() → { text, includes: changeId \| none }`, `watch(fn)`                                                | textEditor            |
+| Edit        | `(change: { from, to, insert }[], id: changeId) → void`                                                    | textEditor            |
+| Grammar     | a lezer `Parser`                                                                                           | textEditor, reader    |
+| Look        | `{ [selector]: Rule }`; a selector is a node name or `Parent/Name`, as in `@lezer/highlight`'s `styleTags` | textEditor, reader    |
+| Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                         | textEditor, reader    |
+| Overlay     | `ranges(from, to) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`                         | textEditor, reader    |
+| Suggest     | `(text, pos, explicit) → later { from, to, options: Option[] } \| none`                                    | suggestions           |
+| Command     | CodeMirror's `(view) → bool`                                                                               | toolbar, selectionBar |
+| Tool        | `{ id, label, icon?, run: Command, on?(state) → bool, applies?(state) → bool }`                            | toolbar, selectionBar |
+
+**Rule.** These fields describe how a node is drawn. Both surfaces read them:
+
+- `element` and `class`: the element the node is drawn as (`em`, `blockquote`, `h2`), and its classes.
+  `attributes(node, text)` gives an element's attributes (inline HTML's own, after the app's policy).
+- `block`: the element wraps whole lines. In the editor it is a CodeMirror `BlockWrapper`; in the reader it's a block
+  element.
+- `mark`: a formatting mark. The editor draws it dimmed, with a class. The reader leaves it out.
+- `piece(node, text, surface)` with `source`. With `replaced`, the piece stands for the source on both surfaces, and in
+  the editor it's an atomic range that Backspace deletes whole (a macro). With `beside`, the editor keeps the source as
+  editable text drawn as marks and puts the piece after it, and the reader draws the piece alone (an image, an emoji).
+  `surface` is `editor` or `reader`, which is how a macro is a pill in one and its value in the other.
+
+A piece whose content changes later keeps its own element up to date, as when a macro's value arrives. `drop` is called
+when the piece is no longer drawn, as with list's `render`.
+
+### Modules (editor)
+
+- **`textEditor({ parent, text, edit, grammar, look, textClass, extensions })`** returns `{ view, stop }`. It is a
+  CodeMirror view over the text.
+  - **Edits.** Each change is handed to `edit` with an id, as it is made.
+  - **Text from elsewhere.** The editor keeps the changes the text doesn't yet `include`. It shows an outside text with
+    those changes mapped over it (`ChangeSet.map`, as `@codemirror/collab` rebases), so an echo of its own change, or
+    someone else's, never undoes what was typed since.
+  - **Looks.** Its content takes `textClass`, the same class the reader takes, so one set of styles applies to both.
+    Nothing copies computed styles.
+  - **App extensions.** `extensions` are the app's CodeMirror extensions (history, search, paste, its own keys), wired
+    by hand.
+- **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
+  viewport or the tree changes, or when a piece or overlay reports a change. While an IME composes, they're only moved
+  with the text (kept from cyoa).
+  - Decorations that change vertical layout can't come from a function of the view (`@codemirror/view`,
+    `EditorView.decorations`): block wrappers, block widgets, and replaced ranges that cover a line break. These are a
+    state field instead. It moves through each change, and is rebuilt only for the top-level blocks whose node changed
+    type or extent.
+- **`reader({ grammar, look, overlays, textClass })`** returns
+  `{ element, show(text), positionAt(node, offset), stop }`. It walks the syntax tree into DOM, using the same Look as
+  the editor.
+  - **Drawing.** It draws elements, leaves marks out, and draws pieces. Text inside a block is drawn as written, with
+    the editor's `white-space: pre-wrap`, so a single newline is a line break on both surfaces.
+  - **`show(text)`.** It reparses with the last tree's fragments, then redraws from the first top-level block that
+    differs. A streamed reply therefore costs its last block per chunk.
+  - **`positionAt`.** It gives the source position for a place in the reader's DOM. Every element knows the node it was
+    drawn from.
+- **Overlays.** In the editor, overlay ranges are mark decorations. In the reader, they are spans around the text runs
+  they cover, split at the elements they cross. Overlays never change the tree or the text.
+- **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
+  is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
+- **`toolbar({ view, tools, keyOf })`.** Buttons for a Watched list of Tools, in a space the field always reserves, so
+  showing it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from `applies`).
+  - Each button's tooltip names its key from `keyOf(id)`, formatted with keybinds' `formatSteps`.
+  - While keybinds' `modifierHeld` holds, `data-keys` shows every shortcut.
+  - Which tools a person has is the app's: the list it passes and keeps.
+- **`keyboardInset`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard covers. The
+  toolbar sits above it (from cyoa's `toolbar.ts`).
+- **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's
+  rectangle.
+
+Keys are the app's: it binds each Command with keybinds, as a Handler that runs it on the editor being written in. No
+module here reads a key event.
+
+### Modules (markdown)
+
+- **`markdownGrammar(extensions)`** returns a Parser: lezer markdown, with the app's `MarkdownConfig`s added.
+  - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`, and the tags of one paragraph are mounted as
+    one overlay so their opening and closing tags pair into one element.
+  - Without HTML (an app's "show tags as text"), the HTML nodes are removed (`remove: ['HTMLBlock', 'HTMLTag']`).
+- **`markdownLook(html)`** returns the markdown Look.
+  - Every mark node (`EmphasisMark`, `HeaderMark`, `Link/URL`, ...) is a `mark`.
+  - Emphasis, strong, strikethrough and code are elements. Headings, quotes, lists, code blocks and tables are `block`.
+  - Images are `beside` pieces.
+  - HTML elements take their name and attributes from the tree, through
+    `html(name, attributes, content) → { name, attributes, content } | none`. That is the app's policy (what's allowed,
+    how classes and styles are rewritten). `none` draws the source as text.
+- **Formatting state and commands** (cyoa's `format.ts`).
+  - `hasStyle(state, style)` reads the syntax tree, so italics aren't mistaken for half of bold.
+  - `toggleStyle(style)`. With nothing selected and no word at the cursor, it writes an empty pair to type into, and
+    pressing it again with nothing typed takes the pair out. At the end of styled words it steps past the closing mark.
+    This is the "switch for what's typed next" and its pressed state.
+  - `heading`, `quote`, `list`, `codeBlock` and `link`, each a Command, with `on` where it has a state.
+
+### What is SillyTavern's
+
+- **Grammar extensions:**
+  - macros;
+  - emoji shortcodes;
+  - dialogue quotes;
+  - image sizes;
+  - lines kept out of markdown (`markdown_escape_strings`);
+  - reasoning markers in a body, drawn as text;
+  - HTML blocks with a `markdown` attribute;
+  - `encode_tags`, which removes the HTML nodes;
+  - slash commands, in the chat box.
+
+  Each comes with its Look entries.
+
+- **Pieces:**
+  - the macro pill, from `MacroValues`: "Filled in when sent", "sends nothing", a person's card on hover;
+  - emoji;
+  - images, which follow the external media setting.
+- **The HTML policy:**
+  - class prefixing;
+  - styles limited to message text, with `@import` dropped;
+  - external media;
+  - `target=_blank rel=noopener`;
+  - autoplay.
+- **Overlays:**
+  - lore marks, from the ranges activation reports in the text it read;
+  - search matches;
+  - code highlighting with highlight.js;
+  - fade-in of streamed text.
+- **Suggestions:** macros (`{{`), slash commands (`/`), mentions (`@`).
+- **Its own commands:** showing macros as written, and the find-and-replace presets.
+- **Find and replace:** the `@codemirror/search` panel, moved over unchanged.
+- **Text ports and the rest:**
+  - a message's stored text in the server's state, and each field's;
+  - each person's toolbar choice;
+  - image upload;
+  - style pins.
+
+### SillyTavern's surfaces on it
+
+| Surface                                                                                                                                     | Drawn by                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| a chat message                                                                                                                              | `reader`, with the lore marks overlay; Edit opens `textEditor` over the same text, Look and class |
+| a streamed reply                                                                                                                            | the same `reader`, `show` per chunk, with the fade-in overlay over what the chunk added           |
+| reasoning                                                                                                                                   | `reader`, without lore marks                                                                      |
+| the Alternatives list                                                                                                                       | `reader` per alternative, with the search-match overlay                                           |
+| the bias line; an edit's Done and Cancel                                                                                                    | `reader`, over the stored text                                                                    |
+| the chat box, card fields, greetings and other alternatives, worldbuilding text, prompt manager prompts, author's note, persona description | `textEditor`                                                                                      |
+
+Some code goes:
+
+- `marked` and `messageFormatting`;
+- `live-editor/render.js`'s fragment rendering;
+- `positions.js`'s guessing by matching words, replaced by `positionAt`;
+- `mount.js`'s copying of computed styles, replaced by the one class.
+
+The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for a field's text.
+
+### Unverified
+
+- Whether a `parseMixed` overlay over a paragraph's `HTMLTag`s pairs their opening and closing tags into one element,
+  with positions in the outer text. lezer markdown's own `parseCode` mounts each HTML node by itself, so the tags don't
+  pair. If the overlay doesn't pair them, the markdown package needs an inline element node of its own.
+- What rebuilding layout decorations by comparing top-level nodes costs on long texts. Not measured.
+
+### Unresolved
+
+- **The palette and the right-click menu.** editor.md lists them as surfaces for commands. interact has neither: the
+  keybinds rebuild left out cyoa's command hub and its palette and context menu. Whether they are interact modules (the
+  palette is a combobox, case 5) or the app's is the owner's call.
+- **Where the cursor goes on Edit.** The reader gives `positionAt`, but editor.md doesn't say whether Edit puts the
+  cursor at the reader's selection or caret. The owner decides.
+- **An image with no size.** editor.md says the preview "takes the same space either way", but an image without `=WxH`
+  has no size until it loads.
+- **Paste.** SillyTavern's paste conversion (HTML to markdown, with a choice of what is pasted) is general markdown.
+  editor.md doesn't place it.
+- **Not in editor.md:** cyoa's overtype (typing a closing mark that's already next steps over it). editor.md does list
+  key hints among the app's syntax, but doesn't say what they are in SillyTavern.
+
 ## SOLID check
 
 S = one responsibility, O = new cases added modules only, L = substitutable, I = depends on no more than it uses, D =
