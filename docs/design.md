@@ -618,7 +618,11 @@ module here reads a key event.
 
 - **`markdownGrammar(extensions)`** returns a Parser: lezer markdown, with the app's `MarkdownConfig`s added.
   - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`, and the tags of one paragraph are mounted as
-    one overlay so their opening and closing tags pair into one element.
+    one overlay so their opening and closing tags pair into one element. Checked with `@lezer/markdown` 1 and
+    `@lezer/html` 1: in `a <b>bold *x* y</b>`, `resolveInner` inside either tag gives `Element` 2–19, positions in the
+    outer text, also when the element spans a line break. The overlay's `Element` covers markdown nodes it doesn't
+    contain (`Emphasis` 10–13 is the paragraph's child), so both surfaces draw an HTML element as a wrapper over the
+    range it covers, nesting the markdown inside it.
   - Without HTML (an app's "show tags as text"), the HTML nodes are removed (`remove: ['HTMLBlock', 'HTMLTag']`).
 - **`markdownLook(html)`** returns the markdown Look.
   - Every mark node (`EmphasisMark`, `HeaderMark`, `Link/URL`, ...) is a `mark`.
@@ -695,24 +699,23 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 
 ### Unverified
 
-- Whether a `parseMixed` overlay over a paragraph's `HTMLTag`s pairs their opening and closing tags into one element,
-  with positions in the outer text. lezer markdown's own `parseCode` mounts each HTML node by itself, so the tags don't
-  pair. If the overlay doesn't pair them, the markdown package needs an inline element node of its own.
 - What rebuilding layout decorations by comparing top-level nodes costs on long texts. Not measured.
 
-### Unresolved
+### Decided from editor.md
 
-- **The palette and the right-click menu.** editor.md lists them as surfaces for commands. interact has neither: the
-  keybinds rebuild left out cyoa's command hub and its palette and context menu. Whether they are interact modules (the
-  palette is a combobox, case 5) or the app's is the owner's call.
-- **Where the cursor goes on Edit.** The reader gives `positionAt`, but editor.md doesn't say whether Edit puts the
-  cursor at the reader's selection or caret. The owner decides.
-- **An image with no size.** editor.md says the preview "takes the same space either way", but an image without `=WxH`
-  has no size until it loads.
-- **Paste.** SillyTavern's paste conversion (HTML to markdown, with a choice of what is pasted) is general markdown.
-  editor.md doesn't place it.
-- **Not in editor.md:** cyoa's overtype (typing a closing mark that's already next steps over it). editor.md does list
-  key hints among the app's syntax, but doesn't say what they are in SillyTavern.
+- **The palette and the right-click menu are interact modules.** editor.md puts commands and their surfaces in the
+  core. The palette is a combobox (case 5) over the Tools; the right-click menu is a menu (case 4) over them. Neither
+  reads keys: they are opened by Commands the app binds.
+- **Edit keeps the reader's place.** A selection in the reader becomes the same source range in the editor, through
+  `positionAt`; with none, the cursor goes to the end of the text, where a person continues writing.
+- **Paste is the markdown package's.** Converting HTML to markdown is general markdown; the choice of what is pasted is
+  its option.
+- **No overtype.** editor.md: typing a mark changes nothing around it, and the cursor moves through marks as
+  characters. `toggleStyle` stepping past a closing mark is a command, not typing.
+
+- **An image takes its space before it loads** (no layout shift). An upload writes `=WxH` when it inserts the image,
+  so its size is in the text. An image without a size is drawn in a box of fixed size and fitted inside it. editor.md's
+  "the same space either way" is about the cursor being in the source or not, which the `beside` piece meets.
 
 ## SOLID check
 
