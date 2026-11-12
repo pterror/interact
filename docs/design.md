@@ -542,29 +542,35 @@ Names are **(P)**.
 
 ### Abstractions
 
-| Abstraction | Shape                                                                                                      | Owned by              |
-| ----------- | ---------------------------------------------------------------------------------------------------------- | --------------------- |
-| Text        | `get() → { text, includes: changeId \| none }`, `watch(fn)`                                                | textEditor            |
-| Edit        | `(change: { from, to, insert }[], id: changeId) → void`                                                    | textEditor            |
-| Grammar     | a lezer `Parser`                                                                                           | textEditor, reader    |
-| Look        | `{ [selector]: Rule }`; a selector is a node name or `Parent/Name`, as in `@lezer/highlight`'s `styleTags` | textEditor, reader    |
-| Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                         | textEditor, reader    |
-| Overlay     | `ranges(from, to) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`                         | textEditor, reader    |
-| Suggest     | `(text, pos, explicit) → later { from, to, options: Option[] } \| none`                                    | suggestions           |
-| Command     | CodeMirror's `(view) → bool`                                                                               | toolbar, selectionBar |
-| Tool        | `{ id, label, icon?, run: Command, on?(state) → bool, applies?(state) → bool }`                            | toolbar, selectionBar |
+| Abstraction | Shape                                                                                                   | Owned by              |
+| ----------- | ------------------------------------------------------------------------------------------------------- | --------------------- |
+| Text        | `get() → { text, includes: changeId \| none }`, `watch(fn)`; `includes` is the latest edit the text has | textEditor            |
+| Edit        | `(change: { from, to, insert }[], id: changeId) → void`, positions in the text before the edit          | textEditor            |
+| Grammar     | a lezer `Parser`                                                                                        | textEditor, reader    |
+| Look        | `{ [selector]: Rule \| (node, read) → Rule \| none }`; a selector is a node name or `Parent/Name`       | textEditor, reader    |
+| Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                      | textEditor, reader    |
+| Overlay     | `ranges(from, to) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`                      | textEditor, reader    |
+| Suggest     | `(text, pos, explicit) → later { from, to, options: Option[] } \| none`                                 | suggestions           |
+| Command     | CodeMirror's `(view) → bool`                                                                            | toolbar, selectionBar |
+| Tool        | `{ id, label, icon?, run: Command, on?(state) → bool, applies?(state) → bool }`                         | toolbar, selectionBar |
 
-**Rule.** These fields describe how a node is drawn. Both surfaces read them:
+**Rule.** These fields describe how a node is drawn. Both surfaces read them. `read(from, to)` gives the source between
+two positions, so nothing copies the whole text to draw one node. A selector's entry can be a function of the node, for
+a rule that depends on more than the node's name (whether an HTML tag is drawn depends on its element's name).
 
 - `element` and `class`: the element the node is drawn as (`em`, `blockquote`, `h2`), and its classes.
-  `attributes(node, text)` gives an element's attributes (inline HTML's own, after the app's policy).
+  `attributes(node, read)` gives an element's attributes (inline HTML's own, after the app's policy).
 - `block`: the element wraps whole lines. In the editor it is a CodeMirror `BlockWrapper`; in the reader it's a block
   element.
 - `mark`: a formatting mark. The editor draws it dimmed, with a class. The reader leaves it out.
-- `piece(node, text, surface)` with `source`. With `replaced`, the piece stands for the source on both surfaces, and in
+- `piece(node, read, surface)` with `source`. With `replaced`, the piece stands for the source on both surfaces, and in
   the editor it's an atomic range that Backspace deletes whole (a macro). With `beside`, the editor keeps the source as
-  editable text drawn as marks and puts the piece after it, and the reader draws the piece alone (an image, an emoji).
-  `surface` is `editor` or `reader`, which is how a macro is a pill in one and its value in the other.
+  editable text drawn with the rule's `class` and puts the piece after it, and the reader draws the piece alone (an
+  image, an emoji). `surface` is `editor` or `reader`, which is how a macro is a pill in one and its value in the other.
+  A piece for one surface only is how a node is drawn on the other by its other fields (a rule line is `---` dimmed in
+  the editor and `<hr>` in the reader).
+- `only`: the one surface the rule applies on. On the other the node is drawn as if it had no rule. A table can't be
+  drawn over the editor's lines, so the reader alone draws it as a table.
 
 A piece whose content changes later keeps its own element up to date, as when a macro's value arrives. `drop` is called
 when the piece is no longer drawn, as with list's `render`.
@@ -579,11 +585,11 @@ when the piece is no longer drawn, as with list's `render`.
     someone else's, never undoes what was typed since.
   - **Looks.** Its content takes `textClass`, the same class the reader takes, so one set of styles applies to both.
     Nothing copies computed styles.
-  - **App extensions.** `extensions` are the app's CodeMirror extensions (history, search, paste, its own keys), wired
-    by hand.
+  - **App extensions.** `extensions` are the app's CodeMirror extensions (history, search, paste, its own keys, the
+    overlays), wired by hand.
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
-  viewport or the tree changes, or when a piece or overlay reports a change. While an IME composes, they're only moved
-  with the text (kept from cyoa).
+  viewport or the tree changes. While an IME composes, they're only moved with the text (kept from cyoa), and rebuilt
+  once it ends.
   - Decorations that change vertical layout can't come from a function of the view (`@codemirror/view`,
     `EditorView.decorations`): block wrappers, block widgets, and replaced ranges that cover a line break. These are a
     state field instead. It moves through each change, and is rebuilt only for the top-level blocks whose node changed
@@ -592,13 +598,22 @@ when the piece is no longer drawn, as with list's `render`.
   `{ element, show(text), positionAt(node, offset), stop }`. It walks the syntax tree into DOM, using the same Look as
   the editor.
   - **Drawing.** It draws elements, leaves marks out, and draws pieces. Text inside a block is drawn as written, with
-    the editor's `white-space: pre-wrap`, so a single newline is a line break on both surfaces.
+    the editor's `white-space: pre-wrap`, so a single newline is a line break on both surfaces. Each text node is a run
+    of the source. Inline elements are drawn over the ranges they cover, whichever tree they come from, and an element
+    is split where it overlaps another without nesting.
+  - **Space around marks.** The reader also leaves out the whitespace that only separates a mark from the text of its
+    line (`# Title`, `> quote`), and the line break of a line holding nothing but marks (a code fence). Without that,
+    `pre-wrap` would draw them.
   - **`show(text)`.** It reparses with the last tree's fragments, then redraws from the first top-level block that
     differs. A streamed reply therefore costs its last block per chunk.
   - **`positionAt`.** It gives the source position for a place in the reader's DOM. Every element knows the node it was
     drawn from.
-- **Overlays.** In the editor, overlay ranges are mark decorations. In the reader, they are spans around the text runs
-  they cover, split at the elements they cross. Overlays never change the tree or the text.
+- **Overlays.** In the editor, `overlays(list)` is an extension that draws overlay ranges as mark decorations over the
+  visible part, asked for again when the text, the visible part or the overlay changes; an answer's positions are in the
+  text as it was when asked, moved through the edits since. In the reader, they are spans around the text runs they
+  cover, split at the elements they cross, asked for over the whole text at each `show`, and a later answer redraws from
+  the first part it touches. Only the answer to the latest question is drawn. Overlays never change the tree or the
+  text.
 - **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
   is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
 - **`toolbar({ view, tools, keyOf })`.** Buttons for a Watched list of Tools, in a space the field always reserves, so
@@ -703,18 +718,18 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 
 ### Decided from editor.md
 
-- **The palette and the right-click menu are interact modules.** editor.md puts commands and their surfaces in the
-  core. The palette is a combobox (case 5) over the Tools; the right-click menu is a menu (case 4) over them. Neither
-  reads keys: they are opened by Commands the app binds.
+- **The palette and the right-click menu are interact modules.** editor.md puts commands and their surfaces in the core.
+  The palette is a combobox (case 5) over the Tools; the right-click menu is a menu (case 4) over them. Neither reads
+  keys: they are opened by Commands the app binds.
 - **Edit keeps the reader's place.** A selection in the reader becomes the same source range in the editor, through
   `positionAt`; with none, the cursor goes to the end of the text, where a person continues writing.
 - **Paste is the markdown package's.** Converting HTML to markdown is general markdown; the choice of what is pasted is
   its option.
-- **No overtype.** editor.md: typing a mark changes nothing around it, and the cursor moves through marks as
-  characters. `toggleStyle` stepping past a closing mark is a command, not typing.
+- **No overtype.** editor.md: typing a mark changes nothing around it, and the cursor moves through marks as characters.
+  `toggleStyle` stepping past a closing mark is a command, not typing.
 
-- **An image takes its space before it loads** (no layout shift). An upload writes `=WxH` when it inserts the image,
-  so its size is in the text. An image without a size is drawn in a box of fixed size and fitted inside it. editor.md's
+- **An image takes its space before it loads** (no layout shift). An upload writes `=WxH` when it inserts the image, so
+  its size is in the text. An image without a size is drawn in a box of fixed size and fitted inside it. editor.md's
   "the same space either way" is about the cursor being in the source or not, which the `beside` piece meets.
 
 ## SOLID check

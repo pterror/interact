@@ -1,0 +1,205 @@
+import { describe, expect, test } from 'bun:test'
+
+import { Language, defineLanguageFacet, ensureSyntaxTree } from '@codemirror/language'
+import { EditorState } from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
+
+import { inlineDecorations, lookDecorations } from './decorations.js'
+import { counted, testGrammar, testLook } from './test-look.js'
+import { textEditor } from './text-editor.js'
+
+/**
+ * A text held elsewhere, as a server holds it: it applies edits it is given and says which it includes
+ * @param {string} initial - Its text
+ * @returns {import('./text-editor.js').Text & {
+ *   apply: (changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: string | undefined) => void,
+ * }} The text, and applying an edit to it
+ */
+function heldText(initial) {
+  let text = initial
+  /** @type {string | undefined} */
+  let includes = undefined
+  /** @type {Set<() => void>} */
+  const listeners = new Set()
+  return {
+    apply(changes, id) {
+      for (const change of changes.toReversed()) {
+        text = text.slice(0, change.from) + change.insert + text.slice(change.to)
+      }
+      includes = id ?? includes
+      for (const listener of listeners) {
+        listener()
+      }
+    },
+    get: () => ({ includes, text }),
+    watch(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+}
+
+/**
+ * An editor over a held text, keeping the edits it hands on
+ * @param {string} initial - The text
+ * @returns {Readonly<{
+ *   held: ReturnType<typeof heldText>,
+ *   edits: { changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: string }[],
+ *   editor: ReturnType<typeof textEditor>,
+ * }>} The text, the edits, and the editor
+ */
+function editorOver(initial) {
+  const held = heldText(initial)
+  /** @type {{ changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: string }[]} */
+  const edits = []
+  const editor = textEditor({
+    edit(changes, id) {
+      edits.push({ changes, id })
+    },
+    grammar: testGrammar,
+    look: testLook(counted().counts),
+    parent: document.createElement('div'),
+    text: held,
+    textClass: 'text',
+  })
+  return { edits, editor, held }
+}
+
+/**
+ * Lets queued microtasks run
+ * @returns {Promise<void>} When they have
+ */
+async function settled() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
+/**
+ * A state over a text, parsed to its end
+ * @param {string} doc - The text
+ * @returns {EditorState} The state
+ */
+function stateOf(doc) {
+  const state = EditorState.create({
+    doc,
+    extensions: [
+      new Language(defineLanguageFacet(), testGrammar, [], 'text').extension,
+      lookDecorations(testLook(counted().counts)),
+    ],
+  })
+  ensureSyntaxTree(state, doc.length, 1000)
+  return state
+}
+
+/**
+ * The wrappers a state draws
+ * @param {EditorState} each - The state
+ * @returns {string[]} Each wrapper's range
+ */
+function wrappersOf(each) {
+  return each.facet(EditorView.blockWrappers).flatMap((source) => {
+    /** @type {string[]} */
+    const out = []
+    if (typeof source !== 'function') {
+      source.between(0, each.doc.length, (from, to) => {
+        out.push(`${String(from)}-${String(to)}`)
+      })
+    }
+    return out
+  })
+}
+
+/**
+ * What a decoration draws: its element, a piece, or its attributes
+ * @param {unknown} spec - The decoration's spec
+ * @returns {unknown} What it draws
+ */
+function shownBy(spec) {
+  if (typeof spec !== 'object' || spec === null) {
+    return undefined
+  }
+  if ('tagName' in spec) {
+    return spec.tagName
+  }
+  return 'widget' in spec ? 'piece' : 'attributes' in spec ? spec.attributes : undefined
+}
+
+describe('textEditor', () => {
+  test('hands each edit on with an id, as replacements in the text before it', () => {
+    const { edits, editor } = editorOver('hello')
+    editor.view.dispatch({
+      changes: [
+        { from: 0, insert: '>' },
+        { from: 5, insert: '!' },
+      ],
+    })
+    expect(edits).toEqual([
+      {
+        changes: [
+          { from: 0, insert: '>', to: 0 },
+          { from: 5, insert: '!', to: 5 },
+        ],
+        id: edits[0]?.id ?? '',
+      },
+    ])
+    expect(editor.view.contentDOM.className).toContain('text')
+    editor.stop()
+  })
+
+  test('an echo of an earlier edit never undoes what was typed since', async () => {
+    const { edits, editor, held } = editorOver('ab')
+    editor.view.dispatch({ changes: { from: 2, insert: 'c' } })
+    editor.view.dispatch({ changes: { from: 3, insert: 'd' } })
+    const first = edits[0]
+    if (first !== undefined) {
+      held.apply(first.changes, first.id)
+    }
+    await settled()
+    expect(editor.view.state.doc.toString()).toBe('abcd')
+    expect(edits).toHaveLength(2)
+    editor.stop()
+  })
+
+  test("someone else's edit is laid under the edits not yet included", async () => {
+    const { edits, editor, held } = editorOver('middle')
+    editor.view.dispatch({ changes: { from: 6, insert: ' end' } })
+    held.apply([{ from: 0, insert: 'start ', to: 0 }], undefined)
+    await settled()
+    expect(editor.view.state.doc.toString()).toBe('start middle end')
+    const mine = edits[0]
+    if (mine !== undefined) {
+      held.apply([{ from: 12, insert: ' end', to: 12 }], mine.id)
+    }
+    await settled()
+    expect(editor.view.state.doc.toString()).toBe('start middle end')
+    expect(edits).toHaveLength(1)
+    editor.stop()
+  })
+})
+
+describe('the editor drawing a look', () => {
+  test('draws elements, dims marks and replaces pieces over the given ranges only', () => {
+    const state = stateOf('a *b* `c`\n\nfar *away*')
+    const { atomic, decorations } = inlineDecorations(state, [{ from: 0, to: 9 }], testLook(counted().counts))
+    /** @type {string[]} */
+    const drawn = []
+    decorations.between(0, state.doc.length, (from, to, value) => {
+      /** @type {unknown} */
+      const spec = value.spec
+      const shown = shownBy(spec)
+      drawn.push(`${String(from)}-${String(to)}:${JSON.stringify(shown)}`)
+    })
+    expect(drawn.toSorted()).toEqual(['2-3:{"class":"mark"}', '2-5:"em"', '4-5:{"class":"mark"}', '6-9:"piece"'])
+    expect(atomic.size).toBe(1)
+  })
+
+  test('wraps blocks, and keeps the wrappers of blocks an edit didn’t touch', () => {
+    const state = stateOf('one\n\n> two\n\nthree')
+    expect(wrappersOf(state).toSorted()).toEqual(['0-3', '12-17', '5-10', '7-10'])
+    const next = state.update({ changes: { from: 17, insert: ' and four' } }).state
+    ensureSyntaxTree(next, next.doc.length, 1000)
+    expect(wrappersOf(next).toSorted()).toEqual(['0-3', '12-26', '5-10', '7-10'])
+  })
+})

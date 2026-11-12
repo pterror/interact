@@ -88,7 +88,35 @@
           // The page a browser test drives is the browser itself.
           { "from": "package", "name": ["Page"], "package": "playwright-core" },
           // What the accessibility checker reports, as it makes it.
-          { "from": "package", "name": ["Result", "NodeResult"], "package": "axe-core" }
+          { "from": "package", "name": ["Result", "NodeResult"], "package": "axe-core" },
+          // Syntax trees, editor states and change sets are immutable values, and a view is the editor itself; their
+          // classes still declare fields the rule counts as mutable.
+          {
+            "from": "package",
+            "name": ["Parser", "SyntaxNode", "SyntaxNodeRef", "Tree", "TreeFragment"],
+            "package": "@lezer/common"
+          },
+          {
+            "from": "package",
+            "name": [
+              "ChangeDesc",
+              "ChangeSet",
+              "EditorState",
+              "Extension",
+              "Range",
+              "RangeSet",
+              "StateField",
+              "Text",
+              "Transaction"
+            ],
+            "package": "@codemirror/state"
+          },
+          {
+            "from": "package",
+            "name": ["BlockWrapper", "Decoration", "EditorView", "ViewPlugin", "ViewUpdate", "WidgetType"],
+            "package": "@codemirror/view"
+          },
+          { "from": "package", "name": ["CompletionContext"], "package": "@codemirror/autocomplete" }
         ]
       }
     ],

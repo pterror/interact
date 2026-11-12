@@ -18,7 +18,14 @@ import {
 
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
-    expect(outsideDependencies(await manifests())).toEqual(['@pterror/interact-solid -> solid-js'])
+    expect(outsideDependencies(await manifests())).toEqual([
+      '@pterror/interact-editor -> @codemirror/autocomplete',
+      '@pterror/interact-editor -> @codemirror/language',
+      '@pterror/interact-editor -> @codemirror/state',
+      '@pterror/interact-editor -> @codemirror/view',
+      '@pterror/interact-editor -> @lezer/common',
+      '@pterror/interact-solid -> solid-js',
+    ])
   })
 
   test('name in their README the license their manifest gives', async () => {

@@ -1,0 +1,73 @@
+{
+  "name": "@pterror/interact-editor",
+  "version": "0.1.0",
+  "description": "Text as the source of truth, drawn from its syntax tree: an editor over it, a reader of it, and the pieces, overlays, suggestions and toolbars an app adds, as small modules wired by hand",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pterror/interact.git",
+    "directory": "packages/editor"
+  },
+  "files": [
+    "src",
+    "!src/**/*.test.js",
+    "!src/test-*.js",
+    "dist",
+    "!dist/**/*.test.d.ts",
+    "!dist/test-*.d.ts"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "check": "tsgo --noEmit"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "6.20.4",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/common": "1.5.4",
+    "@lezer/markdown": "1.8.1",
+    "@pterror/interact-list": "workspace:*"
+  },
+  "peerDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.13",
+    "@lezer/common": "^1.5.3",
+    "@pterror/interact-list": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "@codemirror/autocomplete": {
+      "optional": true
+    },
+    "@codemirror/language": {
+      "optional": true
+    },
+    "@codemirror/state": {
+      "optional": true
+    },
+    "@codemirror/view": {
+      "optional": true
+    },
+    "@pterror/interact-list": {
+      "optional": true
+    }
+  }
+}
