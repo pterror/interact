@@ -335,11 +335,11 @@ function reader({ grammar, look, overlays = [], textClass }) {
      * Opens and closes wrappers so exactly those covering a range are open
      * @param {number} start - The range's start
      * @param {number} end - Its end
-     * @param {boolean} [drawn] - Whether the range is drawn; one left out opens the wrappers that start over it, empty,
+     * @param {boolean} [shown] - Whether the range is drawn; one left out opens the wrappers that start over it, empty,
      *   so an element holding nothing drawn is still there
      * @returns {Element | DocumentFragment} Where its content goes
      */
-    const enter = (start, end, drawn = true) => {
+    const enter = (start, end, shown = true) => {
       const now = covering.filter((wrapper) => wrapper.from <= start && end <= wrapper.to)
       let same = 0
       while (same < open.length && same < now.length && open[same]?.wrapper === now[same]) {
@@ -355,12 +355,12 @@ function reader({ grammar, look, overlays = [], textClass }) {
         if (wrapper.class !== undefined) {
           made.classList.add(...wrapper.class.split(' ').filter((name) => name !== ''))
         }
-        const span = drawn ? { from: start, to: end } : { from: end, to: end }
+        const span = shown ? { from: start, to: end } : { from: end, to: end }
         spans.set(made, span)
         ;(open.at(-1)?.element ?? into).append(made)
         open.push({ element: made, span, wrapper })
       }
-      if (drawn) {
+      if (shown) {
         for (const each of open) {
           each.span.to = end
         }
