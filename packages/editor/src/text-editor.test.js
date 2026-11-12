@@ -4,7 +4,7 @@ import { Language, defineLanguageFacet, ensureSyntaxTree } from '@codemirror/lan
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { inlineDecorations, lookDecorations } from './decorations.js'
+import { inlineDecorations, lookChanged, lookDecorations } from './decorations.js'
 import { counted, testGrammar, testLook } from './test-look.js'
 import { textEditor } from './text-editor.js'
 
@@ -201,5 +201,38 @@ describe('the editor drawing a look', () => {
     const next = state.update({ changes: { from: 17, insert: ' and four' } }).state
     ensureSyntaxTree(next, next.doc.length, 1000)
     expect(wrappersOf(next).toSorted()).toEqual(['0-3', '12-26', '5-10', '7-10'])
+  })
+
+  test('draws again when told the look changed, the text unchanged', () => {
+    let shown = 'one'
+    /** @type {import('./look.js').Look} */
+    const look = {
+      InlineCode: {
+        piece: () => ({
+          draw() {
+            const made = document.createElement('span')
+            made.textContent = shown
+            return made
+          },
+          same: () => false,
+        }),
+        source: 'replaced',
+      },
+    }
+    const doc = 'a `b` c'
+    const view = new EditorView({
+      parent: document.createElement('div'),
+      state: EditorState.create({
+        doc,
+        extensions: [new Language(defineLanguageFacet(), testGrammar, [], 'text').extension, lookDecorations(look)],
+      }),
+    })
+    ensureSyntaxTree(view.state, doc.length, 1000)
+    view.dispatch({})
+    expect(view.contentDOM.textContent).toContain('one')
+    shown = 'two'
+    view.dispatch({ effects: lookChanged.of(undefined) })
+    expect(view.contentDOM.textContent).toContain('two')
+    view.destroy()
   })
 })

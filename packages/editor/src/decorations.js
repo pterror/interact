@@ -3,12 +3,13 @@
  * vertical layout is built for the visible ranges only, and rebuilt when the text, the viewport or the tree changes.
  * What can (block wrappers, and replaced pieces that cover a line break) can't come from a function of the view
  * (`EditorView.decorations`), so it is a state field: it moves through each change, and is rebuilt only for the
- * top-level nodes that are new or changed. While an IME composes, the visible decorations only move with the text,
- * since replacing them around the text being composed can break the composition.
+ * top-level nodes that are new or changed. Both are drawn again from scratch on `lookChanged`. While an IME composes,
+ * the visible decorations only move with the text, since replacing them around the text being composed can break the
+ * composition.
  */
 
 import { syntaxTree } from '@codemirror/language'
-import { StateField } from '@codemirror/state'
+import { StateEffect, StateField } from '@codemirror/state'
 import { BlockWrapper, Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view'
 
 import { ruleOf } from './look.js'
@@ -23,6 +24,22 @@ import { walk } from './walk.js'
  * @typedef {import('./look.js').Look} Look
  * @typedef {import('./look.js').Piece} Piece
  */
+
+/**
+ * Says that what a Look draws changed without the text changing (a macro's value arrived, macros are shown as
+ * written), so everything it draws is drawn again
+ * @type {import('@codemirror/state').StateEffectType<undefined>}
+ */
+const lookChanged = StateEffect.define()
+
+/**
+ * Whether a transaction says the look changed
+ * @param {import('@codemirror/state').Transaction} transaction - The transaction
+ * @returns {boolean} Whether it does
+ */
+function saysLookChanged(transaction) {
+  return transaction.effects.some((effect) => effect.is(lookChanged))
+}
 
 /**
  * A piece as CodeMirror draws it
@@ -323,6 +340,9 @@ function layoutField(look) {
       EditorView.atomicRanges.of((view) => view.state.field(field).replaced),
     ],
     update(layout, transaction) {
+      if (saysLookChanged(transaction)) {
+        return build(transaction.state, undefined, undefined)
+      }
       if (!transaction.docChanged && syntaxTree(transaction.state) === layout.tree) {
         return layout
       }
@@ -356,6 +376,7 @@ function visibleDecorations(look) {
           }
           if (
             stale ||
+            update.transactions.some((transaction) => saysLookChanged(transaction)) ||
             update.docChanged ||
             update.viewportChanged ||
             syntaxTree(update.state) !== syntaxTree(update.startState)
@@ -383,4 +404,4 @@ function lookDecorations(look) {
   return [layoutField(look), visibleDecorations(look)]
 }
 
-export { inlineDecorations, lookDecorations }
+export { inlineDecorations, lookChanged, lookDecorations }

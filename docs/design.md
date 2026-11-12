@@ -588,8 +588,9 @@ when the piece is no longer drawn, as with list's `render`.
   - **App extensions.** `extensions` are the app's CodeMirror extensions (history, search, paste, its own keys, the
     overlays), wired by hand.
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
-  viewport or the tree changes. While an IME composes, they're only moved with the text (kept from cyoa), and rebuilt
-  once it ends.
+  viewport or the tree changes, and from scratch when the app dispatches `lookChanged`: what the Look draws changed with
+  the text unchanged (a macro's value arrived, macros shown as written). While an IME composes, they're only moved with
+  the text (kept from cyoa), and rebuilt once it ends.
   - Decorations that change vertical layout can't come from a function of the view (`@codemirror/view`,
     `EditorView.decorations`): block wrappers, block widgets, and replaced ranges that cover a line break. These are a
     state field instead. It moves through each change, and is rebuilt only for the top-level blocks whose node changed

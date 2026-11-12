@@ -3,7 +3,7 @@
  * and what an app adds to them, as small modules the app wires by hand. Each is also its own module
  * (`@pterror/interact-editor/reader`, ...).
  */
-export { lookDecorations } from './decorations.js';
+export { lookChanged, lookDecorations } from './decorations.js';
 export { keyboardInset } from './keyboard-inset.js';
 export { ruleOf } from './look.js';
 export { overlays } from './overlays.js';
