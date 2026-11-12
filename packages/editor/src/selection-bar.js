@@ -29,13 +29,14 @@ function shownFor(view) {
  * @returns {Readonly<{
  *   element: HTMLElement,
  *   open: Readonly<{ get: () => boolean, watch: (listener: () => void) => () => void }>,
+ *   buttons: Readonly<{ get: () => readonly import('./tool-buttons.js').Drawn[], watch: (listener: () => void) => () => void }>,
  *   stop: () => void,
- * }>} Its element (`role=toolbar`), whether it is shown, and stopping
+ * }>} Its element (`role=toolbar`), whether it is shown, its buttons (which don't change), and stopping
  */
 function selectionBar({ tools, view }) {
   const element = view.dom.ownerDocument.createElement('div')
   element.setAttribute('role', 'toolbar')
-  const buttons = drawButtons(element, view, tools, () => undefined)
+  const buttons = drawButtons(element, view, tools)
   view.dom.append(element)
   let shown = shownFor(view)
   /** @type {Set<() => void>} */
@@ -83,6 +84,7 @@ function selectionBar({ tools, view }) {
     }
   })
   return {
+    buttons: { get: () => buttons, watch: () => () => undefined },
     element,
     open,
     stop() {

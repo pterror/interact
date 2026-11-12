@@ -21,18 +21,20 @@ export type Tool = Readonly<{
  * @returns {void}
  */
 declare function showState(button: HTMLElement, tool: Tool, state: EditorState): void;
+export type Drawn = Readonly<{
+    button: HTMLElement;
+    tool: Tool;
+}>;
+/**
+ * A tool and the button drawn for it
+ * @typedef {Readonly<{ button: HTMLElement, tool: Tool }>} Drawn
+ */
 /**
  * Draws the buttons for tools into an element, replacing what it held
  * @param {Element} into - The element
  * @param {EditorView} view - The editor
  * @param {readonly Tool[]} tools - The tools
- * @param {(id: string) => readonly string[] | undefined} keyOf - How each tool's key is shown
- * @returns {readonly Readonly<{ button: HTMLElement, tool: Tool, keys: readonly string[] | undefined }>[]} The
- *   buttons
+ * @returns {readonly Drawn[]} The buttons
  */
-declare function drawButtons(into: Element, view: EditorView, tools: readonly Tool[], keyOf: (id: string) => readonly string[] | undefined): readonly Readonly<{
-    button: HTMLElement;
-    tool: Tool;
-    keys: readonly string[] | undefined;
-}>[];
+declare function drawButtons(into: Element, view: EditorView, tools: readonly Tool[]): readonly Drawn[];
 export { drawButtons, showState };

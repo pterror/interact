@@ -17,7 +17,7 @@ export {
   quote,
   toggleStyle,
 } from './format.js'
-export { markdownGrammar } from './grammar.js'
-export { markdownLook } from './look.js'
+export { htmlInMarkdown } from './html-in-markdown.js'
+export { definitionOf, gfmLook, htmlLook, markdownLook } from './look.js'
 export { overtype } from './overtype.js'
 export { htmlToMarkdown, markdownPaste } from './paste.js'

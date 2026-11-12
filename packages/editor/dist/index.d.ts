@@ -4,6 +4,8 @@
  * (`@pterror/interact-editor/reader`, ...).
  */
 export { lookChanged, lookDecorations } from './decorations.js';
+export { grammarLanguage } from './grammar-language.js';
+export { keyHints } from './key-hints.js';
 export { keyboardInset } from './keyboard-inset.js';
 export { ruleOf } from './look.js';
 export { overlays } from './overlays.js';

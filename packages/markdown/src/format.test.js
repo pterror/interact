@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { Language, defineLanguageFacet } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { grammarLanguage } from '@pterror/interact-editor/grammar-language'
 
 import { codeBlock, hasStyle, heading, inLink, inQuote, link, list, quote, toggleStyle } from './format.js'
-import { markdownGrammar } from './grammar.js'
+import { testGrammar } from './test-grammar.js'
 
 /**
  * An editor over a text, the selection written in it as `|` (a cursor) or `[`...`]`
@@ -20,7 +20,7 @@ function viewOf(written) {
     parent: document.createElement('div'),
     state: EditorState.create({
       doc,
-      extensions: new Language(defineLanguageFacet(), markdownGrammar(), [], 'md').extension,
+      extensions: grammarLanguage(testGrammar),
       selection: EditorSelection.range(anchor, head),
     }),
   })
@@ -115,7 +115,7 @@ describe('links', () => {
       parent: document.createElement('div'),
       state: EditorState.create({
         doc: 'see [this](u)',
-        extensions: new Language(defineLanguageFacet(), markdownGrammar(), [], 'md').extension,
+        extensions: grammarLanguage(testGrammar),
         selection: EditorSelection.cursor(6),
       }),
     })

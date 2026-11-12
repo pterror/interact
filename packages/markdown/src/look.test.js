@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
-import { Language, defineLanguageFacet, ensureSyntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { inlineDecorations } from '@pterror/interact-editor/decorations'
+import { grammarLanguage } from '@pterror/interact-editor/grammar-language'
 import { reader } from '@pterror/interact-editor/reader'
 
-import { markdownGrammar } from './grammar.js'
-import { markdownLook } from './look.js'
+import { testGrammar, testLook } from './test-grammar.js'
 
 /**
  * A policy letting everything through but `javascript:` addresses and `x-` elements
@@ -25,7 +25,7 @@ function policy(name, attributes, content) {
  * @returns {string} Its HTML
  */
 function drawn(text) {
-  const shown = reader({ grammar: markdownGrammar(), look: markdownLook(policy), textClass: 'text' })
+  const shown = reader({ grammar: testGrammar, look: testLook(policy), textClass: 'text' })
   shown.show(text)
   return shown.element.innerHTML
 }
@@ -57,7 +57,7 @@ describe('the markdown look, read', () => {
   })
 
   test('draws SVG in the SVG namespace, with its mixed-case names', () => {
-    const shown = reader({ grammar: markdownGrammar(), look: markdownLook(policy), textClass: 'text' })
+    const shown = reader({ grammar: testGrammar, look: testLook(policy), textClass: 'text' })
     shown.show('a <svg viewBox="0 0 10 10"><linearGradient id="g"></linearGradient><circle cx="5" r="4"/></svg> b')
     const svg = shown.element.querySelector('svg')
     expect(svg?.namespaceURI).toBe('http://www.w3.org/2000/svg')
@@ -112,14 +112,14 @@ describe('the markdown look, read', () => {
 
 describe('the markdown look, edited', () => {
   test('draws phrasing HTML elements in the editor, and leaves block ones to the reader', () => {
-    const grammar = markdownGrammar()
+    const grammar = testGrammar
     const doc = '<div>\nq\n</div>\n\na <b>b</b>'
     const state = EditorState.create({
       doc,
-      extensions: new Language(defineLanguageFacet(), grammar, [], 'md').extension,
+      extensions: grammarLanguage(grammar),
     })
     ensureSyntaxTree(state, doc.length, 1000)
-    const { decorations } = inlineDecorations(state, [{ from: 0, to: doc.length }], markdownLook(policy))
+    const { decorations } = inlineDecorations(state, [{ from: 0, to: doc.length }], testLook(policy))
     /** @type {string[]} */
     const tags = []
     decorations.between(0, doc.length, (from, to, value) => {

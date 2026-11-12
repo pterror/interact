@@ -25,14 +25,13 @@
  * A button for a tool
  * @param {EditorView} view - The editor
  * @param {Tool} tool - The tool
- * @param {readonly string[] | undefined} keys - How its key is shown, if it has one
  * @returns {HTMLElement} The button
  */
-function buttonFor(view, tool, keys) {
+function buttonFor(view, tool) {
   const button = view.dom.ownerDocument.createElement('button')
   button.type = 'button'
   button.dataset['tool'] = tool.id
-  button.title = keys === undefined || keys.length === 0 ? tool.label : `${tool.label} (${keys.join(' ')})`
+  button.title = tool.label
   if (tool.icon === undefined) {
     button.textContent = tool.label
   } else {
@@ -73,21 +72,23 @@ function showState(button, tool, state) {
 }
 
 /**
+ * A tool and the button drawn for it
+ * @typedef {Readonly<{ button: HTMLElement, tool: Tool }>} Drawn
+ */
+
+/**
  * Draws the buttons for tools into an element, replacing what it held
  * @param {Element} into - The element
  * @param {EditorView} view - The editor
  * @param {readonly Tool[]} tools - The tools
- * @param {(id: string) => readonly string[] | undefined} keyOf - How each tool's key is shown
- * @returns {readonly Readonly<{ button: HTMLElement, tool: Tool, keys: readonly string[] | undefined }>[]} The
- *   buttons
+ * @returns {readonly Drawn[]} The buttons
  */
-function drawButtons(into, view, tools, keyOf) {
-  /** @type {readonly Readonly<{ button: HTMLElement, tool: Tool, keys: readonly string[] | undefined }>[]} */
+function drawButtons(into, view, tools) {
+  /** @type {readonly Drawn[]} */
   const buttons = tools.map((tool) => {
-    const keys = keyOf(tool.id)
-    const button = buttonFor(view, tool, keys)
+    const button = buttonFor(view, tool)
     showState(button, tool, view.state)
-    return { button, keys, tool }
+    return { button, tool }
   })
   into.replaceChildren(...buttons.map(({ button }) => button))
   return buttons

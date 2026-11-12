@@ -4,6 +4,7 @@ import { currentCompletions, startCompletion } from '@codemirror/autocomplete'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
+import { keyHints } from './key-hints.js'
 import { keyboardInset } from './keyboard-inset.js'
 import { selectionBar } from './selection-bar.js'
 import { suggestions } from './suggestions.js'
@@ -105,21 +106,23 @@ describe('toolbar', () => {
     view.destroy()
   })
 
-  test('names each key in its tooltip, and shows them all while a modifier is held', () => {
+  test('key hints name each key in its tooltip, and show them all while a modifier is held', () => {
     const view = viewOver('abc')
     const showing = held(false)
-    const bar = toolbar({
+    const bar = toolbar({ tools: held([upper, never]), view })
+    const stop = keyHints({
+      buttons: bar.buttons,
       held: showing,
       keyOf: (id) => (id === 'upper' ? ['Ctrl', 'U'] : undefined),
-      tools: held([upper, never]),
-      view,
     })
     const [button, other] = bar.element.querySelectorAll('button')
     expect(button?.title).toBe('Upper case (Ctrl U)')
+    expect(other?.title).toBe('Never')
     expect(button?.dataset['keys']).toBeUndefined()
     showing.set(true)
     expect(button?.dataset['keys']).toBe('Ctrl U')
     expect(other?.dataset['keys']).toBeUndefined()
+    stop()
     bar.stop()
     view.destroy()
   })

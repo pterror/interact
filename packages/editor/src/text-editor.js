@@ -2,20 +2,14 @@
  * A CodeMirror editor over a text that lives elsewhere (the server's state). Each edit is handed on with an id as it is
  * made. The text from elsewhere says which of this editor's edits it includes; the editor shows it with the edits it
  * doesn't include yet laid over it (rebased, as `@codemirror/collab` does), so an echo of an earlier edit, or someone
- * else's edit, never undoes what was typed since. The content takes the same text class as the reader, so one set of
- * styles draws both.
+ * else's edit, never undoes what was typed since. Everything else it does is composed in by the app: the grammar
+ * (`grammarLanguage`), the Look (`lookDecorations`), the text class it shares with the reader, keys, overlays.
  */
 
-import { Language, defineLanguageFacet } from '@codemirror/language'
 import { Annotation, ChangeSet, EditorState, Transaction } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { lookDecorations } from './decorations.js'
 import { shared } from './shared.js'
-
-/**
- * @typedef {import('./look.js').Look} Look
- */
 
 /**
  * What identifies one edit made in an editor
@@ -41,9 +35,6 @@ import { shared } from './shared.js'
  *   parent: Element | DocumentFragment,
  *   text: Text,
  *   edit: Edit,
- *   grammar: import('@lezer/common').Parser,
- *   look: Look,
- *   textClass: string,
  *   extensions?: readonly import('@codemirror/state').Extension[],
  * }>} TextEditorOptions
  */
@@ -81,11 +72,10 @@ function changeBetween(was, now) {
 
 /**
  * An editor over a text
- * @param {TextEditorOptions} options - Where it goes, the text and where its edits go, the grammar and look it draws
- *   with, the class its content takes, and the app's own CodeMirror extensions
+ * @param {TextEditorOptions} options - Where it goes, the text and where its edits go, and what the app composes in
  * @returns {Readonly<{ view: EditorView, stop: () => void }>} The view, and stopping, which destroys it
  */
-function textEditor({ edit, extensions = [], grammar, look, parent, text, textClass }) {
+function textEditor({ edit, extensions = [], parent, text }) {
   made += 1
   const prefix = `${String(made)}:`
   let count = 0
@@ -100,9 +90,6 @@ function textEditor({ edit, extensions = [], grammar, look, parent, text, textCl
     state: EditorState.create({
       doc: initial.text,
       extensions: [
-        new Language(defineLanguageFacet(), grammar, [], 'text').extension,
-        lookDecorations(look),
-        EditorView.contentAttributes.of({ class: textClass }),
         EditorView.updateListener.of((update) => {
           for (const transaction of update.transactions) {
             if (!transaction.docChanged || transaction.annotation(fromElsewhere) === true) {

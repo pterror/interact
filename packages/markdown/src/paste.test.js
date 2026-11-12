@@ -2,9 +2,8 @@ import { describe, expect, test } from 'bun:test'
 
 import { reader } from '@pterror/interact-editor/reader'
 
-import { markdownGrammar } from './grammar.js'
-import { markdownLook } from './look.js'
 import { htmlToMarkdown } from './paste.js'
+import { testGrammar, testLook } from './test-grammar.js'
 
 /**
  * What markdown shows, as the reader draws it
@@ -13,8 +12,8 @@ import { htmlToMarkdown } from './paste.js'
  */
 function shows(markdown) {
   const shown = reader({
-    grammar: markdownGrammar(),
-    look: markdownLook((name, attributes) => ({ attributes, name })),
+    grammar: testGrammar,
+    look: testLook((name, attributes) => ({ attributes, name })),
     textClass: 'text',
   })
   shown.show(markdown)

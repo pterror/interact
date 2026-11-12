@@ -533,6 +533,10 @@ Names are **(P)**.
 | `@pterror/interact-editor`   | the text and its port, the look table, the editor's decorations, the reader, pieces, overlays, suggestions, the toolbar and the selection bar                                | `@lezer/common`; `@codemirror/state`, `view`, `language` and `autocomplete`, optional, since the reader's modules import only `@lezer/common`; `@pterror/interact-list` (`popover`) |
 | `@pterror/interact-markdown` | a markdown grammar (lezer markdown with tables, task lists, strikethrough, autolinks, and HTML parsed by an HTML grammar), its look table, its formatting state and commands | `@pterror/interact-editor`, `@lezer/markdown`, `@lezer/html`, and the editor's CodeMirror peers                                                                                     |
 
+- **Nothing is bundled.** Each behaviour is its own piece the app composes: the editor is a view over a text port, and
+  the grammar's language, the Look's decorations, the text class, keys, key hints, overlays, suggestions, paste and
+  overtype are extensions or modules beside it. A grammar is composed from lezer's own pieces (`GFM`) and
+  `htmlInMarkdown`; a Look from `markdownLook`, `gfmLook` and `htmlLook` to match.
 - **The editor knows no markdown.** The grammar is passed in. cyoa draws markdown and wikitext with one look module, so
   a second grammar is a package beside `markdown`, and `editor` doesn't change for it.
 - **Everything is a peer.** CodeMirror stops working when a page loads two copies of `@codemirror/state`: an extension
@@ -577,16 +581,16 @@ when the piece is no longer drawn, as with list's `render`.
 
 ### Modules (editor)
 
-- **`textEditor({ parent, text, edit, grammar, look, textClass, extensions })`** returns `{ view, stop }`. It is a
-  CodeMirror view over the text.
+- **`textEditor({ parent, text, edit, extensions })`** returns `{ view, stop }`. It is a CodeMirror view over the text,
+  and the text port; everything else is composed in through `extensions`.
   - **Edits.** Each change is handed to `edit` with an id, as it is made.
   - **Text from elsewhere.** The editor keeps the changes the text doesn't yet `include`. It shows an outside text with
     those changes mapped over it (`ChangeSet.map`, as `@codemirror/collab` rebases), so an echo of its own change, or
     someone else's, never undoes what was typed since.
-  - **Looks.** Its content takes `textClass`, the same class the reader takes, so one set of styles applies to both.
-    Nothing copies computed styles.
-  - **App extensions.** `extensions` are the app's CodeMirror extensions (history, search, paste, its own keys, the
-    overlays), wired by hand.
+  - **Looks.** The app gives its content the class the reader takes (`EditorView.contentAttributes`), so one set of
+    styles applies to both. Nothing copies computed styles.
+  - **What the app composes in.** `grammarLanguage(grammar)` (the grammar as CodeMirror's language),
+    `lookDecorations(look)` (the Look drawn), and its own extensions (history, search, paste, keys, overlays).
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
   viewport or the tree changes, and from scratch when the app dispatches `lookChanged`: what the Look draws changed with
   the text unchanged (a macro's value arrived, macros shown as written). While an IME composes, they're only moved with
@@ -623,18 +627,19 @@ when the piece is no longer drawn, as with list's `render`.
   Only the answer to the latest question is drawn. Overlays never change the tree or the text.
 - **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
   is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
-- **`toolbar({ view, tools, keyOf, held })`.** Buttons for a Watched list of Tools, in a space the field always
-  reserves, so showing it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from
-  `applies`). A press keeps the editor's selection and focus.
-  - Each button's tooltip names its key from `keyOf(id)`: the key as shown, which the app makes with keybinds'
-    `formatSteps`, so the editor imports nothing from keybinds.
-  - While `held` holds (keybinds' `modifierHeld`, a Watched boolean), each button with a key shows it in `data-keys`.
-  - Which tools a person has is the app's: the list it passes and keeps.
+- **`toolbar({ view, tools })`.** Buttons for a Watched list of Tools, in a space the field always reserves, so showing
+  it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from `applies`). A press keeps
+  the editor's selection and focus. It gives its buttons as a Watched, for what is composed onto them. Which tools a
+  person has is the app's: the list it passes and keeps.
+- **`keyHints({ buttons, keyOf, held })`.** Composed onto any tool buttons (the toolbar's, the selection bar's): each
+  button's tooltip names its key from `keyOf(id)`, the key as shown, which the app makes with keybinds' `formatSteps`,
+  so the editor imports nothing from keybinds. While `held` holds (keybinds' `modifierHeld`, a Watched boolean), each
+  button with a key shows it in `data-keys`.
 - **`keyboardInset({ window })`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard
   covers. The app places the toolbar above it (from cyoa's `toolbar.ts`).
 - **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's
   rectangle, shown while text is selected and the editor has focus. Its element goes inside the editor's, and it gives
-  whether it is shown as a Watched.
+  whether it is shown, and its buttons, as Watched values.
 - **`viewUpdates(view, fn)`.** Hears every update of an editor made elsewhere, until stopped: how the toolbar and the
   selection bar follow the state.
 
@@ -643,7 +648,8 @@ module here reads a key event.
 
 ### Modules (markdown)
 
-- **`markdownGrammar(extensions)`** returns a Parser: lezer markdown, with the app's `MarkdownConfig`s added.
+- **`htmlInMarkdown`**, a `MarkdownConfig` the app composes into its grammar
+  (`parser.configure([GFM, htmlInMarkdown, ...its own])`).
   - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`. The tags of one leaf block (a paragraph, a
     heading, a table) are mounted as one overlay so their opening and closing tags pair into one element; an HTML block
     is an overlay over its own range, so the `HTMLBlock` node stays in the tree beside its elements. So is a block that
@@ -652,8 +658,10 @@ module here reads a key event.
     2–19, positions in the outer text, also when the element spans a line break. The overlay's `Element` covers markdown
     nodes it doesn't contain (`Emphasis` 10–13 is the paragraph's child), so both surfaces draw an HTML element as a
     wrapper over the range it covers, nesting the markdown inside it.
-  - Without HTML (an app's "show tags as text"), the HTML nodes are removed (`remove: ['HTMLBlock', 'HTMLTag']`).
-- **`markdownLook(html)`** returns the markdown Look.
+  - Without it (an app's "show tags as text"), nothing is mounted on the HTML nodes, and with no rule for them their
+    source is drawn as text.
+- **`markdownLook(html)`, `gfmLook(html)`, `htmlLook(html)`** return the Looks of CommonMark, of GFM's syntax and of
+  HTML inside markdown, which the app composes to match its grammar.
   - Every mark node (`EmphasisMark`, `HeaderMark`, `Link/URL`, ...) is a `mark`.
   - Emphasis, strong, strikethrough, code and links are elements. Headings, quotes, lists and code blocks are `block`.
     Tables are `block`s for the reader `only`. A code block carries its language in `data-language`.

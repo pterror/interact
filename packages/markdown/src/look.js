@@ -1,9 +1,10 @@
 /**
- * How markdown is drawn. Every mark (`#`, `*`, `[`, a link's URL, a table's pipes) is a `mark`; emphasis, strong,
- * strikethrough, code and links are elements; headings, quotes, lists and code blocks are blocks; tables are drawn as
- * tables by the reader only, since a table can't be drawn over the editor's lines. Images are pieces beside their
- * source. A rule line, an escape, an entity, a hard break and a task's box are drawn by the reader as what they stand
- * for, and as their source in the editor.
+ * How markdown is drawn, as three looks an app composes to match its grammar: `markdownLook` for CommonMark,
+ * `gfmLook` for GFM's syntax, `htmlLook` for HTML inside markdown (`htmlInMarkdown`). Every mark (`#`, `*`, `[`, a
+ * link's address, a table's pipes) is a `mark`; emphasis, strong, strikethrough, code and links are elements;
+ * headings, quotes, lists and code blocks are blocks; tables are drawn as tables by the reader only, since a table
+ * can't be drawn over the editor's lines. Images are pieces beside their source. A rule line, an escape, an entity, a
+ * hard break and a task's box are drawn by the reader as what they stand for, and as their source in the editor.
  *
  * Every element with attributes from the text (an HTML tag, a link, an image) goes through the app's policy,
  * `html(name, attributes, content)`: what is allowed, and how classes and styles are rewritten. It answers the
@@ -289,75 +290,58 @@ function targetOf(node, read) {
 }
 
 /**
- * The markdown look
+ * An element with attributes from the text, as the app's policy draws it
+ * @param {Html} html - The policy
+ * @param {string} name - Its name
+ * @param {Readonly<Record<string, string>>} attributes - Its attributes
+ * @returns {Rule | undefined} Its rule, or none to draw its source as text
+ */
+function allowed(html, name, attributes) {
+  const shown = html(name, attributes, undefined)
+  return shown === undefined ? undefined : { attributes: () => shown.attributes, element: shown.name }
+}
+
+/**
+ * The rule for an HTML element
+ * @param {Html} html - The policy
+ * @param {SyntaxNode} element - The element
+ * @param {Read} read - The source
+ * @returns {Rule | undefined} The rule, or none to draw its source as text
+ */
+function elementRule(html, element, read) {
+  const written = writtenElement(element, read)
+  const shown = written === undefined ? undefined : html(written.name, written.attributes, written.content)
+  if (written === undefined || shown === undefined) {
+    return undefined
+  }
+  if (written.content !== undefined || openingOf(element)?.name === 'SelfClosingTag') {
+    return readerPiece(() => elementPiece(shown))
+  }
+  return {
+    attributes: () => shown.attributes,
+    element: shown.name,
+    ...(PHRASING.has(shown.name) ? {} : { only: READER }),
+  }
+}
+
+/**
+ * The rule for a mark of a link or image: a mark when it points somewhere, its text when it is a reference nothing
+ * defines
+ * @param {SyntaxNode} node - The mark
+ * @param {Read} read - The source
+ * @returns {Rule | undefined} The rule
+ */
+function linkMarkRule(node, read) {
+  return node.parent === null || targetOf(node.parent, read) !== undefined ? MARK : undefined
+}
+
+/**
+ * How CommonMark is drawn
  * @param {Html} html - The app's policy for elements whose attributes come from the text
  * @returns {Look} The look
  */
 function markdownLook(html) {
-  /**
-   * An element with attributes from the text, as the policy draws it
-   * @param {string} name - Its name
-   * @param {Readonly<Record<string, string>>} attributes - Its attributes
-   * @returns {Rule | undefined} Its rule, or none to draw its source as text
-   */
-  const allowed = (name, attributes) => {
-    const shown = html(name, attributes, undefined)
-    return shown === undefined ? undefined : { attributes: () => shown.attributes, element: shown.name }
-  }
-
-  /**
-   * The rule for an HTML element
-   * @param {SyntaxNode} element - The element
-   * @param {Read} read - The source
-   * @returns {Rule | undefined} The rule, or none to draw its source as text
-   */
-  const elementRule = (element, read) => {
-    const written = writtenElement(element, read)
-    const shown = written === undefined ? undefined : html(written.name, written.attributes, written.content)
-    if (written === undefined || shown === undefined) {
-      return undefined
-    }
-    if (written.content !== undefined || openingOf(element)?.name === 'SelfClosingTag') {
-      return readerPiece(() => elementPiece(shown))
-    }
-    return {
-      attributes: () => shown.attributes,
-      element: shown.name,
-      ...(PHRASING.has(shown.name) ? {} : { only: READER }),
-    }
-  }
-
-  /**
-   * The rule for a tag of an HTML element: a mark while its element is drawn
-   * @param {SyntaxNode} tag - The tag
-   * @param {Read} read - The source
-   * @returns {Rule | undefined} The rule
-   */
-  const tagRule = (tag, read) => {
-    const element = tag.parent
-    return element?.name === 'Element' && elementRule(element, read) !== undefined ? MARK : undefined
-  }
-
-  /**
-   * The rule for a URL: a link, unless it is the target of a link or image
-   * @param {SyntaxNode} node - The URL
-   * @param {Read} read - The source
-   * @returns {Rule | undefined} The rule
-   */
-  const urlRule = (node, read) => allowed('a', { href: read(node.from, node.to) })
-
-  /**
-   * The rule for a mark of a link or image: a mark when it points somewhere, its text when it is a reference nothing
-   * defines
-   * @param {SyntaxNode} node - The mark
-   * @param {Read} read - The source
-   * @returns {Rule | undefined} The rule
-   */
-  const linkMarkRule = (node, read) =>
-    node.parent === null || targetOf(node.parent, read) !== undefined ? MARK : undefined
-
-  /** @type {Look} */
-  const look = {
+  return {
     ATXHeading1: { block: true, element: 'h1' },
     ATXHeading2: { block: true, element: 'h2' },
     ATXHeading3: { block: true, element: 'h3' },
@@ -366,23 +350,20 @@ function markdownLook(html) {
     ATXHeading6: { block: true, element: 'h6' },
     Autolink: (node, read) => {
       const url = childText(node, 'URL', read)
-      return url === undefined ? undefined : allowed('a', { href: url })
+      return url === undefined ? undefined : allowed(html, 'a', { href: url })
     },
     'Autolink/LinkMark': MARK,
     'Autolink/URL': {},
     Blockquote: { block: true, element: 'blockquote' },
     BulletList: { block: true, element: 'ul' },
-    CloseTag: tagRule,
     CodeBlock: { block: true, element: 'pre' },
     CodeInfo: MARK,
     CodeMark: MARK,
     CodeText: { element: 'code' },
     Comment: MARK,
-    Element: elementRule,
     Emphasis: { element: 'em' },
     EmphasisMark: MARK,
     Entity: readerPiece((node, read) => textPiece(decoded(read(node.from, node.to)))),
-    EntityReference: readerPiece((node, read) => textPiece(decoded(read(node.from, node.to)))),
     Escape: readerPiece((node, read) => textPiece(read(node.from + 1, node.to))),
     FencedCode: {
       attributes: (node, read) => {
@@ -434,7 +415,7 @@ function markdownLook(html) {
       const target = targetOf(node, read)
       return target === undefined
         ? undefined
-        : allowed('a', { href: target.url, ...(target.title === undefined ? {} : { title: target.title }) })
+        : allowed(html, 'a', { href: target.url, ...(target.title === undefined ? {} : { title: target.title }) })
     },
     'Link/LinkLabel': linkMarkRule,
     'Link/LinkMark': linkMarkRule,
@@ -444,8 +425,6 @@ function markdownLook(html) {
     LinkReference: MARK,
     ListItem: { block: true, element: 'li' },
     ListMark: MARK,
-    MismatchedCloseTag: MARK,
-    OpenTag: tagRule,
     OrderedList: {
       attributes: (node, read) => {
         const mark = node.firstChild?.getChild('ListMark')
@@ -459,12 +438,21 @@ function markdownLook(html) {
     ProcessingInstruction: MARK,
     ProcessingInstructionBlock: MARK,
     QuoteMark: MARK,
-    SelfClosingTag: tagRule,
     SetextHeading1: { block: true, element: 'h1' },
     SetextHeading2: { block: true, element: 'h2' },
+    StrongEmphasis: { element: 'strong' },
+  }
+}
+
+/**
+ * How GFM's syntax is drawn: strikethrough, task boxes, bare URLs as links, and tables
+ * @param {Html} html - The app's policy for elements whose attributes come from the text
+ * @returns {Look} The look
+ */
+function gfmLook(html) {
+  return {
     Strikethrough: { element: 'del' },
     StrikethroughMark: MARK,
-    StrongEmphasis: { element: 'strong' },
     Table: { block: true, element: 'table', only: 'reader' },
     TableCell: { block: true, element: 'td', only: 'reader' },
     TableDelimiter: MARK,
@@ -479,9 +467,34 @@ function markdownLook(html) {
       const checked = read(node.from + 1, node.to - 1).trim() !== ''
       return elementPiece({ ...box, attributes: { ...box.attributes, ...(checked ? { checked: '' } : {}) } })
     }),
-    URL: urlRule,
+    URL: (node, read) => allowed(html, 'a', { href: read(node.from, node.to) }),
   }
-  return look
 }
 
-export { definitionOf, markdownLook }
+/**
+ * How HTML inside markdown (`htmlInMarkdown`) is drawn
+ * @param {Html} html - The app's policy
+ * @returns {Look} The look
+ */
+function htmlLook(html) {
+  /**
+   * The rule for a tag of an HTML element: a mark while its element is drawn
+   * @param {SyntaxNode} tag - The tag
+   * @param {Read} read - The source
+   * @returns {Rule | undefined} The rule
+   */
+  const tagRule = (tag, read) => {
+    const element = tag.parent
+    return element?.name === 'Element' && elementRule(html, element, read) !== undefined ? MARK : undefined
+  }
+  return {
+    CloseTag: tagRule,
+    Element: (node, read) => elementRule(html, node, read),
+    EntityReference: readerPiece((node, read) => textPiece(decoded(read(node.from, node.to)))),
+    MismatchedCloseTag: MARK,
+    OpenTag: tagRule,
+    SelfClosingTag: tagRule,
+  }
+}
+
+export { definitionOf, gfmLook, htmlLook, markdownLook }

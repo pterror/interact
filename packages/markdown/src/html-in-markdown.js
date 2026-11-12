@@ -1,19 +1,17 @@
 /**
- * The markdown grammar: lezer markdown with GFM (tables, task lists, strikethrough, autolinks), and HTML parsed by
- * `@lezer/html` inside it. The HTML tags of one leaf block (a paragraph, a heading, a table) are mounted as one
+ * HTML inside markdown, a lezer markdown extension an app composes into its grammar
+ * (`parser.configure([GFM, htmlInMarkdown, ...])`): HTML is parsed by `@lezer/html` inside the markdown. The HTML tags of one leaf block (a paragraph, a heading, a table) are mounted as one
  * overlay, so a tag opened and closed in it pairs into one `Element` over the markdown between, with positions in the
  * outer text; an HTML block, or one that starts with a comment, is an overlay over itself, so HTML after the comment
- * on its last line is drawn. Removing the HTML nodes (`remove: ['HTMLBlock', 'HTMLTag']`, an app's "show tags as
- * text") leaves nothing to mount.
+ * on its last line is drawn. A grammar without it ("show tags as text") reads tags as markdown does: as HTML nodes
+ * with nothing mounted.
  */
 
 import { parseMixed } from '@lezer/common'
 import { parser as html } from '@lezer/html'
-import { GFM, parser } from '@lezer/markdown'
 
 /**
  * @typedef {import('@lezer/markdown').MarkdownConfig} MarkdownConfig
- * @typedef {import('@lezer/markdown').MarkdownParser} MarkdownParser
  * @typedef {import('@lezer/common').SyntaxNode} SyntaxNode
  */
 
@@ -38,7 +36,7 @@ function tagsUnder(node) {
 }
 
 /** @type {MarkdownConfig} */
-const htmlInside = {
+const htmlInMarkdown = {
   wrap: parseMixed((node) => {
     if (node.name === 'HTMLBlock' || node.name === 'CommentBlock') {
       return { overlay: [{ from: node.from, to: node.to }], parser: html }
@@ -49,13 +47,4 @@ const htmlInside = {
   }),
 }
 
-/**
- * The markdown grammar with an app's own syntax
- * @param {readonly MarkdownConfig[]} [extensions] - The app's extensions (macros, its own marks), after GFM and HTML
- * @returns {MarkdownParser} The grammar
- */
-function markdownGrammar(extensions = []) {
-  return parser.configure([GFM, htmlInside, ...extensions])
-}
-
-export { markdownGrammar }
+export { htmlInMarkdown }

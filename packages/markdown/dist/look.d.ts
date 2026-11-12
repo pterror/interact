@@ -1,9 +1,10 @@
 /**
- * How markdown is drawn. Every mark (`#`, `*`, `[`, a link's URL, a table's pipes) is a `mark`; emphasis, strong,
- * strikethrough, code and links are elements; headings, quotes, lists and code blocks are blocks; tables are drawn as
- * tables by the reader only, since a table can't be drawn over the editor's lines. Images are pieces beside their
- * source. A rule line, an escape, an entity, a hard break and a task's box are drawn by the reader as what they stand
- * for, and as their source in the editor.
+ * How markdown is drawn, as three looks an app composes to match its grammar: `markdownLook` for CommonMark,
+ * `gfmLook` for GFM's syntax, `htmlLook` for HTML inside markdown (`htmlInMarkdown`). Every mark (`#`, `*`, `[`, a
+ * link's address, a table's pipes) is a `mark`; emphasis, strong, strikethrough, code and links are elements;
+ * headings, quotes, lists and code blocks are blocks; tables are drawn as tables by the reader only, since a table
+ * can't be drawn over the editor's lines. Images are pieces beside their source. A rule line, an escape, an entity, a
+ * hard break and a task's box are drawn by the reader as what they stand for, and as their source in the editor.
  *
  * Every element with attributes from the text (an HTML tag, a link, an image) goes through the app's policy,
  * `html(name, attributes, content)`: what is allowed, and how classes and styles are rewritten. It answers the
@@ -32,9 +33,21 @@ export type Html = (name: string, attributes: Readonly<Record<string, string>>, 
  */
 declare function definitionOf(node: SyntaxNode, read: Read): SyntaxNode | undefined;
 /**
- * The markdown look
+ * How CommonMark is drawn
  * @param {Html} html - The app's policy for elements whose attributes come from the text
  * @returns {Look} The look
  */
 declare function markdownLook(html: Html): Look;
-export { definitionOf, markdownLook };
+/**
+ * How GFM's syntax is drawn: strikethrough, task boxes, bare URLs as links, and tables
+ * @param {Html} html - The app's policy for elements whose attributes come from the text
+ * @returns {Look} The look
+ */
+declare function gfmLook(html: Html): Look;
+/**
+ * How HTML inside markdown (`htmlInMarkdown`) is drawn
+ * @param {Html} html - The app's policy
+ * @returns {Look} The look
+ */
+declare function htmlLook(html: Html): Look;
+export { definitionOf, gfmLook, htmlLook, markdownLook };

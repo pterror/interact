@@ -10,7 +10,7 @@ npm install @pterror/interact-editor @codemirror/state @codemirror/view @codemir
 
 | Module                         | Does                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `textEditor(options)`          | a CodeMirror editor over a text held elsewhere; each edit goes out with an id as it is made    |
+| `textEditor(options)`          | a CodeMirror view over a text held elsewhere; each edit goes out with an id as it is made      |
 | `reader(options)`              | the text drawn for reading into an element, redrawn from the first part a new text changes     |
 | `overlays(list)`               | ranges drawn over the editor's text without changing it (search matches, lore marks)           |
 | `suggestions(sources)`         | one completion mechanism fed by every source of suggestions (macros, slash commands)           |

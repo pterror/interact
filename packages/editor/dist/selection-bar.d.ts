@@ -11,8 +11,9 @@ export type EditorView = import('@codemirror/view').EditorView;
  * @returns {Readonly<{
  *   element: HTMLElement,
  *   open: Readonly<{ get: () => boolean, watch: (listener: () => void) => () => void }>,
+ *   buttons: Readonly<{ get: () => readonly import('./tool-buttons.js').Drawn[], watch: (listener: () => void) => () => void }>,
  *   stop: () => void,
- * }>} Its element (`role=toolbar`), whether it is shown, and stopping
+ * }>} Its element (`role=toolbar`), whether it is shown, its buttons (which don't change), and stopping
  */
 declare function selectionBar({ tools, view }: Readonly<{
     view: EditorView;
@@ -21,6 +22,10 @@ declare function selectionBar({ tools, view }: Readonly<{
     element: HTMLElement;
     open: Readonly<{
         get: () => boolean;
+        watch: (listener: () => void) => () => void;
+    }>;
+    buttons: Readonly<{
+        get: () => readonly import('./tool-buttons.js').Drawn[];
         watch: (listener: () => void) => () => void;
     }>;
     stop: () => void;

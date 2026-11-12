@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
-import { Language, defineLanguageFacet, ensureSyntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import { grammarLanguage } from '@pterror/interact-editor/grammar-language'
 
-import { markdownGrammar } from './grammar.js'
 import { overtype } from './overtype.js'
+import { testGrammar } from './test-grammar.js'
 
 /**
  * An editor over a text with the cursor at a position
@@ -18,7 +19,7 @@ function viewOf(doc, at) {
     parent: document.createElement('div'),
     state: EditorState.create({
       doc,
-      extensions: [new Language(defineLanguageFacet(), markdownGrammar(), [], 'md').extension, overtype()],
+      extensions: [grammarLanguage(testGrammar), overtype()],
       selection: EditorSelection.cursor(at),
     }),
   })

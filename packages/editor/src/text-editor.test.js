@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { Language, defineLanguageFacet, ensureSyntaxTree } from '@codemirror/language'
+import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
 import { inlineDecorations, lookChanged, lookDecorations } from './decorations.js'
+import { grammarLanguage } from './grammar-language.js'
 import { counted, testGrammar, testLook } from './test-look.js'
 import { textEditor } from './text-editor.js'
 
@@ -58,11 +59,13 @@ function editorOver(initial) {
     edit(changes, id) {
       edits.push({ changes, id })
     },
-    grammar: testGrammar,
-    look: testLook(counted().counts),
+    extensions: [
+      grammarLanguage(testGrammar),
+      lookDecorations(testLook(counted().counts)),
+      EditorView.contentAttributes.of({ class: 'text' }),
+    ],
     parent: document.createElement('div'),
     text: held,
-    textClass: 'text',
   })
   return { edits, editor, held }
 }
@@ -84,10 +87,7 @@ async function settled() {
 function stateOf(doc) {
   const state = EditorState.create({
     doc,
-    extensions: [
-      new Language(defineLanguageFacet(), testGrammar, [], 'text').extension,
-      lookDecorations(testLook(counted().counts)),
-    ],
+    extensions: [grammarLanguage(testGrammar), lookDecorations(testLook(counted().counts))],
   })
   ensureSyntaxTree(state, doc.length, 1000)
   return state
@@ -224,7 +224,7 @@ describe('the editor drawing a look', () => {
       parent: document.createElement('div'),
       state: EditorState.create({
         doc,
-        extensions: [new Language(defineLanguageFacet(), testGrammar, [], 'text').extension, lookDecorations(look)],
+        extensions: [grammarLanguage(testGrammar), lookDecorations(look)],
       }),
     })
     ensureSyntaxTree(view.state, doc.length, 1000)
