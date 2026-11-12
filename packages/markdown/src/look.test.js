@@ -52,6 +52,10 @@ describe('the markdown look, read', () => {
     expect(drawn('<div></div>')).toBe('<div></div>')
   })
 
+  test('draws the HTML after a comment on its line', () => {
+    expect(drawn('<!-- note --><div>third</div>')).toBe('<div>third</div>')
+  })
+
   test('hides a close tag that closes nothing', () => {
     expect(drawn('a</i> b')).toBe('<p>a b</p>')
   })

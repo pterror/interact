@@ -288,7 +288,6 @@ function markdownLook(html) {
     CodeMark: MARK,
     CodeText: { element: 'code' },
     Comment: MARK,
-    CommentBlock: MARK,
     Element: elementRule,
     Emphasis: { element: 'em' },
     EmphasisMark: MARK,

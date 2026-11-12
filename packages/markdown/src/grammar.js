@@ -2,8 +2,9 @@
  * The markdown grammar: lezer markdown with GFM (tables, task lists, strikethrough, autolinks), and HTML parsed by
  * `@lezer/html` inside it. The HTML tags of one leaf block (a paragraph, a heading, a table) are mounted as one
  * overlay, so a tag opened and closed in it pairs into one `Element` over the markdown between, with positions in the
- * outer text; an HTML block is an overlay over itself. Removing the HTML nodes (`remove: ['HTMLBlock', 'HTMLTag']`, an
- * app's "show tags as text") leaves nothing to mount.
+ * outer text; an HTML block, or one that starts with a comment, is an overlay over itself, so HTML after the comment
+ * on its last line is drawn. Removing the HTML nodes (`remove: ['HTMLBlock', 'HTMLTag']`, an app's "show tags as
+ * text") leaves nothing to mount.
  */
 
 import { parseMixed } from '@lezer/common'
@@ -39,7 +40,7 @@ function tagsUnder(node) {
 /** @type {MarkdownConfig} */
 const htmlInside = {
   wrap: parseMixed((node) => {
-    if (node.name === 'HTMLBlock') {
+    if (node.name === 'HTMLBlock' || node.name === 'CommentBlock') {
       return { overlay: [{ from: node.from, to: node.to }], parser: html }
     }
     const tags = node.type.is('LeafBlock') && !NOT_HOSTS.has(node.name) ? tagsUnder(node.node) : []

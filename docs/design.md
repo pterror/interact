@@ -642,7 +642,8 @@ module here reads a key event.
 - **`markdownGrammar(extensions)`** returns a Parser: lezer markdown, with the app's `MarkdownConfig`s added.
   - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`. The tags of one leaf block (a paragraph, a
     heading, a table) are mounted as one overlay so their opening and closing tags pair into one element; an HTML block
-    is an overlay over its own range, so the `HTMLBlock` node stays in the tree beside its elements. Checked with
+    is an overlay over its own range, so the `HTMLBlock` node stays in the tree beside its elements. So is a block that
+    starts with a comment (`CommentBlock`), whose last line can hold HTML after the comment. Checked with
     `@lezer/markdown` 1 and `@lezer/html` 1: in `a <b>bold *x* y</b>`, `resolveInner` inside either tag gives `Element`
     2–19, positions in the outer text, also when the element spans a line break. The overlay's `Element` covers markdown
     nodes it doesn't contain (`Emphasis` 10–13 is the paragraph's child), so both surfaces draw an HTML element as a
