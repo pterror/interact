@@ -33,10 +33,16 @@ import { walk } from './walk.js'
  */
 
 /**
- * Ranges over the text that are drawn on it without changing it (search matches, lore marks). `ranges` answers for a
- * part of the text, now or later; `watch` hears that ranges changed, within one range of the text or anywhere.
+ * The text an overlay is asked about: its source and its syntax tree, as they were when it was asked
+ * @typedef {Readonly<{ read: import('./look.js').Read, tree: import('@lezer/common').Tree }>} Asked
+ */
+
+/**
+ * Ranges over the text that are drawn on it without changing it (search matches, lore marks, code highlighting).
+ * `ranges` answers for a part of the text, now or later, from its source and tree; `watch` hears that ranges changed,
+ * within one range of the text or anywhere.
  * @typedef {Readonly<{
- *   ranges: (from: number, to: number) => import('./later.js').Later<readonly Range[]>,
+ *   ranges: (from: number, to: number, text: Asked) => import('./later.js').Later<readonly Range[]>,
  *   watch: (listener: (range?: Readonly<{ from: number, to: number }>) => void) => () => void,
  * }>} Overlay
  */
@@ -493,7 +499,8 @@ function reader({ grammar, look, overlays = [], textClass }) {
     const question = (asked[index] ?? 0) + 1
     asked[index] = question
     let now = true
-    settle(overlay.ranges(0, text.length), (ranges) => {
+    const source = text
+    settle(overlay.ranges(0, text.length, { read: (from, to) => source.slice(from, to), tree }), (ranges) => {
       if (asked[index] !== question) {
         return
       }

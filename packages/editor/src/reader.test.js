@@ -96,6 +96,28 @@ describe('reader', () => {
     )
   })
 
+  test('asks an overlay with the source and tree of the text it is drawn on', () => {
+    /** @type {import('./reader.js').Overlay} */
+    const emphasis = {
+      ranges(_from, _to, { read, tree }) {
+        /** @type {import('./reader.js').Range[]} */
+        const found = []
+        tree.iterate({
+          enter(node) {
+            if (node.name === 'Emphasis') {
+              found.push({ class: read(node.from + 1, node.to - 1), from: node.from, to: node.to })
+            }
+          },
+        })
+        return found
+      },
+      watch: () => () => undefined,
+    }
+    const { shown } = made([emphasis])
+    shown.show('a *hot* b')
+    expect(shown.element.innerHTML).toBe('<p>a <em><span class="hot">hot</span></em> b</p>')
+  })
+
   test('draws only the answer to the latest question', async () => {
     /** @type {((ranges: readonly import('./reader.js').Range[]) => void)[]} */
     const answers = []

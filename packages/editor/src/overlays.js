@@ -4,6 +4,7 @@
  * it was asked for, and are moved through the edits made since. Only the answer to the latest question is drawn.
  */
 
+import { syntaxTree } from '@codemirror/language'
 import { ChangeSet, StateEffect } from '@codemirror/state'
 import { Decoration, ViewPlugin } from '@codemirror/view'
 
@@ -53,7 +54,12 @@ function overlays(list) {
           const asked = question
           since = ChangeSet.empty(view.state.doc.length)
           const { from, to } = view.viewport
-          settle(overlay.ranges(from, to), (ranges) => {
+          const { state } = view
+          const text = {
+            read: (/** @type {number} */ start, /** @type {number} */ end) => state.sliceDoc(start, end),
+            tree: syntaxTree(state),
+          }
+          settle(overlay.ranges(from, to, text), (ranges) => {
             if (asked !== question) {
               return
             }

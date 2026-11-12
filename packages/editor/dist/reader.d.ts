@@ -19,8 +19,12 @@ export type Range = Readonly<{
     class: string;
     attributes?: Readonly<Record<string, string>>;
 }>;
+export type Asked = Readonly<{
+    read: import('./look.js').Read;
+    tree: import('@lezer/common').Tree;
+}>;
 export type Overlay = Readonly<{
-    ranges: (from: number, to: number) => import('./later.js').Later<readonly Range[]>;
+    ranges: (from: number, to: number, text: Asked) => import('./later.js').Later<readonly Range[]>;
     watch: (listener: (range?: Readonly<{
         from: number;
         to: number;

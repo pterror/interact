@@ -549,7 +549,7 @@ Names are **(P)**.
 | Grammar     | a lezer `Parser`                                                                                        | textEditor, reader    |
 | Look        | `{ [selector]: Rule \| (node, read) → Rule \| none }`; a selector is a node name or `Parent/Name`       | textEditor, reader    |
 | Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                      | textEditor, reader    |
-| Overlay     | `ranges(from, to) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`                      | textEditor, reader    |
+| Overlay     | `ranges(from, to, { read, tree }) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`      | textEditor, reader    |
 | Suggest     | `(read, pos, explicit) → later { from, to, options: Option[] } \| none`                                 | suggestions           |
 | Command     | CodeMirror's `(view) → bool`                                                                            | toolbar, selectionBar |
 | Tool        | `{ id, label, icon?() → Element, run: Command, on?(state) → bool, applies?(state) → bool }`             | toolbar, selectionBar |
@@ -609,12 +609,13 @@ when the piece is no longer drawn, as with list's `render`.
     differs. A streamed reply therefore costs its last block per chunk.
   - **`positionAt`.** It gives the source position for a place in the reader's DOM. Every element knows the node it was
     drawn from.
-- **Overlays.** In the editor, `overlays(list)` is an extension that draws overlay ranges as mark decorations over the
-  visible part, asked for again when the text, the visible part or the overlay changes; an answer's positions are in the
-  text as it was when asked, moved through the edits since. In the reader, they are spans around the text runs they
-  cover, split at the elements they cross, asked for over the whole text at each `show`, and a later answer redraws from
-  the first part it touches. Only the answer to the latest question is drawn. Overlays never change the tree or the
-  text.
+- **Overlays.** An overlay is asked with the text's source and syntax tree as they were when it was asked, since some
+  overlays are found from the tree (code highlighting needs each code block's language and content). In the editor,
+  `overlays(list)` is an extension that draws overlay ranges as mark decorations over the visible part, asked for again
+  when the text, the visible part or the overlay changes; an answer's positions are in the text as it was when asked,
+  moved through the edits since. In the reader, they are spans around the text runs they cover, split at the elements
+  they cross, asked for over the whole text at each `show`, and a later answer redraws from the first part it touches.
+  Only the answer to the latest question is drawn. Overlays never change the tree or the text.
 - **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
   is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
 - **`toolbar({ view, tools, keyOf, held })`.** Buttons for a Watched list of Tools, in a space the field always
