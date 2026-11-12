@@ -47,6 +47,7 @@
             "name": [
               "CSSStyleSheet",
               "ChildNode",
+              "ClipboardEvent",
               "Comment",
               "CustomElementRegistry",
               "CustomEvent",
@@ -103,8 +104,10 @@
               "ChangeSet",
               "EditorState",
               "Extension",
+              "Line",
               "Range",
               "RangeSet",
+              "SelectionRange",
               "StateField",
               "Text",
               "Transaction"
@@ -116,7 +119,8 @@
             "name": ["BlockWrapper", "Decoration", "EditorView", "ViewPlugin", "ViewUpdate", "WidgetType"],
             "package": "@codemirror/view"
           },
-          { "from": "package", "name": ["Completion", "CompletionContext"], "package": "@codemirror/autocomplete" }
+          { "from": "package", "name": ["Completion", "CompletionContext"], "package": "@codemirror/autocomplete" },
+          { "from": "package", "name": ["MarkdownConfig", "MarkdownParser"], "package": "@lezer/markdown" }
         ]
       }
     ],

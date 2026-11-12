@@ -602,8 +602,9 @@ when the piece is no longer drawn, as with list's `render`.
     of the source. Inline elements are drawn over the ranges they cover, whichever tree they come from, and an element
     is split where it overlaps another without nesting.
   - **Space around marks.** The reader also leaves out the whitespace that only separates a mark from the text of its
-    line (`# Title`, `> quote`), and the line break of a line holding nothing but marks (a code fence). Without that,
-    `pre-wrap` would draw them.
+    line (`# Title`, `> quote`), the whitespace between two marks of one node (a link's address and its title), the line
+    break of a line holding nothing but marks (a code fence), and the whitespace at the ends of a run between blocks.
+    Without that, `pre-wrap` would draw them.
   - **`show(text)`.** It reparses with the last tree's fragments, then redraws from the first top-level block that
     differs. A streamed reply therefore costs its last block per chunk.
   - **`positionAt`.** It gives the source position for a place in the reader's DOM. Every element knows the node it was
@@ -637,26 +638,41 @@ module here reads a key event.
 ### Modules (markdown)
 
 - **`markdownGrammar(extensions)`** returns a Parser: lezer markdown, with the app's `MarkdownConfig`s added.
-  - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`, and the tags of one paragraph are mounted as
-    one overlay so their opening and closing tags pair into one element. Checked with `@lezer/markdown` 1 and
-    `@lezer/html` 1: in `a <b>bold *x* y</b>`, `resolveInner` inside either tag gives `Element` 2–19, positions in the
-    outer text, also when the element spans a line break. The overlay's `Element` covers markdown nodes it doesn't
-    contain (`Emphasis` 10–13 is the paragraph's child), so both surfaces draw an HTML element as a wrapper over the
-    range it covers, nesting the markdown inside it.
+  - HTML blocks and tags are parsed by `@lezer/html` through `parseMixed`. The tags of one leaf block (a paragraph, a
+    heading, a table) are mounted as one overlay so their opening and closing tags pair into one element; an HTML block
+    is an overlay over its own range, so the `HTMLBlock` node stays in the tree beside its elements. Checked with
+    `@lezer/markdown` 1 and `@lezer/html` 1: in `a <b>bold *x* y</b>`, `resolveInner` inside either tag gives `Element`
+    2–19, positions in the outer text, also when the element spans a line break. The overlay's `Element` covers markdown
+    nodes it doesn't contain (`Emphasis` 10–13 is the paragraph's child), so both surfaces draw an HTML element as a
+    wrapper over the range it covers, nesting the markdown inside it.
   - Without HTML (an app's "show tags as text"), the HTML nodes are removed (`remove: ['HTMLBlock', 'HTMLTag']`).
 - **`markdownLook(html)`** returns the markdown Look.
   - Every mark node (`EmphasisMark`, `HeaderMark`, `Link/URL`, ...) is a `mark`.
-  - Emphasis, strong, strikethrough and code are elements. Headings, quotes, lists, code blocks and tables are `block`.
-  - Images are `beside` pieces.
-  - HTML elements take their name and attributes from the tree, through
+  - Emphasis, strong, strikethrough, code and links are elements. Headings, quotes, lists and code blocks are `block`.
+    Tables are `block`s for the reader `only`. A code block carries its language in `data-language`.
+  - Images are `beside` pieces, with `data-unsized` when the text gives no size.
+  - A rule line, an escape, an entity, a hard break and a task's box are pieces for the reader only: what they stand for
+    in the reader, and their source, dimmed, in the editor.
+  - Every element with attributes from the text (an HTML element, a link, an image, a task's box) goes through
     `html(name, attributes, content) → { name, attributes, content } | none`. That is the app's policy (what's allowed,
-    how classes and styles are rewritten). `none` draws the source as text.
+    how classes and styles are rewritten). `none` draws the source as text. `content` is the text of an element whose
+    content is raw text (`style`, `script`, `textarea`, `title`), which the reader draws as a piece.
+  - The editor can't put a block element inside a line, so it draws only phrasing HTML elements (`b`, `span`, ...) and
+    leaves the rest to the reader. A void element (`br`, `img`) is a piece for the reader. A close tag that closes
+    nothing is hidden, as browsers ignore it.
 - **Formatting state and commands** (cyoa's `format.ts`).
   - `hasStyle(state, style)` reads the syntax tree, so italics aren't mistaken for half of bold.
   - `toggleStyle(style)`. With nothing selected and no word at the cursor, it writes an empty pair to type into, and
     pressing it again with nothing typed takes the pair out. At the end of styled words it steps past the closing mark.
     This is the "switch for what's typed next" and its pressed state.
-  - `heading`, `quote`, `list`, `codeBlock` and `link`, each a Command, with `on` where it has a state.
+  - Styles are bold, italic, strikethrough, code and underline. Underline is `<u>`, found by walking the overlay its
+    tags are in, since a position between the tags isn't in it.
+  - `heading`, `quote`, `list`, `codeBlock` and `link`, each a Command, with `on` where it has a state: `inHeading`,
+    `inQuote`, `inList`, `inCodeBlock`, `inLink`.
+- **Paste.** `htmlToMarkdown(html, shows)` turns each block of HTML into markdown, and keeps as HTML a block whose
+  markdown `shows` other visible text (`shows` draws markdown, with the reader). `markdownPaste({ choose, shows })`
+  pastes HTML as `choose({ markdown, html, plain })` picks, the markdown by default. Offering the other texts after a
+  paste is the app's.
 
 ### What is SillyTavern's
 

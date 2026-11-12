@@ -160,24 +160,39 @@ function reader({ grammar, look, overlays = [], textClass }) {
     })
     /** @type {Part[]} */
     const parts = []
+    /**
+     * Adds the run between two blocks, without the whitespace at its ends, which only separates it from them
+     * @param {number} from - Where it starts
+     * @param {number} to - Where it ends
+     * @returns {void}
+     */
+    const between = (from, to) => {
+      const run = text.slice(from, to)
+      const start = from + run.length - run.trimStart().length
+      const end = to - (run.length - run.trimEnd().length)
+      if (start < end) {
+        parts.push({ from: start, to: end })
+      }
+    }
     let at = node.from
     for (const block of blocks.toSorted((one, other) => one.block.from - other.block.from)) {
-      if (block.block.from > at) {
-        parts.push({ from: at, to: block.block.from })
-      }
+      between(at, block.block.from)
       parts.push(block)
       at = Math.max(at, block.block.to)
     }
-    if (at < node.to) {
-      parts.push({ from: at, to: node.to })
+    if (blocks.length === 0) {
+      parts.push({ from: node.from, to: node.to })
+    } else {
+      between(at, node.to)
     }
     return parts
   }
 
   /**
-   * The ranges the reader leaves out around marks: the space between a mark and its line's text, and the line break
-   * of a line holding only marks
-   * @param {readonly Span[]} marks - The marks, in order
+   * The ranges the reader leaves out around marks: the space between a mark and its line's text, the space between two
+   * marks of one node (a link's address and its title), and the line break of a line holding only marks
+   * @param {readonly Readonly<{ from: number, to: number, parent: string }>[]} marks - The marks, each with what
+   *   identifies the node it is in
    * @param {number} from - Where the run starts
    * @param {number} to - Where it ends
    * @returns {Span[]} The ranges
@@ -187,7 +202,12 @@ function reader({ grammar, look, overlays = [], textClass }) {
     const out = []
     /** @type {Map<number, { marked: number, end: number }>} */
     const lines = new Map()
-    for (const mark of marks) {
+    const ordered = marks.toSorted((one, other) => one.from - other.from)
+    for (const [index, mark] of ordered.entries()) {
+      const next = ordered[index + 1]
+      if (next !== undefined && next.parent === mark.parent && text.slice(mark.to, next.from).trim() === '') {
+        out.push({ from: mark.to, to: next.from })
+      }
       const lineStart = text.lastIndexOf('\n', mark.from - 1) + 1
       const newline = text.indexOf('\n', mark.to)
       const lineEnd = newline === -1 ? text.length : newline
@@ -235,7 +255,7 @@ function reader({ grammar, look, overlays = [], textClass }) {
   const drawInline = (into, parent, from, to, drew) => {
     /** @type {Wrapper[]} */
     const wrappers = []
-    /** @type {Span[]} */
+    /** @type {Readonly<{ from: number, to: number, parent: string }>[]} */
     const marks = []
     /** @type {Readonly<{ from: number, to: number, piece: Piece }>[]} */
     const atoms = []
@@ -261,7 +281,7 @@ function reader({ grammar, look, overlays = [], textClass }) {
         return false
       }
       if (rule.mark === true) {
-        marks.push({ from: node.from, to: node.to })
+        marks.push({ from: node.from, parent: `${node.parent?.name ?? ''}:${String(node.parent?.from)}`, to: node.to })
         return false
       }
       const name = rule.element ?? (rule.class === undefined ? undefined : 'span')
