@@ -26,7 +26,7 @@
  * @typedef {Readonly<{
  *   same: (other: Piece) => boolean,
  *   draw: () => HTMLElement,
- *   drop?: (element: HTMLElement) => void,
+ *   drop?: (element: Element) => void,
  * }>} Piece
  */
 

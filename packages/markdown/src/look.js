@@ -198,14 +198,94 @@ function childText(node, name, read) {
 }
 
 /**
- * A link's or image's title, without its quotes
+ * A link label as references match it: without its brackets, case-folded, its whitespace collapsed
+ * @param {string} label - The label as written, with its brackets
+ * @returns {string} The label matched
+ */
+function normalizedLabel(label) {
+  return label.slice(1, -1).trim().replaceAll(/\s+/gu, ' ').toLowerCase()
+}
+
+/** @type {WeakMap<import('@lezer/common').Tree, Map<string, SyntaxNode>>} */
+const definitionsByTree = new WeakMap()
+
+/**
+ * The link reference definitions of the text a node is in, by label; the first of a label wins
+ * @param {SyntaxNode} node - A node of the text
+ * @param {Read} read - The source
+ * @returns {Map<string, SyntaxNode>} The definitions
+ */
+function definitionsOf(node, read) {
+  let top = node
+  while (top.parent !== null) {
+    top = top.parent
+  }
+  const tree = top.tree
+  const known = tree === null ? undefined : definitionsByTree.get(tree)
+  if (known !== undefined) {
+    return known
+  }
+  /** @type {Map<string, SyntaxNode>} */
+  const found = new Map()
+  const cursor = top.cursor()
+  do {
+    if (cursor.name === 'LinkReference') {
+      const label = cursor.node.getChild('LinkLabel')
+      const key = label === null ? '' : normalizedLabel(read(label.from, label.to))
+      if (key !== '' && !found.has(key)) {
+        found.set(key, cursor.node)
+      }
+    }
+  } while (cursor.next())
+  if (tree !== null) {
+    definitionsByTree.set(tree, found)
+  }
+  return found
+}
+
+/**
+ * The definition a reference link or image refers to: by its label (`[text][label]`), or by its text (`[text][]`,
+ * `[text]`). A link or image with its own URL refers to none.
  * @param {SyntaxNode} node - The link or image
  * @param {Read} read - The source
- * @returns {Record<string, string>} The title attribute, if it has one
+ * @returns {SyntaxNode | undefined} The link reference definition, or none when nothing defines it
  */
-function titleOf(node, read) {
-  const title = childText(node, 'LinkTitle', read)
-  return title === undefined ? {} : { title: decoded(title.slice(1, -1)) }
+function definitionOf(node, read) {
+  if (node.getChild('URL') !== null) {
+    return undefined
+  }
+  const label = node.getChild('LinkLabel')
+  const written = label === null ? '' : read(label.from, label.to)
+  /** @type {string} */
+  let key = written.length > 2 ? normalizedLabel(written) : ''
+  if (key === '') {
+    const open = node.getChild('LinkMark')
+    const close = open?.nextSibling
+    key =
+      open === null || close === null || close === undefined ? '' : normalizedLabel(`[${read(open.to, close.from)}]`)
+  }
+  return key === '' ? undefined : definitionsOf(node, read).get(key)
+}
+
+/**
+ * Where a link or image points and its title: its own, or its definition's
+ * @param {SyntaxNode} node - The link or image
+ * @param {Read} read - The source
+ * @returns {{ url: string, title?: string } | undefined} The target, or none for a reference nothing defines
+ */
+function targetOf(node, read) {
+  const inline = node.getChildren('LinkMark').some((mark) => read(mark.from, mark.to) === '(')
+  const own = childText(node, 'URL', read)
+  if (own === undefined && inline) {
+    return { url: '' }
+  }
+  const source = own === undefined ? definitionOf(node, read) : node
+  const url = source === undefined ? undefined : childText(source, 'URL', read)
+  if (source === undefined || url === undefined) {
+    return undefined
+  }
+  const title = childText(source, 'LinkTitle', read)
+  return { url, ...(title === undefined ? {} : { title: decoded(title.slice(1, -1)) }) }
 }
 
 /**
@@ -266,6 +346,16 @@ function markdownLook(html) {
    */
   const urlRule = (node, read) => allowed('a', { href: read(node.from, node.to) })
 
+  /**
+   * The rule for a mark of a link or image: a mark when it points somewhere, its text when it is a reference nothing
+   * defines
+   * @param {SyntaxNode} node - The mark
+   * @param {Read} read - The source
+   * @returns {Rule | undefined} The rule
+   */
+  const linkMarkRule = (node, read) =>
+    node.parent === null || targetOf(node.parent, read) !== undefined ? MARK : undefined
+
   /** @type {Look} */
   const look = {
     ATXHeading1: { block: true, element: 'h1' },
@@ -308,12 +398,23 @@ function markdownLook(html) {
     Image: {
       class: 'mark',
       piece: (node, read) => {
-        const src = childText(node, 'URL', read)
+        const target = targetOf(node, read)
         const alt = node.getChild('LinkMark')
         const altEnd = alt?.nextSibling
         const altText = alt === null || altEnd === null || altEnd === undefined ? '' : read(alt.to, altEnd.from)
-        const shown = html('img', { alt: decoded(altText), src: src ?? '', ...titleOf(node, read) }, undefined)
-        if (src === undefined || shown === undefined) {
+        const shown =
+          target === undefined
+            ? undefined
+            : html(
+                'img',
+                {
+                  alt: decoded(altText),
+                  src: target.url,
+                  ...(target.title === undefined ? {} : { title: target.title }),
+                },
+                undefined,
+              )
+        if (shown === undefined) {
           return undefined
         }
         const sized = 'width' in shown.attributes || 'height' in shown.attributes
@@ -324,15 +425,19 @@ function markdownLook(html) {
       },
       source: 'beside',
     },
-    'Image/LinkMark': MARK,
+    'Image/LinkLabel': linkMarkRule,
+    'Image/LinkMark': linkMarkRule,
     'Image/LinkTitle': MARK,
     'Image/URL': MARK,
     InlineCode: { element: 'code' },
     Link: (node, read) => {
-      const url = childText(node, 'URL', read)
-      return allowed('a', { ...(url === undefined ? {} : { href: url }), ...titleOf(node, read) })
+      const target = targetOf(node, read)
+      return target === undefined
+        ? undefined
+        : allowed('a', { href: target.url, ...(target.title === undefined ? {} : { title: target.title }) })
     },
-    'Link/LinkLabel': MARK,
+    'Link/LinkLabel': linkMarkRule,
+    'Link/LinkMark': linkMarkRule,
     'Link/LinkTitle': MARK,
     'Link/URL': MARK,
     LinkMark: MARK,
@@ -379,4 +484,4 @@ function markdownLook(html) {
   return look
 }
 
-export { markdownLook }
+export { definitionOf, markdownLook }

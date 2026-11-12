@@ -24,9 +24,17 @@ export type HtmlElement = Readonly<{
 }>;
 export type Html = (name: string, attributes: Readonly<Record<string, string>>, content: string | undefined) => HtmlElement | undefined;
 /**
+ * The definition a reference link or image refers to: by its label (`[text][label]`), or by its text (`[text][]`,
+ * `[text]`). A link or image with its own URL refers to none.
+ * @param {SyntaxNode} node - The link or image
+ * @param {Read} read - The source
+ * @returns {SyntaxNode | undefined} The link reference definition, or none when nothing defines it
+ */
+declare function definitionOf(node: SyntaxNode, read: Read): SyntaxNode | undefined;
+/**
  * The markdown look
  * @param {Html} html - The app's policy for elements whose attributes come from the text
  * @returns {Look} The look
  */
 declare function markdownLook(html: Html): Look;
-export { markdownLook };
+export { definitionOf, markdownLook };

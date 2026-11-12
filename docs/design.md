@@ -601,7 +601,9 @@ when the piece is no longer drawn, as with list's `render`.
     the editor's `white-space: pre-wrap`, so a single newline is a line break on both surfaces. Each text node is a run
     of the source. Inline elements are drawn over the ranges they cover, whichever tree they come from, and an element
     is split where it overlaps another without nesting. An element whose content is all marks or nothing (an icon's
-    `<i></i>`, an empty `<div>`) is still drawn, empty.
+    `<i></i>`, an empty `<div>`) is still drawn, empty. An `<svg>` and what is in it are drawn in the SVG namespace,
+    with the mixed-case element and attribute names the HTML standard restores (`viewBox`, `linearGradient`), since the
+    HTML grammar hands them over lowercased.
   - **Space around marks.** The reader also leaves out the whitespace that only separates a mark from the text of its
     line (`# Title`, `> quote`), the whitespace between two marks of one node (a link's address and its title), the line
     break of a line holding nothing but marks (a code fence), and the whitespace at the ends of a run between blocks.
@@ -654,6 +656,9 @@ module here reads a key event.
   - Emphasis, strong, strikethrough, code and links are elements. Headings, quotes, lists and code blocks are `block`.
     Tables are `block`s for the reader `only`. A code block carries its language in `data-language`.
   - Images are `beside` pieces, with `data-unsized` when the text gives no size.
+  - Reference links and images (`[text][label]`, `[text][]`, `[text]`) point where their definition does; one that
+    nothing defines is drawn as written. `definitionOf(node, read)` gives the definition, for an app's own fields on it
+    (an image size).
   - A rule line, an escape, an entity, a hard break and a task's box are pieces for the reader only: what they stand for
     in the reader, and their source, dimmed, in the editor.
   - Every element with attributes from the text (an HTML element, a link, an image, a task's box) goes through

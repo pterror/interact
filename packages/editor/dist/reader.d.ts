@@ -51,7 +51,7 @@ export type Part = Readonly<{
 }>;
 export type DrawnPiece = Readonly<{
     piece: Piece;
-    element: HTMLElement;
+    element: Element;
 }>;
 export type Drawn = Readonly<{
     key: string;

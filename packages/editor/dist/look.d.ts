@@ -9,7 +9,7 @@ export type SyntaxNode = import('@lezer/common').SyntaxNode;
 export type Piece = Readonly<{
     same: (other: Piece) => boolean;
     draw: () => HTMLElement;
-    drop?: (element: HTMLElement) => void;
+    drop?: (element: Element) => void;
 }>;
 export type Rule = Readonly<{
     element?: string;
@@ -41,7 +41,7 @@ export type Look = Readonly<Record<string, Rule | ((node: SyntaxNode, read: Read
  * @typedef {Readonly<{
  *   same: (other: Piece) => boolean,
  *   draw: () => HTMLElement,
- *   drop?: (element: HTMLElement) => void,
+ *   drop?: (element: Element) => void,
  * }>} Piece
  */
 /**

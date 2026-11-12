@@ -56,6 +56,18 @@ describe('the markdown look, read', () => {
     expect(drawn('<!-- note --><div>third</div>')).toBe('<div>third</div>')
   })
 
+  test('draws SVG in the SVG namespace, with its mixed-case names', () => {
+    const shown = reader({ grammar: markdownGrammar(), look: markdownLook(policy), textClass: 'text' })
+    shown.show('a <svg viewBox="0 0 10 10"><linearGradient id="g"></linearGradient><circle cx="5" r="4"/></svg> b')
+    const svg = shown.element.querySelector('svg')
+    expect(svg?.namespaceURI).toBe('http://www.w3.org/2000/svg')
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 10 10')
+    expect([...(svg?.children ?? [])].map((child) => [child.localName, child.namespaceURI])).toEqual([
+      ['linearGradient', 'http://www.w3.org/2000/svg'],
+      ['circle', 'http://www.w3.org/2000/svg'],
+    ])
+  })
+
   test('hides a close tag that closes nothing', () => {
     expect(drawn('a</i> b')).toBe('<p>a b</p>')
   })
@@ -67,6 +79,15 @@ describe('the markdown look, read', () => {
     expect(drawn('![alt](i.png)')).toBe('<p><img alt="alt" src="i.png" data-unsized=""></p>')
     expect(drawn('```js\nlet x\n```')).toBe('<pre data-language="js"><code>let x</code></pre>')
     expect(drawn('`a` b')).toBe('<p><code>a</code> b</p>')
+  })
+
+  test('resolves reference links and images, and draws a reference nothing defines as written', () => {
+    const defs = '\n\n[r]: http://u "T"\n[Some  Text]: /s'
+    expect(drawn(`[a][r] [some text][] [Some Text] ![i][R]${defs}`)).toBe(
+      '<p><a href="http://u" title="T">a</a> <a href="/s">some text</a> <a href="/s">Some Text</a> <img alt="i" src="http://u" title="T" data-unsized=""></p>',
+    )
+    expect(drawn('[a][none] and [b]')).toBe('<p>[a][none] and [b]</p>')
+    expect(drawn('[empty]()')).toBe('<p><a href="">empty</a></p>')
   })
 
   test('draws headings, quotes and lists without their marks', () => {

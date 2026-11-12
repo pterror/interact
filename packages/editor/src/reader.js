@@ -11,6 +11,7 @@ import { TreeFragment } from '@lezer/common'
 import { settle } from './later.js'
 import { ruleOf } from './look.js'
 import { shared } from './shared.js'
+import { adoptedInto, createElementIn, setAttribute } from './svg.js'
 import { walk } from './walk.js'
 
 /**
@@ -67,7 +68,7 @@ import { walk } from './walk.js'
 
 /**
  * A piece and the element drawn for it
- * @typedef {Readonly<{ piece: Piece, element: HTMLElement }>} DrawnPiece
+ * @typedef {Readonly<{ piece: Piece, element: Element }>} DrawnPiece
  */
 
 /**
@@ -327,7 +328,7 @@ function reader({ grammar, look, overlays = [], textClass }) {
       }
     }
     const sorted = [...points].toSorted((one, other) => one - other)
-    /** @type {{ wrapper: Wrapper, element: HTMLElement, span: { from: number, to: number } }[]} */
+    /** @type {{ wrapper: Wrapper, element: Element, span: { from: number, to: number } }[]} */
     const open = []
     let visible = false
 
@@ -348,16 +349,17 @@ function reader({ grammar, look, overlays = [], textClass }) {
       open.length = same
       for (const wrapper of now.slice(same)) {
         visible ||= wrappers.includes(wrapper)
-        const made = document.createElement(wrapper.element)
+        const holder = open.at(-1)?.element ?? into
+        const made = createElementIn(document, wrapper.element, holder)
         for (const [name, value] of Object.entries(wrapper.attributes)) {
-          made.setAttribute(name, value)
+          setAttribute(made, name, value)
         }
         if (wrapper.class !== undefined) {
           made.classList.add(...wrapper.class.split(' ').filter((name) => name !== ''))
         }
         const span = shown ? { from: start, to: end } : { from: end, to: end }
         spans.set(made, span)
-        ;(open.at(-1)?.element ?? into).append(made)
+        holder.append(made)
         open.push({ element: made, span, wrapper })
       }
       if (shown) {
@@ -374,9 +376,10 @@ function reader({ grammar, look, overlays = [], textClass }) {
       const atom = atoms.find((each) => each.from <= start && start < each.to)
       if (atom !== undefined) {
         if (start === atom.from || start === from) {
-          const made = atom.piece.draw()
+          const holder = enter(start, atom.to)
+          const made = adoptedInto(atom.piece.draw(), holder)
           spans.set(made, { from: atom.from, to: atom.to })
-          enter(start, atom.to).append(made)
+          holder.append(made)
           drew({ element: made, piece: atom.piece })
           visible = true
         }
