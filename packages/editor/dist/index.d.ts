@@ -4,8 +4,13 @@
  * (`@pterror/interact-editor/reader`, ...).
  */
 export { lookDecorations } from './decorations.js';
+export { keyboardInset } from './keyboard-inset.js';
 export { ruleOf } from './look.js';
 export { overlays } from './overlays.js';
 export { reader } from './reader.js';
+export { selectionBar } from './selection-bar.js';
+export { suggestions } from './suggestions.js';
 export { textEditor } from './text-editor.js';
+export { toolbar } from './toolbar.js';
+export { viewUpdates } from './view-updates.js';
 export { walk } from './walk.js';

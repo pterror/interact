@@ -116,7 +116,7 @@
             "name": ["BlockWrapper", "Decoration", "EditorView", "ViewPlugin", "ViewUpdate", "WidgetType"],
             "package": "@codemirror/view"
           },
-          { "from": "package", "name": ["CompletionContext"], "package": "@codemirror/autocomplete" }
+          { "from": "package", "name": ["Completion", "CompletionContext"], "package": "@codemirror/autocomplete" }
         ]
       }
     ],

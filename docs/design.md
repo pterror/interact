@@ -550,9 +550,9 @@ Names are **(P)**.
 | Look        | `{ [selector]: Rule \| (node, read) → Rule \| none }`; a selector is a node name or `Parent/Name`       | textEditor, reader    |
 | Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                      | textEditor, reader    |
 | Overlay     | `ranges(from, to) → later { from, to, class, attributes? }[]`, `watch(fn(range?))`                      | textEditor, reader    |
-| Suggest     | `(text, pos, explicit) → later { from, to, options: Option[] } \| none`                                 | suggestions           |
+| Suggest     | `(read, pos, explicit) → later { from, to, options: Option[] } \| none`                                 | suggestions           |
 | Command     | CodeMirror's `(view) → bool`                                                                            | toolbar, selectionBar |
-| Tool        | `{ id, label, icon?, run: Command, on?(state) → bool, applies?(state) → bool }`                         | toolbar, selectionBar |
+| Tool        | `{ id, label, icon?() → Element, run: Command, on?(state) → bool, applies?(state) → bool }`             | toolbar, selectionBar |
 
 **Rule.** These fields describe how a node is drawn. Both surfaces read them. `read(from, to)` gives the source between
 two positions, so nothing copies the whole text to draw one node. A selector's entry can be a function of the node, for
@@ -616,15 +616,20 @@ when the piece is no longer drawn, as with list's `render`.
   text.
 - **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
   is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
-- **`toolbar({ view, tools, keyOf })`.** Buttons for a Watched list of Tools, in a space the field always reserves, so
-  showing it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from `applies`).
-  - Each button's tooltip names its key from `keyOf(id)`, formatted with keybinds' `formatSteps`.
-  - While keybinds' `modifierHeld` holds, `data-keys` shows every shortcut.
+- **`toolbar({ view, tools, keyOf, held })`.** Buttons for a Watched list of Tools, in a space the field always
+  reserves, so showing it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from
+  `applies`). A press keeps the editor's selection and focus.
+  - Each button's tooltip names its key from `keyOf(id)`: the key as shown, which the app makes with keybinds'
+    `formatSteps`, so the editor imports nothing from keybinds.
+  - While `held` holds (keybinds' `modifierHeld`, a Watched boolean), each button with a key shows it in `data-keys`.
   - Which tools a person has is the app's: the list it passes and keeps.
-- **`keyboardInset`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard covers. The
-  toolbar sits above it (from cyoa's `toolbar.ts`).
+- **`keyboardInset({ window })`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard
+  covers. The app places the toolbar above it (from cyoa's `toolbar.ts`).
 - **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's
-  rectangle.
+  rectangle, shown while text is selected and the editor has focus. Its element goes inside the editor's, and it gives
+  whether it is shown as a Watched.
+- **`viewUpdates(view, fn)`.** Hears every update of an editor made elsewhere, until stopped: how the toolbar and the
+  selection bar follow the state.
 
 Keys are the app's: it binds each Command with keybinds, as a Handler that runs it on the editor being written in. No
 module here reads a key event.
