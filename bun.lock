@@ -48,7 +48,10 @@
     "packages/keybinds": {
       "name": "@pterror/interact-keybinds",
       "version": "0.1.0",
-      "dependencies": {
+      "devDependencies": {
+        "@pterror/interact-list": "workspace:*",
+      },
+      "peerDependencies": {
         "@pterror/interact-list": "workspace:^",
       },
     },

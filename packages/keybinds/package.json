@@ -36,7 +36,10 @@
   "scripts": {
     "check": "tsgo --noEmit"
   },
-  "dependencies": {
+  "devDependencies": {
+    "@pterror/interact-list": "workspace:*"
+  },
+  "peerDependencies": {
     "@pterror/interact-list": "workspace:^"
   }
 }
