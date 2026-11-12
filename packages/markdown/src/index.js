@@ -19,4 +19,5 @@ export {
 } from './format.js'
 export { markdownGrammar } from './grammar.js'
 export { markdownLook } from './look.js'
+export { overtype } from './overtype.js'
 export { htmlToMarkdown, markdownPaste } from './paste.js'

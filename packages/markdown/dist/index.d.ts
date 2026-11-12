@@ -5,4 +5,5 @@
 export { codeBlock, hasStyle, heading, inCodeBlock, inHeading, inLink, inList, inQuote, link, list, quote, toggleStyle, } from './format.js';
 export { markdownGrammar } from './grammar.js';
 export { markdownLook } from './look.js';
+export { overtype } from './overtype.js';
 export { htmlToMarkdown, markdownPaste } from './paste.js';

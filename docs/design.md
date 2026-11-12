@@ -756,9 +756,10 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
   `positionAt`; with none, the cursor goes to the end of the text, where a person continues writing.
 - **Paste is the markdown package's.** Converting HTML to markdown is general markdown; the choice of what is pasted is
   its option.
-- **No overtype.** editor.md: typing a mark changes nothing around it, and the cursor moves through marks as characters.
-  `toggleStyle` stepping past a closing mark is a command, not typing.
-
+- **Overtype is its own extension.** `overtype()` (cyoa's): typing the character that is already next, where it closes a
+  mark, steps over it, and a phone keyboard's "word replaced by the word and one more character" is that keystroke. An
+  app composes it in or leaves it out; nothing else carries it as an option. `toggleStyle` stepping past a closing mark
+  is separate and stays.
 - **An image takes its space before it loads** (no layout shift). An upload writes `=WxH` when it inserts the image, so
   its size is in the text. An image without a size is drawn in a box of fixed size and fitted inside it. editor.md's
   "the same space either way" is about the cursor being in the source or not, which the `beside` piece meets.
