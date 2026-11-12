@@ -509,7 +509,7 @@ recording takes the steps so far after a 1000 ms pause; the settings panel shows
 is a release (it turns it back into a press), and recording a release is a switch in the prompt; the panel's texts
 ("Press a key...", "+ Key", "Reset", "Reset all", "Already bound to …", "Replace", "Cancel").
 
-## Editor (`packages/editor`, `packages/markdown`), not built
+## Editor (`packages/editor`, `packages/markdown`)
 
 The requirements are SillyTavern's `docs/design/editor.md`. Its design comes from cyoa's `src/client/editor`, with what
 editor.md changes. In short:
@@ -741,7 +741,8 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 
 - **The palette and the right-click menu are interact modules.** editor.md puts commands and their surfaces in the core.
   The palette is a combobox (case 5) over the Tools; the right-click menu is a menu (case 4) over them. Neither reads
-  keys: they are opened by Commands the app binds.
+  keys: they are opened by Commands the app binds. Not built yet: the palette needs case 5's `textValue` and `filtered`,
+  which list doesn't have, and both are list wiring whose UX cases 4 and 5 mark as proposals.
 - **Edit keeps the reader's place.** A selection in the reader becomes the same source range in the editor, through
   `positionAt`; with none, the cursor goes to the end of the text, where a person continues writing.
 - **Paste is the markdown package's.** Converting HTML to markdown is general markdown; the choice of what is pasted is
