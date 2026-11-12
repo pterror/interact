@@ -600,7 +600,8 @@ when the piece is no longer drawn, as with list's `render`.
   - **Drawing.** It draws elements, leaves marks out, and draws pieces. Text inside a block is drawn as written, with
     the editor's `white-space: pre-wrap`, so a single newline is a line break on both surfaces. Each text node is a run
     of the source. Inline elements are drawn over the ranges they cover, whichever tree they come from, and an element
-    is split where it overlaps another without nesting.
+    is split where it overlaps another without nesting. An element whose content is all marks or nothing (an icon's
+    `<i></i>`, an empty `<div>`) is still drawn, empty.
   - **Space around marks.** The reader also leaves out the whitespace that only separates a mark from the text of its
     line (`# Title`, `> quote`), the whitespace between two marks of one node (a link's address and its title), the line
     break of a line holding nothing but marks (a code fence), and the whitespace at the ends of a run between blocks.

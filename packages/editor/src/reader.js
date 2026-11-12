@@ -335,9 +335,11 @@ function reader({ grammar, look, overlays = [], textClass }) {
      * Opens and closes wrappers so exactly those covering a range are open
      * @param {number} start - The range's start
      * @param {number} end - Its end
+     * @param {boolean} [drawn] - Whether the range is drawn; one left out opens the wrappers that start over it, empty,
+     *   so an element holding nothing drawn is still there
      * @returns {Element | DocumentFragment} Where its content goes
      */
-    const enter = (start, end) => {
+    const enter = (start, end, drawn = true) => {
       const now = covering.filter((wrapper) => wrapper.from <= start && end <= wrapper.to)
       let same = 0
       while (same < open.length && same < now.length && open[same]?.wrapper === now[same]) {
@@ -345,6 +347,7 @@ function reader({ grammar, look, overlays = [], textClass }) {
       }
       open.length = same
       for (const wrapper of now.slice(same)) {
+        visible ||= wrappers.includes(wrapper)
         const made = document.createElement(wrapper.element)
         for (const [name, value] of Object.entries(wrapper.attributes)) {
           made.setAttribute(name, value)
@@ -352,13 +355,15 @@ function reader({ grammar, look, overlays = [], textClass }) {
         if (wrapper.class !== undefined) {
           made.classList.add(...wrapper.class.split(' ').filter((name) => name !== ''))
         }
-        const span = { from: start, to: end }
+        const span = drawn ? { from: start, to: end } : { from: end, to: end }
         spans.set(made, span)
         ;(open.at(-1)?.element ?? into).append(made)
         open.push({ element: made, span, wrapper })
       }
-      for (const each of open) {
-        each.span.to = end
+      if (drawn) {
+        for (const each of open) {
+          each.span.to = end
+        }
       }
       return open.at(-1)?.element ?? into
     }
@@ -378,6 +383,7 @@ function reader({ grammar, look, overlays = [], textClass }) {
         continue
       }
       if (omitted.some((each) => each.from <= start && end <= each.to)) {
+        enter(start, end, false)
         continue
       }
       const run = text.slice(start, end)

@@ -47,6 +47,11 @@ describe('the markdown look, read', () => {
     expect(drawn('one<br>two')).toBe('<p>one<br>two</p>')
   })
 
+  test('draws an element with nothing inside it', () => {
+    expect(drawn('a <i class="icon"></i> b')).toBe('<p>a <i class="icon"></i> b</p>')
+    expect(drawn('<div></div>')).toBe('<div></div>')
+  })
+
   test('hides a close tag that closes nothing', () => {
     expect(drawn('a</i> b')).toBe('<p>a b</p>')
   })
