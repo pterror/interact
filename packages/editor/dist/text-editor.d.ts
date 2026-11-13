@@ -38,12 +38,15 @@ export type Unincluded = Readonly<{
 /**
  * An editor over a text
  * @param {TextEditorOptions} options - Where it goes, the text and where its edits go, and what the app composes in
- * @returns {Readonly<{ view: EditorView, stop: () => void, unincluded: () => Unincluded }>} The view; stopping, which
- *   destroys it; and the edits the text doesn't include yet
+ * @returns {Readonly<{ view: EditorView, stop: () => void, unincluded: () => Unincluded, rebase: (text: string) => ChangeId | undefined }>}
+ *   The view; stopping, which destroys it; the edits the text doesn't include yet; and taking `text` as the text
+ *   elsewhere while showing what it shows, so the difference is one edit the text doesn't include, whose id it gives
+ *   (none when they don't differ). The text's next `get` is to be `text`, including none of the editor's edits.
  */
 declare function textEditor({ edit, extensions, parent, text }: TextEditorOptions): Readonly<{
     view: EditorView;
     stop: () => void;
     unincluded: () => Unincluded;
+    rebase: (text: string) => ChangeId | undefined;
 }>;
 export { textEditor };
