@@ -177,6 +177,30 @@ describe('textEditor', () => {
     expect(edits).toHaveLength(1)
     editor.stop()
   })
+
+  test('gives the edits the text does not include, as one change from the text as last heard', async () => {
+    const { edits, editor, held } = editorOver('one two')
+    editor.view.dispatch({ changes: { from: 0, insert: 'zero ', to: 0 } })
+    editor.view.dispatch({ changes: { from: 8, insert: '', to: 12 } })
+    held.apply([{ from: 7, insert: ' three', to: 7 }], undefined)
+    const mid = editor.unincluded()
+    expect(mid.text).toBe('one two three')
+    expect(mid.changes.apply(EditorState.create({ doc: mid.text }).doc).toString()).toBe('zero one three')
+    const first = edits[0]
+    if (first !== undefined) {
+      held.apply(first.changes, first.id)
+    }
+    await settled()
+    const after = editor.unincluded()
+    expect(after.text).toBe('zero one two three')
+    /** @type {string[]} */
+    const deleted = []
+    after.changes.iterChanges((from, to) => {
+      deleted.push(after.text.slice(from, to))
+    })
+    expect(deleted).toEqual([' two'])
+    editor.stop()
+  })
 })
 
 describe('the editor drawing a look', () => {

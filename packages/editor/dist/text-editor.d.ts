@@ -5,6 +5,7 @@
  * else's edit, never undoes what was typed since. Everything else it does is composed in by the app: the grammar
  * (`grammarLanguage`), the Look (`lookDecorations`), the text class it shares with the reader, keys, overlays.
  */
+import { ChangeSet } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 export type ChangeId = string;
 export type Text = Readonly<{
@@ -25,13 +26,24 @@ export type TextEditorOptions = Readonly<{
     edit: Edit;
     extensions?: readonly import('@codemirror/state').Extension[];
 }>;
+export type Unincluded = Readonly<{
+    text: string;
+    changes: ChangeSet;
+}>;
+/**
+ * The edits the text doesn't include yet, as one change from the text as last heard: `changes` applies to `text` and
+ * gives what the editor shows
+ * @typedef {Readonly<{ text: string, changes: ChangeSet }>} Unincluded
+ */
 /**
  * An editor over a text
  * @param {TextEditorOptions} options - Where it goes, the text and where its edits go, and what the app composes in
- * @returns {Readonly<{ view: EditorView, stop: () => void }>} The view, and stopping, which destroys it
+ * @returns {Readonly<{ view: EditorView, stop: () => void, unincluded: () => Unincluded }>} The view; stopping, which
+ *   destroys it; and the edits the text doesn't include yet
  */
 declare function textEditor({ edit, extensions, parent, text }: TextEditorOptions): Readonly<{
     view: EditorView;
     stop: () => void;
+    unincluded: () => Unincluded;
 }>;
 export { textEditor };

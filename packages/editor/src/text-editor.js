@@ -71,9 +71,16 @@ function changeBetween(was, now) {
 }
 
 /**
+ * The edits the text doesn't include yet, as one change from the text as last heard: `changes` applies to `text` and
+ * gives what the editor shows
+ * @typedef {Readonly<{ text: string, changes: ChangeSet }>} Unincluded
+ */
+
+/**
  * An editor over a text
  * @param {TextEditorOptions} options - Where it goes, the text and where its edits go, and what the app composes in
- * @returns {Readonly<{ view: EditorView, stop: () => void }>} The view, and stopping, which destroys it
+ * @returns {Readonly<{ view: EditorView, stop: () => void, unincluded: () => Unincluded }>} The view; stopping, which
+ *   destroys it; and the edits the text doesn't include yet
  */
 function textEditor({ edit, extensions = [], parent, text }) {
   made += 1
@@ -143,6 +150,16 @@ function textEditor({ edit, extensions = [], parent, text }) {
     stop() {
       unwatch()
       view.destroy()
+    },
+    unincluded() {
+      if (scheduled) {
+        receive()
+      }
+      let changes = ChangeSet.empty(confirmed.length)
+      for (const each of pending) {
+        changes = changes.compose(each.changes)
+      }
+      return { changes, text: confirmed }
     },
     view,
   }
