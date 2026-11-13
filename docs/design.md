@@ -581,12 +581,16 @@ when the piece is no longer drawn, as with list's `render`.
 
 ### Modules (editor)
 
-- **`textEditor({ parent, text, edit, extensions })`** returns `{ view, stop }`. It is a CodeMirror view over the text,
-  and the text port; everything else is composed in through `extensions`.
+- **`textEditor({ parent, text, edit, extensions })`** returns `{ view, stop, unincluded, rebase }`. It is a CodeMirror
+  view over the text, and the text port; everything else is composed in through `extensions`.
   - **Edits.** Each change is handed to `edit` with an id, as it is made.
   - **Text from elsewhere.** The editor keeps the changes the text doesn't yet `include`. It shows an outside text with
     those changes mapped over it (`ChangeSet.map`, as `@codemirror/collab` rebases), so an echo of its own change, or
     someone else's, never undoes what was typed since.
+  - **Saving what isn't included.** `unincluded()` gives the edits the text doesn't include yet, composed into one
+    change over the text they were last rebased onto, so an app can save them with what they were written over.
+    `rebase(text)` takes another text as the one elsewhere while the editor keeps what it shows: the difference becomes
+    one edit not yet included, as when what is being written moves to another text it belongs to.
   - **Looks.** The app gives its content the class the reader takes (`EditorView.contentAttributes`), so one set of
     styles applies to both. Nothing copies computed styles.
   - **What the app composes in.** `grammarLanguage(grammar)` (the grammar as CodeMirror's language),
