@@ -4,6 +4,7 @@
  */
 
 export { activeDescendant } from './active-descendant.js'
+export { adjacent } from './adjacent.js'
 export { arrayCount } from './array-count.js'
 export { arrayGroups } from './array-groups.js'
 export { arrayKeysAt } from './array-keys-at.js'
@@ -50,6 +51,7 @@ export { rested } from './rested.js'
 export { reveal } from './reveal.js'
 export { revealPart } from './reveal-part.js'
 export { rows } from './rows.js'
+export { runs } from './runs.js'
 export { sizer } from './sizer.js'
 export { topIn } from './top-in.js'
 export { treeCache } from './tree-cache.js'
