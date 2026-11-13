@@ -31,8 +31,8 @@ export type Unincluded = Readonly<{
     changes: ChangeSet;
 }>;
 /**
- * The edits the text doesn't include yet, as one change from the text as last heard: `changes` applies to `text` and
- * gives what the editor shows
+ * The edits the text doesn't include yet, as one change from the text they were rebased onto last: `changes` applies to
+ * `text` and gives what the editor shows. A text heard and not yet shown isn't in it yet.
  * @typedef {Readonly<{ text: string, changes: ChangeSet }>} Unincluded
  */
 /**

@@ -183,6 +183,7 @@ describe('textEditor', () => {
     editor.view.dispatch({ changes: { from: 0, insert: 'zero ', to: 0 } })
     editor.view.dispatch({ changes: { from: 8, insert: '', to: 12 } })
     held.apply([{ from: 7, insert: ' three', to: 7 }], undefined)
+    await settled()
     const mid = editor.unincluded()
     expect(mid.text).toBe('one two three')
     expect(mid.changes.apply(EditorState.create({ doc: mid.text }).doc).toString()).toBe('zero one three')

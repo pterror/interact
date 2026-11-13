@@ -71,8 +71,8 @@ function changeBetween(was, now) {
 }
 
 /**
- * The edits the text doesn't include yet, as one change from the text as last heard: `changes` applies to `text` and
- * gives what the editor shows
+ * The edits the text doesn't include yet, as one change from the text they were rebased onto last: `changes` applies to
+ * `text` and gives what the editor shows. A text heard and not yet shown isn't in it yet.
  * @typedef {Readonly<{ text: string, changes: ChangeSet }>} Unincluded
  */
 
@@ -152,9 +152,6 @@ function textEditor({ edit, extensions = [], parent, text }) {
       view.destroy()
     },
     unincluded() {
-      if (scheduled) {
-        receive()
-      }
       let changes = ChangeSet.empty(confirmed.length)
       for (const each of pending) {
         changes = changes.compose(each.changes)
