@@ -22,32 +22,32 @@ Every name and every UX choice here is a proposal for the owner, not decided. Pr
 
 Each is owned by the module(s) named, which declare it.
 
-| Abstraction | Shape                                                                       | Owned by                                                                       |
-| ----------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Value       | `() → T`                                                                    | move (`from`), typeahead (`from`)                                              |
-| Watched     | `get() → T`, `watch(fn) → stop`                                             | activeDescendant, popover, focusWhen, windowing, sizer, posInSet               |
-| Set         | `(T) → void`                                                                | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`) |
-| Step        | `step(k \| none, n) → later key \| none`                                    | move, adjacent                                                                 |
-| Find        | `find(prefix, after: k \| none) → later key \| none`                        | typeahead                                                                      |
-| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render                                                                         |
-| Mount       | `put(key, element, before: element \| none)`, `remove(element)`             | render                                                                         |
-| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)`    | render                                                                         |
-| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                              | pick, drag, gaps, hoverIntent                                                  |
-| Test        | `has(key) → bool`, `watch(fn(keys?))`                                       | mark                                                                           |
-| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                       | windowing                                                                      |
-| Locate      | `locate(key) → later rank \| none`                                          | windowing                                                                      |
-| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                    | place, posInSet                                                                |
-| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)         | rangeSelection                                                                 |
-| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`            | visibleRanks                                                                   |
-| Place       | `place(rank) → rect`, `watch(fn)`                                           | place                                                                          |
-| Extent      | `extent(count) → size`, `watch(fn)`                                         | sizer                                                                          |
-| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                         | drag                                                                           |
-| Reorder     | `move(key, target: key, after: bool)`                                       | drag                                                                           |
-| Scroll      | `scrollBy(px)`                                                              | edgeScroll                                                                     |
-| Pages       | `read(from: cursor \| none, count) → later Page[]`, `watch(fn)`             | cursorPages                                                                    |
-| Removal     | `{key, next: key \| none, previous: key \| none}`, one per removed key      | heldKeys                                                                       |
-| Adjacent    | `of(key) → {key: key \| none} \| not known` (immediate), `watch(fn(keys?))` | runs                                                                           |
-| Together    | `has(before, key) → bool` (immediate), `watch(fn(keys?))`                   | runs                                                                           |
+| Abstraction | Shape                                                                       | Owned by                                                                         |
+| ----------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Value       | `() → T`                                                                    | move (`from`), typeahead (`from`)                                                |
+| Watched     | `get() → T`, `watch(fn) → stop`                                             | activeDescendant, popover, focusWhen, windowing, sizer, posInSet, viewFromBottom |
+| Set         | `(T) → void`                                                                | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`)   |
+| Step        | `step(k \| none, n) → later key \| none`                                    | move, adjacent                                                                   |
+| Find        | `find(prefix, after: k \| none) → later key \| none`                        | typeahead                                                                        |
+| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render                                                                           |
+| Mount       | `put(key, element, before: element \| none)`, `remove(element)`             | render                                                                           |
+| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)`    | render                                                                           |
+| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                              | pick, drag, gaps, hoverIntent                                                    |
+| Test        | `has(key) → bool`, `watch(fn(keys?))`                                       | mark                                                                             |
+| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                       | windowing                                                                        |
+| Locate      | `locate(key) → later rank \| none`                                          | windowing                                                                        |
+| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                    | place, placeFromBottom, posInSet                                                 |
+| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)         | rangeSelection                                                                   |
+| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`            | visibleRanks                                                                     |
+| Place       | `place(rank) → rect`, `watch(fn)`                                           | place, placeFromBottom                                                           |
+| Extent      | `extent(count) → size`, `watch(fn)`                                         | sizer                                                                            |
+| Gap         | `gapAt(point) → {target: key, after: bool} \| none`                         | drag                                                                             |
+| Reorder     | `move(key, target: key, after: bool)`                                       | drag                                                                             |
+| Scroll      | `scrollBy(px)`                                                              | edgeScroll, viewFromBottom                                                       |
+| Pages       | `read(from: cursor \| none, count) → later Page[]`, `watch(fn)`             | cursorPages                                                                      |
+| Removal     | `{key, next: key \| none, previous: key \| none}`, one per removed key      | heldKeys                                                                         |
+| Adjacent    | `of(key) → {key: key \| none} \| not known` (immediate), `watch(fn(keys?))` | runs                                                                             |
+| Together    | `has(before, key) → bool` (immediate), `watch(fn(keys?))`                   | runs                                                                             |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
 edge; `none` comes back only for an empty list. `Find` returns the first key after `after` (wrapping) whose text starts
@@ -254,6 +254,27 @@ render calls before taking an element out; any facet holding an element needs it
 
 **Found while building, open:** revealing a group's first option scrolls its header out of view **(P: reveal the header
 too)**.
+
+**Counted from the bottom** (found building the antisocial network's chat). A chat counts from the bottom: rank 0 is the
+newest message, drawn lowest, and the list grows upwards. `place` sets `top`, and `viewport` counts from the content's
+top. Adds, for the app to compose in place of those:
+
+- `placeFromBottom` **(P)**: a Facet like `place` that sets `bottom` from the layout's `y`, read as the distance from
+  the container's bottom to the item's. Parameters: rank, layout. The layouts (`rows`, `measuredRows`, ...) and `sizer`
+  are unchanged; they count from rank 0's edge as before.
+- `viewFromBottom` **(P)**: the view counted up from the list's bottom, and a Scroll whose positive amount scrolls up.
+  Parameters: visible (`viewport`, Watched range and Scroll), bottom (a Watched: the list's bottom in the scroller's
+  content). `visibleRanks`, `windowing` and `keepInPlace` take it as they take `viewport`, so `keepInPlace` holds an
+  item at its distance from the view's bottom.
+- `bottomIn` **(P)**: an element's bottom in its scroll container's content, as a Watched heard when the element or one
+  of the container's children changes size; `topIn`'s counterpart.
+
+Wiring: `viewFromBottom({ visible: viewport(scroller), bottom: bottomIn(list, scroller) })`, and `placeFromBottom` where
+`place` was. `edgeScroll` keeps `viewport`'s Scroll, since it scrolls toward the edge the pointer is near. Starting the
+view at the bottom is the app's (`scrollTop = scrollHeight` once).
+
+**Open (P):** whether a new message at rank 0 scrolls into view while the view is at the bottom ("stick to the bottom").
+Not built: `keepInPlace` holds what is on screen, so a new message arrives below the view.
 
 ## Case 9: a grid of cards
 
@@ -842,29 +863,31 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 S = one responsibility, O = new cases added modules only, L = substitutable, I = depends on no more than it uses, D =
 owns what it uses.
 
-| Module                                       | Uses (owns)                            | Implements              | S                              | O                                           | L                                                | I                             | D            |
-| -------------------------------------------- | -------------------------------------- | ----------------------- | ------------------------------ | ------------------------------------------- | ------------------------------------------------ | ----------------------------- | ------------ |
-| arrayList                                    | —                                      | Value, Drawn, held keys | the list's state               | split in case 8                             | draws all                                        | each consumer takes one face  | owns nothing |
-| heldKeys                                     | Removal                                | held keys               | holds over reported removals   | beside cursorPages, unchanged               | moves holds inside the edit, as arrayList does   | removals only, no list        | owns all     |
-| arrayStep/Compare/Find/KeysAt/Locate/Reorder | Value of keys                          | one each                | one question                   | one module per question                     | answers now, which a later answer may equally do | one shape each                | —            |
-| move                                         | Value, Step, Set                       | `by`, `edge`            | moving                         | unchanged across 9 cases                    | applies only its latest answer                   | three narrow shapes           | owns all     |
-| render                                       | Drawn, Mount, Facet                    | ItemOf                  | elements for keys              | Mount extracted (case 6)                    | never relies on which keys are drawn             | no selection, focus or layout | owns all     |
-| flowMount, groupMount, rowMount              | —                                      | Mount                   | where an element goes          | new Mounts                                  | render behaves alike                             | —                             | —            |
-| mark, ids, reveal, place, posInSet           | Test / Watched / Rank, Place           | Facet                   | one attribute, style or scroll | new Facets                                  | apply depends on no other facet                  | one shape each                | owns all     |
-| activeDescendant                             | Watched, idOf                          | Facet                   | one attribute                  | field or list, by parameter                 | names only what render has applied it to         | —                             | owns all     |
-| pick, hoverIntent                            | ItemOf, Set                            | —                       | pointer → key                  | —                                           | —                                                | —                             | owns all     |
-| rangeSelection                               | held keys, Compare                     | Test, toggle/extend/all | selected intervals             | —                                           | any Compare                                      | —                             | owns all     |
-| typeahead                                    | Find, Value, Set                       | `type`, Watched         | prefix → key                   | —                                           | late answers dropped if superseded               | —                             | owns all     |
-| cell, popover, focusWhen, dismiss, textValue | Watched / Set                          | Watched, Set            | one DOM behaviour each         | —                                           | —                                                | —                             | owns all     |
-| withHeaders                                  | Drawn                                  | Drawn                   | one transform                  | new Drawn                                   | —                                                | —                             | owns all     |
-| adjacent                                     | Step, changes                          | Adjacent                | one neighbour per key          | added for runs                              | applies only each key's latest answer            | one Step direction            | owns all     |
-| runs                                         | Adjacent, Together                     | Test                    | one predicate over pairs       | new Test; withHeaders, groupMount unchanged | any answer timing                                | no items, no layout           | owns all     |
-| drag, gaps, edgeScroll                       | ItemOf, Gap, Reorder / ItemOf / Scroll | Gap                     | the gesture / gap / scrolling  | —                                           | any Gap, any Drawn                               | —                             | owns all     |
-| viewport, scaledViewport                     | —                                      | Watched range, Scroll   | the scroller                   | scaled added                                | coarse px in scaled is within contract           | —                             | —            |
-| rows, cards                                  | —                                      | RanksIn, Place, Extent  | one layout                     | cards added                                 | sizes are never assumed                          | three faces                   | —            |
-| visibleRanks, windowing                      | Watched, RanksIn / KeysAt, Locate      | Watched, Drawn, Rank    | what to draw                   | unchanged by cards                          | any layout, any answer timing                    | —                             | owns all     |
-| sizer                                        | Extent, Watched                        | —                       | scroll size                    | —                                           | —                                                | —                             | owns all     |
-| server modules                               | a transport function                   | Step, KeysAt, ...       | one question each              | —                                           | late answers                                     | —                             | —            |
+| Module                                       | Uses (owns)                            | Implements                      | S                              | O                                           | L                                                | I                             | D            |
+| -------------------------------------------- | -------------------------------------- | ------------------------------- | ------------------------------ | ------------------------------------------- | ------------------------------------------------ | ----------------------------- | ------------ |
+| arrayList                                    | —                                      | Value, Drawn, held keys         | the list's state               | split in case 8                             | draws all                                        | each consumer takes one face  | owns nothing |
+| heldKeys                                     | Removal                                | held keys                       | holds over reported removals   | beside cursorPages, unchanged               | moves holds inside the edit, as arrayList does   | removals only, no list        | owns all     |
+| arrayStep/Compare/Find/KeysAt/Locate/Reorder | Value of keys                          | one each                        | one question                   | one module per question                     | answers now, which a later answer may equally do | one shape each                | —            |
+| move                                         | Value, Step, Set                       | `by`, `edge`                    | moving                         | unchanged across 9 cases                    | applies only its latest answer                   | three narrow shapes           | owns all     |
+| render                                       | Drawn, Mount, Facet                    | ItemOf                          | elements for keys              | Mount extracted (case 6)                    | never relies on which keys are drawn             | no selection, focus or layout | owns all     |
+| flowMount, groupMount, rowMount              | —                                      | Mount                           | where an element goes          | new Mounts                                  | render behaves alike                             | —                             | —            |
+| mark, ids, reveal, place, posInSet           | Test / Watched / Rank, Place           | Facet                           | one attribute, style or scroll | new Facets                                  | apply depends on no other facet                  | one shape each                | owns all     |
+| activeDescendant                             | Watched, idOf                          | Facet                           | one attribute                  | field or list, by parameter                 | names only what render has applied it to         | —                             | owns all     |
+| pick, hoverIntent                            | ItemOf, Set                            | —                               | pointer → key                  | —                                           | —                                                | —                             | owns all     |
+| rangeSelection                               | held keys, Compare                     | Test, toggle/extend/all         | selected intervals             | —                                           | any Compare                                      | —                             | owns all     |
+| typeahead                                    | Find, Value, Set                       | `type`, Watched                 | prefix → key                   | —                                           | late answers dropped if superseded               | —                             | owns all     |
+| cell, popover, focusWhen, dismiss, textValue | Watched / Set                          | Watched, Set                    | one DOM behaviour each         | —                                           | —                                                | —                             | owns all     |
+| withHeaders                                  | Drawn                                  | Drawn                           | one transform                  | new Drawn                                   | —                                                | —                             | owns all     |
+| adjacent                                     | Step, changes                          | Adjacent                        | one neighbour per key          | added for runs                              | applies only each key's latest answer            | one Step direction            | owns all     |
+| runs                                         | Adjacent, Together                     | Test                            | one predicate over pairs       | new Test; withHeaders, groupMount unchanged | any answer timing                                | no items, no layout           | owns all     |
+| drag, gaps, edgeScroll                       | ItemOf, Gap, Reorder / ItemOf / Scroll | Gap                             | the gesture / gap / scrolling  | —                                           | any Gap, any Drawn                               | —                             | owns all     |
+| viewport, scaledViewport                     | —                                      | Watched range, Scroll           | the scroller                   | scaled added                                | coarse px in scaled is within contract           | —                             | —            |
+| rows, cards                                  | —                                      | RanksIn, Place, Extent          | one layout                     | cards added                                 | sizes are never assumed                          | three faces                   | —            |
+| visibleRanks, windowing                      | Watched, RanksIn / KeysAt, Locate      | Watched, Drawn, Rank            | what to draw                   | unchanged by cards                          | any layout, any answer timing                    | —                             | owns all     |
+| sizer                                        | Extent, Watched                        | —                               | scroll size                    | —                                           | —                                                | —                             | owns all     |
+| placeFromBottom                              | Rank, Place                            | Facet                           | one style                      | in place of place, which is unchanged       | the same layouts as place                        | one shape each                | owns all     |
+| viewFromBottom, bottomIn                     | Watched range, Scroll, Watched / —     | Watched range, Scroll / Watched | one view / one measurement     | beside viewport, viewFrom, topIn            | taken wherever viewport is                       | —                             | owns all     |
+| server modules                               | a transport function                   | Step, KeysAt, ...               | one question each              | —                                           | late answers                                     | —                             | —            |
 
 Each abstraction in the first table is owned by the modules listed there, implemented by those in this one, and is one
 question (I); its implementations are listed above (L); none was widened after its first case, except the recorded
