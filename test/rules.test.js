@@ -19,17 +19,17 @@ import {
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
     expect(outsideDependencies(await manifests())).toEqual([
+      '@pterror/interact-editor -> @codemirror/autocomplete',
+      '@pterror/interact-editor -> @codemirror/language',
+      '@pterror/interact-editor -> @codemirror/state',
+      '@pterror/interact-editor -> @codemirror/view',
+      '@pterror/interact-editor -> @lezer/common',
       '@pterror/interact-markdown -> @codemirror/language',
       '@pterror/interact-markdown -> @codemirror/state',
       '@pterror/interact-markdown -> @codemirror/view',
       '@pterror/interact-markdown -> @lezer/common',
       '@pterror/interact-markdown -> @lezer/html',
       '@pterror/interact-markdown -> @lezer/markdown',
-      '@pterror/interact-editor -> @codemirror/autocomplete',
-      '@pterror/interact-editor -> @codemirror/language',
-      '@pterror/interact-editor -> @codemirror/state',
-      '@pterror/interact-editor -> @codemirror/view',
-      '@pterror/interact-editor -> @lezer/common',
       '@pterror/interact-solid -> solid-js',
     ])
   })

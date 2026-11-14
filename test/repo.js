@@ -16,7 +16,7 @@ const ROOT = new URL('..', import.meta.url).pathname
  */
 async function paths(pattern) {
   const found = await Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: ROOT }))
-  return found
+  return found.toSorted()
 }
 
 /**
