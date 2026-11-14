@@ -184,27 +184,27 @@ describe('hoverIntent', () => {
 })
 
 /**
- * An element whose box is `at` moved by its own margins, as a browser lays out a fixed element
+ * A margin set inline, in px
+ * @param {string} value - The inline value
+ * @returns {number} Its px, 0 for none
+ */
+function margin(value) {
+  return Number(value.replace(/px$/u, '')) || 0
+}
+
+/**
+ * An element laid out at `at`, moved by its own margins, as a browser lays out a fixed element
  * @param {Readonly<{ left: number, top: number, width: number, height: number }>} at - Its box before any margin
  * @returns {HTMLElement} The element
  */
 function boxed(at) {
   const element = put()
-  element.getBoundingClientRect = () => {
-    const left = at.left + (Number(element.style.marginLeft.replace(/px$/u, '')) || 0)
-    const top = at.top + (Number(element.style.marginTop.replace(/px$/u, '')) || 0)
-    return {
-      bottom: top + at.height,
-      height: at.height,
-      left,
-      right: left + at.width,
-      top,
-      width: at.width,
-      x: left,
-      y: top,
-      toJSON: () => undefined,
-    }
-  }
+  Object.defineProperties(element, {
+    offsetHeight: { get: () => at.height },
+    offsetLeft: { get: () => at.left + margin(element.style.marginLeft) },
+    offsetTop: { get: () => at.top + margin(element.style.marginTop) },
+    offsetWidth: { get: () => at.width },
+  })
   return element
 }
 
@@ -217,7 +217,7 @@ describe('inView', () => {
     open.set(true)
     expect(element.style.marginLeft).toBe('')
     await Promise.resolve()
-    expect(element.getBoundingClientRect().right).toBe(window.innerWidth - 8)
+    expect(element.offsetLeft + element.offsetWidth).toBe(window.innerWidth - 8)
     expect(element.style.marginTop).toBe('')
     open.set(false)
     expect(element.style.marginLeft).toBe('')
@@ -227,7 +227,7 @@ describe('inView', () => {
     const element = boxed({ height: window.innerHeight * 2, left: -40, top: -10, width: 100 })
     cleanups.push(inView({ element, margin: 4, open: cell(true) }))
     await Promise.resolve()
-    expect([element.getBoundingClientRect().left, element.getBoundingClientRect().top]).toEqual([4, 4])
+    expect([element.offsetLeft, element.offsetTop]).toEqual([4, 4])
     const fits = boxed({ height: 10, left: 30, top: 30, width: 10 })
     cleanups.push(inView({ element: fits, open: cell(true) }))
     await Promise.resolve()
@@ -243,7 +243,7 @@ describe('inView', () => {
     element.style.marginLeft = '0px'
     globalThis.dispatchEvent(new Event('resize'))
     await Bun.sleep(LONGER)
-    expect(element.getBoundingClientRect().right).toBe(window.innerWidth - 8)
+    expect(element.offsetLeft + element.offsetWidth).toBe(window.innerWidth - 8)
   })
 
   test('stops, taking its move off', async () => {

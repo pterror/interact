@@ -1,7 +1,7 @@
 /**
  * Keeps an element inside its window while a Watched boolean is true: whatever placed it (a popover against its anchor,
  * anything else), it is moved by the least that keeps its box a margin inside the window, on each edge it overflows.
- * A box larger than the window keeps its top and left edges in. The move is the element's own `margin-left` and
+ * A box larger than the window keeps its top and left edges in. The box is the element's layout box, without transforms. The move is the element's own `margin-left` and
  * `margin-top`, the only inline style it writes, so it composes with whatever writes the element's place.
  *
  * It looks once everything else that heard the boolean become true has (in a microtask, as `focusWhen` does), so the
@@ -29,6 +29,18 @@
 function moveInto(from, to, size, margin) {
   const end = to > size - margin ? size - margin - to : 0
   return from + end < margin ? margin - from : end
+}
+
+/**
+ * Where an element is laid out in its window, without its transforms: an element growing in as it opens is scaled for a
+ * while, and where it ends up is its layout box. A shown popover is fixed, so its offsets are from the window.
+ * @param {HTMLElement} element - The element
+ * @returns {Readonly<{ left: number, top: number, right: number, bottom: number }>} Its box, px
+ */
+function layoutBox(element) {
+  const left = element.offsetLeft
+  const top = element.offsetTop
+  return { bottom: top + element.offsetHeight, left, right: left + element.offsetWidth, top }
 }
 
 /**
@@ -63,7 +75,7 @@ function inView({ element, margin = 8, open }) {
     if (element.style.marginTop !== written.y) {
       moved.y = 0
     }
-    const box = element.getBoundingClientRect()
+    const box = layoutBox(element)
     moved.x += moveInto(box.left, box.right, view.innerWidth, margin)
     moved.y += moveInto(box.top, box.bottom, view.innerHeight, margin)
     write()

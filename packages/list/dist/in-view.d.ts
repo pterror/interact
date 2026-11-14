@@ -1,7 +1,7 @@
 /**
  * Keeps an element inside its window while a Watched boolean is true: whatever placed it (a popover against its anchor,
  * anything else), it is moved by the least that keeps its box a margin inside the window, on each edge it overflows.
- * A box larger than the window keeps its top and left edges in. The move is the element's own `margin-left` and
+ * A box larger than the window keeps its top and left edges in. The box is the element's layout box, without transforms. The move is the element's own `margin-left` and
  * `margin-top`, the only inline style it writes, so it composes with whatever writes the element's place.
  *
  * It looks once everything else that heard the boolean become true has (in a microtask, as `focusWhen` does), so the
