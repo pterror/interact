@@ -776,6 +776,26 @@ when the piece is no longer drawn, as with list's `render`.
     styles applies to both. Nothing copies computed styles.
   - **What the app composes in.** `grammarLanguage(grammar)` (the grammar as CodeMirror's language),
     `lookDecorations(look)` (the Look drawn), and its own extensions (history, search, paste, keys, overlays).
+- **`segments({ initial })`** returns `{ doc, extension, of, split, insert, remove, replace }`: one editor over many
+  texts that live apart (a page's blocks, a thread's messages, a table's cells), as one document. **(P)**
+  - **The document** is the texts in order with one line break between two (`doc`, to start the view with). Each segment
+    has an opaque key: the app's for the texts it gives, this module's for those a split makes. `of(state)` gives the
+    segments in order with where each text is, so the app saves each where it lives.
+  - **Tracked through every change.** The line break before each segment is mapped through each transaction. Deleting it
+    joins the segment into the one before. A line break typed any other way (Shift+Enter, paste) is text inside a
+    segment. **Enter** (`split`, also bound) splits at the cursor; at the start of a non-empty segment the new, empty
+    one goes before it, so the text keeps its key, as block editors do.
+  - **Undo.** A join keeps the segment it took out, mapped through later changes. An undo or redo that puts a line break
+    back where a joined segment's was brings that segment back with its key. Nothing depends on which history the app
+    composes in: it reads only the transaction's `undo`/`redo` user event.
+  - **Text from elsewhere.** `insert(view, after, key, text)`, `remove(view, key)` and `replace(view, key, changes)`
+    (positions in the segment's text) lay in what changed elsewhere. Each is a transaction `fromElsewhere(tr)` tells
+    apart and that history doesn't record, so the app's own listener doesn't send it back, and undo never undoes someone
+    else's change. The selection is mapped through them, so the cursor stays where it was in what was typed.
+  - **Hooks.** Each segment's first line carries `data-segment` (`empty` when it has no text), for the app to style a
+    block's spacing or its placeholder.
+  - Not here: how a segment's text is saved, and how a text changed elsewhere is rebased over what isn't saved yet. Both
+    are the app's, since each kind of text has its own store and its own way of saying what it includes.
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
   viewport or the tree changes, and from scratch when the app dispatches `lookChanged`: what the Look draws changed with
   the text unchanged (a macro's value arrived, macros shown as written). While an IME composes, they're only moved with
