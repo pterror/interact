@@ -147,6 +147,10 @@ which only held for panels of that width. Adds, beside `popover`, which is uncha
   and placed by then, whatever order the wiring heard it in; and before the next frame after a scroll, a resize or a
   change of the element's size, so a placement made by those has happened first.
 
+**Fixed after building:** `inView` measured the element's box with `getBoundingClientRect`, which includes transforms,
+so a menu still scaled by its opening animation was moved by too little. It now measures its layout box (`offsetLeft`,
+`offsetTop`, and its size), where the element is laid out once it has grown in.
+
 ## Case 5: a combobox
 
 DOM focus stays in a text field; the list is a popover. Adds `textValue` (Watched and Set over a field's value). The
