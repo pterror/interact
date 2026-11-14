@@ -4,7 +4,9 @@
  * the click that ends a drag is swallowed, so it doesn't also pick. The dragged key is held while the drag lasts, so
  * a list that draws its held keys keeps it drawn, and the drag is cancelled if the list removes it (the held key
  * moves off it). A drop ends once the drawn keys next change (the reorder, or whatever the list holds instead), once the
- * reorder is refused, or after `wait` if neither comes.
+ * reorder is refused, or after `wait` if neither comes. A press lasts only while its button is held: a release
+ * anywhere ends it (dropping a drag), and a cancel, the pointer's capture being lost or a move with the button up let
+ * it go (cancelling a drag).
  */
 export type Dragging<K> = Readonly<{
     key: K;

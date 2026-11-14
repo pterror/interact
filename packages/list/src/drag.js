@@ -4,7 +4,9 @@
  * the click that ends a drag is swallowed, so it doesn't also pick. The dragged key is held while the drag lasts, so
  * a list that draws its held keys keeps it drawn, and the drag is cancelled if the list removes it (the held key
  * moves off it). A drop ends once the drawn keys next change (the reorder, or whatever the list holds instead), once the
- * reorder is refused, or after `wait` if neither comes.
+ * reorder is refused, or after `wait` if neither comes. A press lasts only while its button is held: a release
+ * anywhere ends it (dropping a drag), and a cancel, the pointer's capture being lost or a move with the button up let
+ * it go (cancelling a drag).
  */
 
 /** How far, in pixels, the pointer moves before a press is a drag */
@@ -78,6 +80,8 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
   /** @type {Readonly<{ drag: Press<K>, timer: ReturnType<typeof setTimeout> }> | undefined} */
   let landing = undefined
   let swallow = false
+  /** @type {Element | undefined} */
+  let captor = undefined
 
   /**
    * @param {Readonly<Press<K>>} dragged - The drag
@@ -136,6 +140,31 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     swallow = false
     const point = { x: event.clientX, y: event.clientY }
     press = { at: undefined, moved: false, point, pointer: event.pointerId, pressed: { from: point, key: item.key } }
+    // The pressed element, not the container, until a drag starts: a click goes to the element both the press and
+    // release were on. A drag moves it to the container, which outlasts the dragged item's element.
+    if (event.target instanceof Element) {
+      captor = event.target
+      captor.setPointerCapture(event.pointerId)
+    }
+  }
+
+  /**
+   * Lets go of the press without dropping it
+   * @param {Event} event - A pointer event for it
+   * @returns {void}
+   */
+  const lost = (event) => {
+    if (!(event instanceof PointerEvent) || press?.pointer !== event.pointerId) {
+      return
+    }
+    if (event.type === 'lostpointercapture' && event.target !== captor) {
+      return
+    }
+    const gone = press
+    press = undefined
+    if (gone.moved) {
+      cancel(gone)
+    }
   }
 
   /**
@@ -176,6 +205,10 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     if (!(event instanceof PointerEvent) || press?.pointer !== event.pointerId) {
       return
     }
+    if (event.buttons % 2 === 0) {
+      lost(event)
+      return
+    }
     const { from } = press.pressed
     if (!press.moved && Math.hypot(event.clientX - from.x, event.clientY - from.y) < THRESHOLD) {
       return
@@ -183,6 +216,7 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     if (!press.moved) {
       press.moved = true
       held.set(press.pressed.key)
+      captor = element
       element.setPointerCapture(event.pointerId)
     }
     event.preventDefault()
@@ -224,20 +258,16 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
   }
 
   /**
-   * @param {Event} event - A pointerup or pointercancel
+   * @param {Event} event - A pointerup, anywhere
    * @returns {void}
    */
-  const ended = (event) => {
+  const released = (event) => {
     if (!(event instanceof PointerEvent) || press?.pointer !== event.pointerId) {
       return
     }
     const done = press
     press = undefined
     if (!done.moved) {
-      return
-    }
-    if (event.type !== 'pointerup') {
-      cancel(done)
       return
     }
     swallow = true
@@ -261,12 +291,13 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     }
   }
 
+  const page = element.ownerDocument
   element.addEventListener('pointerdown', down)
   element.addEventListener('pointermove', moved)
-  element.addEventListener('pointerup', ended)
-  element.addEventListener('pointercancel', ended)
+  page.addEventListener('pointerup', released, { capture: true })
+  page.addEventListener('pointercancel', lost, { capture: true })
+  page.addEventListener('lostpointercapture', lost, { capture: true })
   element.addEventListener('click', clicked, { capture: true })
-  const page = element.ownerDocument
   page.addEventListener('scroll', aim, { capture: true, passive: true })
   const stops = [
     drawn.watch(changed),
@@ -289,8 +320,9 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     page.removeEventListener('scroll', aim, { capture: true })
     element.removeEventListener('pointerdown', down)
     element.removeEventListener('pointermove', moved)
-    element.removeEventListener('pointerup', ended)
-    element.removeEventListener('pointercancel', ended)
+    page.removeEventListener('pointerup', released, { capture: true })
+    page.removeEventListener('pointercancel', lost, { capture: true })
+    page.removeEventListener('lostpointercapture', lost, { capture: true })
     element.removeEventListener('click', clicked, { capture: true })
   }
 }

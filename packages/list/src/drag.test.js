@@ -27,7 +27,10 @@ describe('arrayReorder', () => {
  * @returns {void}
  */
 function point(target, type, x) {
-  target.dispatchEvent(new PointerEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 0, pointerId: 1 }))
+  const buttons = type === 'pointerup' || type === 'pointercancel' ? 0 : 1
+  target.dispatchEvent(
+    new PointerEvent(type, { bubbles: true, button: 0, buttons, clientX: x, clientY: 0, pointerId: 1 }),
+  )
 }
 
 /**
@@ -51,6 +54,7 @@ function dragged(options = {}) {
   const a = document.createElement('div')
   element.append(a)
   document.body.append(element)
+  a.setPointerCapture = () => undefined
   element.setPointerCapture = () => undefined
   const list = arrayList(['a', 'b', 'c'])
   const now = arrayReorder(list)
@@ -124,6 +128,25 @@ describe('drag', () => {
     expect(seen.slice(-2)).toEqual(['cancelled a 60 none', 'ended a 60 none'])
     expect(list.keys()).toEqual(['a', 'b', 'c'])
     expect(picked).toEqual(['click'])
+  })
+
+  test('starts no drag from a press released elsewhere, or let go unheard, and cancels one whose capture is lost', () => {
+    const { a, seen } = dragged()
+    point(a, 'pointerdown', 0)
+    point(document.body, 'pointerup', 0)
+    point(a, 'pointermove', 60)
+    a.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 0, clientX: 90, pointerId: 1 }))
+    expect(seen).toEqual([])
+    point(a, 'pointerdown', 0)
+    a.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, buttons: 0, clientX: 60, pointerId: 1 }))
+    point(a, 'pointermove', 90)
+    expect(seen).toEqual([])
+    point(a, 'pointerdown', 0)
+    point(a, 'pointermove', 30)
+    a.parentElement?.dispatchEvent(new PointerEvent('lostpointercapture', { bubbles: true, pointerId: 1 }))
+    point(a, 'pointermove', 60)
+    point(a, 'pointerup', 60)
+    expect(seen).toEqual(['asked', 'moving a 30 b', 'cancelled a 30 none', 'ended a 30 none'])
   })
 
   test('ends a drop only once a late reorder changes the list', async () => {
@@ -201,6 +224,7 @@ describe('drag', () => {
     const element = document.createElement('div')
     const a = document.createElement('div')
     element.append(a)
+    a.setPointerCapture = () => undefined
     element.setPointerCapture = () => undefined
     drag({
       drawn: arrayList(['a']),
@@ -230,6 +254,7 @@ describe('drag', () => {
     const a = document.createElement('div')
     element.append(a)
     document.body.append(element)
+    a.setPointerCapture = () => undefined
     element.setPointerCapture = () => undefined
     let scrolled = 0
     /** @type {string[]} */

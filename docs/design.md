@@ -247,6 +247,11 @@ argument the existing implementations ignore, so they behave as before; drag gai
 - **Scrolling.** `follow` and `leadingGaps` take the dragged item to be where it was drawn when the drag began, moved as
   far as the pointer since; each question measures where it is laid out now. So a scroll, or items added or taken out
   before it, leaves it under the pointer, and the gaps go by where it is drawn.
+- **A press it never heard released.** drag kept a press whose release it missed (one landing on another element), so a
+  later move with no button down started a drag. A press now lasts only while its button is held: the pressed element
+  captures the pointer at the press (the container takes it over once a drag starts, as the item's element may be taken
+  out under it); a release anywhere in the page ends the press, dropping a drag; a cancel, the capture being lost, or a
+  move with the button up lets it go, cancelling a drag.
 - **Settling.** `follow` marks the dragged item `data-settling` **(P)** while it slides into place, so an app can raise
   it over its neighbours. Grabbing it mid-slide stops the slide, unmarks it, and drags it from where it is drawn.
 
