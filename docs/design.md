@@ -29,7 +29,7 @@ Each is owned by the module(s) named, which declare it.
 | Set         | `(T) → void`                                                                | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`)   |
 | Step        | `step(k \| none, n) → later key \| none`                                    | move, adjacent                                                                   |
 | Find        | `find(prefix, after: k \| none) → later key \| none`                        | typeahead                                                                        |
-| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render, drag (`watch` only)                                                      |
+| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render, drag, slideMoved (`watch` only)                                          |
 | Mount       | `put(key, element, before: element \| none)`, `remove(element)`             | render                                                                           |
 | Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)`    | render                                                                           |
 | ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                              | pick, drag, gaps, hoverIntent                                                    |
@@ -279,6 +279,25 @@ wires one `showing` that hands both the drag, and marks the dragged item from `m
 `leadingGaps`, `follow` and `makeRoom` take `translate` to be the only transform the items have **(P)**.
 `test/page-tabs.js` also drives a late and a refused Reorder, a scroll and edits under a drag, and grabbing a settling
 tab.
+
+**Found building the antisocial network's tab strip:** outside a drag, items still move: the keys move a tab, a tab
+opens between others, one closes. A browser's strip slides the tabs that moved; here they jumped. Adds `slideMoved`
+**(P)**, a Facet for any list, beside `follow` and `makeRoom`, which are unchanged: when the drawn keys change, each
+item drawn is slid from where it was drawn to where it is laid out now, by a Web Animation of `translate` **(P:
+ease-out)**, and sets no style. A change during a slide slides on from where the item is drawn. Places are where items
+are laid out in their parent (rect less `translate`, from the parent's start, scrolled or not), kept at each change and
+again when the parent or an item is resized, so a resize alone slides nothing. It looks once every listener to Drawn has
+heard (a microtask later), so render has drawn the change, whichever order the listeners were added in. An item
+something else draws by its `translate` is left to it **(P)**: one with an inline `translate`, one whose inline
+`translate` was written in this frame (taken off just as the change came, as `makeRoom` does when a drop ends), or one
+with another animation running (a settle). So a drop is slid by `follow` and `makeRoom` alone, without either knowing of
+it. It hears Drawn while it is watched (render watches its facets for their lifetime), and reports no keys. Parameters:
+drawn (Drawn's `watch`), duration (ms; 0 jumps). `test/page-tabs.js` adds it to the strip, every drag case unchanged,
+and moves tabs outside a drag.
+
+**Open, from `slideMoved`:** an item whose place changes without the drawn keys changing (an item above it grows) isn't
+slid; places are measured in the item's parent, so items spread over several parents (`groupMount`) slide only within
+one.
 
 **Between groups** (built with case 10): Reorder puts the key into the target's group; a group's header as the target
 puts it first in that group, so an empty group can be dropped into. Alt+arrow across a group's end puts the item at the
@@ -950,6 +969,7 @@ owns what it uses.
 | drag, gaps, edgeScroll                       | ItemOf, Gap, Reorder, Showing, Drawn, held keys / ItemOf / Scroll | Gap                             | the gesture / gap / scrolling  | Gap and Showing widened (tab strip)         | any Gap, any Drawn                               | —                             | owns all     |
 | leadingGaps                                  | ItemOf                                                            | Gap                             | the gap by the leading edge    | beside gaps, unchanged                      | any Gap's answer: a key and a side               | the drag's key and press only | owns all     |
 | follow, makeRoom                             | Showing / Showing, Rank                                           | Facet, Showing                  | one `translate` each           | beside the drop marks, which are unchanged  | apply depends on no other facet                  | `rank` only, of Rank          | owns all     |
+| slideMoved                                   | Drawn                                                             | Facet                           | one `translate` slide          | beside follow and makeRoom, unchanged       | any Drawn; leaves what others draw               | `watch` only, of Drawn        | owns all     |
 | viewport, scaledViewport                     | —                                                                 | Watched range, Scroll           | the scroller                   | scaled added                                | coarse px in scaled is within contract           | —                             | —            |
 | rows, cards                                  | —                                                                 | RanksIn, Place, Extent          | one layout                     | cards added                                 | sizes are never assumed                          | three faces                   | —            |
 | visibleRanks, windowing                      | Watched, RanksIn / KeysAt, Locate                                 | Watched, Drawn, Rank            | what to draw                   | unchanged by cards                          | any layout, any answer timing                    | —                             | owns all     |

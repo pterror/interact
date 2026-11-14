@@ -50,6 +50,7 @@ export { placeFromBottom } from './place-from-bottom.js';
 export { popover } from './popover.js';
 export { posInSet } from './pos-in-set.js';
 export { relationStep } from './relation-step.js';
+export { slideMoved } from './slide-moved.js';
 export { render } from './render.js';
 export { rested } from './rested.js';
 export { reveal } from './reveal.js';

@@ -206,6 +206,33 @@ describe.each(BROWSERS)('a tab strip, in %s', (engine) => {
     })
   })
 
+  test('slides tabs a change of order moves outside a drag from where they were to their new places', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      const { room } = await putTabs(page, 'now')
+      await page.evaluate(async () => {
+        const strip = await import('./page-tabs.js')
+        strip.setTabs(['b', 'a', 'c', 'd'])
+      })
+      const moving = await look(page)
+      expect(moving.order).toEqual(['b', 'a', 'c', 'd'])
+      expect(moving.tabs.map((tab) => [tab.key, tab.sliding])).toEqual([
+        ['b', true],
+        ['a', true],
+        ['c', false],
+        ['d', false],
+      ])
+      expect(leftOf(moving, 'a')).toBeLessThan(110)
+      expect(leftOf(moving, 'b')).toBeGreaterThan(0)
+      await page.waitForTimeout(room + 50)
+      expect(placed(await look(page))).toEqual([
+        ['b', 0, false],
+        ['a', 110, false],
+        ['c', 220, false],
+        ['d', 330, false],
+      ])
+    })
+  })
+
   test('keeps a drag going as tabs come and go under it, and cancels it when its own tab goes', async () => {
     await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
       await putTabs(page, 'now')

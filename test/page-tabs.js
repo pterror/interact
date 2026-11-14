@@ -17,6 +17,7 @@ import {
   makeRoom,
   mark,
   render,
+  slideMoved,
 } from '@pterror/interact-list'
 
 /** How long, in ms, a dropped tab slides into its place */
@@ -78,7 +79,12 @@ function putTabs(answers = 'now') {
   const rendered = render({
     create,
     drawn: list,
-    facets: [followed, room, mark({ attribute: 'data-dragging', on: '', test: dragged })],
+    facets: [
+      followed,
+      room,
+      slideMoved({ drawn: list, duration: ROOM_MS }),
+      mark({ attribute: 'data-dragging', on: '', test: dragged }),
+    ],
     mount: flowMount(strip),
   })
   const now = arrayReorder(list)
