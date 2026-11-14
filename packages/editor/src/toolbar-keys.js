@@ -1,9 +1,16 @@
 /**
- * The keys of a toolbar, as the WAI-ARIA Authoring Practices' toolbar has them: the toolbar is one stop in the Tab
- * order (a roving tabindex: 0 on one button, -1 on the rest), the arrow keys along it move between its buttons and
- * wrap, Home and End go to its ends. The button in the Tab order is the one last focused, else the first. A piece
- * composed onto any buttons drawn for tools (`toolbar`'s, `selectionBar`'s), followed as they are drawn again.
+ * Moving among a toolbar's buttons, as the WAI-ARIA Authoring Practices' toolbar has it: the toolbar is one stop in the
+ * Tab order (a roving tabindex: 0 on one button, -1 on the rest), the button last focused, else the first; its moves go
+ * from that button to another and focus it, and the arrow keys' moves wrap from one end to the other. A button whose
+ * tool doesn't apply is moved to like any other (`aria-disabled`, still focusable). A piece composed onto any buttons
+ * drawn for tools (`toolbar`'s, `selectionBar`'s), followed as they are drawn again. It reads no key: the app binds
+ * the moves (with keybinds) on the toolbar's element, the arrow keys along `orientation` to `by`, Home and End to
+ * `edge`.
  */
+
+import { arrayStep } from '@pterror/interact-list/array-step'
+import { move } from '@pterror/interact-list/move'
+import { wrapStep } from '@pterror/interact-list/wrap-step'
 
 /**
  * @typedef {import('./tool-buttons.js').Drawn} Drawn
@@ -24,74 +31,68 @@
  */
 
 /**
- * Moves focus among a toolbar's buttons by keys
+ * Moves among a toolbar's buttons: `by(n)` focuses the button `n` on from the one in the Tab order (back, if
+ * negative), wrapping at the ends; `edge(n)` the button `n` from an end (1: the first, -1: the last). Each resolves
+ * once focus has moved
+ * @typedef {Readonly<{ by: (n: number) => Promise<void>, edge: (n: number) => Promise<void>, stop: () => void }>}
+ *   ToolbarKeys
+ */
+
+/**
+ * Moves focus among a toolbar's buttons
  * @param {ToolbarKeysOptions} options - The toolbar's element (it gets `aria-orientation`), its buttons, and which way
- *   it runs (`horizontal` by default: Left and Right move)
- * @returns {() => void} Stops, leaving every button in the Tab order
+ *   it runs (`horizontal` by default), which says which arrow keys the app binds to `by`
+ * @returns {ToolbarKeys} The moves, and stopping, which leaves every button in the Tab order
  */
 function toolbarKeys({ buttons, element, orientation = 'horizontal' }) {
   /** @type {HTMLElement | undefined} */
-  let current
+  let current = undefined
   const all = () => buttons.get().map((drawn) => drawn.button)
-  const settle = () => {
+  /** @returns {HTMLElement | undefined} The button in the Tab order */
+  const stopOf = () => {
     const list = all()
-    const stop = current !== undefined && list.includes(current) ? current : list[0]
-    for (const button of list) {
+    return current !== undefined && list.includes(current) ? current : list[0]
+  }
+  const settle = () => {
+    const stop = stopOf()
+    for (const button of all()) {
       button.tabIndex = button === stop ? 0 : -1
     }
   }
-  const back = orientation === 'horizontal' ? 'ArrowLeft' : 'ArrowUp'
-  const forward = orientation === 'horizontal' ? 'ArrowRight' : 'ArrowDown'
-  /** @param {KeyboardEvent} event - The key */
-  const onKey = (event) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) {
-      return
-    }
-    const list = all()
-    const at = event.target instanceof HTMLElement ? list.indexOf(event.target) : -1
-    if (at === -1) {
-      return
-    }
-    const n = list.length
-    const to =
-      event.key === forward
-        ? (at + 1) % n
-        : event.key === back
-          ? (at - 1 + n) % n
-          : event.key === 'Home'
-            ? 0
-            : event.key === 'End'
-              ? n - 1
-              : undefined
-    const next = to === undefined ? undefined : list[to]
-    if (next === undefined) {
-      return
-    }
-    event.preventDefault()
-    current = next
-    settle()
-    next.focus()
-  }
+  const moves = move({
+    from: stopOf,
+    // Wrapping is a proposal (docs/design.md); the Practices leave it to the toolbar
+    step: wrapStep(arrayStep(all)),
+    to: (button) => {
+      if (button !== undefined) {
+        current = button
+        settle()
+        button.focus()
+      }
+    },
+  })
   /** @param {FocusEvent} event - Where focus went */
-  const onFocus = (event) => {
-    const button = all().find((b) => b === event.target)
+  const focused = (event) => {
+    const button = all().find((each) => each === event.target)
     if (button !== undefined) {
       current = button
       settle()
     }
   }
   element.setAttribute('aria-orientation', orientation)
-  element.addEventListener('keydown', onKey)
-  element.addEventListener('focusin', onFocus)
-  const stop = buttons.watch(settle)
+  element.addEventListener('focusin', focused)
+  const unwatch = buttons.watch(settle)
   settle()
-  return () => {
-    stop()
-    element.removeEventListener('keydown', onKey)
-    element.removeEventListener('focusin', onFocus)
-    for (const button of all()) {
-      button.tabIndex = 0
-    }
+  return {
+    by: moves.by,
+    edge: moves.edge,
+    stop() {
+      unwatch()
+      element.removeEventListener('focusin', focused)
+      for (const button of all()) {
+        button.tabIndex = 0
+      }
+    },
   }
 }
 
