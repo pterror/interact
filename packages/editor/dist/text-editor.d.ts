@@ -8,19 +8,9 @@
  */
 import { ChangeSet } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
-export type ChangeId = string;
-export type Text = Readonly<{
-    get: () => Readonly<{
-        text: string;
-        includes: ChangeId | undefined;
-    }>;
-    watch: (listener: () => void) => () => void;
-}>;
-export type Edit = (changes: readonly Readonly<{
-    from: number;
-    to: number;
-    insert: string;
-}>[], id: ChangeId) => void;
+export type ChangeId = import('./rebase.js').ChangeId;
+export type Text = import('./rebase.js').Text;
+export type Edit = import('./rebase.js').Edit;
 export type TextEditorOptions = Readonly<{
     parent: Element | DocumentFragment;
     text: Text;

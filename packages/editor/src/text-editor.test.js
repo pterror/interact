@@ -5,6 +5,7 @@ import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
 import { inlineDecorations, lookChanged, lookDecorations } from './decorations.js'
+import { fromElsewhere } from './elsewhere.js'
 import { grammarLanguage } from './grammar-language.js'
 import { counted, testGrammar, testLook } from './test-look.js'
 import { textEditor } from './text-editor.js'
@@ -45,13 +46,14 @@ function heldText(initial) {
 /**
  * An editor over a held text, keeping the edits it hands on
  * @param {string} initial - The text
+ * @param {readonly import('@codemirror/state').Extension[]} [more] - What else is composed in
  * @returns {Readonly<{
  *   held: ReturnType<typeof heldText>,
  *   edits: { changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: string }[],
  *   editor: ReturnType<typeof textEditor>,
  * }>} The text, the edits, and the editor
  */
-function editorOver(initial) {
+function editorOver(initial, more = []) {
   const held = heldText(initial)
   /** @type {{ changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: string }[]} */
   const edits = []
@@ -63,6 +65,7 @@ function editorOver(initial) {
       grammarLanguage(testGrammar),
       lookDecorations(testLook(counted().counts)),
       EditorView.contentAttributes.of({ class: 'text' }),
+      ...more,
     ],
     parent: document.createElement('div'),
     text: held,
@@ -163,11 +166,18 @@ describe('textEditor', () => {
   })
 
   test("someone else's edit is laid under the edits not yet included", async () => {
-    const { edits, editor, held } = editorOver('middle')
+    /** @type {import('@codemirror/state').Transaction[]} */
+    const seen = []
+    const { edits, editor, held } = editorOver('middle', [
+      EditorView.updateListener.of((update) => {
+        seen.push(...update.transactions)
+      }),
+    ])
     editor.view.dispatch({ changes: { from: 6, insert: ' end' } })
     held.apply([{ from: 0, insert: 'start ', to: 0 }], undefined)
     await settled()
     expect(editor.view.state.doc.toString()).toBe('start middle end')
+    expect(seen.map((each) => fromElsewhere(each))).toEqual([false, true])
     const mine = edits[0]
     if (mine !== undefined) {
       held.apply([{ from: 12, insert: ' end', to: 12 }], mine.id)

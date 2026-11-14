@@ -5,6 +5,7 @@
  */
 
 export { lookChanged, lookDecorations } from './decorations.js'
+export { fromElsewhere } from './elsewhere.js'
 export { grammarLanguage } from './grammar-language.js'
 export { keyHints } from './key-hints.js'
 export { keyboardInset } from './keyboard-inset.js'
@@ -13,7 +14,7 @@ export { overlays } from './overlays.js'
 export { reader } from './reader.js'
 export { segmentData } from './segment-data.js'
 export { segmentGaps } from './segment-gaps.js'
-export { fromElsewhere, segments } from './segments.js'
+export { segments } from './segments.js'
 export { selectionBar } from './selection-bar.js'
 export { suggestions } from './suggestions.js'
 export { textEditor } from './text-editor.js'

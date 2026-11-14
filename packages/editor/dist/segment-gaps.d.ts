@@ -18,22 +18,23 @@ export type Point = Readonly<{
  */
 /**
  * Gaps between an editor's segments
+ * @template K
  * @param {Readonly<{
  *   view: EditorView,
- *   of: (state: import('@codemirror/state').EditorState) => readonly Readonly<{ key: string, from: number, to: number }>[],
+ *   of: (state: import('@codemirror/state').EditorState) => readonly Readonly<{ key: K, from: number, to: number }>[],
  * }>} options - The editor, and its segments in a state, in order (`segments`' `of`)
- * @returns {(point: Point) => Readonly<{ target: string, after: boolean }> | undefined} The gap at a point, none
- *   while the editor has no segments
+ * @returns {(point: Point) => Readonly<{ target: K, after: boolean }> | undefined} The gap at a point, none while the
+ *   editor has no segments
  */
-declare function segmentGaps({ of, view }: Readonly<{
+declare function segmentGaps<K>({ of, view }: Readonly<{
     view: EditorView;
     of: (state: import('@codemirror/state').EditorState) => readonly Readonly<{
-        key: string;
+        key: K;
         from: number;
         to: number;
     }>[];
 }>): (point: Point) => Readonly<{
-    target: string;
+    target: K;
     after: boolean;
 }> | undefined;
 export { segmentGaps };

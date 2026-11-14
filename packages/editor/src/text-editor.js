@@ -7,29 +7,17 @@
  * tooltips are always in the top layer (`topLayerTooltips`).
  */
 
-import { Annotation, ChangeSet, EditorState, Transaction } from '@codemirror/state'
+import { ChangeSet, EditorState, Transaction } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 
-import { shared } from './shared.js'
+import { elsewhere, fromElsewhere } from './elsewhere.js'
+import { changeBetween, rebase, replacementsOf } from './rebase.js'
 import { topLayerTooltips } from './top-layer-tooltips.js'
 
 /**
- * What identifies one edit made in an editor
- * @typedef {string} ChangeId
- */
-
-/**
- * The text as it is elsewhere, and the latest of this editor's edits it includes (none if it includes none). Edits are
- * included in the order they were made.
- * @typedef {Readonly<{
- *   get: () => Readonly<{ text: string, includes: ChangeId | undefined }>,
- *   watch: (listener: () => void) => () => void,
- * }>} Text
- */
-
-/**
- * One edit, handed on as it is made: replacements whose positions are all in the text before the edit
- * @typedef {(changes: readonly Readonly<{ from: number, to: number, insert: string }>[], id: ChangeId) => void} Edit
+ * @typedef {import('./rebase.js').ChangeId} ChangeId
+ * @typedef {import('./rebase.js').Text} Text
+ * @typedef {import('./rebase.js').Edit} Edit
  */
 
 /**
@@ -41,36 +29,7 @@ import { topLayerTooltips } from './top-layer-tooltips.js'
  * }>} TextEditorOptions
  */
 
-const fromElsewhere = Annotation.define()
 let made = 0
-
-/**
- * The replacements of a change set, in the text before it
- * @param {ChangeSet} changes - The changes
- * @returns {{ from: number, to: number, insert: string }[]} The replacements
- */
-function replacementsOf(changes) {
-  /** @type {{ from: number, to: number, insert: string }[]} */
-  const out = []
-  changes.iterChanges((from, to, _fromB, _toB, inserted) => {
-    out.push({ from, insert: inserted.toString(), to })
-  })
-  return out
-}
-
-/**
- * The change from one text to another, as one replacement of what differs
- * @param {string} was - The first text
- * @param {string} now - The other
- * @returns {ChangeSet} The change
- */
-function changeBetween(was, now) {
-  const { end, start } = shared(was, now)
-  if (start === was.length && start === now.length) {
-    return ChangeSet.empty(was.length)
-  }
-  return ChangeSet.of({ from: start, insert: now.slice(start, now.length - end), to: was.length - end }, was.length)
-}
 
 /**
  * The edits the text doesn't include yet, as one change from the text they were rebased onto last: `changes` applies to
@@ -92,7 +51,7 @@ function textEditor({ edit, extensions = [], parent, text }) {
   let count = 0
   const initial = text.get()
   let confirmed = initial.text
-  /** @type {Readonly<{ id: ChangeId, changes: ChangeSet }>[]} */
+  /** @type {import('./rebase.js').Pending[]} */
   let pending = []
   let scheduled = false
 
@@ -103,7 +62,7 @@ function textEditor({ edit, extensions = [], parent, text }) {
       extensions: [
         EditorView.updateListener.of((update) => {
           for (const transaction of update.transactions) {
-            if (!transaction.docChanged || transaction.annotation(fromElsewhere) === true) {
+            if (!transaction.docChanged || fromElsewhere(transaction)) {
               continue
             }
             count += 1
@@ -121,24 +80,12 @@ function textEditor({ edit, extensions = [], parent, text }) {
   const receive = () => {
     scheduled = false
     const heard = text.get()
-    const included = heard.includes === undefined ? 0 : pending.findIndex((each) => each.id === heard.includes) + 1
-    let base = view.state.toText(confirmed)
-    for (const each of pending.slice(0, included)) {
-      base = each.changes.apply(base)
-    }
-    let other = changeBetween(base.toString(), heard.text)
-    /** @type {Readonly<{ id: ChangeId, changes: ChangeSet }>[]} */
-    const rest = []
-    for (const each of pending.slice(included)) {
-      rest.push({ changes: each.changes.map(other), id: each.id })
-      // oxlint-disable-next-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument -- ChangeSet.map takes changes, not a callback
-      other = other.map(each.changes, true)
-    }
+    const { other, pending: rest } = rebase(confirmed, pending, heard, (each) => view.state.toText(each))
     pending = rest
     confirmed = heard.text
     if (!other.empty) {
       view.dispatch({
-        annotations: [fromElsewhere.of(true), Transaction.addToHistory.of(false)],
+        annotations: [elsewhere.of(true), Transaction.addToHistory.of(false)],
         changes: other,
       })
     }
@@ -156,16 +103,16 @@ function textEditor({ edit, extensions = [], parent, text }) {
       unwatch()
       view.destroy()
     },
-    rebase(elsewhere) {
-      confirmed = elsewhere
+    rebase(other) {
+      confirmed = other
       const shown = view.state.doc.toString()
-      if (shown === elsewhere) {
+      if (shown === other) {
         pending = []
         return undefined
       }
       count += 1
       const id = `${prefix}${String(count)}`
-      pending = [{ changes: changeBetween(elsewhere, shown), id }]
+      pending = [{ changes: changeBetween(other, shown), id }]
       return id
     },
     unincluded() {
