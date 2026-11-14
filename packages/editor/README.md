@@ -16,6 +16,7 @@ npm install @pterror/interact-editor @codemirror/state @codemirror/view @codemir
 | `suggestions(sources)`         | one completion mechanism fed by every source of suggestions (macros, slash commands)           |
 | `toolbar(options)`             | a button per tool, `aria-pressed` and `aria-disabled` following the editor, keys in tooltips   |
 | `selectionBar(options)`        | the tools beside the selection, in a popover                                                   |
+| `topLayerTooltips()`           | every CodeMirror tooltip drawn in a popover, in the top layer; `textEditor` composes it in     |
 | `keyboardInset()`              | how much of the window an on-screen keyboard covers, so a toolbar can sit above it             |
 | `viewUpdates(view, listener)`  | every update of an editor made elsewhere, until stopped                                        |
 | `lookDecorations(look)`        | the editor's drawing of a Look, for an editor made some other way                              |

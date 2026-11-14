@@ -52,12 +52,64 @@ function chromePath() {
 }
 
 /**
- * The import map that lets pages import the packages by name, as an app would.
+ * Where a package installed under `node_modules/.bun` is imported from, as an ES module
+ * @param {unknown} manifest - Its package.json
+ * @returns {string | undefined} The path, from its directory
+ */
+function moduleEntry(manifest) {
+  if (typeof manifest !== 'object' || manifest === null) {
+    return undefined
+  }
+  const root =
+    'exports' in manifest && typeof manifest.exports === 'object' && manifest.exports !== null
+      ? '.' in manifest.exports
+        ? manifest.exports['.']
+        : manifest.exports
+      : undefined
+  if (typeof root === 'object' && root !== null && 'import' in root && typeof root.import === 'string') {
+    return root.import
+  }
+  return 'module' in manifest && typeof manifest.module === 'string' ? manifest.module : undefined
+}
+
+/**
+ * The import map that lets pages import the packages by name, as an app would, and what they import from outside the
+ * repo (CodeMirror), as installed.
  * @returns {Promise<string>} The map, as JSON
  */
 async function importMap() {
   /** @type {Record<string, string>} */
   const imports = {}
+  const found = await Promise.all(
+    ['node_modules/.bun/*/node_modules/*/package.json', 'node_modules/.bun/*/node_modules/@*/*/package.json'].map(
+      async (pattern) => Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: ROOT, dot: true })),
+    ),
+  )
+  const installed = found.flat()
+  /** @type {unknown[]} */
+  const manifests = await Promise.all(
+    installed.map(async (file) => {
+      /** @type {unknown} */
+      const manifest = await Bun.file(`${ROOT}${file}`).json()
+      return manifest
+    }),
+  )
+  for (const [index, manifest] of manifests.entries()) {
+    const file = installed[index] ?? ''
+    const entry = moduleEntry(manifest)
+    if (
+      typeof manifest === 'object' &&
+      manifest !== null &&
+      'name' in manifest &&
+      typeof manifest.name === 'string' &&
+      (file.split('/')[2] ?? '').startsWith(`${manifest.name.replace('/', '+')}@`) &&
+      entry !== undefined &&
+      !(manifest.name in imports)
+    ) {
+      imports[manifest.name] = `/${file.replace(/package\.json$/u, '')}${entry.replace(/^\.\//u, '')}`
+    }
+  }
+  const modules = await Array.fromAsync(new Bun.Glob('packages/*/src/*.js').scan({ cwd: ROOT }))
   for await (const file of new Bun.Glob('packages/*/package.json').scan({ cwd: ROOT })) {
     /** @type {unknown} */
     const manifest = await Bun.file(`${ROOT}${file}`).json()
@@ -65,6 +117,9 @@ async function importMap() {
     if (typeof manifest === 'object' && manifest !== null && 'name' in manifest && typeof manifest.name === 'string') {
       imports[manifest.name] = `/${dir}index.js`
       imports[`${manifest.name}/`] = `/${dir}`
+      for (const module of modules.filter((path) => path.startsWith(dir))) {
+        imports[`${manifest.name}/${module.slice(dir.length).replace(/\.js$/u, '')}`] = `/${module}`
+      }
     }
   }
   return JSON.stringify({ imports })

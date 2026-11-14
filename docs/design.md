@@ -644,6 +644,13 @@ when the piece is no longer drawn, as with list's `render`.
 - **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's
   rectangle, shown while text is selected and the editor has focus. Its element goes inside the editor's, and it gives
   whether it is shown, and its buttons, as Watched values.
+- **`topLayerTooltips()`.** Every tooltip CodeMirror shows in an editor (suggestions, hover tooltips, any an app adds
+  through `showTooltip`) is drawn in one `manual` popover, open while the editor shows any, whose source is the editor:
+  nothing around the editor clips a tooltip or paints over it, and what overlays the page learns of a tooltip from the
+  popover's `toggle` events. The popover is an empty box at the window's top left corner, given to CodeMirror as its
+  tooltips' `parent`, so CodeMirror places them against the window, `fixed` or (Safari, iOS) `absolute`, as it would
+  without it. It is inside the editor's element, so tooltips inherit from the editor and match the selectors they did.
+  `textEditor` always composes it in, since a tooltip outside the top layer is what an app has to remember to avoid.
 - **`viewUpdates(view, fn)`.** Hears every update of an editor made elsewhere, until stopped: how the toolbar and the
   selection bar follow the state.
 

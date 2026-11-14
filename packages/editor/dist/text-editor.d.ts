@@ -3,7 +3,8 @@
  * made. The text from elsewhere says which of this editor's edits it includes; the editor shows it with the edits it
  * doesn't include yet laid over it (rebased, as `@codemirror/collab` does), so an echo of an earlier edit, or someone
  * else's edit, never undoes what was typed since. Everything else it does is composed in by the app: the grammar
- * (`grammarLanguage`), the Look (`lookDecorations`), the text class it shares with the reader, keys, overlays.
+ * (`grammarLanguage`), the Look (`lookDecorations`), the text class it shares with the reader, keys, overlays. Its
+ * tooltips are always in the top layer (`topLayerTooltips`).
  */
 import { ChangeSet } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
