@@ -123,12 +123,14 @@ opens it and moves its active key to the first item; Left/Escape closes it and f
 
 **As built** (the browser test's page, `test/page-menu.js`): `popover({ element, anchor, open, side })` shows a `manual`
 popover (closing is `dismiss`'s and the keys', never the browser's light dismiss) placed below or beside its anchor, and
-again on scroll and resize. `focusWhen({ element, when })` focuses in a microtask after `when` becomes true, so an
-element the same change shows is shown by then, whatever order the wiring heard it in. `dismiss({ elements, to })` sets
-`false` on a press outside every element, or on an Escape whose default nothing prevented: a level that binds Escape
-(keybinds prevents what a command takes) closes alone. `hoverIntent({ element, itemOf, to, rest })` hands on the key the
-pointer rests on **(P: 100 ms)**; a move restarts the wait. Focus is one `cell` naming the level (or the button) that
-has it; hovering an item gives its level focus, so the keys follow the pointer.
+again on scroll and resize. Beside it is on the right (`right`) or the left (`left`, ending where the anchor starts, by
+`right`, so the element's width is never needed: a block menu opening beside a handle at the left of its block).
+`focusWhen({ element, when })` focuses in a microtask after `when` becomes true, so an element the same change shows is
+shown by then, whatever order the wiring heard it in. `dismiss({ elements, to })` sets `false` on a press outside every
+element, or on an Escape whose default nothing prevented: a level that binds Escape (keybinds prevents what a command
+takes) closes alone. `hoverIntent({ element, itemOf, to, rest })` hands on the key the pointer rests on **(P: 100 ms)**;
+a move restarts the wait. Focus is one `cell` naming the level (or the button) that has it; hovering an item gives its
+level focus, so the keys follow the pointer.
 
 **Found while building:** a submenu's open state was first its own `cell`, which its parent's "which child is open" had
 to mirror; Left closed one and left the other. A submenu's open is now derived from its parent's choice, one source of
@@ -809,8 +811,8 @@ when the piece is no longer drawn, as with list's `render`.
   - **It goes with its segment.** Values are by key, so a moved segment keeps its own, a segment joined into another
     keeps it while undo may bring it back, and a segment laid in from elsewhere takes the one `put` gave its key first.
   - **Split.** A segment Enter splits off another starts with `split(value)` of the other's (a heading's next block is
-    text, a to-do's another to-do), before or after it. The other is found from where the transaction put the new
-    line break, in the state before it, and `of`; nothing of `segments` beyond `of` is read.
+    text, a to-do's another to-do), before or after it. The other is found from where the transaction put the new line
+    break, in the state before it, and `of`; nothing of `segments` beyond `of` is read.
   - **Changing one.** `change(key, value)` is an effect for the app's own transaction, so turning a block's type and
     taking its markdown off are one change. `put(view, key, value)` is a change from elsewhere that history doesn't
     record. `changed(transaction)` names the keys whose values a transaction changed other than by `put` (a change or a

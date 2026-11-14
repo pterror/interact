@@ -18,9 +18,9 @@
  */
 
 /**
- * Where it goes against its anchor: under it, starting at its left edge; beside it, starting at its top; or with its
- * centre on the anchor's centre
- * @typedef {'below' | 'right' | 'center'} Side
+ * Where it goes against its anchor: under it, starting at its left edge; beside it on the right or on the left, starting at
+ * its top; or with its centre on the anchor's centre
+ * @typedef {'below' | 'right' | 'left' | 'center'} Side
  */
 
 /**
@@ -28,12 +28,15 @@
  */
 
 /**
- * The point of an anchor's box a side places the element's corner (or, centred, its centre) at
+ * The point of an anchor's box a side places the element's corner (its top right, on the left; or, centred, its centre) at
  * @param {ReturnType<Anchor['getBoundingClientRect']>} box - The anchor's box
  * @param {Side} side - The side
  * @returns {Readonly<{ x: number, y: number }>} The point
  */
 function pointOf(box, side) {
+  if (side === 'left') {
+    return { x: box.left, y: box.top }
+  }
   if (side === 'center') {
     return { x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 }
   }
@@ -49,10 +52,15 @@ function pointOf(box, side) {
 function popover({ anchor, element, open, side = 'below' }) {
   element.popover = 'manual'
   const place = () => {
-    const { x, y } = pointOf(anchor.getBoundingClientRect(), side)
+    const box = anchor.getBoundingClientRect()
+    const { x, y } = pointOf(box, side)
     element.style.margin = '0'
     element.style.inset = 'auto'
-    element.style.left = `${String(x)}px`
+    if (side === 'left') {
+      element.style.right = `${String(element.ownerDocument.documentElement.clientWidth - x)}px`
+    } else {
+      element.style.left = `${String(x)}px`
+    }
     element.style.top = `${String(y)}px`
     if (side === 'center') {
       element.style.translate = '-50% -50%'

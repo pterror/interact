@@ -115,6 +115,9 @@ function segmentData({ initial, of, split }) {
       }
       const was = transaction.startState.field(field)
       const now = transaction.state.field(field)
+      if (was === now) {
+        return []
+      }
       return [...new Set([...was.keys(), ...now.keys()])].filter((key) => was.get(key) !== now.get(key))
     },
     get,

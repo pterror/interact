@@ -16,7 +16,7 @@ export type Anchor = Readonly<{
         bottom: number;
     }>;
 }>;
-export type Side = 'below' | 'right' | 'center';
+export type Side = 'below' | 'right' | 'left' | 'center';
 export type PopoverOptions = Readonly<{
     element: HTMLElement;
     anchor: Anchor;
