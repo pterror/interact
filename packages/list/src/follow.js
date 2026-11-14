@@ -1,15 +1,20 @@
 /**
  * The dragged item drawn following the pointer, by its `translate`: where it was drawn when the drag began (part-way
- * through settling, if it was), moved as far as the pointer since, however the items under it have moved (scrolled,
- * or others added or taken out). Once the drag ends, it slides from where it was let go to where it is laid out then
- * (the list as drag ends it: reordered, or not), marked `data-settling` while it does. It sets the `translate` of the
- * dragged item's element only, and no other style.
+ * through a slide, if it was), moved as far as the pointer since, however the items under it have moved (scrolled,
+ * or others added or taken out). Once the drag ends, dropped or cancelled, it slides from where it was let go to where
+ * it is laid out then (the list as drag ends it: reordered, or not, so a cancelled drag slides back to where it
+ * started), marked `data-settling` while it does. It sets the `translate` of the dragged item's element only, and no
+ * other style.
  */
 
+import { drawnAt, slide, sliding, stopSlide } from './slide.js'
 import { translated } from './translated.js'
 
-/** Below this, in pixels, a slide wouldn't show */
-const UNSEEN = 0.5
+/**
+ * Where a drag would land, as drag shows it
+ * @template K
+ * @typedef {Readonly<{ key: K, target: K, after: boolean }>} Dragging
+ */
 
 /**
  * A drag's pointer and how it stands, as drag shows it
@@ -23,22 +28,35 @@ const UNSEEN = 0.5
  */
 
 /**
- * The facet, and showing it a drag (drag's `showing`)
+ * The facet; showing it a drag (drag's `showing`); and whether it draws a key's `translate` now
  * @template K
  * @typedef {Readonly<{
  *   apply: (key: K, element: Element) => void,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  *   drop: (key: K, element: Element) => void,
- *   show: (at: unknown, motion: Motion<K>) => void,
+ *   showing: (at: Dragging<K> | undefined, motion: Motion<K>) => void,
+ *   has: (key: K) => boolean,
  * }>} Follow
  */
+
+/**
+ * @param {Element} element - The element
+ * @param {string} translate - Its `translate`, or `''` for none
+ * @returns {void}
+ */
+function write(element, translate) {
+  if (element instanceof HTMLElement || element instanceof SVGElement) {
+    element.style.translate = translate
+  }
+}
 
 /**
  * Draws the dragged item where the pointer takes it
  * @template K
  * @param {FollowOptions} options - The one axis it moves along (left out: both), and how long, in ms, it slides into
  *   place when the drag ends (0: it jumps)
- * @returns {Follow<K>} The facet, and showing it a drag
+ * @returns {Follow<K>} The facet, showing it a drag, and whether it draws a key: from the drag's first move until
+ *   its slide into place is over
  */
 function follow({ axis, duration }) {
   /** @type {Map<K, Element>} */
@@ -47,13 +65,15 @@ function follow({ axis, duration }) {
   const listeners = new Set()
   /** @type {WeakMap<Element, Animation>} */
   const settling = new WeakMap()
+  /** @type {K | undefined} */
+  let dragged = undefined
   /** @type {Readonly<{ key: K, x: number, y: number }> | undefined} */
   let moving = undefined
   /** @type {Readonly<{ x: number, y: number }> | undefined} */
   let anchor = undefined
   /** @type {Element | undefined} */
   let moved = undefined
-  /** @type {DOMRect | undefined} */
+  /** @type {Readonly<{ x: number, y: number }> | undefined} */
   let letGo = undefined
 
   /**
@@ -67,58 +87,51 @@ function follow({ axis, duration }) {
   }
 
   /**
-   * Stops an element sliding into place
+   * Stops an element sliding into place, and unmarks it
    * @param {Element} element - The element
    * @returns {void}
    */
   const settled = (element) => {
-    const animation = settling.get(element)
     settling.delete(element)
-    animation?.cancel()
+    stopSlide(element)
     if (element instanceof HTMLElement || element instanceof SVGElement) {
       delete element.dataset['settling']
     }
   }
 
   /**
-   * Slides an element from where it was drawn to where it is laid out
+   * Slides an element from where it was let go to where it is laid out, marked while it does
    * @param {Element} element - The element
-   * @param {Readonly<DOMRect>} before - Where it was drawn
+   * @param {Readonly<{ x: number, y: number }>} from - Where it was let go
    * @returns {void}
    */
-  const settle = (element, before) => {
-    const after = element.getBoundingClientRect()
-    const x = before.left - after.left
-    const y = before.top - after.top
-    if (duration <= 0 || Math.hypot(x, y) < UNSEEN) {
+  const settle = (element, from) => {
+    const animation = slide(element, from, duration)
+    if (animation === undefined) {
       return
     }
-    const animation = element.animate([{ translate: `${String(x)}px ${String(y)}px` }, { translate: '0px 0px' }], {
-      duration,
-      easing: 'ease-out',
-    })
     settling.set(element, animation)
     if (element instanceof HTMLElement || element instanceof SVGElement) {
       element.dataset['settling'] = ''
     }
-    animation.addEventListener('finish', () => {
+    const done = () => {
       if (settling.get(element) === animation) {
         settled(element)
       }
-    })
+    }
+    animation.addEventListener('finish', done)
+    animation.addEventListener('cancel', done)
   }
 
   return {
     apply(key, element) {
       elements.set(key, element)
-      if (element instanceof HTMLElement || element instanceof SVGElement) {
-        if (moving?.key === key) {
-          element.style.translate = `${String(moving.x)}px ${String(moving.y)}px`
-          moved = element
-        } else if (moved === element) {
-          element.style.translate = ''
-          moved = undefined
-        }
+      if (moving?.key === key) {
+        write(element, `${String(moving.x)}px ${String(moving.y)}px`)
+        moved = element
+      } else if (moved === element) {
+        write(element, '')
+        moved = undefined
       }
     },
     drop(key, element) {
@@ -126,21 +139,28 @@ function follow({ axis, duration }) {
         elements.delete(key)
       }
       settled(element)
-      if (moved === element && (element instanceof HTMLElement || element instanceof SVGElement)) {
-        element.style.translate = ''
+      if (moved === element) {
+        write(element, '')
         moved = undefined
       }
     },
-    show(_at, { from, key, phase, point }) {
+    has(key) {
+      if (key === dragged) {
+        return true
+      }
+      const element = elements.get(key)
+      return element !== undefined && sliding(settling.get(element))
+    },
+    showing(_at, { from, key, phase, point }) {
       const element = elements.get(key)
       if (phase === 'moving') {
+        dragged = key
         if (element === undefined) {
           moving = { key, x: 0, y: 0 }
           return
         }
         if (anchor === undefined) {
-          const drawn = element.getBoundingClientRect()
-          anchor = { x: drawn.left, y: drawn.top }
+          anchor = drawnAt(element)
           settled(element)
         }
         const rect = element.getBoundingClientRect()
@@ -152,10 +172,11 @@ function follow({ axis, duration }) {
         }
         changed(key)
       } else if (phase === 'ended') {
+        dragged = undefined
         moving = undefined
         anchor = undefined
-        if (moved instanceof HTMLElement || moved instanceof SVGElement) {
-          moved.style.translate = ''
+        if (moved !== undefined) {
+          write(moved, '')
           moved = undefined
         }
         changed(key)
@@ -165,7 +186,7 @@ function follow({ axis, duration }) {
           settle(element, before)
         }
       } else {
-        letGo = element?.getBoundingClientRect()
+        letGo = element === undefined ? undefined : drawnAt(element)
       }
     },
     watch(listener) {

@@ -60,7 +60,7 @@ function animated(element) {
      */
     animate(keyframes) {
       slid.push(keyframes)
-      last = Object.assign(new EventTarget(), { cancel: () => undefined })
+      last = Object.assign(new EventTarget(), { cancel: () => undefined, playState: 'running' })
       return last
     },
   })
@@ -97,13 +97,13 @@ describe('follow', () => {
     const elements = drawn(['a', 'b'], followed)
     const a = elementOf(elements, 'a')
     layOut(a, () => ({ x: 0, y: 0 }))
-    followed.show(undefined, motion(40, 'moving'))
+    followed.showing(undefined, motion(40, 'moving'))
     expect(a.style.translate).toBe('30px 0px')
-    followed.show(undefined, motion(55, 'moving'))
+    followed.showing(undefined, motion(55, 'moving'))
     expect(a.style.translate).toBe('45px 0px')
     expect(elementOf(elements, 'b').style.translate).toBe('')
-    followed.show(undefined, motion(55, 'dropped'))
-    followed.show(undefined, motion(55, 'ended'))
+    followed.showing(undefined, motion(55, 'dropped'))
+    followed.showing(undefined, motion(55, 'ended'))
     expect(a.style.translate).toBe('')
   })
 
@@ -112,10 +112,10 @@ describe('follow', () => {
     const a = elementOf(drawn(['a'], followed), 'a')
     let left = 0
     layOut(a, () => ({ x: left, y: 0 }))
-    followed.show(undefined, motion(40, 'moving'))
+    followed.showing(undefined, motion(40, 'moving'))
     const before = a.getBoundingClientRect().left
     left = -50
-    followed.show(undefined, motion(40, 'moving'))
+    followed.showing(undefined, motion(40, 'moving'))
     expect(a.getBoundingClientRect().left).toBe(before)
     expect(a.style.translate).toBe('80px 15px')
   })
@@ -126,15 +126,36 @@ describe('follow', () => {
     let left = 0
     layOut(a, () => ({ x: left, y: 0 }))
     const { last, slid } = animated(a)
-    followed.show(undefined, motion(40, 'moving'))
+    followed.showing(undefined, motion(40, 'moving'))
     expect(a.style.translate).toBe('30px 15px')
-    followed.show(undefined, motion(40, 'dropped'))
+    followed.showing(undefined, motion(40, 'dropped'))
     left = 110
-    followed.show(undefined, motion(40, 'ended'))
+    followed.showing(undefined, motion(40, 'ended'))
     expect(slid).toEqual([[{ translate: '-80px 15px' }, { translate: '0px 0px' }]])
     expect(a.dataset['settling']).toBe('')
     last()?.dispatchEvent(new Event('finish'))
     expect('settling' in a.dataset).toBe(false)
+  })
+
+  test('a cancelled drag slides back to where it started, and draws the item until it is back', () => {
+    const followed = follow({ duration: 100 })
+    const elements = drawn(['a', 'b'], followed)
+    const a = elementOf(elements, 'a')
+    layOut(a, () => ({ x: 0, y: 0 }))
+    const { last, slid } = animated(a)
+    expect(followed.has('a')).toBe(false)
+    followed.showing(undefined, motion(40, 'moving'))
+    expect(followed.has('a')).toBe(true)
+    followed.showing(undefined, motion(40, 'cancelled'))
+    expect(followed.has('a')).toBe(true)
+    followed.showing(undefined, motion(40, 'ended'))
+    expect(a.style.translate).toBe('')
+    expect(slid).toEqual([[{ translate: '30px 15px' }, { translate: '0px 0px' }]])
+    expect(followed.has('a')).toBe(true)
+    expect(followed.has('b')).toBe(false)
+    Object.assign(last() ?? {}, { playState: 'finished' })
+    last()?.dispatchEvent(new Event('finish'))
+    expect(followed.has('a')).toBe(false)
   })
 
   test('takes an item grabbed while it slides from where it is drawn, and stops its slide', () => {
@@ -143,10 +164,10 @@ describe('follow', () => {
     const { last } = animated(a)
     let left = 0
     layOut(a, () => ({ x: left, y: 0 }))
-    followed.show(undefined, motion(40, 'moving'))
-    followed.show(undefined, motion(40, 'dropped'))
+    followed.showing(undefined, motion(40, 'moving'))
+    followed.showing(undefined, motion(40, 'dropped'))
     left = 110
-    followed.show(undefined, motion(40, 'ended'))
+    followed.showing(undefined, motion(40, 'ended'))
     let cancelled = false
     Object.assign(last() ?? {}, {
       cancel: () => {
@@ -154,11 +175,11 @@ describe('follow', () => {
       },
     })
     a.getBoundingClientRect = () => new globalThis.window.DOMRect(70, 0, 100, 30)
-    followed.show(undefined, motion(20, 'moving'))
+    followed.showing(undefined, motion(20, 'moving'))
     expect(cancelled).toBe(true)
     expect('settling' in a.dataset).toBe(false)
     layOut(a, () => ({ x: left, y: 0 }))
-    followed.show(undefined, motion(20, 'moving'))
+    followed.showing(undefined, motion(20, 'moving'))
     expect(a.getBoundingClientRect().left).toBe(80)
   })
 })
@@ -170,7 +191,7 @@ describe('follow', () => {
  */
 function row() {
   const keys = ['a', 'b', 'c', 'd']
-  const room = makeRoom({ axis: 'x', duration: 0, rank: (/** @type {string} */ key) => keys.indexOf(key) })
+  const room = makeRoom({ axis: 'x', duration: 0, rank: { rank: (/** @type {string} */ key) => keys.indexOf(key) } })
   const elements = drawn(keys, room)
   for (const [index, element] of [...elements.values()].entries()) {
     layOut(element, () => ({ x: index * 110, y: 0 }))
@@ -181,26 +202,52 @@ function row() {
 describe('makeRoom', () => {
   test('moves the items a drag would pass one place back, and back again once a cancelled drag ends', () => {
     const { room, shifts } = row()
-    room.show(undefined, motion(20, 'moving'))
+    room.showing(undefined, motion(20, 'moving'))
     expect(shifts()).toEqual(['', '', '', ''])
-    room.show({ after: true, key: 'a', target: 'c' }, motion(240, 'moving'))
+    room.showing({ after: true, key: 'a', target: 'c' }, motion(240, 'moving'))
     expect(shifts()).toEqual(['', '-110px 0px', '-110px 0px', ''])
-    room.show({ after: false, key: 'a', target: 'c' }, motion(130, 'moving'))
+    room.showing({ after: false, key: 'a', target: 'c' }, motion(130, 'moving'))
     expect(shifts()).toEqual(['', '-110px 0px', '', ''])
-    room.show(undefined, motion(130, 'cancelled'))
+    room.showing(undefined, motion(130, 'cancelled'))
     expect(shifts()).toEqual(['', '-110px 0px', '', ''])
-    room.show(undefined, motion(130, 'ended'))
+    room.showing(undefined, motion(130, 'ended'))
     expect(shifts()).toEqual(['', '', '', ''])
+  })
+
+  test('draws the items it moves aside until they are back, a cancelled drag sliding them back', () => {
+    const keys = ['a', 'b', 'c']
+    const room = makeRoom({
+      axis: 'x',
+      duration: 100,
+      rank: { rank: (/** @type {string} */ key) => keys.indexOf(key) },
+    })
+    const elements = drawn(keys, room)
+    /** @type {Map<string, ReturnType<typeof animated>>} */
+    const slides = new Map()
+    for (const [index, [key, element]] of [...elements].entries()) {
+      layOut(element, () => ({ x: index * 110, y: 0 }))
+      slides.set(key, animated(element))
+    }
+    room.showing({ after: true, key: 'a', target: 'b' }, motion(130, 'moving'))
+    expect([room.has('a'), room.has('b'), room.has('c')]).toEqual([false, true, false])
+    expect(slides.get('b')?.slid).toEqual([[{ translate: '0px 0px' }, { translate: '-110px 0px' }]])
+    room.showing(undefined, motion(130, 'cancelled'))
+    room.showing(undefined, motion(130, 'ended'))
+    expect(elementOf(elements, 'b').style.translate).toBe('')
+    expect(slides.get('b')?.slid.at(-1)).toEqual([{ translate: '-110px 0px' }, { translate: '0px 0px' }])
+    expect(room.has('b')).toBe(true)
+    Object.assign(slides.get('b')?.last() ?? {}, { playState: 'finished' })
+    expect(room.has('b')).toBe(false)
   })
 
   test('keeps the room made through a drop until the drag ends', () => {
     const { room, shifts } = row()
     const d = { ...motion(0, 'moving'), key: 'd' }
-    room.show({ after: false, key: 'd', target: 'b' }, d)
+    room.showing({ after: false, key: 'd', target: 'b' }, d)
     expect(shifts()).toEqual(['', '110px 0px', '110px 0px', ''])
-    room.show(undefined, { ...d, phase: 'dropped' })
+    room.showing(undefined, { ...d, phase: 'dropped' })
     expect(shifts()).toEqual(['', '110px 0px', '110px 0px', ''])
-    room.show(undefined, { ...d, phase: 'ended' })
+    room.showing(undefined, { ...d, phase: 'ended' })
     expect(shifts()).toEqual(['', '', '', ''])
   })
 })

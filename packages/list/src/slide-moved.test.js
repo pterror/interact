@@ -40,14 +40,13 @@ function item(parent, at) {
   /** @type {unknown[]} */
   const slid = []
   Object.assign(element, {
-    getAnimations: () => [],
     /**
      * @param {unknown} keyframes - Where it slides
-     * @returns {unknown} The animation
+     * @returns {EventTarget} The animation
      */
     animate(keyframes) {
       slid.push(keyframes)
-      return { cancel: () => undefined, playState: 'running' }
+      return Object.assign(new EventTarget(), { cancel: () => undefined, playState: 'running' })
     },
   })
   return { element, slid }
@@ -62,6 +61,23 @@ async function settled() {
 }
 
 describe('slideMoved', () => {
+  test('slides whether or not render watches it, and once however often it does', async () => {
+    const parent = document.createElement('div')
+    document.body.append(parent)
+    let order = ['a', 'b']
+    const at = (/** @type {string} */ key) => () => ({ x: order.indexOf(key) * 110, y: 0 })
+    const { change, drawn } = changes()
+    const facet = slideMoved({ drawn, duration: 100 })
+    const a = item(parent, at('a'))
+    facet.apply('a', a.element)
+    facet.watch(() => undefined)
+    facet.watch(() => undefined)()
+    order = ['b', 'a']
+    change()
+    await settled()
+    expect(a.slid).toEqual([[{ translate: '-110px 0px' }, { translate: '0px 0px' }]])
+  })
+
   test('items a change moves slide from where they were to where they are', async () => {
     const parent = document.createElement('div')
     document.body.append(parent)
@@ -70,7 +86,6 @@ describe('slideMoved', () => {
     const items = new Map(['a', 'b', 'c'].map((key) => [key, item(parent, at(key))]))
     const { change, drawn } = changes()
     const facet = slideMoved({ drawn, duration: 100 })
-    facet.watch(() => undefined)
     for (const [key, { element }] of items) {
       facet.apply(key, element)
     }
@@ -89,7 +104,6 @@ describe('slideMoved', () => {
     const at = (/** @type {string} */ key) => () => ({ x: 0, y: order.indexOf(key) * 40 })
     const { change, drawn } = changes()
     const facet = slideMoved({ drawn, duration: 100 })
-    facet.watch(() => undefined)
     const a = item(parent, at('a'))
     const c = item(parent, at('c'))
     facet.apply('a', a.element)
@@ -104,22 +118,20 @@ describe('slideMoved', () => {
     expect(c.slid).toEqual([[{ translate: '0px -40px' }, { translate: '0px 0px' }]])
   })
 
-  test('an item drawn by something else, a duration of 0, and an unwatched facet slide nothing', async () => {
+  test('the items it is told to leave, a duration of 0, and a stopped facet slide nothing', async () => {
     const parent = document.createElement('div')
     document.body.append(parent)
     let order = ['a', 'b', 'c']
     const at = (/** @type {string} */ key) => () => ({ x: order.indexOf(key) * 110, y: 0 })
     const { change, drawn } = changes()
-    const facet = slideMoved({ drawn, duration: 100 })
-    const stop = facet.watch(() => undefined)
+    const left = new Set(['a', 'b'])
+    const facet = slideMoved({ drawn, duration: 100, leave: { has: (/** @type {string} */ key) => left.has(key) } })
     const a = item(parent, at('a'))
     const b = item(parent, at('b'))
     const c = item(parent, at('c'))
     facet.apply('a', a.element)
     facet.apply('b', b.element)
     facet.apply('c', c.element)
-    a.element.setAttribute('style', 'translate: 30px 0px')
-    Object.assign(b.element, { getAnimations: () => [{ playState: 'running' }] })
     order = ['c', 'b', 'a']
     change()
     await settled()
@@ -127,14 +139,13 @@ describe('slideMoved', () => {
     expect(b.slid).toEqual([])
     expect(c.slid).toEqual([[{ translate: '220px 0px' }, { translate: '0px 0px' }]])
 
-    stop()
+    facet.stop()
     order = ['a', 'b', 'c']
     change()
     await settled()
     expect(c.slid.length).toBe(1)
 
     const still = slideMoved({ drawn, duration: 0 })
-    still.watch(() => undefined)
     const d = item(parent, () => ({ x: order.indexOf('c') * 110, y: 0 }))
     still.apply('d', d.element)
     order = ['c', 'a', 'b']
@@ -149,7 +160,6 @@ describe('slideMoved', () => {
     let x = 0
     const { change, drawn } = changes()
     const facet = slideMoved({ drawn, duration: 100 })
-    facet.watch(() => undefined)
     const a = item(parent, () => ({ x, y: 0 }))
     facet.apply('a', a.element)
     facet.drop('a', a.element)

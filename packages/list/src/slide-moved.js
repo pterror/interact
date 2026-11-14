@@ -5,10 +5,10 @@
  *
  * Places are where items are laid out in their parent (their rect less their `translate`, from the parent's content
  * box's start, scrolled or not), kept from the last change, and again whenever the parent or an item is resized, so a
- * resize alone slides nothing. An item something else draws by its `translate` (a drag's facets) is left to it: one
- * with an inline `translate`, one whose inline `translate` was written in this frame (taken off just as the change
- * came), or one with an animation other than this one's running.
+ * resize alone slides nothing. The items `leave` names (those a drag's facets draw) are left to what draws them.
  */
+
+import { drawnAt, slide, stopSlide } from './slide.js'
 import { translated } from './translated.js'
 
 /**
@@ -17,16 +17,24 @@ import { translated } from './translated.js'
  */
 
 /**
- * @typedef {Readonly<{ drawn: Drawn, duration: number }>} SlideMovedOptions
+ * The keys something else draws by their `translate` now
+ * @template K
+ * @typedef {Readonly<{ has: (key: K) => boolean }>} Leave
  */
 
 /**
- * The facet
+ * @template K
+ * @typedef {Readonly<{ drawn: Drawn, duration: number, leave?: Leave<K> }>} SlideMovedOptions
+ */
+
+/**
+ * The facet, and stopping
  * @template K
  * @typedef {Readonly<{
  *   apply: (key: K, element: Element) => void,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  *   drop: (key: K, element: Element) => void,
+ *   stop: () => void,
  * }>} SlideMoved
  */
 
@@ -47,55 +55,20 @@ function placeOf(element) {
 }
 
 /**
- * Whether a `style` attribute's text sets `translate`
- * @param {string | null} style - The text
- * @returns {boolean} Whether it does
- */
-const setsTranslate = (style) => style !== null && /(?<start>^|;)\s*translate\s*:/u.test(style)
-
-/**
  * Slides items moved by a change to the drawn keys
  * @template K
- * @param {SlideMovedOptions} options - Hearing the drawn keys change (the change is looked at once every listener has
- *   heard, so render has drawn it); and how long, in ms, a slide takes (0: items jump, which an app passes for reduced
- *   motion)
- * @returns {SlideMoved<K>} The facet; it reports no keys, and hears the drawn keys while it is watched
+ * @param {SlideMovedOptions<K>} options - Hearing the drawn keys change (the change is looked at once every listener
+ *   has heard, so render has drawn it); how long, in ms, a slide takes (0: items jump, which an app passes for reduced
+ *   motion); and the keys to leave alone when a change comes (left out: none)
+ * @returns {SlideMoved<K>} The facet, which reports no keys; and stopping, after which no change slides anything
  */
-function slideMoved({ drawn, duration }) {
+function slideMoved({ drawn, duration, leave }) {
   /** @type {Map<K, Element>} */
   const elements = new Map()
   /** @type {WeakMap<Element, Readonly<{ x: number, y: number }>>} */
   const places = new WeakMap()
   /** @type {WeakMap<Element, Animation>} */
   const slides = new WeakMap()
-  /** @type {WeakSet<Element>} */
-  let written = new WeakSet()
-  let clearing = false
-
-  const forget = () => {
-    written = new WeakSet()
-    clearing = false
-  }
-
-  /**
-   * @param {readonly MutationRecord[]} records - Changes to items' `style`
-   * @returns {void}
-   */
-  const note = (records) => {
-    for (const record of records) {
-      if (
-        record.target instanceof Element &&
-        (setsTranslate(record.oldValue) || setsTranslate(record.target.getAttribute('style')))
-      ) {
-        written.add(record.target)
-        if (!clearing && typeof requestAnimationFrame === 'function') {
-          clearing = true
-          requestAnimationFrame(forget)
-        }
-      }
-    }
-  }
-  const styles = typeof MutationObserver === 'function' ? new MutationObserver(note) : undefined
 
   const keep = () => {
     for (const element of elements.values()) {
@@ -104,51 +77,26 @@ function slideMoved({ drawn, duration }) {
   }
   const resized = typeof ResizeObserver === 'function' ? new ResizeObserver(keep) : undefined
 
-  const changed = () => {
-    queueMicrotask(() => {
-      if (styles !== undefined) {
-        note(styles.takeRecords())
+  const look = () => {
+    for (const [key, element] of elements) {
+      resized?.observe(element.parentElement ?? element)
+      const was = places.get(element)
+      const now = placeOf(element)
+      places.set(element, now)
+      if (was === undefined || duration <= 0 || leave?.has(key) === true) {
+        continue
       }
-      for (const element of elements.values()) {
-        resized?.observe(element.parentElement ?? element)
-        const was = places.get(element)
-        const now = placeOf(element)
-        places.set(element, now)
-        if (
-          was === undefined ||
-          duration <= 0 ||
-          written.has(element) ||
-          setsTranslate(element.getAttribute('style')) ||
-          !(element instanceof HTMLElement || element instanceof SVGElement)
-        ) {
-          continue
-        }
-        const mine = slides.get(element)
-        const others = element
-          .getAnimations()
-          .some(
-            (/** @type {Readonly<Animation>} */ animation) => animation !== mine && animation.playState === 'running',
-          )
-        if (others) {
-          continue
-        }
-        const drawnBy = translated(element)
-        const x = was.x + drawnBy.x - now.x
-        const y = was.y + drawnBy.y - now.y
-        if (Math.abs(x) < 0.5 && Math.abs(y) < 0.5) {
-          continue
-        }
-        mine?.cancel()
-        slides.set(
-          element,
-          element.animate([{ translate: `${String(x)}px ${String(y)}px` }, { translate: '0px 0px' }], {
-            duration,
-            easing: 'ease-out',
-          }),
-        )
+      const at = drawnAt(element)
+      const animation = slide(element, { x: at.x + was.x - now.x, y: at.y + was.y - now.y }, duration)
+      if (animation !== undefined) {
+        slides.set(element, animation)
       }
-    })
+    }
   }
+
+  const stopHearing = drawn.watch(() => {
+    queueMicrotask(look)
+  })
 
   return {
     apply(key, element) {
@@ -157,19 +105,24 @@ function slideMoved({ drawn, duration }) {
       }
       elements.set(key, element)
       places.set(element, placeOf(element))
-      styles?.observe(element, { attributeFilter: ['style'], attributeOldValue: true, attributes: true })
       resized?.observe(element)
     },
     drop(key, element) {
       if (elements.get(key) === element) {
         elements.delete(key)
       }
-      slides.get(element)?.cancel()
-      slides.delete(element)
+      if (slides.has(element)) {
+        stopSlide(element)
+        slides.delete(element)
+      }
       resized?.unobserve(element)
     },
+    stop() {
+      stopHearing()
+      resized?.disconnect()
+    },
     watch() {
-      return drawn.watch(changed)
+      return () => undefined
     },
   }
 }

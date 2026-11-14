@@ -38,6 +38,8 @@ const STRIP_WIDTH = 300
 
 /** @type {Readonly<{ strip: HTMLElement, list: ReturnType<typeof arrayList<string>> }> | undefined} */
 let tabs = undefined
+/** The pointer last pressed on the strip */
+let pressed = 0
 
 /**
  * A tab
@@ -70,19 +72,26 @@ function putTabs(answers = 'now') {
   strip.style.inlineSize = `${String(STRIP_WIDTH)}px`
   strip.style.overflowX = 'auto'
   document.body.append(strip)
+  strip.addEventListener('pointerdown', (event) => {
+    pressed = event.pointerId
+  })
   const list = arrayList(['a', 'b', 'c', 'd'])
   /** @type {typeof cell<string | undefined>} */
   const keyCell = cell
   const dragged = keyCell(undefined)
   const followed = follow({ axis: 'x', duration: SETTLE_MS })
-  const room = makeRoom({ axis: 'x', duration: ROOM_MS, rank: arrayRank(list).rank })
+  const room = makeRoom({ axis: 'x', duration: ROOM_MS, rank: arrayRank(list) })
   const rendered = render({
     create,
     drawn: list,
     facets: [
       followed,
       room,
-      slideMoved({ drawn: list, duration: ROOM_MS }),
+      slideMoved({
+        drawn: list,
+        duration: ROOM_MS,
+        leave: { has: (/** @type {string} */ key) => followed.has(key) || room.has(key) },
+      }),
       mark({ attribute: 'data-dragging', on: '', test: dragged }),
     ],
     mount: flowMount(strip),
@@ -118,8 +127,8 @@ function putTabs(answers = 'now') {
     reorder,
     showing: (at, motion) => {
       dragged.set(motion.phase === 'moving' ? motion.key : undefined)
-      followed.show(at, motion)
-      room.show(at, motion)
+      followed.showing(at, motion)
+      room.showing(at, motion)
     },
   })
   tabs = { list, strip }
@@ -173,4 +182,13 @@ function scrollTabs(px) {
   }
 }
 
-export { LATE_MS, ROOM_MS, SETTLE_MS, putTabs, scrollTabs, seenTabs, setTabs }
+/**
+ * Cancels the pointer last pressed on the strip, as the browser does when something else takes it, which cancels a
+ * drag under way
+ * @returns {void}
+ */
+function loseTabs() {
+  tabs?.strip.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: pressed }))
+}
+
+export { LATE_MS, ROOM_MS, SETTLE_MS, loseTabs, putTabs, scrollTabs, seenTabs, setTabs }

@@ -184,6 +184,37 @@ describe.each(BROWSERS)('a tab strip, in %s', (engine) => {
     })
   })
 
+  test('slides a cancelled drag back to where it started, and the tabs it passed with it', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      const { room, settle } = await putTabs(page, 'now')
+      await page.mouse.move(50, Y)
+      await page.mouse.down()
+      await page.mouse.move(60, Y)
+      await page.mouse.move(200, Y)
+      await page.waitForTimeout(room + 50)
+      await page.evaluate(async () => {
+        const strip = await import('./page-tabs.js')
+        strip.loseTabs()
+      })
+      await page.waitForTimeout(50)
+      const cancelled = await look(page)
+      expect(cancelled.order).toEqual(['a', 'b', 'c', 'd'])
+      expect(cancelled.dragging).toEqual([])
+      expect(cancelled.settling).toEqual(['a'])
+      expect(shifts(cancelled)).toEqual([0, 0, 0, 0])
+      expect(cancelled.tabs.map((tab) => tab.sliding)).toEqual([true, true, true, false])
+      expect(leftOf(cancelled, 'a')).toBeGreaterThan(0)
+      await page.mouse.up()
+      await page.waitForTimeout(settle + 100)
+      expect(placed(await look(page))).toEqual([
+        ['a', 0, false],
+        ['b', 110, false],
+        ['c', 220, false],
+        ['d', 330, false],
+      ])
+    })
+  })
+
   test('keeps the dragged tab under a still pointer while the strip scrolls, and lands it by where it is drawn', async () => {
     await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
       await putTabs(page, 'now')

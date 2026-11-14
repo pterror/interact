@@ -2,18 +2,16 @@
  * Room made where a drag would land: the items between the dragged item's place and where it would land drawn moved
  * one place, by their `translate`, towards the place it leaves, sliding there. Dropped or cancelled, they stay drawn
  * where they are until the drag ends, then slide from there to where they are laid out: nowhere, if the reorder put
- * them where they were drawn; back, if it was refused or never came. It sets the `translate` of items other than the
- * dragged one, and no other style.
+ * them where they were drawn; back, if it was refused or the drag cancelled. It sets the `translate` of items other
+ * than the dragged one, and no other style.
  *
  * One place is the distance from the dragged item's start to the next item's (to the previous item's end from its
  * own end, for the last), measured where they are laid out when the drag begins, and again when the dragged item's
  * rank changes under it.
  */
 
-import { laidOut, translated } from './translated.js'
-
-/** Below this, in pixels, a slide wouldn't show */
-const UNSEEN = 0.5
+import { drawnAt, slide, sliding } from './slide.js'
+import { laidOut } from './translated.js'
 
 /**
  * Where a drag would land, as drag shows it
@@ -29,17 +27,22 @@ const UNSEEN = 0.5
 
 /**
  * @template K
- * @typedef {Readonly<{ axis: 'x' | 'y', rank: (key: K) => number | undefined, duration: number }>} MakeRoomOptions
+ * @typedef {Readonly<{
+ *   axis: 'x' | 'y',
+ *   rank: Readonly<{ rank: (key: K) => number | undefined }>,
+ *   duration: number,
+ * }>} MakeRoomOptions
  */
 
 /**
- * The facet, and showing it a drag (drag's `showing`)
+ * The facet; showing it a drag (drag's `showing`); and whether it draws a key's `translate` now
  * @template K
  * @typedef {Readonly<{
  *   apply: (key: K, element: Element) => void,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  *   drop: (key: K, element: Element) => void,
- *   show: (at: Dragging<K> | undefined, motion: Motion<K>) => void,
+ *   showing: (at: Dragging<K> | undefined, motion: Motion<K>) => void,
+ *   has: (key: K) => boolean,
  * }>} MakeRoom
  */
 
@@ -48,7 +51,8 @@ const UNSEEN = 0.5
  * @template K
  * @param {MakeRoomOptions<K>} options - Which way the items run, across (`x`) or down (`y`); each key's rank, at
  *   once; and how long, in ms, items slide (0: they jump)
- * @returns {MakeRoom<K>} The facet, and showing it a drag
+ * @returns {MakeRoom<K>} The facet, showing it a drag, and whether it draws a key: while the key is moved aside, or
+ *   held through a drop, or sliding
  */
 function makeRoom({ axis, duration, rank }) {
   /** @type {Map<K, Element>} */
@@ -58,10 +62,10 @@ function makeRoom({ axis, duration, rank }) {
   /** @type {WeakMap<Element, number>} */
   const shifted = new WeakMap()
   /** @type {WeakMap<Element, Animation>} */
-  const sliding = new WeakMap()
+  const slides = new WeakMap()
   /** @type {Readonly<{ key: K, from: number | undefined, step: number, at: Dragging<K> | undefined }> | undefined} */
   let drag = undefined
-  /** @type {Map<Element, DOMRect>} */
+  /** @type {Map<Element, Readonly<{ x: number, y: number }>>} */
   const letGo = new Map()
 
   /**
@@ -74,9 +78,9 @@ function makeRoom({ axis, duration, rank }) {
     if (drag === undefined || at === undefined || key === drag.key) {
       return 0
     }
-    const own = rank(key)
-    const target = rank(at.target)
-    const from = rank(drag.key)
+    const own = rank.rank(key)
+    const target = rank.rank(at.target)
+    const from = rank.rank(drag.key)
     if (own === undefined || target === undefined || from === undefined) {
       return 0
     }
@@ -129,7 +133,7 @@ function makeRoom({ axis, duration, rank }) {
     /** @type {Element | undefined} */
     let previous = undefined
     for (const [other, each] of elements) {
-      const at = rank(other)
+      const at = rank.rank(other)
       if (at === from + 1) {
         next = each
       } else if (at === from - 1) {
@@ -148,76 +152,82 @@ function makeRoom({ axis, duration, rank }) {
   }
 
   /**
-   * Slides an element from where it was drawn to where it is laid out
+   * Draws an element moved by `shift`, sliding there from where it is drawn
    * @param {Element} element - The element
-   * @param {Readonly<DOMRect>} before - Where it was drawn
+   * @param {number} by - Pixels along the axis
    * @returns {void}
    */
-  const slideIn = (element, before) => {
-    const after = element.getBoundingClientRect()
-    const by = axis === 'x' ? before.left - after.left : before.top - after.top
-    if (duration > 0 && Math.abs(by) >= UNSEEN) {
-      const start = axis === 'x' ? `${String(by)}px 0px` : `0px ${String(by)}px`
-      sliding.set(
-        element,
-        element.animate([{ translate: start }, { translate: '0px 0px' }], { duration, easing: 'ease-out' }),
-      )
+  const moveAside = (element, by) => {
+    if (!(element instanceof HTMLElement || element instanceof SVGElement)) {
+      return
+    }
+    const from = drawnAt(element)
+    element.style.translate = by === 0 ? '' : axis === 'x' ? `${String(by)}px 0px` : `0px ${String(by)}px`
+    if (by === 0) {
+      shifted.delete(element)
+    } else {
+      shifted.set(element, by)
+    }
+    const animation = slide(element, from, duration)
+    if (animation === undefined) {
+      slides.delete(element)
+    } else {
+      slides.set(element, animation)
     }
   }
 
   return {
     apply(key, element) {
       elements.set(key, element)
-      const shift = shiftOf(key)
-      const was = shifted.get(element) ?? 0
-      if (shift === was || !(element instanceof HTMLElement || element instanceof SVGElement)) {
-        return
-      }
-      const drawn = translated(element)[axis]
-      sliding.get(element)?.cancel()
-      element.style.translate = shift === 0 ? '' : axis === 'x' ? `${String(shift)}px 0px` : `0px ${String(shift)}px`
-      shifted.set(element, shift)
-      if (duration > 0 && Math.abs(drawn - shift) >= UNSEEN) {
-        const start = axis === 'x' ? `${String(drawn)}px 0px` : `0px ${String(drawn)}px`
-        const end = axis === 'x' ? `${String(shift)}px 0px` : `0px ${String(shift)}px`
-        sliding.set(
-          element,
-          element.animate([{ translate: start }, { translate: end }], { duration, easing: 'ease-out' }),
-        )
+      const now = shiftOf(key)
+      if (now !== (shifted.get(element) ?? 0) && !letGo.has(element)) {
+        moveAside(element, now)
       }
     },
     drop(key, element) {
       if (elements.get(key) === element) {
         elements.delete(key)
       }
+      letGo.delete(element)
+      slides.get(element)?.cancel()
+      slides.delete(element)
       if (shifted.has(element) && (element instanceof HTMLElement || element instanceof SVGElement)) {
-        sliding.get(element)?.cancel()
         element.style.translate = ''
         shifted.delete(element)
       }
     },
-    show(at, { key, phase }) {
+    has(key) {
+      const element = elements.get(key)
+      return (
+        element !== undefined &&
+        ((shifted.get(element) ?? 0) !== 0 || letGo.has(element) || sliding(slides.get(element)))
+      )
+    },
+    showing(at, { key, phase }) {
       if (phase === 'moving') {
-        const from = rank(key)
+        const from = rank.rank(key)
         const step = drag?.key === key && drag.from === from ? drag.step : from === undefined ? 0 : stepOf(key, from)
         drag = { at, from, key, step }
         report()
       } else if (phase === 'ended') {
         drag = undefined
-        for (const [element, before] of letGo) {
+        const held = [...letGo]
+        letGo.clear()
+        for (const [element, before] of held) {
           if (element instanceof HTMLElement || element instanceof SVGElement) {
-            sliding.get(element)?.cancel()
             element.style.translate = ''
             shifted.delete(element)
-            slideIn(element, before)
+            const animation = slide(element, before, duration)
+            if (animation !== undefined) {
+              slides.set(element, animation)
+            }
           }
         }
-        letGo.clear()
         report()
       } else {
         for (const element of elements.values()) {
           if ((shifted.get(element) ?? 0) !== 0) {
-            letGo.set(element, element.getBoundingClientRect())
+            letGo.set(element, drawnAt(element))
           }
         }
       }

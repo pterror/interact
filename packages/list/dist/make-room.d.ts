@@ -2,8 +2,8 @@
  * Room made where a drag would land: the items between the dragged item's place and where it would land drawn moved
  * one place, by their `translate`, towards the place it leaves, sliding there. Dropped or cancelled, they stay drawn
  * where they are until the drag ends, then slide from there to where they are laid out: nowhere, if the reorder put
- * them where they were drawn; back, if it was refused or never came. It sets the `translate` of items other than the
- * dragged one, and no other style.
+ * them where they were drawn; back, if it was refused or the drag cancelled. It sets the `translate` of items other
+ * than the dragged one, and no other style.
  *
  * One place is the distance from the dragged item's start to the next item's (to the previous item's end from its
  * own end, for the last), measured where they are laid out when the drag begins, and again when the dragged item's
@@ -20,14 +20,17 @@ export type Motion<K> = Readonly<{
 }>;
 export type MakeRoomOptions<K> = Readonly<{
     axis: 'x' | 'y';
-    rank: (key: K) => number | undefined;
+    rank: Readonly<{
+        rank: (key: K) => number | undefined;
+    }>;
     duration: number;
 }>;
 export type MakeRoom<K> = Readonly<{
     apply: (key: K, element: Element) => void;
     watch: (listener: (keys?: readonly K[]) => void) => () => void;
     drop: (key: K, element: Element) => void;
-    show: (at: Dragging<K> | undefined, motion: Motion<K>) => void;
+    showing: (at: Dragging<K> | undefined, motion: Motion<K>) => void;
+    has: (key: K) => boolean;
 }>;
 /**
  * Where a drag would land, as drag shows it
@@ -41,16 +44,21 @@ export type MakeRoom<K> = Readonly<{
  */
 /**
  * @template K
- * @typedef {Readonly<{ axis: 'x' | 'y', rank: (key: K) => number | undefined, duration: number }>} MakeRoomOptions
+ * @typedef {Readonly<{
+ *   axis: 'x' | 'y',
+ *   rank: Readonly<{ rank: (key: K) => number | undefined }>,
+ *   duration: number,
+ * }>} MakeRoomOptions
  */
 /**
- * The facet, and showing it a drag (drag's `showing`)
+ * The facet; showing it a drag (drag's `showing`); and whether it draws a key's `translate` now
  * @template K
  * @typedef {Readonly<{
  *   apply: (key: K, element: Element) => void,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  *   drop: (key: K, element: Element) => void,
- *   show: (at: Dragging<K> | undefined, motion: Motion<K>) => void,
+ *   showing: (at: Dragging<K> | undefined, motion: Motion<K>) => void,
+ *   has: (key: K) => boolean,
  * }>} MakeRoom
  */
 /**
@@ -58,7 +66,8 @@ export type MakeRoom<K> = Readonly<{
  * @template K
  * @param {MakeRoomOptions<K>} options - Which way the items run, across (`x`) or down (`y`); each key's rank, at
  *   once; and how long, in ms, items slide (0: they jump)
- * @returns {MakeRoom<K>} The facet, and showing it a drag
+ * @returns {MakeRoom<K>} The facet, showing it a drag, and whether it draws a key: while the key is moved aside, or
+ *   held through a drop, or sliding
  */
 declare function makeRoom<K>({ axis, duration, rank }: MakeRoomOptions<K>): MakeRoom<K>;
 export { makeRoom };
