@@ -41,7 +41,7 @@ Each is owned by the module(s) named, which declare it.
 | RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`            | visibleRanks                                                                             |
 | Place       | `place(rank) → rect`, `watch(fn)`                                           | place, placeFromBottom                                                                   |
 | Extent      | `extent(count) → size`, `watch(fn)`                                         | sizer                                                                                    |
-| Gap         | `gapAt(point, drag: {key, from}) → {target: key, after: bool} \| none`      | drag, leadingGaps                                                                        |
+| Gap         | `gapAt(point, drag: {key, from}) → {target: key, after: bool} \| none`      | drag, leadingGaps, segmentGaps (editor)                                                  |
 | Showing     | `showing(at: Dragging \| none, motion: {key, from, point, phase})`          | drag, follow, makeRoom                                                                   |
 | Reorder     | `move(key, target: key, after: bool) → later bool \| none`                  | drag                                                                                     |
 | Scroll      | `scrollBy(px)`                                                              | edgeScroll, viewFromBottom                                                               |
@@ -794,8 +794,22 @@ when the piece is no longer drawn, as with list's `render`.
     else's change. The selection is mapped through them, so the cursor stays where it was in what was typed.
   - **Hooks.** Each segment's first line carries `data-segment` (`empty` when it has no text), for the app to style a
     block's spacing or its placeholder.
+  - **Moving.** `move(view, key, target, after)` puts a segment before or after another, with its key and its text, as a
+    text from elsewhere like the three above, in one transaction: the app lays in an order changed elsewhere, or one a
+    drag asked for. A selection inside the moved segment goes with it; one elsewhere is mapped as usual. Undo doesn't
+    reach a move **(P)**: the order is the app's to save, as `insert` and `remove` are.
   - Not here: how a segment's text is saved, and how a text changed elsewhere is rebased over what isn't saved yet. Both
     are the app's, since each kind of text has its own store and its own way of saying what it includes.
+  - **Changed while building the antisocial network's block handles:** an order changed elsewhere could only be laid in
+    as a `remove` and an `insert`, two transactions that lose the cursor of someone writing in the moved block, and
+    whose first a drag takes as the reorder. `move` was added; nothing else changed.
+- **`segmentGaps({ view, of })`** **(P)**: a Gap (list's, case 7) over the segments of one editor, for `drag`. The
+  segment drawn at the point's height is the target, before or after it by which half of its lines the point is in;
+  above the first is before it, below the last after it. Heights are the editor's own (`lineBlockAt`), so segments
+  outside the drawn part answer by CodeMirror's estimate. list's `gaps` can't serve: it asks which element the point is
+  over, and a segment is lines of the editor, which no element of its own stands for and which the editor redraws as it
+  likes. `drag` itself needs no change: its `itemOf` is the app's (the handle beside the hovered segment), its Drawn is
+  the segments' keys heard through `viewUpdates`, and `showing` draws a drop line.
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
   viewport or the tree changes, and from scratch when the app dispatches `lookChanged`: what the Look draws changed with
   the text unchanged (a macro's value arrived, macros shown as written). While an IME composes, they're only moved with
@@ -831,7 +845,13 @@ when the piece is no longer drawn, as with list's `render`.
   they cross, asked for over the whole text at each `show`, and a later answer redraws from the first part it touches.
   Only the answer to the latest question is drawn. Overlays never change the tree or the text.
 - **`suggestions(sources)`.** One completion mechanism over `@codemirror/autocomplete`, fed by Suggest values. An Option
-  is `{ label, detail?, apply(view, from, to), info?() → later Element }`.
+  is `{ label, detail?, apply(view, from, to), info?() → later Element, section?, icon?() → Element }`. Options a label
+  matches equally well keep their answer's order; options with a `section` are shown together under it, sections in the
+  order they first come in the answer; `icon` is drawn where CodeMirror draws its own.
+  - **Changed while building a block menu (Notion's "/")**: CodeMirror broke ties by label, so a menu's order (Text,
+    Heading 1, Heading 2, ...) came out alphabetical, and an Option had no way to carry a group or an icon. `section`
+    and `icon` were added, both optional, and ties keep the source's order, which mentions and emoji (most relevant
+    first) want too.
 - **`toolbar({ view, tools })`.** Buttons for a Watched list of Tools, in a space the field always reserves, so showing
   it never moves the field. Its state is `aria-pressed` (from `on`) and `aria-disabled` (from `applies`). A press keeps
   the editor's selection and focus. It gives its buttons as a Watched, for what is composed onto them. Which tools a
