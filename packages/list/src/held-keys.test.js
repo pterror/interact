@@ -73,4 +73,17 @@ describe('heldKeys', () => {
     held.set(undefined)
     expect(held.get()).toBeUndefined()
   })
+
+  test('holds a removed key again once the list has it again, as arrayList does', () => {
+    /** @type {import('./held-keys.js').HeldKeys<string>} */
+    const holds = heldKeys()
+    const held = holds.hold('a', 'none')
+    holds.remove([{ key: 'b', next: 'c', previous: 'a' }])
+    held.set('b')
+    expect(held.get()).toBe('a')
+    holds.add(['b'])
+    held.set('b')
+    expect(held.get()).toBe('b')
+    expect(holds.hold('b', 'next').get()).toBe('b')
+  })
 })
