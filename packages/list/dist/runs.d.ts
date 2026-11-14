@@ -9,7 +9,7 @@ export type Adjacent<K> = Readonly<{
     watch: (listener: (keys?: readonly K[]) => void) => () => void;
 }>;
 export type Together<K> = Readonly<{
-    has: (before: K, key: K) => boolean;
+    together: (before: K, key: K) => boolean;
     watch: (listener: (keys?: readonly K[]) => void) => () => void;
 }>;
 export type RunsOptions<K> = Readonly<{
@@ -30,7 +30,7 @@ export type RunsOptions<K> = Readonly<{
  * keys whose item changed (none: any)
  * @template K
  * @typedef {Readonly<{
- *   has: (before: K, key: K) => boolean,
+ *   together: (before: K, key: K) => boolean,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  * }>} Together
  */

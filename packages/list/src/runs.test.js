@@ -22,7 +22,7 @@ describe('runs', () => {
     const continues = runs({
       before: { of: (/** @type {string} */ key) => known.get(key), watch: () => () => undefined },
       together: {
-        has: (/** @type {string} */ before, /** @type {string} */ key) =>
+        together: (/** @type {string} */ before, /** @type {string} */ key) =>
           authors.get().get(before) === authors.get().get(key),
         watch: (listener) =>
           authors.watch(() => {
@@ -48,7 +48,7 @@ describe('runs', () => {
         },
       },
       together: {
-        has: () => true,
+        together: () => true,
         watch: (listener) =>
           items.watch(() => {
             listener(['b'])

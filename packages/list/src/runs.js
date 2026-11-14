@@ -18,7 +18,7 @@
  * keys whose item changed (none: any)
  * @template K
  * @typedef {Readonly<{
- *   has: (before: K, key: K) => boolean,
+ *   together: (before: K, key: K) => boolean,
  *   watch: (listener: (keys?: readonly K[]) => void) => () => void,
  * }>} Together
  */
@@ -39,7 +39,7 @@ function runs({ before, together }) {
   return {
     has(key) {
       const near = before.of(key)?.key
-      return near !== undefined && together.has(near, key)
+      return near !== undefined && together.together(near, key)
     },
     watch(listener) {
       const stops = [
