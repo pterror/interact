@@ -11,10 +11,15 @@ npm install @pterror/interact-editor @codemirror/state @codemirror/view @codemir
 | Module                         | Does                                                                                           |
 | ------------------------------ | ---------------------------------------------------------------------------------------------- |
 | `textEditor(options)`          | a CodeMirror view over a text held elsewhere; each edit goes out with an id as it is made      |
+| `segments(options)`            | one CodeMirror view over many texts held apart (a page's blocks), each through its own port    |
+| `segmentData(options)`         | a value kept with each segment by its key (a block's type), moved, joined and undone with it   |
+| `segmentGaps(options)`         | where a segment dragged to a point would land, for list's `drag`                               |
+| `fromElsewhere(transaction)`   | whether a transaction lays in a change made elsewhere, not the person's                        |
 | `reader(options)`              | the text drawn for reading into an element, redrawn from the first part a new text changes     |
 | `overlays(list)`               | ranges drawn over the editor's text without changing it (search matches, lore marks)           |
 | `suggestions(sources)`         | one completion mechanism fed by every source of suggestions (macros, slash commands)           |
 | `toolbar(options)`             | a button per tool, `aria-pressed` and `aria-disabled` following the editor, keys in tooltips   |
+| `toolbarKeys(options)`         | a toolbar's moves among its buttons and its roving tabindex; the app binds the keys            |
 | `selectionBar(options)`        | the tools beside the selection, in a popover                                                   |
 | `topLayerTooltips()`           | every CodeMirror tooltip drawn in a popover, in the top layer; `textEditor` composes it in     |
 | `keyboardInset()`              | how much of the window an on-screen keyboard covers, so a toolbar can sit above it             |

@@ -22,39 +22,41 @@ Every name and every UX choice here is a proposal for the owner, not decided. Pr
 
 Each is owned by the module(s) named, which declare it.
 
-| Abstraction | Shape                                                                       | Owned by                                                                                 |
-| ----------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Value       | `() → T`                                                                    | move (`from`), typeahead (`from`)                                                        |
-| Watched     | `get() → T`, `watch(fn) → stop`                                             | activeDescendant, popover, focusWhen, inView, windowing, sizer, posInSet, viewFromBottom |
-| Set         | `(T) → void`                                                                | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`)           |
-| Step        | `step(k \| none, n) → later key \| none`                                    | move, adjacent                                                                           |
-| Find        | `find(prefix, after: k \| none) → later key \| none`                        | typeahead                                                                                |
-| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render, drag, slideMoved (`watch` only)                                                  |
-| Mount       | `put(key, element, before: element \| none)`, `remove(element)`             | render                                                                                   |
-| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)`    | render                                                                                   |
-| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                              | pick, drag, gaps, hoverIntent                                                            |
-| Test        | `has(key) → bool`, `watch(fn(keys?))`                                       | mark                                                                                     |
-| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                       | windowing                                                                                |
-| Locate      | `locate(key) → later rank \| none`                                          | windowing                                                                                |
-| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                    | place, placeFromBottom, posInSet, makeRoom (`rank` only)                                 |
-| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)         | rangeSelection                                                                           |
-| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`            | visibleRanks                                                                             |
-| Place       | `place(rank) → rect`, `watch(fn)`                                           | place, placeFromBottom                                                                   |
-| Extent      | `extent(count) → size`, `watch(fn)`                                         | sizer                                                                                    |
-| Gap         | `gapAt(point, drag: {key, from}) → {target: key, after: bool} \| none`      | drag, leadingGaps, segmentGaps (editor)                                                  |
-| Showing     | `showing(at: Dragging \| none, motion: {key, from, point, phase})`          | drag, follow, makeRoom                                                                   |
-| Reorder     | `move(key, target: key, after: bool) → later bool \| none`                  | drag                                                                                     |
-| Scroll      | `scrollBy(px)`                                                              | edgeScroll, viewFromBottom                                                               |
-| Pages       | `read(from: cursor \| none, count) → later Page[]`, `watch(fn)`             | cursorPages                                                                              |
-| Removal     | `{key, next: key \| none, previous: key \| none}`, one per removed key      | heldKeys                                                                                 |
-| Adjacent    | `of(key) → {key: key \| none} \| not known` (immediate), `watch(fn(keys?))` | runs                                                                                     |
-| Together    | `has(before, key) → bool` (immediate), `watch(fn(keys?))`                   | runs                                                                                     |
+| Abstraction | Shape                                                                       | Owned by                                                                                  |
+| ----------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Value       | `() → T`                                                                    | move (`from`), typeahead (`from`)                                                         |
+| Watched     | `get() → T`, `watch(fn) → stop`                                             | activeDescendant, popover, focusWhen, windowing, sizer, posInSet, viewFrom, stickToBottom |
+| Set         | `(T) → void`                                                                | move (`to`), typeahead (`to`), pick (`to`), dismiss (`to`), hoverIntent (`to`)            |
+| Step        | `step(k \| none, n) → later key \| none`                                    | move, adjacent, wrapStep                                                                  |
+| Find        | `find(prefix, after: k \| none) → later key \| none`                        | typeahead                                                                                 |
+| Drawn       | `keys() → Key[]`, `watch(fn)`                                               | render, adjacent, drag (`watch` only), slideMoved (`watch` only)                          |
+| Mount       | `put(key, element, before: element \| none)`, `remove(element)`             | render                                                                                    |
+| Facet       | `apply(key, element)`, `watch(fn(keys?))`, optional `drop(key, element)`    | render                                                                                    |
+| ItemOf      | `itemOf(eventTarget) → {key, element} \| none`                              | pick, drag, gaps, leadingGaps, hoverIntent                                                |
+| Test        | `has(key) → bool`, `watch(fn(keys?))`                                       | mark, slideMoved (`has` only)                                                             |
+| KeysAt      | `keysAt(fromRank, toRank) → later Key[]`, `watch(fn)`                       | windowing                                                                                 |
+| Locate      | `locate(key) → later rank \| none`                                          | windowing                                                                                 |
+| Rank        | `rank(key) → rank \| none` (immediate), `watchRanks(fn)`                    | place, posInSet, makeRoom (`rank` only)                                                   |
+| Compare     | `compare(a, b) → -1 \| 0 \| 1` (drawn or held keys only, immediate)         | rangeSelection                                                                            |
+| RanksIn     | `ranksIn(fromPx, toPx, count) → [fromRank, toRank)`, `watch(fn)`            | visibleRanks                                                                              |
+| Place       | `place(rank) → rect`, `watch(fn)`                                           | place                                                                                     |
+| Extent      | `extent(count) → size`, `watch(fn)`                                         | sizer                                                                                     |
+| Gap         | `gapAt(point, drag: {key, from}) → {target: key, after: bool} \| none`      | drag                                                                                      |
+| Showing     | `showing(at: Dragging \| none, motion: {key, from, point, phase})`          | drag                                                                                      |
+| Reorder     | `move(key, target: key, after: bool) → later bool`                          | drag                                                                                      |
+| Scroll      | `scrollBy(px)`                                                              | edgeScroll, viewFrom, stickToBottom                                                       |
+| Pages       | `read(from: cursor \| none, count) → later Page[]`, `watch(fn)`             | cursorPages                                                                               |
+| Removal     | `{key, next: key \| none, previous: key \| none}`, one per removed key      | heldKeys                                                                                  |
+| Adjacent    | `of(key) → {key: key \| none} \| not known` (immediate), `watch(fn(keys?))` | runs                                                                                      |
+| Together    | `together(before, key) → bool` (immediate), `watch(fn(keys?))`              | runs                                                                                      |
 
 `Step`: `step(none, 1)` is the first key, `step(none, -1)` the last; `step(k, n)` goes `n` keys on and stops at the
 edge; `none` comes back only for an empty list. `Find` returns the first key after `after` (wrapping) whose text starts
 with `prefix`, ignoring case. `Drawn` draws every key the list holds for others (below) and at least every visible key.
 `Facet.watch` reports the keys whose facet changed, or nothing for "any". `render` mounts an element, then applies every
-facet to it in one synchronous pass, and applies a facet again to the keys it reports.
+facet to it in one synchronous pass, and applies a facet again to the keys it reports. `Reorder` answers `true` once the
+list is as the move left it and every listener to the list has heard, `false` if it won't move it; a failure counts as
+`false`.
 
 **Held keys.** A list gives out held keys: `hold(initial, whenRemoved)` is a Watched, Set and Test whose key is always
 in that list, or none. The list updates it inside the edit that removes its key, to the next key (`next`), the previous
@@ -123,35 +125,33 @@ opens it and moves its active key to the first item; Left/Escape closes it and f
 
 **As built** (the browser test's page, `test/page-menu.js`): `popover({ element, anchor, open, side })` shows a `manual`
 popover (closing is `dismiss`'s and the keys', never the browser's light dismiss) placed below or beside its anchor, and
-again on scroll and resize. Beside it is on the right (`right`) or the left (`left`, ending where the anchor starts, by
-`right`, so the element's width is never needed: a block menu opening beside a handle at the left of its block).
-`focusWhen({ element, when })` focuses in a microtask after `when` becomes true, so an element the same change shows is
-shown by then, whatever order the wiring heard it in. `dismiss({ elements, to })` sets `false` on a press outside every
-element, or on an Escape whose default nothing prevented: a level that binds Escape (keybinds prevents what a command
-takes) closes alone. `hoverIntent({ element, itemOf, to, rest })` hands on the key the pointer rests on **(P: 100 ms)**;
-a move restarts the wait. Focus is one `cell` naming the level (or the button) that has it; hovering an item gives its
-level focus, so the keys follow the pointer.
+again on scroll and resize. `focusWhen({ element, when })` focuses in a microtask after `when` becomes true, so an
+element the same change shows is shown by then, whatever order the wiring heard it in. `dismiss({ elements, to })` sets
+`false` on a press outside every element, or on an Escape whose default nothing prevented: a level that binds Escape
+(keybinds prevents what a command takes) closes alone. `hoverIntent({ element, itemOf, to, rest })` hands on the key the
+pointer rests on **(P: 100 ms)**; a move restarts the wait. Focus is one `cell` naming the level (or the button) that
+has it; hovering an item gives its level focus, so the keys follow the pointer.
 
 **Found while building:** a submenu's open state was first its own `cell`, which its parent's "which child is open" had
 to mirror; Left closed one and left the other. A submenu's open is now derived from its parent's choice, one source of
 truth. `mark` applies its off value to every key, so a submenu item's `aria-expanded="false"` (which a plain item
 mustn't carry) is a small facet in the page; open whether `mark` should take the keys it applies to.
 
-**Found while building the antisocial network's menus:** a menu opened near the window's right edge overflowed it.
-`popover` places its element against the anchor's box only; it never knows the element's size, and a hidden popover has
-none when it is placed. Apps wrapped the anchor in one that guessed the size (300 px when it couldn't be measured),
-which only held for panels of that width. Adds, beside `popover`, which is unchanged:
+**Changed while building the antisocial network's menus:**
 
-- `inView({ element, open, margin })`: while `open`, moves the element by the least that keeps its box a margin **(P: 8
-  px)** inside the window on each edge it overflows (a box larger than the window keeps its top and left in). The move
-  is the element's own `margin-left` and `margin-top`, the only inline style it writes, so it composes with whatever
-  places the element. It looks in a microtask after `open` becomes true, as `focusWhen` does, so the element is shown
-  and placed by then, whatever order the wiring heard it in; and before the next frame after a scroll, a resize or a
-  change of the element's size, so a placement made by those has happened first.
-
-**Fixed after building:** `inView` measured the element's box with `getBoundingClientRect`, which includes transforms,
-so a menu still scaled by its opening animation was moved by too little. It now measures its layout box (`offsetLeft`,
-`offsetTop`, and its size), where the element is laid out once it has grown in.
+- A menu opened near the window's right edge overflowed it: `popover` placed its element against the anchor's box only.
+  Fitting is part of placing, so `popover` now keeps a popover below or beside its anchor inside the window: one that
+  would come within a margin **(P: 8 px)** of an edge it grows towards is flipped to the anchor's other side across,
+  then along, then both, the first that fits, staying as first placed if none does. Against an HTML element in a browser
+  with CSS Anchor Positioning, the popover is shown with the element as its `source` (its implicit anchor, taken by
+  `position-anchor: auto`), and the browser places it, follows the anchor and flips it by
+  `position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline`; the margin is the popover's margin on the
+  sides it grows towards, which the flips swap. Otherwise (a point, or no anchor positioning) `popover` measures the
+  shown element's layout size (not its box, which an opening animation scales) and places and flips it the same way,
+  again on scroll, resize and a change of the element's size. A centred popover is unchanged: whether it is kept inside
+  the window is open (the backlog's keybinds decisions).
+- `side: 'left'` puts the popover beside its anchor on the left, ending where the anchor starts, placed by `right` so
+  its width is never needed: a block menu opening beside a handle at the left of its block.
 
 ## Case 5: a combobox
 
@@ -177,43 +177,45 @@ an element's group from the element, and `rowMount` (case 9) can't tell its row;
 is needs its key. `flowMount` ignores it.
 
 **Runs** (found building the antisocial network's chat). A chat puts a message in the same run as the one before it when
-the two belong together **(P: one author, within five minutes; the app's measure)**. A run has no header and no element
-of its own. It isn't a group known from the key: whether a key continues a run depends on its neighbour, and that answer
+the two belong together, by the app's measure (one author, within five minutes). A run has no header and no element of
+its own. It isn't a group known from the key: whether a key continues a run depends on its neighbour, and that answer
 may come late, or after the answer about a later key. `withHeaders` and `groupMount` take `groupOf(key)` and stay as
 they are. Adds:
 
-- `adjacent` **(P)**: each key's neighbour on one side. Parameters: step (a Step; `step(k, by)` answering `k` itself
-  means `k` is at the edge), by (`-1`: the key before), changes (hearing the keys whose neighbour may have changed;
-  none: any). Gives Adjacent: `of(key)`, not known until asked and answered, then `{key}` (none at the edge); and
-  `watch(fn(keys?))`, the keys whose neighbour became known or changed. A key is asked about the first time it is
-  wanted, so only what is drawn costs anything. Each key takes only the answer to its latest question; after a change it
-  keeps its last answer until the new one comes, so nothing marked from it flickers while the list asks again. A failed
-  question is asked again the next time the key is wanted.
-- `runs` **(P)**: a Test, whether a key continues the run of the key before it: its neighbour is known and the two
-  belong together. Parameters: before (an Adjacent), together (`has(before, key)`, false while what it needs isn't
-  known, and `watch(fn(keys?))`). A change `together` reports is heard as a change to any key, since it changes the
-  answer for the key after too.
+- `adjacent`: each key's neighbour on one side. Parameters: step (a Step, as `move` takes; `step(k, by)` answering `k`
+  itself means `k` is at the edge), by (`-1`: the key before), changes (hearing the keys whose neighbour may have
+  changed; none: any), drawn (a Drawn). Gives Adjacent: `of(key)`, not known until asked and answered, then `{key}`
+  (none at the edge); `watch(fn(keys?))`, the keys whose neighbour became known or changed; and `stop()`. A key is asked
+  about the first time it is wanted, and let go of once it is no longer drawn, as `windowing` lets go of its rank, so
+  only what is drawn costs anything. Each key takes only the answer to its latest question; after a change it keeps its
+  last answer until the new one comes, so nothing marked from it flickers while the list asks again. A failed question
+  is asked again the next time the key is wanted.
+- `runs`: a Test, whether a key continues the run of the key before it: its neighbour is known and the two belong
+  together. Parameters: before (an Adjacent), together (`together(before, key)`, false while what it needs isn't known,
+  and `watch(fn(keys?))`; a question about two keys, so not Test's `has`). A change `together` reports is heard as a
+  change to any key, since it changes the answer for the key after too.
 
 Wiring:
-`mark({ test: runs({ before: adjacent({ step, by: -1, changes }), together }), attribute: 'data-run', on: 'continues' })`
+`mark({ test: runs({ before: adjacent({ step, by: -1, changes, drawn }), together }), attribute: 'data-run', on: 'continues' })`
 **(P)**; the app styles a message that continues a run (no name, less space above). `together` is the app's, over its
 items, and is heard when an item arrives. Over `cursorPages`, `step` is its Step and `changes` its `watch`; its Step
 answers a key outside the run it holds with that key, so such a key starts a run until it is in the run again. When rank
 0 is the newest message (a chat counted from the bottom, case 8), the message before is a rank later, so `by` is `1`.
 
-**Open:** `adjacent` keeps every answer for its lifetime (one entry per key asked about), as the holds are kept (see
-"Releasing a held key"). Whether a run should also be an element (`role=group`) is the owner's: `groupMount` couldn't
-place by run, since a run's identity, its first key, is known only from late answers.
+A run stays an attribute, not an element: WAI-ARIA advises against a `group` without a name, and a run has none to give
+(https://www.w3.org/TR/wai-aria-1.2/#group); `groupMount` couldn't place by run either, since a run's identity, its
+first key, is known only from late answers.
 
 ## Case 7: drag to reorder
 
 Adds `drag`: a press becomes a drag after the pointer moves a few pixels **(P: 4)**; it asks Gap where the pointer is,
 hands the drag to `showing` (none when it ends), calls Reorder on release, and swallows the click that ends it.
-Parameters: element, itemOf, gap, reorder, showing. Adds `gaps` (Gap from the element under the pointer and `render`'s
-ItemOf: before or after that item by which half it is in, along `y` for a list or `x` for cards), `edgeScroll` (scrolls
-while the pointer is near the scroller's top or bottom during a drag; parameters: element, scrollBy, active), and
-`arrayReorder`. The drag is shown by marks over a `cell` that `showing` sets: `data-dragging`, `data-drop-before`,
-`data-drop-after` **(P)**. Keyboard: Alt+arrow moves the active item one place **(P)**.
+Parameters: element, drawn, held, itemOf, gap, reorder, showing (`drawn` and `held` since the tab strip, below). Adds
+`gaps` (Gap from the element under the pointer and `render`'s ItemOf: before or after that item by which half it is in,
+along `y` for a list or `x` for cards), `edgeScroll` (scrolls while the pointer is near the scroller's top or bottom
+during a drag; parameters: element, scrollBy, active), and `arrayReorder`. The drag is shown by marks over a `cell` that
+`showing` sets: `data-dragging`, `data-drop-before`, `data-drop-after` **(P)**. Keyboard: Alt+arrow moves the active
+item one place **(P)**.
 
 **Changed while building:** Gap was `before: key | none` and Reorder `move(key, before)`. `gaps` knows only the item
 under the pointer, so "after the last item" or "after X" would need X's neighbour, from another question; now both say
@@ -250,13 +252,13 @@ argument the existing implementations ignore, so they behave as before; drag gai
 **Changed while building the tab strip** (every answer may be late, and the items may change under a drag):
 
 - **When a drop ends.** `ended` came right after Reorder was called, so with a late Reorder the passed items were drawn
-  back before the reorder moved them. Now a drop ends once the list's own change notices say the drawn keys changed
-  (after every listener to them has heard, so render has drawn them), once Reorder answers `false` or fails, or after
-  `wait` **(P: 2000 ms)** if neither comes. Reorder may answer later, `false` meaning refused; one that answers nothing
-  is waited for the same way. drag takes **Drawn** for its `watch`; the first change after a drop is taken as the
-  reorder **(P)**, so another change arriving first ends the drop early, and the settle goes to the order as it then is.
-  Either way what `ended` shows is the list as it is, so `follow` and `makeRoom` slide from where things were let go to
-  where they are laid out: into the new order, or back to the old.
+  back before the reorder moved them. Reorder now answers when its change is applied: `true` once the list is as the
+  move left it and every listener to it has heard (so render has drawn it), `false` if it won't move, a failure counting
+  as `false`, at once or later; `arrayReorder` and `groupReorder` answer so. A drop ends on that answer, a microtask
+  later, so what heard the change has looked at it first (`slideMoved`, below). What `ended` shows is the list as it is,
+  so `follow` and `makeRoom` slide from where things were let go to where they are laid out: into the new order, or back
+  to the old one when the reorder is refused or fails. drag takes **Drawn** for its `watch`, to ask Gap again when the
+  drawn keys change.
 - **Items changing under a drag.** drag takes a **held key** of the list (`hold(undefined, 'none')`), which it sets to
   the dragged key while the drag lasts and to none when it ends. A list that draws its held keys keeps the dragged item
   drawn; when the list removes the key, the held key moves off it and the drag is cancelled. Any other change to the
@@ -272,8 +274,11 @@ argument the existing implementations ignore, so they behave as before; drag gai
   move with the button up lets it go, cancelling a drag.
 - **Settling.** `follow` marks the dragged item `data-settling` **(P)** while it slides into place, so an app can raise
   it over its neighbours. Grabbing it mid-slide stops the slide, unmarks it, and drags it from where it is drawn.
+- **Stopping.** `stop()` during a drag cancels and ends it, and during a drop waiting for its answer ends it; either way
+  the held key is let go of, so nothing is left drawn as dragged.
 
-drag and its parameters were already released (`list@0.1.0`), so the two new parameters are a major change.
+drag and Reorder were already released (`list@0.1.0`), so the two required parameters and Reorder's answer break what
+worked: a minor version while below 1.0, as keybinds' rebuild was.
 
 Adds `leadingGaps` **(P)** beside `gaps`: a Gap for items in one row or column, by the dragged item's leading edge, as
 above, the direction of travel turning only once the pointer comes back further than a few pixels **(P: 6)** from the
@@ -284,39 +289,40 @@ dragged item itself while it holds its own place.
 
 Adds two Facets that are also a Showing, as alternatives to the drop marks **(P)**:
 
-- `follow` **(P)**: the dragged item drawn by its `translate` where the pointer takes it, along one axis or both; once
-  the drag ends, it slides from where it was let go to where it is laid out, dropped or cancelled alike **(P)**, marked
-  `data-settling` while it does. Parameters: axis, duration (ms; 0 jumps, which an app passes for reduced motion).
-- `makeRoom` **(P)**: the items between the dragged item's place and where it would land drawn one place towards the
-  place it leaves, sliding there; kept where they are drawn through a drop or cancel until `ended`, then slid from there
-  to where they are laid out (not at all, when the reorder put them where they were drawn). One place is measured when
-  the drag begins and again when the dragged item's rank changes. Parameters: axis, rank (Rank's `rank`), duration.
+- `follow`: the dragged item drawn by its `translate` where the pointer takes it, along one axis or both; once the drag
+  ends, it slides from where it was let go to where it is laid out, dropped or cancelled alike, so a cancelled drag
+  slides back to where it started, as an OS's drag and drop and a browser's tabs do on Escape; marked `data-settling`
+  while it does. Parameters: axis, duration (ms; 0 jumps, which an app passes for reduced motion).
+- `makeRoom`: the items between the dragged item's place and where it would land drawn one place towards the place it
+  leaves, sliding there; kept where they are drawn through a drop or cancel until `ended`, then slid from there to where
+  they are laid out (not at all, when the reorder put them where they were drawn). One place is measured when the drag
+  begins and again when the dragged item's rank changes. Parameters: axis, rank (a Rank, `rank` only), duration.
 
-Between them they own the items' `translate` (`follow` the dragged item's, `makeRoom` the others'), which is the
-geometry the drag is; slides are Web Animations, so no stylesheet transition is needed or wanted on `translate`. The app
-wires one `showing` that hands both the drag, and marks the dragged item from `motion` (`data-dragging` while `moving`).
-`test/page-tabs.js` builds a tab strip from `drag`, `leadingGaps`, `follow`, `makeRoom`, `mark`, `arrayReorder` and
-`render` alone.
+Each gives `showing`, and `has(key)`: whether it draws that key's `translate` now (`follow` from the drag's first move
+until its slide into place is over; `makeRoom` while the key is moved aside, held through a drop, or sliding). Between
+them they own the items' `translate` (`follow` the dragged item's, `makeRoom` the others'), which is the geometry the
+drag is. Every slide is one operation (`slide.js`), from where an element was drawn to where it rests, a Web Animation
+of `translate` eased out; an element has one slide at a time, so one started, or a grab, stops another's. No stylesheet
+transition is needed or wanted on `translate`. The app wires one `showing` that hands both the drag, and marks the
+dragged item from `motion` (`data-dragging` while `moving`). `test/page-tabs.js` builds a tab strip from `drag`,
+`leadingGaps`, `follow`, `makeRoom`, `mark`, `arrayReorder` and `render` alone.
 
-`leadingGaps` measures only its element's children, so it is for items drawn in flow in one container **(P)**;
-`leadingGaps`, `follow` and `makeRoom` take `translate` to be the only transform the items have **(P)**.
-`test/page-tabs.js` also drives a late and a refused Reorder, a scroll and edits under a drag, and grabbing a settling
-tab.
+`leadingGaps` measures only its element's children, so it is for items drawn in flow in one container; `leadingGaps`,
+`follow` and `makeRoom` take `translate` to be the only transform the items have. `test/page-tabs.js` also drives a late
+and a refused Reorder, a cancelled drag, a scroll and edits under a drag, and grabbing a settling tab.
 
 **Found building the antisocial network's tab strip:** outside a drag, items still move: the keys move a tab, a tab
-opens between others, one closes. A browser's strip slides the tabs that moved; here they jumped. Adds `slideMoved`
-**(P)**, a Facet for any list, beside `follow` and `makeRoom`, which are unchanged: when the drawn keys change, each
-item drawn is slid from where it was drawn to where it is laid out now, by a Web Animation of `translate` **(P:
-ease-out)**, and sets no style. A change during a slide slides on from where the item is drawn. Places are where items
-are laid out in their parent (rect less `translate`, from the parent's start, scrolled or not), kept at each change and
-again when the parent or an item is resized, so a resize alone slides nothing. It looks once every listener to Drawn has
-heard (a microtask later), so render has drawn the change, whichever order the listeners were added in. An item
-something else draws by its `translate` is left to it **(P)**: one with an inline `translate`, one whose inline
-`translate` was written in this frame (taken off just as the change came, as `makeRoom` does when a drop ends), or one
-with another animation running (a settle). So a drop is slid by `follow` and `makeRoom` alone, without either knowing of
-it. It hears Drawn while it is watched (render watches its facets for their lifetime), and reports no keys. Parameters:
-drawn (Drawn's `watch`), duration (ms; 0 jumps). `test/page-tabs.js` adds it to the strip, every drag case unchanged,
-and moves tabs outside a drag.
+opens between others, one closes. A browser's strip slides the tabs that moved; here they jumped. Adds `slideMoved`, a
+Facet for any list, beside `follow` and `makeRoom`: when the drawn keys change, each item drawn is slid from where it
+was drawn to where it is laid out now, by the one slide, and it sets no style. A change during a slide slides on from
+where the item is drawn. Places are where items are laid out in their parent (rect less `translate`, from the parent's
+start, scrolled or not), kept at each change and again when the parent or an item is resized, so a resize alone slides
+nothing. It looks once every listener to Drawn has heard (a microtask later), so render has drawn the change, whichever
+order the listeners were added in. The items `leave` names are left alone: the app passes one `has` over `follow`'s and
+`makeRoom`'s, so a drop is slid by them alone; a drop ends a microtask after the reorder's answer, so `slideMoved` has
+looked at the reorder's change while they still draw it. It hears Drawn from when it is made until `stop()`, and reports
+no keys. Parameters: drawn (Drawn's `watch`), duration (ms; 0 jumps), leave (a Test, `has` only). `test/page-tabs.js`
+adds it to the strip, every drag case unchanged, and moves tabs outside a drag.
 
 **Open, from `slideMoved`:** an item whose place changes without the drawn keys changing (an item above it grows) isn't
 slid; places are measured in the item's parent, so items spread over several parents (`groupMount`) slide only within
@@ -365,25 +371,31 @@ render calls before taking an element out; any facet holding an element needs it
 too)**.
 
 **Counted from the bottom** (found building the antisocial network's chat). A chat counts from the bottom: rank 0 is the
-newest message, drawn lowest, and the list grows upwards. `place` sets `top`, and `viewport` counts from the content's
-top. Adds, for the app to compose in place of those:
+newest message, drawn lowest, and the list grows upwards. `place` set `top`, `topIn` measured an element's top, and
+`viewFrom` counted the view down from a list's top.
 
-- `placeFromBottom` **(P)**: a Facet like `place` that sets `bottom` from the layout's `y`, read as the distance from
-  the container's bottom to the item's. Parameters: rank, layout. The layouts (`rows`, `measuredRows`, ...) and `sizer`
-  are unchanged; they count from rank 0's edge as before.
-- `viewFromBottom` **(P)**: the view counted up from the list's bottom, and a Scroll whose positive amount scrolls up.
-  Parameters: visible (`viewport`, Watched range and Scroll), bottom (a Watched: the list's bottom in the scroller's
-  content). `visibleRanks`, `windowing` and `keepInPlace` take it as they take `viewport`, so `keepInPlace` holds an
-  item at its distance from the view's bottom.
-- `bottomIn` **(P)**: an element's bottom in its scroll container's content, as a Watched heard when the element or one
-  of the container's children changes size; `topIn`'s counterpart.
+**Changed while building:** each of the three takes the edge the list is counted from, as the review's pairings were
+merged before ("Changed after review", Pairings), instead of a mirror-image module beside it:
 
-Wiring: `viewFromBottom({ visible: viewport(scroller), bottom: bottomIn(list, scroller) })`, and `placeFromBottom` where
-`place` was. `edgeScroll` keeps `viewport`'s Scroll, since it scrolls toward the edge the pointer is near. Starting the
-view at the bottom is the app's (`scrollTop = scrollHeight` once).
+- `place({ rank, layout, edge })`: with `edge: 'bottom'`, sets `bottom` from the layout's `y`, read as the distance from
+  the container's bottom to the item's. The layouts (`rows`, `measuredRows`, ...) and `sizer` are unchanged; they count
+  from rank 0's edge as before.
+- `topIn(element, container, edge)`: with `'bottom'`, the element's bottom in its scroll container's content.
+- `viewFrom({ visible, top, edge })`: with `edge: 'bottom'`, the view counted up from the list's bottom (`top` is then
+  that bottom), and a Scroll whose positive amount scrolls up. `visibleRanks`, `windowing` and `keepInPlace` take it as
+  they take `viewport`, so `keepInPlace` holds an item at its distance from the view's bottom.
 
-**Open (P):** whether a new message at rank 0 scrolls into view while the view is at the bottom ("stick to the bottom").
-Not built: `keepInPlace` holds what is on screen, so a new message arrives below the view.
+Wiring: `viewFrom({ edge: 'bottom', visible: viewport(scroller), top: topIn(list, scroller, 'bottom') })`, and
+`place({ edge: 'bottom', ... })`. `edgeScroll` keeps `viewport`'s Scroll, since it scrolls toward the edge the pointer
+is near. Starting the view at the bottom is the app's (`scrollTop = scrollHeight` once).
+
+A new message at rank 0 shows while the view is at the bottom, as chats do. `keepInPlace` holds what is on screen, so
+alone it leaves a new message below the view. Adds `stickToBottom({ element, visible, scrollBy, layout, drawn })`: once
+the view (counted from the bottom) is at the list's bottom, a change to the layout, the ranks or the view scrolls it
+back there, two microtasks later, past what `keepInPlace` does for the same change. Whether the view is at the bottom is
+decided when the scroller scrolls, heard in the document's capture phase before `viewport`'s listener (microtasks run
+between listeners), so a person who scrolls up stays where they are until they scroll back down. `test/page-chat.js`
+builds a windowed chat from `windowing`, `place`, `viewFrom`, `topIn`, `keepInPlace` and `stickToBottom`.
 
 ## Case 9: a grid of cards
 
@@ -475,20 +487,24 @@ missing from the run read again may be removed, or only moved past the run's end
 tell which. The huge case already says where held keys come from on a server: its removals carry each removed key's
 neighbours. Adds, beside `cursorPages`, which is unchanged:
 
-- `heldKeys` **(P)**: held keys moved by reported removals. No parameters. Gives `hold(initial, whenRemoved)` (a held
-  key as above: Watched, Set and Test) and `remove(removals)`, a Removal being a removed key with its neighbours before
-  the edit (`{key, next, previous}`); a neighbour removed in the same edit is passed over, whatever order the removals
-  come in. The app calls `remove` inside the edit, before it tells Pages' listeners, so no held key names a removed item
-  when `windowing` asks again. It remembers the keys removed, and never holds one: setting one leaves the hold as it
-  was, as `arrayList` does for a key it doesn't have, so an answer made before the removal can't bring it back.
+- `heldKeys`: held keys moved by reported removals. No parameters. Gives `hold(initial, whenRemoved)` (a held key as
+  above: Watched, Set and Test), `remove(removals)`, a Removal being a removed key with its neighbours before the edit
+  (`{key, next, previous}`), and `add(keys)`, keys the list has again (a removal undone, an item put back under its
+  key). A neighbour removed in the same edit is passed over, whatever order the removals come in. The app calls `remove`
+  inside the edit, before it tells Pages' listeners, so no held key names a removed item when `windowing` asks again.
 
 `arrayList` keeps its own holds, since it sees each edit whole. Wiring: `selected = holds.hold(none, none)`,
 `active = holds.hold(none, next)`; `windowing`'s `keep` and `move`'s `from`/`to` take them as they take `arrayList`'s.
 
-**Open:** the antisocial network's server sends no removals (its `page` reads and its version say only that something
-changed), so nothing there calls `remove` yet: the server sending them, or a module asking after a change whether each
-held key is still there, is the owner's choice. The removed keys are kept for the holds' lifetime, as the holds are (see
-"Releasing a held key").
+**Fixed after review:** `arrayList` holds only keys it has now: setting a held key to one it doesn't have leaves the
+hold as it was, since such a key can only come from an answer made before its item was removed, and a key put back can
+be held again. `heldKeys` refused every key it had ever removed, for its lifetime, so an item put back under its key
+could never be held. Knowing no membership but what is reported, it now refuses the keys reported removed and not since
+reported back (`add`), and takes every other key to be in the list. The removed keys are kept until added back, for the
+holds' lifetime (see "Releasing a held key").
+
+The server sends removals, each with its neighbours, as the huge case says; the antisocial network's server doesn't yet
+(its `page` reads and its version say only that something changed), so nothing there calls `remove` until it does.
 
 **Unchanged and verified:** one `active`, and one `activeDescendant` facet given to every nested render, works as is:
 its state is per facet, so whichever render draws the active key names it, and the others clear nothing.
@@ -711,10 +727,10 @@ Names are **(P)**.
 
 ### Packages
 
-| Package                      | Holds                                                                                                                                                                        | Depends on (all peers)                                                                                                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@pterror/interact-editor`   | the text and its port, the look table, the editor's decorations, the reader, pieces, overlays, suggestions, the toolbar and the selection bar                                | `@lezer/common`; `@codemirror/state`, `view`, `language` and `autocomplete`, optional, since the reader's modules import only `@lezer/common`; `@pterror/interact-list` (`popover`) |
-| `@pterror/interact-markdown` | a markdown grammar (lezer markdown with tables, task lists, strikethrough, autolinks, and HTML parsed by an HTML grammar), its look table, its formatting state and commands | `@pterror/interact-editor`, `@lezer/markdown`, `@lezer/html`, and the editor's CodeMirror peers                                                                                     |
+| Package                      | Holds                                                                                                                                                                        | Depends on (all peers)                                                                                                                                                                                               |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pterror/interact-editor`   | the text and its port, the look table, the editor's decorations, the reader, pieces, overlays, suggestions, the toolbar and the selection bar                                | `@lezer/common`; `@codemirror/state`, `view`, `language` and `autocomplete`, optional, since the reader's modules import only `@lezer/common`; `@pterror/interact-list` (`popover`, `move`, `arrayStep`, `wrapStep`) |
+| `@pterror/interact-markdown` | a markdown grammar (lezer markdown with tables, task lists, strikethrough, autolinks, and HTML parsed by an HTML grammar), its look table, its formatting state and commands | `@pterror/interact-editor`, `@lezer/markdown`, `@lezer/html`, and the editor's CodeMirror peers                                                                                                                      |
 
 - **Nothing is bundled.** Each behaviour is its own piece the app composes: the editor is a view over a text port, and
   the grammar's language, the Look's decorations, the text class, keys, key hints, overlays, suggestions, paste and
@@ -731,8 +747,11 @@ Names are **(P)**.
 
 | Abstraction | Shape                                                                                                   | Owned by              |
 | ----------- | ------------------------------------------------------------------------------------------------------- | --------------------- |
-| Text        | `get() → { text, includes: changeId \| none }`, `watch(fn)`; `includes` is the latest edit the text has | textEditor            |
+| Text        | `get() → { text, includes: changeId \| none }`, `watch(fn)`; `includes` is the latest edit the text has | textEditor, segments  |
 | Edit        | `(change: { from, to, insert }[], id: changeId) → void`, positions in the text before the edit          | textEditor            |
+| SegmentEdit | `(key, change: { from, to, insert }[], id: changeId) → void`, positions in the segment's text           | segments              |
+| Segments    | `of(state) → { key, from, to }[]`, in order                                                             | segmentGaps           |
+| Made        | `made(transaction) → { key, from: key \| none }[]`, split off `from`, or laid in from elsewhere         | segmentData           |
 | Grammar     | a lezer `Parser`                                                                                        | textEditor, reader    |
 | Look        | `{ [selector]: Rule \| (node, read) → Rule \| none }`; a selector is a node name or `Parent/Name`       | textEditor, reader    |
 | Piece       | `same(other) → bool`, `draw() → Element`, optional `drop(element)`                                      | textEditor, reader    |
@@ -778,41 +797,57 @@ when the piece is no longer drawn, as with list's `render`.
     styles applies to both. Nothing copies computed styles.
   - **What the app composes in.** `grammarLanguage(grammar)` (the grammar as CodeMirror's language),
     `lookDecorations(look)` (the Look drawn), and its own extensions (history, search, paste, keys, overlays).
-- **`segments({ initial })`** returns `{ doc, extension, of, split, insert, remove, replace }`: one editor over many
-  texts that live apart (a page's blocks, a thread's messages, a table's cells), as one document. **(P)**
-  - **The document** is the texts in order with one line break between two (`doc`, to start the view with). Each segment
-    has an opaque key: the app's for the texts it gives, this module's for those a split makes. `of(state)` gives the
-    segments in order with where each text is, so the app saves each where it lives.
+- **`segments({ parent, initial, key, text, edit, extensions })`** returns
+  `{ view, stop, of, split, made, inverse, insert, remove, move, reorder }`: one editor over many texts that live apart
+  (a page's blocks, a thread's messages, a table's cells), as one document. It makes its editor as `textEditor` does,
+  with its tooltips in the top layer.
+  - **The document** is the texts in order with one line break between two. Each segment has an opaque key, of the app's
+    key type: the app gives the keys it starts with (`initial`), and `key()` makes one for each segment a split makes.
+    `of(state)` gives the segments in order with where each text is.
+  - **Each text through its own port.** Each segment's text lives elsewhere, as `textEditor`'s one text does:
+    `text(key)` is its Text, asked once when the segment comes in (a split's is the app's text for a new segment, empty
+    until it is saved), and `edit(key, changes, id)` hears each edit to it, positions in its own text, with an id its
+    Text says it includes once it does. A text heard from elsewhere is laid into its segment with the edits it doesn't
+    include yet rebased over it, by the rebasing `textEditor` does, so an echo of an earlier edit, or someone else's,
+    never undoes what was typed since. An edit is handed on as the changes that fell inside the segment when they did,
+    and otherwise (a split, a join) as one replacement of what differs.
   - **Tracked through every change.** The line break before each segment is mapped through each transaction. Deleting it
     joins the segment into the one before. A line break typed any other way (Shift+Enter, paste) is text inside a
-    segment. **Enter** (`split`, also bound) splits at the cursor; at the start of a non-empty segment the new, empty
-    one goes before it, so the text keeps its key, as block editors do.
+    segment. `split`, a command the app binds (to Enter, with keybinds), splits at the cursor; at the start of a
+    non-empty segment the new, empty one goes before it, so the text keeps its key, as block editors do.
+    `made(transaction)` gives the segments a transaction made: split off which, or laid in from elsewhere.
   - **Undo.** A join keeps the segment it took out, mapped through later changes. An undo or redo that puts a line break
-    back where a joined segment's was brings that segment back with its key. Nothing depends on which history the app
-    composes in: it reads only the transaction's `undo`/`redo` user event.
-  - **Text from elsewhere.** `insert(view, after, key, text)`, `remove(view, key)` and `replace(view, key, changes)`
-    (positions in the segment's text) lay in what changed elsewhere. Each is a transaction `fromElsewhere(tr)` tells
+    back where a joined segment's was brings that segment back with its key; it reads only the transaction's
+    `undo`/`redo` user event.
+  - **From elsewhere.** `insert(after, key)`, `remove(key)` and `move(key, target, after)` lay in a segment laid in,
+    taken out or moved elsewhere. Each, and each text laid in from a port, is a transaction `fromElsewhere(tr)` tells
     apart and that history doesn't record, so the app's own listener doesn't send it back, and undo never undoes someone
-    else's change. The selection is mapped through them, so the cursor stays where it was in what was typed.
+    else's change. The selection is mapped through them, so the cursor stays where it was in what was typed; a selection
+    in a moved segment goes with it. `fromElsewhere` is one annotation, shared by `textEditor`, `segments` and
+    `segmentData`.
+  - **The person's move.** `reorder(key, target, after)` is a Reorder (case 7), for `drag`: it moves a segment as `move`
+    does, as the person's change (user event `move`), answering whether both keys are segments once it is applied. Undo
+    undoes it, as block editors (Notion, Google Docs) undo a block moved: `inverse(transaction)` gives the effects that
+    put the order back, for the app's history (`invertedEffects.of(inverse)` with CodeMirror's).
   - **Hooks.** Each segment's first line carries `data-segment` (`empty` when it has no text), for the app to style a
     block's spacing or its placeholder.
-  - **Moving.** `move(view, key, target, after)` puts a segment before or after another, with its key and its text, as a
-    text from elsewhere like the three above, in one transaction: the app lays in an order changed elsewhere, or one a
-    drag asked for. A selection inside the moved segment goes with it; one elsewhere is mapped as usual. Undo doesn't
-    reach a move **(P)**: the order is the app's to save, as `insert` and `remove` are.
-  - Not here: how a segment's text is saved, and how a text changed elsewhere is rebased over what isn't saved yet. Both
-    are the app's, since each kind of text has its own store and its own way of saying what it includes.
+  - Not here: where a segment's text is saved, and the order, which the app saves from `of`.
   - **Changed while building the antisocial network's block handles:** an order changed elsewhere could only be laid in
-    as a `remove` and an `insert`, two transactions that lose the cursor of someone writing in the moved block, and
-    whose first a drag takes as the reorder. `move` was added; nothing else changed.
-- **`segmentData({ of, initial, split })`** **(P)** returns `{ extension, get, change, put, inverse, changed }`: a value
+    as a `remove` and an `insert`, two transactions that lose the cursor of someone writing in the moved block. `move`
+    was added.
+  - **Fixed after review:** `segments` dispatched on an `EditorView` the app made, with an annotation of its own, so
+    `textEditor` and what is composed with it couldn't tell its transactions apart, and each app rebased each segment's
+    text by hand. It now makes its editor and takes a port per segment, and `fromElsewhere` is shared. Enter was bound
+    inside its extension, where no module binds a key; `split` is now a command only. Its keys were `+1`, `+2`, ... in
+    the app's key space; they are the app's `key()`. A move by the person wasn't undone; it is `reorder`.
+- **`segmentData({ made, initial, splitOff })`** returns `{ extension, get, change, put, inverse, changed }`: a value
   kept with each segment of `segments` by its key (a block's type, whether a to-do is done), for what lives beside a
   text and isn't text.
   - **It goes with its segment.** Values are by key, so a moved segment keeps its own, a segment joined into another
-    keeps it while undo may bring it back, and a segment laid in from elsewhere takes the one `put` gave its key first.
-  - **Split.** A segment Enter splits off another starts with `split(value)` of the other's (a heading's next block is
-    text, a to-do's another to-do), before or after it. The other is found from where the transaction put the new line
-    break, in the state before it, and `of`; nothing of `segments` beyond `of` is read.
+    keeps it while undo may bring it back, and a segment laid in from elsewhere has none until `put` gives its key one.
+  - **Split.** A segment split off another starts with `splitOff(value)` of the other's (a heading's next block is text,
+    a to-do's another to-do), before or after it. Which segments a transaction split off which is `segments`' `made`;
+    nothing of `segments` beyond it is read.
   - **Changing one.** `change(key, value)` is an effect for the app's own transaction, so turning a block's type and
     taking its markdown off are one change. `put(view, key, value)` is a change from elsewhere that history doesn't
     record. `changed(transaction)` names the keys whose values a transaction changed other than by `put` (a change or a
@@ -823,14 +858,16 @@ when the piece is no longer drawn, as with list's `render`.
     number), as it styles `data-segment`.
   - **Added while building the antisocial network's typed blocks:** a block's type had been markdown in its text; kept
     beside the text, it must survive Enter, joins, undo and moves, which only something that sees each transaction can
-    keep. `segments` didn't change.
-- **`segmentGaps({ view, of })`** **(P)**: a Gap (list's, case 7) over the segments of one editor, for `drag`. The
-  segment drawn at the point's height is the target, before or after it by which half of its lines the point is in;
-  above the first is before it, below the last after it. Heights are the editor's own (`lineBlockAt`), so segments
-  outside the drawn part answer by CodeMirror's estimate. list's `gaps` can't serve: it asks which element the point is
-  over, and a segment is lines of the editor, which no element of its own stands for and which the editor redraws as it
-  likes. `drag` itself needs no change: its `itemOf` is the app's (the handle beside the hovered segment), its Drawn is
-  the segments' keys heard through `viewUpdates`, and `showing` draws a drop line.
+    keep.
+  - **Fixed after review:** it found a split from where a transaction put a new line break, so a segment laid in from
+    elsewhere next to a heading took the heading's value as if split off it. `segments` now reports what it made.
+- **`segmentGaps({ view, of })`**: a Gap (list's, case 7) over the segments of one editor, for `drag`. The segment drawn
+  at the point's height is the target, before or after it by which half of its lines the point is in; above the first is
+  before it, below the last after it. Heights are the editor's own (`lineBlockAt`), so segments outside the drawn part
+  answer by CodeMirror's estimate. list's `gaps` can't serve: it asks which element the point is over, and a segment is
+  lines of the editor, which no element of its own stands for and which the editor redraws as it likes. `drag` itself
+  needs no change: its `itemOf` is the app's (the handle beside the hovered segment), its Drawn is the segments' keys
+  heard through `viewUpdates`, its Reorder is `segments`' `reorder`, and `showing` draws a drop line.
 - **Decorations.** Elements, marks and pieces are built for `view.visibleRanges`. They're rebuilt when the text, the
   viewport or the tree changes, and from scratch when the app dispatches `lookChanged`: what the Look draws changed with
   the text unchanged (a macro's value arrived, macros shown as written). While an IME composes, they're only moved with
@@ -881,14 +918,18 @@ when the piece is no longer drawn, as with list's `render`.
   button's tooltip names its key from `keyOf(id)`, the key as shown, which the app makes with keybinds' `formatSteps`,
   so the editor imports nothing from keybinds. While `held` holds (keybinds' `modifierHeld`, a Watched boolean), each
   button with a key shows it in `data-keys`.
-- **`toolbarKeys({ element, buttons, orientation })`.** Composed onto any tool buttons (the toolbar's, the selection
-  bar's): the WAI-ARIA Authoring Practices' toolbar keys. The toolbar is one stop in the Tab order (a roving tabindex:
-  the button last focused, else the first, has 0 and the rest -1), the arrow keys along `orientation` (`horizontal` by
-  default, set as `aria-orientation`) move between its buttons and wrap, and Home and End go to its ends. It follows the
-  buttons as they are drawn again; stopped, it leaves every button in the Tab order. **(P)**: wrapping, and buttons
-  whose tool doesn't apply staying focusable (as the Practices allow).
+- **`toolbarKeys({ element, buttons, orientation })`** returns `{ by, edge, stop }`. Composed onto any tool buttons (the
+  toolbar's, the selection bar's): the moves of the WAI-ARIA Authoring Practices' toolbar
+  (https://www.w3.org/WAI/ARIA/apg/patterns/toolbar/). The toolbar is one stop in the Tab order (a roving tabindex: the
+  button last focused, else the first, has 0 and the rest -1). `by(n)` focuses the button `n` on from that one, wrapping
+  at the ends **(P)**, and `edge(n)` the button `n` from an end: list's `move` over `arrayStep` of the buttons, wrapped
+  by `wrapStep`. A button whose tool doesn't apply is moved to like the rest (`aria-disabled`, still focusable), as the
+  Practices have it. It reads no key: the app binds the arrow keys along `orientation` (`horizontal` by default, set as
+  `aria-orientation`) to `by(±1)`, and Home and End to `edge(±1)`, with keybinds on the toolbar's element. It follows
+  the buttons as they are drawn again; stopped, it leaves every button in the Tab order.
   - **Added for the antisocial-network prototype's accessibility pass**: `toolbar` gives `role=toolbar`, which says
-    these keys work, and nothing gave them, so Tab went through every button.
+    these moves work, and nothing gave them, so Tab went through every button.
+  - **Fixed after review:** it read the arrow keys, Home and End itself; now the app binds them.
 - **`keyboardInset({ window })`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard
   covers. The app places the toolbar above it (from cyoa's `toolbar.ts`).
 - **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's
@@ -1039,34 +1080,34 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 S = one responsibility, O = new cases added modules only, L = substitutable, I = depends on no more than it uses, D =
 owns what it uses.
 
-| Module                                               | Uses (owns)                                                       | Implements                      | S                              | O                                           | L                                                | I                             | D            |
-| ---------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------- | ------------------------------ | ------------------------------------------- | ------------------------------------------------ | ----------------------------- | ------------ |
-| arrayList                                            | —                                                                 | Value, Drawn, held keys         | the list's state               | split in case 8                             | draws all                                        | each consumer takes one face  | owns nothing |
-| heldKeys                                             | Removal                                                           | held keys                       | holds over reported removals   | beside cursorPages, unchanged               | moves holds inside the edit, as arrayList does   | removals only, no list        | owns all     |
-| arrayStep/Compare/Find/KeysAt/Locate/Reorder         | Value of keys                                                     | one each                        | one question                   | one module per question                     | answers now, which a later answer may equally do | one shape each                | —            |
-| move                                                 | Value, Step, Set                                                  | `by`, `edge`                    | moving                         | unchanged across 9 cases                    | applies only its latest answer                   | three narrow shapes           | owns all     |
-| render                                               | Drawn, Mount, Facet                                               | ItemOf                          | elements for keys              | Mount extracted (case 6)                    | never relies on which keys are drawn             | no selection, focus or layout | owns all     |
-| flowMount, groupMount, rowMount                      | —                                                                 | Mount                           | where an element goes          | new Mounts                                  | render behaves alike                             | —                             | —            |
-| mark, ids, reveal, place, posInSet                   | Test / Watched / Rank, Place                                      | Facet                           | one attribute, style or scroll | new Facets                                  | apply depends on no other facet                  | one shape each                | owns all     |
-| activeDescendant                                     | Watched, idOf                                                     | Facet                           | one attribute                  | field or list, by parameter                 | names only what render has applied it to         | —                             | owns all     |
-| pick, hoverIntent                                    | ItemOf, Set                                                       | —                               | pointer → key                  | —                                           | —                                                | —                             | owns all     |
-| rangeSelection                                       | held keys, Compare                                                | Test, toggle/extend/all         | selected intervals             | —                                           | any Compare                                      | —                             | owns all     |
-| typeahead                                            | Find, Value, Set                                                  | `type`, Watched                 | prefix → key                   | —                                           | late answers dropped if superseded               | —                             | owns all     |
-| cell, popover, focusWhen, inView, dismiss, textValue | Watched / Set                                                     | Watched, Set                    | one DOM behaviour each         | —                                           | —                                                | —                             | owns all     |
-| withHeaders                                          | Drawn                                                             | Drawn                           | one transform                  | new Drawn                                   | —                                                | —                             | owns all     |
-| adjacent                                             | Step, changes                                                     | Adjacent                        | one neighbour per key          | added for runs                              | applies only each key's latest answer            | one Step direction            | owns all     |
-| runs                                                 | Adjacent, Together                                                | Test                            | one predicate over pairs       | new Test; withHeaders, groupMount unchanged | any answer timing                                | no items, no layout           | owns all     |
-| drag, gaps, edgeScroll                               | ItemOf, Gap, Reorder, Showing, Drawn, held keys / ItemOf / Scroll | Gap                             | the gesture / gap / scrolling  | Gap and Showing widened (tab strip)         | any Gap, any Drawn                               | —                             | owns all     |
-| leadingGaps                                          | ItemOf                                                            | Gap                             | the gap by the leading edge    | beside gaps, unchanged                      | any Gap's answer: a key and a side               | the drag's key and press only | owns all     |
-| follow, makeRoom                                     | Showing / Showing, Rank                                           | Facet, Showing                  | one `translate` each           | beside the drop marks, which are unchanged  | apply depends on no other facet                  | `rank` only, of Rank          | owns all     |
-| slideMoved                                           | Drawn                                                             | Facet                           | one `translate` slide          | beside follow and makeRoom, unchanged       | any Drawn; leaves what others draw               | `watch` only, of Drawn        | owns all     |
-| viewport, scaledViewport                             | —                                                                 | Watched range, Scroll           | the scroller                   | scaled added                                | coarse px in scaled is within contract           | —                             | —            |
-| rows, cards                                          | —                                                                 | RanksIn, Place, Extent          | one layout                     | cards added                                 | sizes are never assumed                          | three faces                   | —            |
-| visibleRanks, windowing                              | Watched, RanksIn / KeysAt, Locate                                 | Watched, Drawn, Rank            | what to draw                   | unchanged by cards                          | any layout, any answer timing                    | —                             | owns all     |
-| sizer                                                | Extent, Watched                                                   | —                               | scroll size                    | —                                           | —                                                | —                             | owns all     |
-| placeFromBottom                                      | Rank, Place                                                       | Facet                           | one style                      | in place of place, which is unchanged       | the same layouts as place                        | one shape each                | owns all     |
-| viewFromBottom, bottomIn                             | Watched range, Scroll, Watched / —                                | Watched range, Scroll / Watched | one view / one measurement     | beside viewport, viewFrom, topIn            | taken wherever viewport is                       | —                             | owns all     |
-| server modules                                       | a transport function                                              | Step, KeysAt, ...               | one question each              | —                                           | late answers                                     | —                             | —            |
+| Module                                       | Uses (owns)                                                       | Implements                   | S                              | O                                           | L                                                | I                                           | D            |
+| -------------------------------------------- | ----------------------------------------------------------------- | ---------------------------- | ------------------------------ | ------------------------------------------- | ------------------------------------------------ | ------------------------------------------- | ------------ |
+| arrayList                                    | —                                                                 | Value, Drawn, held keys      | the list's state               | split in case 8                             | draws all                                        | each consumer takes one face                | owns nothing |
+| heldKeys                                     | Removal                                                           | held keys                    | holds over reported removals   | beside cursorPages, unchanged               | moves holds inside the edit, as arrayList does   | removals and additions only, no list        | owns all     |
+| arrayStep/Compare/Find/KeysAt/Locate/Reorder | Value of keys                                                     | one each                     | one question                   | one module per question                     | answers now, which a later answer may equally do | one shape each                              | —            |
+| move                                         | Value, Step, Set                                                  | `by`, `edge`                 | moving                         | unchanged across 9 cases                    | applies only its latest answer                   | three narrow shapes                         | owns all     |
+| wrapStep                                     | Step                                                              | Step                         | wrapping                       | a Step over a Step                          | any Step                                         | one shape                                   | owns all     |
+| render                                       | Drawn, Mount, Facet                                               | ItemOf                       | elements for keys              | Mount extracted (case 6)                    | never relies on which keys are drawn             | no selection, focus or layout               | owns all     |
+| flowMount, groupMount, rowMount              | —                                                                 | Mount                        | where an element goes          | new Mounts                                  | render behaves alike                             | —                                           | —            |
+| mark, ids, reveal, place, posInSet           | Test / Watched / Rank, Place                                      | Facet                        | one attribute, style or scroll | new Facets                                  | apply depends on no other facet                  | one shape each                              | owns all     |
+| activeDescendant                             | Watched, idOf                                                     | Facet                        | one attribute                  | field or list, by parameter                 | names only what render has applied it to         | —                                           | owns all     |
+| pick, hoverIntent                            | ItemOf, Set                                                       | —                            | pointer → key                  | —                                           | —                                                | —                                           | owns all     |
+| rangeSelection                               | held keys, Compare                                                | Test, toggle/extend/all      | selected intervals             | —                                           | any Compare                                      | —                                           | owns all     |
+| typeahead                                    | Find, Value, Set                                                  | `type`, Watched              | prefix → key                   | —                                           | late answers dropped if superseded               | —                                           | owns all     |
+| cell, popover, focusWhen, dismiss, textValue | Watched / Set                                                     | Watched, Set                 | one DOM behaviour each         | popover fits by its own placing             | —                                                | —                                           | owns all     |
+| withHeaders                                  | Drawn                                                             | Drawn                        | one transform                  | new Drawn                                   | —                                                | —                                           | owns all     |
+| adjacent                                     | Step, changes, Drawn                                              | Adjacent                     | one neighbour per drawn key    | added for runs                              | applies only each key's latest answer            | one Step direction                          | owns all     |
+| runs                                         | Adjacent, Together                                                | Test                         | one predicate over pairs       | new Test; withHeaders, groupMount unchanged | any answer timing                                | no items, no layout                         | owns all     |
+| drag, gaps, edgeScroll                       | ItemOf, Gap, Reorder, Showing, Drawn, held keys / ItemOf / Scroll | Gap                          | the gesture / gap / scrolling  | Gap and Showing widened (tab strip)         | any Gap, any Drawn                               | —                                           | owns all     |
+| leadingGaps                                  | ItemOf                                                            | Gap                          | the gap by the leading edge    | beside gaps, unchanged                      | any Gap's answer: a key and a side               | the drag's key and press only               | owns all     |
+| follow, makeRoom                             | Showing / Showing, Rank                                           | Facet, Showing, Test (`has`) | one `translate` each           | beside the drop marks, which are unchanged  | apply depends on no other facet                  | `rank` only, of Rank                        | owns all     |
+| slideMoved                                   | Drawn, Test                                                       | Facet                        | one `translate` slide          | beside follow and makeRoom, unchanged       | any Drawn; leaves what it is told to             | `watch` only, of Drawn; `has` only, of Test | owns all     |
+| viewport, scaledViewport                     | —                                                                 | Watched range, Scroll        | the scroller                   | scaled added                                | coarse px in scaled is within contract           | —                                           | —            |
+| rows, cards                                  | —                                                                 | RanksIn, Place, Extent       | one layout                     | cards added                                 | sizes are never assumed                          | three faces                                 | —            |
+| visibleRanks, windowing                      | Watched, RanksIn / KeysAt, Locate                                 | Watched, Drawn, Rank         | what to draw                   | unchanged by cards                          | any layout, any answer timing                    | —                                           | owns all     |
+| sizer                                        | Extent, Watched                                                   | —                            | scroll size                    | —                                           | —                                                | —                                           | owns all     |
+| stickToBottom                                | Watched range, Scroll, Watched                                    | —                            | one view kept at the bottom    | beside keepInPlace, unchanged               | taken wherever viewport is                       | `watch` only, of the layout and ranks       | owns all     |
+| server modules                               | a transport function                                              | Step, KeysAt, ...            | one question each              | —                                           | late answers                                     | —                                           | —            |
 
 Each abstraction in the first table is owned by the modules listed there, implemented by those in this one, and is one
 question (I); its implementations are listed above (L); none was widened after its first case, except the recorded
