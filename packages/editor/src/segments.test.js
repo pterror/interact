@@ -123,6 +123,68 @@ describe('segments', () => {
     e.view.destroy()
   })
 
+  test('a segment moves before or after another with its key and text, from elsewhere', () => {
+    const e = over([
+      { key: 'a', text: 'one' },
+      { key: 'b', text: '' },
+      { key: 'c', text: 'three' },
+    ])
+    e.s.move(e.view, 'a', 'c', true)
+    expect(texts(e.s, e.view)).toEqual(['b:', 'c:three', 'a:one'])
+    e.s.move(e.view, 'a', 'b', false)
+    expect(texts(e.s, e.view)).toEqual(['a:one', 'b:', 'c:three'])
+    e.s.move(e.view, 'c', 'b', false)
+    expect(texts(e.s, e.view)).toEqual(['a:one', 'c:three', 'b:'])
+    e.s.move(e.view, 'b', 'a', true)
+    expect(texts(e.s, e.view)).toEqual(['a:one', 'b:', 'c:three'])
+    expect(e.view.state.doc.toString()).toBe('one\n\nthree')
+    expect(e.seen.every((each) => fromElsewhere(each) && each.annotation(Transaction.addToHistory) === false)).toBe(
+      true,
+    )
+    e.view.destroy()
+  })
+
+  test('moving a segment to where it is, or onto itself, changes nothing', () => {
+    const e = over([
+      { key: 'a', text: 'one' },
+      { key: 'b', text: 'two' },
+    ])
+    e.s.move(e.view, 'a', 'b', false)
+    e.s.move(e.view, 'b', 'a', true)
+    e.s.move(e.view, 'a', 'a', true)
+    e.s.move(e.view, 'a', 'gone', true)
+    expect(e.seen).toEqual([])
+    e.view.destroy()
+  })
+
+  test('a cursor in a moved segment goes with it; one elsewhere stays where it was in its text', () => {
+    const e = over([
+      { key: 'a', text: 'one' },
+      { key: 'b', text: 'two' },
+      { key: 'c', text: 'three' },
+    ])
+    e.view.dispatch({ selection: EditorSelection.cursor(1) })
+    e.s.move(e.view, 'a', 'c', true)
+    expect(e.view.state.selection.main.head).toBe(10 + 1)
+    e.view.dispatch({ selection: EditorSelection.cursor(6) })
+    e.s.move(e.view, 'a', 'b', false)
+    expect(e.view.state.sliceDoc(e.view.state.selection.main.head - 2, e.view.state.selection.main.head)).toBe('th')
+    e.view.destroy()
+  })
+
+  test('typing, joining and undo go on as before after a move', () => {
+    const e = over([
+      { key: 'a', text: 'one' },
+      { key: 'b', text: 'two' },
+    ])
+    e.s.move(e.view, 'b', 'a', false)
+    e.view.dispatch({ changes: { from: 3, insert: '', to: 4 }, userEvent: 'delete.backward' })
+    expect(texts(e.s, e.view)).toEqual(['b:twoone'])
+    e.view.dispatch({ changes: { from: 3, insert: '\n' }, userEvent: 'undo' })
+    expect(texts(e.s, e.view)).toEqual(['b:two', 'a:one'])
+    e.view.destroy()
+  })
+
   test("each segment's first line is marked, empty ones as such, for the app to style", () => {
     const e = over([
       { key: 'a', text: 'one' },

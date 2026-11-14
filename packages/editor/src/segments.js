@@ -2,7 +2,8 @@
  * One editor over many texts: the document is the texts in order, each a segment with a key, one line break between
  * two. Segments are tracked through every change, so the app can save each text where it lives (a block, a message, a
  * cell) and lay a change made elsewhere into the segment it belongs to. Enter splits a segment; deleting the line
- * break between two joins them, and undoing or redoing that brings the joined segment back with its key.
+ * break between two joins them, and undoing or redoing that brings the joined segment back with its key. A segment moved
+ * to another place keeps its key and its text.
  */
 
 import { Annotation, EditorSelection, StateEffect, StateField, Transaction } from '@codemirror/state'
@@ -37,6 +38,12 @@ const splitAt = StateEffect.define({ map: (value, changes) => ({ ...value, at: c
 
 /** @type {import('@codemirror/state').StateEffectType<SegmentKey>} */
 const take = StateEffect.define()
+
+/**
+ * The segments' keys in their order after the transaction carrying it, which moved texts and changed none
+ * @type {import('@codemirror/state').StateEffectType<readonly SegmentKey[]>}
+ */
+const arranged = StateEffect.define()
 
 /**
  * Whether a transaction came from `insert`, `remove` or `replace` (a text from elsewhere), not from typing
@@ -88,9 +95,11 @@ function ownerOf(marks, pos) {
  *   insert: (view: EditorView, after: SegmentKey | undefined, key: SegmentKey, text: string) => void,
  *   remove: (view: EditorView, key: SegmentKey) => void,
  *   replace: (view: EditorView, key: SegmentKey, changes: readonly Readonly<{ from: number, to: number, insert: string }>[]) => void,
+ *   move: (view: EditorView, key: SegmentKey, target: SegmentKey, after: boolean) => void,
  * }>} The document to start the editor with; the extension; the segments in a state, in order; Enter's command; and,
  *   each as a text from elsewhere that undo doesn't reach: laying a segment in after another (first, with none), taking
- *   one out, and changing one's text (positions in its text)
+ *   one out, changing one's text (positions in its text), and moving one before or after another, a selection in it
+ *   going with it
  */
 function segments({ initial }) {
   let made = 0
@@ -167,6 +176,19 @@ function segments({ initial }) {
           } else {
             marks.splice(marks.indexOf(owner), 1, { at: owner.at, key: effect.value.key }, { at: pos, key: owner.key })
           }
+        } else if (effect.is(arranged)) {
+          const was = transaction.startState.doc.length
+          const lengths = new Map(
+            value.marks.map((mark, index) => [mark.key, (value.marks[index + 1]?.at ?? was) - mark.at - 1]),
+          )
+          marks.length = 0
+          let next = -1
+          for (const key of effect.value) {
+            marks.push({ at: next, key })
+            next += (lengths.get(key) ?? 0) + 1
+          }
+          const kept = new Set(effect.value)
+          joinedNow.splice(0, joinedNow.length, ...joinedNow.filter((each) => !kept.has(each.key)))
         } else if (effect.is(take)) {
           const index = marks.findIndex((mark) => mark.key === effect.value)
           const taken = marks[index]
@@ -244,6 +266,46 @@ function segments({ initial }) {
         annotations: quiet,
         changes: { from: prior.to, insert: `\n${text}` },
         effects: splitAt.of({ at: prior.to, before: false, key }),
+      })
+    },
+    move(view, key, target, after) {
+      const all = of(view.state)
+      const index = all.findIndex((each) => each.key === key)
+      const moving = all[index]
+      const onto = all.find((each) => each.key === target)
+      if (moving === undefined || onto === undefined || key === target) {
+        return
+      }
+      const order = all.map((each) => each.key).filter((each) => each !== key)
+      order.splice(order.indexOf(target) + (after ? 1 : 0), 0, key)
+      if (order.every((each, rank) => each === all[rank]?.key)) {
+        return
+      }
+      const text = view.state.sliceDoc(moving.from, moving.to)
+      const changes = view.state.changes([
+        index === 0 ? { from: moving.from, to: moving.to + 1 } : { from: moving.from - 1, to: moving.to },
+        after ? { from: onto.to, insert: `\n${text}` } : { from: onto.from, insert: `${text}\n` },
+      ])
+      let landed = 0
+      for (const each of order) {
+        if (each === key) {
+          break
+        }
+        const segment = all.find((other) => other.key === each)
+        landed += (segment === undefined ? 0 : segment.to - segment.from) + 1
+      }
+      /** @type {(pos: number, assoc: number) => number} */
+      const place = (pos, assoc) =>
+        pos >= moving.from && pos <= moving.to ? landed + pos - moving.from : changes.mapPos(pos, assoc)
+      const { selection } = view.state
+      view.dispatch({
+        annotations: quiet,
+        changes,
+        effects: arranged.of(order),
+        selection: EditorSelection.create(
+          selection.ranges.map((range) => EditorSelection.range(place(range.anchor, -1), place(range.head, 1))),
+          selection.mainIndex,
+        ),
       })
     },
     of,
