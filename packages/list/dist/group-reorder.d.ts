@@ -25,8 +25,9 @@ export type Groups<G, K> = Readonly<{
 /**
  * @template G, K
  * @param {Groups<G, K>} groups - The groups
- * @returns {(key: K, target: K, after: boolean) => void} Moves `key` just after or before `target`, or first in the
- *   group whose header `target` is; nothing if either isn't there
+ * @returns {(key: K, target: K, after: boolean) => boolean} Moves `key` just after or before `target`, or first in
+ *   the group whose header `target` is, answering once the groups' listeners have heard; `false`, moving nothing, if
+ *   either isn't there or `key` is a header
  */
-declare function groupReorder<G, K>(groups: Groups<G, K>): (key: K, target: K, after: boolean) => void;
+declare function groupReorder<G, K>(groups: Groups<G, K>): (key: K, target: K, after: boolean) => boolean;
 export { groupReorder };

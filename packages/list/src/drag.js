@@ -3,16 +3,13 @@
  * where it would land is asked again whenever the pointer moves, anything scrolls under it or the drawn keys change;
  * the click that ends a drag is swallowed, so it doesn't also pick. The dragged key is held while the drag lasts, so
  * a list that draws its held keys keeps it drawn, and the drag is cancelled if the list removes it (the held key
- * moves off it). A drop ends once the drawn keys next change (the reorder, or whatever the list holds instead), once the
- * reorder is refused, or after `wait` if neither comes. A press lasts only while its button is held: a release
- * anywhere ends it (dropping a drag), and a cancel, the pointer's capture being lost or a move with the button up let
- * it go (cancelling a drag).
+ * moves off it). A drop ends once the reorder answers, whether it applied the change, refused it or failed. A press
+ * lasts only while its button is held: a release anywhere ends it (dropping a drag), and a cancel, the pointer's
+ * capture being lost or a move with the button up let it go (cancelling a drag).
  */
 
 /** How far, in pixels, the pointer moves before a press is a drag */
 const THRESHOLD = 4
-/** How long, in ms, a drop waits for the list to change before it ends */
-const WAIT = 2000
 
 /**
  * A drag under way: what is dragged, and where it would land
@@ -34,12 +31,18 @@ const WAIT = 2000
 
 /**
  * Where the pointer is in a drag, and how the drag stands: `moving`, then `dropped` (before reorder is called) or
- * `cancelled`, then `ended`, each of the last three once. After a drop, `ended` comes once the drawn keys have changed
- * and every listener to them has heard, once the reorder is refused, or after `wait`; so what is drawn then is the
- * list as it is, reordered or not
+ * `cancelled`, then `ended`, each of the last three once. `ended` comes once the reorder has answered, or once every
+ * listener has heard the change that cancelled the drag, so what is drawn then is the list as it is, reordered or not
  * @template K
  * @typedef {Readonly<{ key: K, from: Point, point: Point, phase: 'moving' | 'dropped' | 'cancelled' | 'ended' }>}
  *   Motion
+ */
+
+/**
+ * Moving an item next to another. It answers `true` once the list is as the move left it and every listener to the
+ * list has heard, `false` if it won't move it; at once or later. A failure is taken as `false`
+ * @template K
+ * @typedef {(key: K, target: K, after: boolean) => PromiseLike<boolean> | boolean} Reorder
  */
 
 /**
@@ -57,28 +60,28 @@ const WAIT = 2000
  *     watch: (listener: () => void) => () => void }>,
  *   itemOf: (target: EventTarget | null) => Readonly<{ key: K }> | undefined,
  *   gap: (point: Point, drag: Pressed<K>) => Readonly<{ target: K, after: boolean }> | undefined,
- *   reorder: (key: K, target: K, after: boolean) => PromiseLike<boolean | undefined> | boolean | undefined | void,
+ *   reorder: Reorder<K>,
  *   showing: (drag: Dragging<K> | undefined, motion: Motion<K>) => void,
- *   wait?: number,
  * }>} DragOptions
  */
 
 /**
  * Lets items be dragged
  * @template K
- * @param {DragOptions<K>} options - Where items are; hearing the keys drawn change; a key the list holds (set to
- *   the dragged key, and none when the drag ends), to hold the dragged key with; the item an element is
- *   in; the gap at a point during a drag (a gap at the dragged item itself lands nowhere); moving an item, answering
- *   at once or later, `false` (or failing) if it won't; showing where the drag would land (none: nowhere, or no
- *   longer moving) with where the pointer is and how the drag stands; and how long, in ms, a drop waits for the list
- *   to change (left out: 2000)
- * @returns {() => void} Stops
+ * @param {DragOptions<K>} options - Where items are; hearing the keys drawn change; a key the list holds (set to the
+ *   dragged key, and none when the drag ends), to hold the dragged key with; the item an element is in; the gap at a
+ *   point during a drag (a gap at the dragged item itself lands nowhere); moving an item; and showing where the drag
+ *   would land (none: nowhere, or no longer moving) with where the pointer is and how the drag stands
+ * @returns {() => void} Stops; a drag under way is cancelled and ended, and a drop waiting for its reorder ended
  */
-function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT }) {
+function drag({ drawn, element, gap, held, itemOf, reorder, showing }) {
   /** @type {Press<K> | undefined} */
   let press = undefined
-  /** @type {Readonly<{ drag: Press<K>, timer: ReturnType<typeof setTimeout> }> | undefined} */
-  let landing = undefined
+  /**
+   * A drag dropped or cancelled whose `ended` hasn't come yet
+   * @type {Readonly<Press<K>> | undefined}
+   */
+  let ending = undefined
   let swallow = false
   /** @type {Element | undefined} */
   let captor = undefined
@@ -94,27 +97,32 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
   }
 
   /**
-   * @param {Readonly<Press<K>>} dragged - The drag
+   * Ends the drag waiting for its end, if there is one
+   * @param {Readonly<Press<K>>} [only] - Only if it is this drag
    * @returns {void}
    */
-  const end = (dragged) => {
+  const end = (only) => {
+    if (ending === undefined || (only !== undefined && ending !== only)) {
+      return
+    }
+    const dragged = ending
+    ending = undefined
     held.set(undefined)
     show(dragged, 'ended')
   }
 
   /**
-   * Ends the drop waiting to land, if there is one
-   * @param {Readonly<Press<K>>} [only] - Only if it is this drag's
+   * Ends a drag waiting for its end once every listener has heard what is under way now
+   * @param {Readonly<Press<K>>} dragged - The drag
    * @returns {void}
    */
-  const land = (only) => {
-    if (landing === undefined || (only !== undefined && landing.drag !== only)) {
+  const endSoon = (dragged) => {
+    if (ending !== dragged) {
       return
     }
-    const { drag: dropped, timer } = landing
-    landing = undefined
-    clearTimeout(timer)
-    end(dropped)
+    queueMicrotask(() => {
+      end(dragged)
+    })
   }
 
   /**
@@ -124,7 +132,7 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
   const cancel = (dragged) => {
     swallow = true
     show(dragged, 'cancelled')
-    end(dragged)
+    ending = dragged
   }
 
   /**
@@ -136,7 +144,7 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     if (!(event instanceof PointerEvent) || event.button !== 0 || item === undefined) {
       return
     }
-    land()
+    end()
     swallow = false
     const point = { x: event.clientX, y: event.clientY }
     press = { at: undefined, moved: false, point, pointer: event.pointerId, pressed: { from: point, key: item.key } }
@@ -164,6 +172,7 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     press = undefined
     if (gone.moved) {
       cancel(gone)
+      end(gone)
     }
   }
 
@@ -181,20 +190,6 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
       press.at = found.target === key ? undefined : { after: found.after, key, target: found.target }
     }
     show(press, 'moving')
-  }
-
-  /**
-   * After every listener to the drawn keys has heard them change: lands a drop, or asks again where a drag would land
-   * @returns {void}
-   */
-  const changed = () => {
-    queueMicrotask(() => {
-      if (landing !== undefined) {
-        land()
-      } else {
-        aim()
-      }
-    })
   }
 
   /**
@@ -230,30 +225,22 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
    * @returns {void}
    */
   const drop = (dropped, at) => {
-    landing = {
-      drag: dropped,
-      timer: setTimeout(() => {
-        land(dropped)
-      }, wait),
+    ending = dropped
+    const answered = () => {
+      endSoon(dropped)
     }
-    const answer = reorder(at.key, at.target, at.after)
-    /**
-     * @param {unknown} accepted - The reorder's answer
-     * @returns {void}
-     */
-    const refused = (accepted) => {
-      if (accepted === false) {
-        land(dropped)
-      }
+    /** @type {PromiseLike<boolean> | boolean} */
+    let answer
+    try {
+      answer = reorder(at.key, at.target, at.after)
+    } catch {
+      answered()
+      return
     }
-    if (typeof answer === 'object') {
-      void Promise.resolve(answer)
-        .then(refused)
-        .catch(() => {
-          refused(false)
-        })
+    if (typeof answer === 'boolean') {
+      answered()
     } else {
-      refused(answer)
+      void Promise.resolve(answer).then(answered, answered)
     }
   }
 
@@ -273,6 +260,7 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     swallow = true
     show(done, 'dropped')
     if (done.at === undefined) {
+      ending = done
       end(done)
     } else {
       drop(done, done.at)
@@ -300,22 +288,22 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
   element.addEventListener('click', clicked, { capture: true })
   page.addEventListener('scroll', aim, { capture: true, passive: true })
   const stops = [
-    drawn.watch(changed),
+    // After every listener to the drawn keys has heard them change, so the gap measures them as drawn
+    drawn.watch(() => {
+      queueMicrotask(aim)
+    }),
     held.watch(() => {
       if (press?.moved === true && held.get() !== press.pressed.key) {
         const gone = press
         press = undefined
         cancel(gone)
+        endSoon(gone)
       }
     }),
   ]
   return () => {
     for (const stop of stops) {
       stop()
-    }
-    if (landing !== undefined) {
-      clearTimeout(landing.timer)
-      landing = undefined
     }
     page.removeEventListener('scroll', aim, { capture: true })
     element.removeEventListener('pointerdown', down)
@@ -324,6 +312,12 @@ function drag({ drawn, element, gap, held, itemOf, reorder, showing, wait = WAIT
     page.removeEventListener('pointercancel', lost, { capture: true })
     page.removeEventListener('lostpointercapture', lost, { capture: true })
     element.removeEventListener('click', clicked, { capture: true })
+    const under = press
+    press = undefined
+    if (under?.moved === true) {
+      cancel(under)
+    }
+    end()
   }
 }
 

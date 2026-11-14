@@ -93,12 +93,11 @@ function putTabs(answers = 'now') {
    * @param {string} key - The tab
    * @param {string} target - Next to which
    * @param {boolean} after - After it
-   * @returns {Promise<boolean> | undefined} Whether it will, when it isn't at once
+   * @returns {Promise<boolean> | boolean} Whether it moved it, once it has
    */
   const reorder = (key, target, after) => {
     if (answers === 'now') {
-      now(key, target, after)
-      return undefined
+      return now(key, target, after)
     }
     /** @type {PromiseWithResolvers<boolean>} */
     const answered = Promise.withResolvers()

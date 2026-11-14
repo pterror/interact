@@ -1,5 +1,5 @@
 ---
-list: patch
+list: minor
 ---
 
 list: `drag` lets go of a press whose release it missed: the pressed element captures the pointer at the press, a

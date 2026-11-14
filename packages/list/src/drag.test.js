@@ -34,20 +34,23 @@ function point(target, type, x) {
 }
 
 /**
- * Lets every listener to a change hear it, and what they queued run
+ * Lets every answer given come in, every listener to a change hear it, and what they queued run
  * @returns {Promise<void>} When they have
  */
 async function heard() {
-  await Promise.resolve()
+  await Bun.sleep(0)
 }
 
 /**
+ * Moving an item, as drag asks
+ * @typedef {(key: string, target: string, after: boolean) => PromiseLike<boolean> | boolean} Reorder
+ */
+
+/**
  * Item a in a container, dragged in a list of a, b and c; the pointer over b and c beyond 20 and 40
- * @param {Readonly<{ reorder?: (key: string, target: string, after: boolean) => Promise<boolean> | undefined,
- *   wait?: number }>} [options]
- *   - Moving an item (left out: at once), and how long a drop waits
- * @returns {Readonly<{ a: HTMLElement, list: ReturnType<typeof arrayList<string>>, seen: string[], picked: string[] }>}
- *   What happened
+ * @param {Readonly<{ reorder?: Reorder }>} [options] - Moving an item (left out: at once)
+ * @returns {Readonly<{ a: HTMLElement, list: ReturnType<typeof arrayList<string>>, seen: string[], picked: string[],
+ *   held: ReturnType<ReturnType<typeof arrayList<string>>['hold']>, stop: () => void }>} What happened
  */
 function dragged(options = {}) {
   const element = document.createElement('div')
@@ -65,17 +68,12 @@ function dragged(options = {}) {
   element.addEventListener('click', () => {
     picked.push('click')
   })
-  const {
-    reorder = (/** @type {string} */ key, /** @type {string} */ target, /** @type {boolean} */ after) => {
-      now(key, target, after)
-      return undefined
-    },
-    wait,
-  } = options
-  drag({
+  const { reorder = now } = options
+  const held = list.hold(undefined, 'none')
+  const stop = drag({
     drawn: list,
     element,
-    held: list.hold(undefined, 'none'),
+    held,
     gap: ({ x }) => {
       seen.push('asked')
       return { after: true, target: x > 40 ? 'c' : x > 20 ? 'b' : 'a' }
@@ -88,13 +86,12 @@ function dragged(options = {}) {
     showing: (at, { from, key, phase, point: { x } }) => {
       seen.push(`${phase} ${key} ${String(x - from.x)} ${at === undefined ? 'none' : at.target}`)
     },
-    ...(wait === undefined ? {} : { wait }),
   })
-  return { a, list, picked, seen }
+  return { a, held, list, picked, seen, stop }
 }
 
 describe('drag', () => {
-  test('drags once the pointer moves a few pixels, over the item itself too, and ends once the list changes', async () => {
+  test('drags once the pointer moves a few pixels, over the item itself too, and ends once the reorder answers', async () => {
     const { a, list, picked, seen } = dragged()
     point(a, 'pointerdown', 5)
     point(a, 'pointermove', 7)
@@ -149,59 +146,101 @@ describe('drag', () => {
     expect(seen).toEqual(['asked', 'moving a 30 b', 'cancelled a 30 none', 'ended a 30 none'])
   })
 
-  test('ends a drop only once a late reorder changes the list', async () => {
-    /** @type {(() => void)[]} */
-    const later = []
-    const { a, list, seen } = dragged({
-      reorder: () => {
-        later.push(() => {
-          list.set(['b', 'c', 'a'])
-        })
-        return undefined
-      },
-    })
+  test('ends a drop once a late reorder answers that it is applied, whatever changes before', async () => {
+    /** @type {PromiseWithResolvers<boolean>} */
+    const answer = Promise.withResolvers()
+    const { a, held, list, seen } = dragged({ reorder: async () => answer.promise })
     point(a, 'pointerdown', 0)
     point(a, 'pointermove', 60)
     point(a, 'pointerup', 60)
     await heard()
     expect(seen.at(-1)).toBe('reorder a->c')
-    for (const run of later) {
-      run()
-    }
+    list.set(['a', 'b', 'c', 'd'])
+    await heard()
+    expect(seen.at(-1)).toBe('reorder a->c')
+    expect(held.get()).toBe('a')
+    list.set(['b', 'c', 'a', 'd'])
+    answer.resolve(true)
     await heard()
     expect(seen.at(-1)).toBe('ended a 60 none')
+    expect(held.get()).toBeUndefined()
   })
 
-  test('ends a drop once its reorder is refused, or fails, or after waiting for a change that never comes', async () => {
+  test('ends a drop, the list as it was, once its reorder is refused or fails', async () => {
     const refused = dragged({ reorder: () => Promise.resolve(false) })
     point(refused.a, 'pointerdown', 0)
     point(refused.a, 'pointermove', 60)
     point(refused.a, 'pointerup', 60)
     expect(refused.seen.at(-1)).toBe('reorder a->c')
     await heard()
-    await heard()
     expect(refused.seen.at(-1)).toBe('ended a 60 none')
     expect(refused.list.keys()).toEqual(['a', 'b', 'c'])
 
-    const failed = dragged({
-      reorder: () => Promise.reject(new Error('refused')),
-    })
+    const failed = dragged({ reorder: () => Promise.reject(new Error('refused')) })
     point(failed.a, 'pointerdown', 0)
     point(failed.a, 'pointermove', 60)
     point(failed.a, 'pointerup', 60)
     await heard()
-    await heard()
-    await heard()
     expect(failed.seen.at(-1)).toBe('ended a 60 none')
+    expect(failed.list.keys()).toEqual(['a', 'b', 'c'])
 
-    const lost = dragged({ reorder: () => undefined, wait: 5 })
-    point(lost.a, 'pointerdown', 0)
-    point(lost.a, 'pointermove', 60)
-    point(lost.a, 'pointerup', 60)
+    const thrown = dragged({
+      reorder: () => {
+        throw new Error('refused')
+      },
+    })
+    point(thrown.a, 'pointerdown', 0)
+    point(thrown.a, 'pointermove', 60)
+    point(thrown.a, 'pointerup', 60)
     await heard()
-    expect(lost.seen.at(-1)).toBe('reorder a->c')
-    await Bun.sleep(10)
-    expect(lost.seen.at(-1)).toBe('ended a 60 none')
+    expect(thrown.seen.at(-1)).toBe('ended a 60 none')
+  })
+
+  test('takes only the answer for its own drop: one for a drop already ended by the next press ends nothing', async () => {
+    /** @type {PromiseWithResolvers<boolean>[]} */
+    const answers = []
+    const { a, seen } = dragged({
+      reorder: async () => {
+        /** @type {PromiseWithResolvers<boolean>} */
+        const answer = Promise.withResolvers()
+        answers.push(answer)
+        return answer.promise
+      },
+    })
+    point(a, 'pointerdown', 0)
+    point(a, 'pointermove', 60)
+    point(a, 'pointerup', 60)
+    point(a, 'pointerdown', 0)
+    expect(seen.at(-1)).toBe('ended a 60 none')
+    point(a, 'pointermove', 30)
+    answers[0]?.resolve(true)
+    await heard()
+    expect(seen.at(-1)).toBe('moving a 30 b')
+  })
+
+  test('stopped, cancels and ends a drag under way, and ends a drop waiting for its reorder, letting go of the key', async () => {
+    const moving = dragged()
+    point(moving.a, 'pointerdown', 0)
+    point(moving.a, 'pointermove', 30)
+    expect(moving.held.get()).toBe('a')
+    moving.stop()
+    expect(moving.seen.slice(-2)).toEqual(['cancelled a 30 none', 'ended a 30 none'])
+    expect(moving.held.get()).toBeUndefined()
+    point(moving.a, 'pointermove', 60)
+    expect(moving.seen.at(-1)).toBe('ended a 30 none')
+
+    /** @type {PromiseWithResolvers<boolean>} */
+    const answer = Promise.withResolvers()
+    const landing = dragged({ reorder: async () => answer.promise })
+    point(landing.a, 'pointerdown', 0)
+    point(landing.a, 'pointermove', 60)
+    point(landing.a, 'pointerup', 60)
+    landing.stop()
+    expect(landing.seen.slice(-2)).toEqual(['reorder a->c', 'ended a 60 none'])
+    expect(landing.held.get()).toBeUndefined()
+    answer.resolve(true)
+    await heard()
+    expect(landing.seen.at(-1)).toBe('ended a 60 none')
   })
 
   test('asks again where a drag would land when the list changes, and cancels it when its key goes', async () => {
@@ -212,6 +251,7 @@ describe('drag', () => {
     await heard()
     expect(seen.slice(-2)).toEqual(['asked', 'moving a 30 b'])
     list.set(['c'])
+    expect(seen.at(-1)).toBe('cancelled a 30 none')
     await heard()
     expect(seen.slice(-2)).toEqual(['cancelled a 30 none', 'ended a 30 none'])
     point(a, 'pointerup', 30)
@@ -235,7 +275,7 @@ describe('drag', () => {
         return undefined
       },
       itemOf: (target) => (target === a ? { key: 'a' } : undefined),
-      reorder: () => undefined,
+      reorder: () => true,
       showing: () => undefined,
     })
     point(a, 'pointerdown', 5)
@@ -267,6 +307,7 @@ describe('drag', () => {
       itemOf: (target) => (target === a ? { key: 'a' } : undefined),
       reorder: (key, target) => {
         moves.push(`${key}->${target}`)
+        return true
       },
       showing: () => undefined,
     })

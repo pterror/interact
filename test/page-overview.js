@@ -420,7 +420,7 @@ function parentOf(key) {
  * @param {string} key - The occurrence dragged
  * @param {string} target - The occurrence dropped on
  * @param {boolean} after - Whether after it
- * @returns {void}
+ * @returns {boolean} Whether it moved it, once the change is heard
  */
 function reorder(key, target, after) {
   const entry = entryOf(key)
@@ -437,7 +437,7 @@ function reorder(key, target, after) {
     target.startsWith(`${key}/`) ||
     key === target
   ) {
-    return
+    return false
   }
   edited.set(
     from,
@@ -452,6 +452,7 @@ function reorder(key, target, after) {
   }
   edited.set(into, [...rest.slice(0, at), entry, ...rest.slice(at)])
   tell()
+  return true
 }
 
 /**

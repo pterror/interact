@@ -21,15 +21,19 @@
 /**
  * @template G, K
  * @param {Groups<G, K>} groups - The groups
- * @returns {(key: K, target: K, after: boolean) => void} Moves `key` just after or before `target`, or first in the
- *   group whose header `target` is; nothing if either isn't there
+ * @returns {(key: K, target: K, after: boolean) => boolean} Moves `key` just after or before `target`, or first in
+ *   the group whose header `target` is, answering once the groups' listeners have heard; `false`, moving nothing, if
+ *   either isn't there or `key` is a header
  */
 function groupReorder(groups) {
   return (key, target, after) => {
     const into = groups.groupOf(target)
     const from = groups.groupOf(key)
-    if (key === target || into === undefined || from === undefined || groups.headerOf(from) === key) {
-      return
+    if (into === undefined || from === undefined || groups.headerOf(from) === key) {
+      return false
+    }
+    if (key === target) {
+      return true
     }
     const header = groups.headerOf(into) === target
     groups.set(
@@ -42,6 +46,7 @@ function groupReorder(groups) {
         return [group, [...rest.slice(0, at), key, ...rest.slice(at)]]
       }),
     )
+    return true
   }
 }
 
