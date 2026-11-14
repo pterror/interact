@@ -7,8 +7,9 @@
  * is the one that furthest point gave, so smaller moves back change nothing.
  *
  * Items are measured where they are laid out, so items drawn elsewhere by their `translate` (to make room, or
- * following the pointer) don't move the gaps. A grabbed item drawn away from its place (still settling) is taken to
- * be where it was drawn.
+ * following the pointer) don't move the gaps. The dragged item is taken to be where it was drawn when the drag began
+ * (part-way through settling, if it was), moved as far as the pointer since; so when the items move under it (a
+ * scroll, items added or taken out) it keeps to the pointer, and they are measured again at each question.
  */
 export type LeadingGapsOptions<K> = Readonly<{
     element: Element;

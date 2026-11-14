@@ -219,7 +219,9 @@ function putRegions() {
   })
   const reorder = groupReorder(groups)
   drag({
+    drawn,
     element: box,
+    held: groups.hold(undefined, 'none'),
     gap: gaps({ axis: 'x', itemOf: rendered.itemOf }),
     itemOf: rendered.itemOf,
     reorder,

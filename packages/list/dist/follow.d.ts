@@ -1,7 +1,9 @@
 /**
- * The dragged item drawn following the pointer, by its `translate`, from where it was drawn when the drag began; and,
- * once the drag ends, sliding from where it was let go to where it is laid out then (after a drop's reorder). It sets
- * the `translate` of the dragged item's element only, and no other style.
+ * The dragged item drawn following the pointer, by its `translate`: where it was drawn when the drag began (part-way
+ * through settling, if it was), moved as far as the pointer since, however the items under it have moved (scrolled,
+ * or others added or taken out). Once the drag ends, it slides from where it was let go to where it is laid out then
+ * (the list as drag ends it: reordered, or not), marked `data-settling` while it does. It sets the `translate` of the
+ * dragged item's element only, and no other style.
  */
 export type Motion<K> = Readonly<{
     key: K;

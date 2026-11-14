@@ -1,15 +1,19 @@
 /**
  * Room made where a drag would land: the items between the dragged item's place and where it would land drawn moved
- * one place, by their `translate`, towards the place it leaves, sliding there. When the drag is cancelled they slide
- * back; when it is dropped they stay drawn where they are until it ends (after the reorder), then are drawn where
- * they are laid out, which is where the reorder put them. It sets the `translate` of items other than the dragged
- * one, and no other style.
+ * one place, by their `translate`, towards the place it leaves, sliding there. Dropped or cancelled, they stay drawn
+ * where they are until the drag ends, then slide from there to where they are laid out: nowhere, if the reorder put
+ * them where they were drawn; back, if it was refused or never came. It sets the `translate` of items other than the
+ * dragged one, and no other style.
  *
  * One place is the distance from the dragged item's start to the next item's (to the previous item's end from its
- * own end, for the last), measured where they are laid out when the drag begins.
+ * own end, for the last), measured where they are laid out when the drag begins, and again when the dragged item's
+ * rank changes under it.
  */
 
 import { laidOut, translated } from './translated.js'
+
+/** Below this, in pixels, a slide wouldn't show */
+const UNSEEN = 0.5
 
 /**
  * Where a drag would land, as drag shows it
@@ -55,9 +59,10 @@ function makeRoom({ axis, duration, rank }) {
   const shifted = new WeakMap()
   /** @type {WeakMap<Element, Animation>} */
   const sliding = new WeakMap()
-  /** @type {Readonly<{ key: K, from: number, step: number, at: Dragging<K> | undefined }> | undefined} */
+  /** @type {Readonly<{ key: K, from: number | undefined, step: number, at: Dragging<K> | undefined }> | undefined} */
   let drag = undefined
-  let slide = true
+  /** @type {Map<Element, DOMRect>} */
+  const letGo = new Map()
 
   /**
    * How far a key's element is drawn from where it is laid out, for the drag as it stands
@@ -71,10 +76,11 @@ function makeRoom({ axis, duration, rank }) {
     }
     const own = rank(key)
     const target = rank(at.target)
-    if (own === undefined || target === undefined) {
+    const from = rank(drag.key)
+    if (own === undefined || target === undefined || from === undefined) {
       return 0
     }
-    const { from, step } = drag
+    const { step } = drag
     let to = at.after ? target + 1 : target
     if (target > from) {
       to -= 1
@@ -141,6 +147,24 @@ function makeRoom({ axis, duration, rank }) {
     return own.size
   }
 
+  /**
+   * Slides an element from where it was drawn to where it is laid out
+   * @param {Element} element - The element
+   * @param {Readonly<DOMRect>} before - Where it was drawn
+   * @returns {void}
+   */
+  const slideIn = (element, before) => {
+    const after = element.getBoundingClientRect()
+    const by = axis === 'x' ? before.left - after.left : before.top - after.top
+    if (duration > 0 && Math.abs(by) >= UNSEEN) {
+      const start = axis === 'x' ? `${String(by)}px 0px` : `0px ${String(by)}px`
+      sliding.set(
+        element,
+        element.animate([{ translate: start }, { translate: '0px 0px' }], { duration, easing: 'ease-out' }),
+      )
+    }
+  }
+
   return {
     apply(key, element) {
       elements.set(key, element)
@@ -153,7 +177,7 @@ function makeRoom({ axis, duration, rank }) {
       sliding.get(element)?.cancel()
       element.style.translate = shift === 0 ? '' : axis === 'x' ? `${String(shift)}px 0px` : `0px ${String(shift)}px`
       shifted.set(element, shift)
-      if (slide && duration > 0 && drawn !== shift) {
+      if (duration > 0 && Math.abs(drawn - shift) >= UNSEEN) {
         const start = axis === 'x' ? `${String(drawn)}px 0px` : `0px ${String(drawn)}px`
         const end = axis === 'x' ? `${String(shift)}px 0px` : `0px ${String(shift)}px`
         sliding.set(
@@ -174,25 +198,28 @@ function makeRoom({ axis, duration, rank }) {
     },
     show(at, { key, phase }) {
       if (phase === 'moving') {
-        if (drag === undefined) {
-          const from = rank(key)
-          if (from === undefined) {
-            return
-          }
-          drag = { at, from, key, step: stepOf(key, from) }
-        } else {
-          drag = { ...drag, at }
-        }
-        slide = true
-        report()
-      } else if (phase === 'cancelled' && drag !== undefined) {
-        drag = { ...drag, at: undefined }
-        slide = true
+        const from = rank(key)
+        const step = drag?.key === key && drag.from === from ? drag.step : from === undefined ? 0 : stepOf(key, from)
+        drag = { at, from, key, step }
         report()
       } else if (phase === 'ended') {
         drag = undefined
-        slide = false
+        for (const [element, before] of letGo) {
+          if (element instanceof HTMLElement || element instanceof SVGElement) {
+            sliding.get(element)?.cancel()
+            element.style.translate = ''
+            shifted.delete(element)
+            slideIn(element, before)
+          }
+        }
+        letGo.clear()
         report()
+      } else {
+        for (const element of elements.values()) {
+          if ((shifted.get(element) ?? 0) !== 0) {
+            letGo.set(element, element.getBoundingClientRect())
+          }
+        }
       }
     },
     watch(listener) {

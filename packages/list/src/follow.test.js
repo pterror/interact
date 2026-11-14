@@ -15,6 +15,7 @@ function drawn(keys, facet) {
   const elements = new Map()
   for (const key of keys) {
     const element = document.createElement('div')
+    document.body.append(element)
     elements.set(key, element)
     facet.apply(key, element)
   }
@@ -30,6 +31,43 @@ function drawn(keys, facet) {
 }
 
 /**
+ * Lays an element out 100 by 30, drawn where its translate takes it from there, as a browser draws it
+ * @param {HTMLElement} element - The element
+ * @param {() => Readonly<{ x: number, y: number }>} at - Where it is laid out
+ * @returns {void}
+ */
+function layOut(element, at) {
+  element.getBoundingClientRect = () => {
+    const [x = 0, y = 0] = element.style.translate.split(' ').map((part) => Number(part.replace(/px$/u, '')) || 0)
+    return new globalThis.window.DOMRect(at().x + x, at().y + y, 100, 30)
+  }
+}
+
+/**
+ * Stands in for an element's animations, keeping the keyframes of each
+ * @param {HTMLElement} element - The element
+ * @returns {Readonly<{ slid: unknown[], last: () => EventTarget | undefined }>} The keyframes, and the last animation
+ */
+function animated(element) {
+  /** @type {unknown[]} */
+  const slid = []
+  /** @type {EventTarget | undefined} */
+  let last = undefined
+  Object.assign(element, {
+    /**
+     * @param {unknown} keyframes - Where it slides
+     * @returns {EventTarget} The animation
+     */
+    animate(keyframes) {
+      slid.push(keyframes)
+      last = Object.assign(new EventTarget(), { cancel: () => undefined })
+      return last
+    },
+  })
+  return { last: () => last, slid }
+}
+
+/**
  * A drag's motion
  * @param {number} x - Where the pointer is across
  * @param {'moving' | 'dropped' | 'cancelled' | 'ended'} phase - How the drag stands
@@ -39,47 +77,89 @@ function motion(x, phase) {
   return { from: { x: 10, y: 10 }, key: 'a', phase, point: { x, y: 25 } }
 }
 
+/**
+ * The element drawn for a key
+ * @param {ReadonlyMap<string, HTMLElement>} elements - The elements
+ * @param {string} key - The key
+ * @returns {HTMLElement} Its element
+ */
+function elementOf(elements, key) {
+  const element = elements.get(key)
+  if (element === undefined) {
+    throw new Error(`${key} is drawn`)
+  }
+  return element
+}
+
 describe('follow', () => {
   test('draws the dragged item along with the pointer, along its axis, until the drag ends', () => {
     const followed = follow({ axis: 'x', duration: 0 })
     const elements = drawn(['a', 'b'], followed)
+    const a = elementOf(elements, 'a')
+    layOut(a, () => ({ x: 0, y: 0 }))
     followed.show(undefined, motion(40, 'moving'))
-    expect(elements.get('a')?.style.translate).toBe('30px 0px')
+    expect(a.style.translate).toBe('30px 0px')
     followed.show(undefined, motion(55, 'moving'))
-    expect(elements.get('a')?.style.translate).toBe('45px 0px')
-    expect(elements.get('b')?.style.translate).toBe('')
+    expect(a.style.translate).toBe('45px 0px')
+    expect(elementOf(elements, 'b').style.translate).toBe('')
     followed.show(undefined, motion(55, 'dropped'))
     followed.show(undefined, motion(55, 'ended'))
-    expect(elements.get('a')?.style.translate).toBe('')
+    expect(a.style.translate).toBe('')
   })
 
-  test('slides from where it was let go to where it is laid out after the reorder', () => {
+  test('keeps the dragged item under a still pointer when what it is in moves under it', () => {
+    const followed = follow({ duration: 0 })
+    const a = elementOf(drawn(['a'], followed), 'a')
+    let left = 0
+    layOut(a, () => ({ x: left, y: 0 }))
+    followed.show(undefined, motion(40, 'moving'))
+    const before = a.getBoundingClientRect().left
+    left = -50
+    followed.show(undefined, motion(40, 'moving'))
+    expect(a.getBoundingClientRect().left).toBe(before)
+    expect(a.style.translate).toBe('80px 15px')
+  })
+
+  test('slides from where it was let go to where it is laid out once the drag ends, marked while it slides', () => {
     const followed = follow({ duration: 100 })
-    const elements = drawn(['a'], followed)
-    const a = elements.get('a')
-    if (a === undefined) {
-      throw new Error('a is drawn')
-    }
-    let left = 45
-    a.getBoundingClientRect = () => new globalThis.window.DOMRect(left, 15, 100, 30)
-    /** @type {unknown[]} */
-    const slid = []
-    Object.assign(a, {
-      /**
-       * @param {unknown} keyframes - Where it slides
-       * @returns {Readonly<{ cancel: () => void }>} The animation
-       */
-      animate(keyframes) {
-        slid.push(keyframes)
-        return { cancel: () => undefined }
-      },
-    })
+    const a = elementOf(drawn(['a'], followed), 'a')
+    let left = 0
+    layOut(a, () => ({ x: left, y: 0 }))
+    const { last, slid } = animated(a)
     followed.show(undefined, motion(40, 'moving'))
     expect(a.style.translate).toBe('30px 15px')
     followed.show(undefined, motion(40, 'dropped'))
     left = 110
     followed.show(undefined, motion(40, 'ended'))
-    expect(slid).toEqual([[{ translate: '-65px 0px' }, { translate: '0px 0px' }]])
+    expect(slid).toEqual([[{ translate: '-80px 15px' }, { translate: '0px 0px' }]])
+    expect(a.dataset['settling']).toBe('')
+    last()?.dispatchEvent(new Event('finish'))
+    expect('settling' in a.dataset).toBe(false)
+  })
+
+  test('takes an item grabbed while it slides from where it is drawn, and stops its slide', () => {
+    const followed = follow({ duration: 100 })
+    const a = elementOf(drawn(['a'], followed), 'a')
+    const { last } = animated(a)
+    let left = 0
+    layOut(a, () => ({ x: left, y: 0 }))
+    followed.show(undefined, motion(40, 'moving'))
+    followed.show(undefined, motion(40, 'dropped'))
+    left = 110
+    followed.show(undefined, motion(40, 'ended'))
+    let cancelled = false
+    Object.assign(last() ?? {}, {
+      cancel: () => {
+        cancelled = true
+      },
+    })
+    a.getBoundingClientRect = () => new globalThis.window.DOMRect(70, 0, 100, 30)
+    followed.show(undefined, motion(20, 'moving'))
+    expect(cancelled).toBe(true)
+    expect('settling' in a.dataset).toBe(false)
+    layOut(a, () => ({ x: left, y: 0 }))
+    followed.show(undefined, motion(20, 'moving'))
+    expect(a.getBoundingClientRect().left).toBe(80)
   })
 })
 
@@ -93,13 +173,13 @@ function row() {
   const room = makeRoom({ axis: 'x', duration: 0, rank: (/** @type {string} */ key) => keys.indexOf(key) })
   const elements = drawn(keys, room)
   for (const [index, element] of [...elements.values()].entries()) {
-    element.getBoundingClientRect = () => new globalThis.window.DOMRect(index * 110, 0, 100, 30)
+    layOut(element, () => ({ x: index * 110, y: 0 }))
   }
   return { room, shifts: () => [...elements.values()].map((element) => element.style.translate) }
 }
 
 describe('makeRoom', () => {
-  test('moves the items a drag would pass one place back, and back again when it is cancelled', () => {
+  test('moves the items a drag would pass one place back, and back again once a cancelled drag ends', () => {
     const { room, shifts } = row()
     room.show(undefined, motion(20, 'moving'))
     expect(shifts()).toEqual(['', '', '', ''])
@@ -108,6 +188,8 @@ describe('makeRoom', () => {
     room.show({ after: false, key: 'a', target: 'c' }, motion(130, 'moving'))
     expect(shifts()).toEqual(['', '-110px 0px', '', ''])
     room.show(undefined, motion(130, 'cancelled'))
+    expect(shifts()).toEqual(['', '-110px 0px', '', ''])
+    room.show(undefined, motion(130, 'ended'))
     expect(shifts()).toEqual(['', '', '', ''])
   })
 

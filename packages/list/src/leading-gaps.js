@@ -7,8 +7,9 @@
  * is the one that furthest point gave, so smaller moves back change nothing.
  *
  * Items are measured where they are laid out, so items drawn elsewhere by their `translate` (to make room, or
- * following the pointer) don't move the gaps. A grabbed item drawn away from its place (still settling) is taken to
- * be where it was drawn.
+ * following the pointer) don't move the gaps. The dragged item is taken to be where it was drawn when the drag began
+ * (part-way through settling, if it was), moved as far as the pointer since; so when the items move under it (a
+ * scroll, items added or taken out) it keeps to the pointer, and they are measured again at each question.
  */
 
 import { laidOut, translated } from './translated.js'
@@ -119,6 +120,7 @@ function leadingGaps({ axis, element, itemOf, turn = TURN }) {
   /** @type {Pressed<K> | undefined} */
   let current = undefined
   let grabbed = 0
+  let drawnAt = 0
   let travel = STILL
   return (point, drag) => {
     /** @type {Readonly<{ key: K, element: Element }>[]} */
@@ -134,13 +136,15 @@ function leadingGaps({ axis, element, itemOf, turn = TURN }) {
     if (own === undefined) {
       return undefined
     }
+    const extents = items.map((item) => laidOut(item.element, axis))
+    const layout = extents[from]?.start ?? 0
     if (drag !== current) {
       current = drag
       grabbed = translated(own.element)[axis]
+      drawnAt = layout + grabbed
       travel = STILL
     }
-    travel = travelled(travel, point[axis] - drag.from[axis], turn)
-    const extents = items.map((item) => laidOut(item.element, axis))
+    travel = travelled(travel, drawnAt + point[axis] - drag.from[axis] - layout - grabbed, turn)
     const slot = slotAt(extents, from, grabbed + travel.furthest, travel.direction)
     const target = items[slot]
     if (slot === from || target === undefined) {

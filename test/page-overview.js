@@ -690,7 +690,9 @@ function putOverview() {
     },
   })
   drag({
+    drawn,
     element: box,
+    held: keyCell(undefined),
     gap: gaps({ axis: 'y', itemOf: all.itemOf }),
     itemOf: all.itemOf,
     reorder,

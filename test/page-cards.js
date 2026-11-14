@@ -185,7 +185,9 @@ function putCards() {
     },
   })
   drag({
+    drawn,
     element: box,
+    held: list.hold(undefined, 'none'),
     gap: gaps({ axis: 'x', itemOf: rendered.itemOf }),
     itemOf: rendered.itemOf,
     reorder,
