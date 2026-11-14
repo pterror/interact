@@ -17,6 +17,7 @@ export { selectionBar } from './selection-bar.js';
 export { suggestions } from './suggestions.js';
 export { textEditor } from './text-editor.js';
 export { toolbar } from './toolbar.js';
+export { toolbarKeys } from './toolbar-keys.js';
 export { topLayerTooltips } from './top-layer-tooltips.js';
 export { viewUpdates } from './view-updates.js';
 export { walk } from './walk.js';

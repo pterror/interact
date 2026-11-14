@@ -881,6 +881,14 @@ when the piece is no longer drawn, as with list's `render`.
   button's tooltip names its key from `keyOf(id)`, the key as shown, which the app makes with keybinds' `formatSteps`,
   so the editor imports nothing from keybinds. While `held` holds (keybinds' `modifierHeld`, a Watched boolean), each
   button with a key shows it in `data-keys`.
+- **`toolbarKeys({ element, buttons, orientation })`.** Composed onto any tool buttons (the toolbar's, the selection
+  bar's): the WAI-ARIA Authoring Practices' toolbar keys. The toolbar is one stop in the Tab order (a roving tabindex:
+  the button last focused, else the first, has 0 and the rest -1), the arrow keys along `orientation` (`horizontal` by
+  default, set as `aria-orientation`) move between its buttons and wrap, and Home and End go to its ends. It follows the
+  buttons as they are drawn again; stopped, it leaves every button in the Tab order. **(P)**: wrapping, and buttons
+  whose tool doesn't apply staying focusable (as the Practices allow).
+  - **Added for the antisocial-network prototype's accessibility pass**: `toolbar` gives `role=toolbar`, which says
+    these keys work, and nothing gave them, so Tab went through every button.
 - **`keyboardInset({ window })`.** A Watched over `visualViewport`: how much of the window the on-screen keyboard
   covers. The app places the toolbar above it (from cyoa's `toolbar.ts`).
 - **`selectionBar({ view, tools })`.** The tools beside the selection, in list's `popover`, anchored to the selection's

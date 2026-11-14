@@ -8,6 +8,7 @@ import { keyHints } from './key-hints.js'
 import { keyboardInset } from './keyboard-inset.js'
 import { selectionBar } from './selection-bar.js'
 import { suggestions } from './suggestions.js'
+import { toolbarKeys } from './toolbar-keys.js'
 import { toolbar } from './toolbar.js'
 
 /**
@@ -35,6 +36,14 @@ function held(initial) {
       }
     },
   }
+}
+
+/**
+ * Presses a key where focus is
+ * @param {string} key - The key
+ */
+function press(key) {
+  document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key }))
 }
 
 /**
@@ -172,6 +181,41 @@ describe('toolbar', () => {
       ),
     ).toEqual(['never', 'upper'])
     bar.stop()
+    view.destroy()
+  })
+
+  test('its keys: one Tab stop, the arrows along it moving and wrapping, Home and End, followed through a redraw', () => {
+    const view = viewOver('abc')
+    const tools = held([upper, never, { ...upper, id: 'third', label: 'Third' }])
+    const bar = toolbar({ tools, view })
+    document.body.append(bar.element)
+    const stop = toolbarKeys({ buttons: bar.buttons, element: bar.element })
+    const buttons = () => [...bar.element.querySelectorAll('button')]
+    const stops = () =>
+      [...bar.element.querySelectorAll('[data-tool]')].map((each) =>
+        each instanceof HTMLElement ? each.tabIndex : undefined,
+      )
+    expect(bar.element.getAttribute('aria-orientation')).toBe('horizontal')
+    expect(stops()).toEqual([0, -1, -1])
+    buttons()[0]?.focus()
+    press('ArrowRight')
+    expect(document.activeElement === buttons()[1]).toBe(true)
+    expect(stops()).toEqual([-1, 0, -1])
+    press('ArrowLeft')
+    press('ArrowLeft')
+    expect(document.activeElement === buttons()[2]).toBe(true)
+    press('Home')
+    expect(document.activeElement === buttons()[0]).toBe(true)
+    press('End')
+    expect(document.activeElement === buttons()[2]).toBe(true)
+    press('ArrowDown')
+    expect(document.activeElement === buttons()[2]).toBe(true)
+    tools.set([never, upper])
+    expect(stops()).toEqual([0, -1])
+    stop()
+    expect(stops()).toEqual([0, 0])
+    bar.stop()
+    bar.element.remove()
     view.destroy()
   })
 })
