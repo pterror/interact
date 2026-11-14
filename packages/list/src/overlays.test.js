@@ -4,6 +4,7 @@ import { cell } from './cell.js'
 import { dismiss } from './dismiss.js'
 import { focusWhen } from './focus-when.js'
 import { hoverIntent } from './hover-intent.js'
+import { inView } from './in-view.js'
 import { popover } from './popover.js'
 
 const REST = 10
@@ -179,5 +180,78 @@ describe('hoverIntent', () => {
     menu.dispatchEvent(new PointerEvent('pointerleave'))
     await Bun.sleep(LONGER)
     expect(rested).toEqual(['Share'])
+  })
+})
+
+/**
+ * An element whose box is `at` moved by its own margins, as a browser lays out a fixed element
+ * @param {Readonly<{ left: number, top: number, width: number, height: number }>} at - Its box before any margin
+ * @returns {HTMLElement} The element
+ */
+function boxed(at) {
+  const element = put()
+  element.getBoundingClientRect = () => {
+    const left = at.left + (Number(element.style.marginLeft.replace(/px$/u, '')) || 0)
+    const top = at.top + (Number(element.style.marginTop.replace(/px$/u, '')) || 0)
+    return {
+      bottom: top + at.height,
+      height: at.height,
+      left,
+      right: left + at.width,
+      top,
+      width: at.width,
+      x: left,
+      y: top,
+      toJSON: () => undefined,
+    }
+  }
+  return element
+}
+
+describe('inView', () => {
+  test('moves an element that overflows the window back inside it, by its margins, once shown', async () => {
+    const at = { height: 100, left: window.innerWidth - 50, top: 20, width: 300 }
+    const element = boxed(at)
+    const open = cell(false)
+    cleanups.push(inView({ element, open }))
+    open.set(true)
+    expect(element.style.marginLeft).toBe('')
+    await Promise.resolve()
+    expect(element.getBoundingClientRect().right).toBe(window.innerWidth - 8)
+    expect(element.style.marginTop).toBe('')
+    open.set(false)
+    expect(element.style.marginLeft).toBe('')
+  })
+
+  test('keeps the start edges in when the box is larger than the window, and leaves a box that fits', async () => {
+    const element = boxed({ height: window.innerHeight * 2, left: -40, top: -10, width: 100 })
+    cleanups.push(inView({ element, margin: 4, open: cell(true) }))
+    await Promise.resolve()
+    expect([element.getBoundingClientRect().left, element.getBoundingClientRect().top]).toEqual([4, 4])
+    const fits = boxed({ height: 10, left: 30, top: 30, width: 10 })
+    cleanups.push(inView({ element: fits, open: cell(true) }))
+    await Promise.resolve()
+    expect([fits.style.marginLeft, fits.style.marginTop]).toEqual(['', ''])
+  })
+
+  test('fits again before the next frame after the window resizes, and a placement since is kept', async () => {
+    const at = { height: 50, left: 10, top: 10, width: 100 }
+    const element = boxed(at)
+    cleanups.push(inView({ element, open: cell(true) }))
+    await Promise.resolve()
+    at.left = window.innerWidth - 20
+    element.style.marginLeft = '0px'
+    globalThis.dispatchEvent(new Event('resize'))
+    await Bun.sleep(LONGER)
+    expect(element.getBoundingClientRect().right).toBe(window.innerWidth - 8)
+  })
+
+  test('stops, taking its move off', async () => {
+    const element = boxed({ height: 10, left: -100, top: 0, width: 10 })
+    const stop = inView({ element, open: cell(true) })
+    await Promise.resolve()
+    expect(element.style.marginLeft).toBe('108px')
+    stop()
+    expect(element.style.marginLeft).toBe('')
   })
 })

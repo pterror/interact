@@ -34,6 +34,7 @@ export { groupedCards } from './grouped-cards.js';
 export { heldKeys } from './held-keys.js';
 export { hoverIntent } from './hover-intent.js';
 export { ids } from './ids.js';
+export { inView } from './in-view.js';
 export { items } from './items.js';
 export { keepInPlace } from './keep-in-place.js';
 export { keySet } from './key-set.js';
