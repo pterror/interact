@@ -1,7 +1,7 @@
 /**
  * Keys held from a list that isn't held in memory (read in pages, or from a server), moved by the removals its source
- * reports. A held key is always one of the list's keys, or none: `remove` moves it inside the edit, and the app calls it
- * before the list's other listeners hear of the edit. As `arrayList` holds only keys it has, a key removed can't be
+ * reports. A held key is always one of the list's keys, or none: `remove` moves it inside the edit, and the app calls
+ * it before the list's other listeners hear of the edit. As `arrayList` holds only keys it has, a key removed can't be
  * held until the source reports it back (`add`: a removal undone, an item put back under its key); every other key is
  * taken to be in the list, since nothing else here knows it.
  */

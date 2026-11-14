@@ -7,8 +7,9 @@
  * window's edge on a side it grows towards, it is flipped to the anchor's other side across, then along, then both,
  * taking the first that fits (none fitting, it stays as first placed). Against an HTML element, in a browser with CSS
  * Anchor Positioning, it is shown with the element as its `source`, its implicit anchor, and the browser places it,
- * follows the anchor and flips it (`position-try-fallbacks`); otherwise it is placed and flipped the same way here, again when the page scrolls or resizes or the element changes size. A
- * centred popover is centred on its anchor, and not kept inside the window.
+ * follows the anchor and flips it (`position-try-fallbacks`); otherwise it is placed and flipped the same way here,
+ * again when the page scrolls or resizes or the element changes size. A centred popover is centred on its anchor, and
+ * not kept inside the window.
  */
 export type Open = Readonly<{
     get: () => boolean;

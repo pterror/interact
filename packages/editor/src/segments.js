@@ -144,10 +144,10 @@ function within(transaction, was, now) {
 /**
  * Segments over one editor
  * @template K
- * @param {SegmentsOptions<K>} options - Where the editor goes; the keys of the segments it starts with, in order; making
- *   a key for a segment a split makes, in the app's key space; each segment's text as it is elsewhere, asked once when
- *   the segment comes in (a split's is the app's text for a new segment, empty until it is saved); where each edit goes;
- *   and what the app composes in
+ * @param {SegmentsOptions<K>} options - Where the editor goes; the keys of the segments it starts with, in order;
+ *   making a key for a segment a split makes, in the app's key space; each segment's text as it is elsewhere, asked
+ *   once when the segment comes in (a split's is the app's text for a new segment, empty until it is saved); where each
+ *   edit goes; and what the app composes in
  * @returns {Segments<K>} The view; stopping, which destroys it; the segments in a state, in order; the command that
  *   splits the segment at the cursor (at the start of a non-empty segment the new, empty one goes before it, so the
  *   text keeps its key), for the app to bind; the segments a transaction made; the effects undoing a person's move,
@@ -213,8 +213,8 @@ function segments({ edit, extensions = [], initial, key: keyOf, parent, text }) 
 
   /**
    * A new line break at `at`, in the document after the transaction carrying it, starting segment `key`, split off
-   * `from` or laid in (`from` none); with `before`, the new segment is the one before it, and the segment it split keeps
-   * the text after
+   * `from` or laid in (`from` none); with `before`, the new segment is the one before it, and the segment it split
+   * keeps the text after
    * @type {import('@codemirror/state').StateEffectType<Readonly<{ at: number, key: K, before: boolean, from: K | undefined }>>}
    */
   const splitAt = StateEffect.define({ map: (value, changes) => ({ ...value, at: changes.mapPos(value.at, -1) }) })

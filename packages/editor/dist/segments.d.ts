@@ -55,10 +55,10 @@ export type Segments<K> = Readonly<{
 /**
  * Segments over one editor
  * @template K
- * @param {SegmentsOptions<K>} options - Where the editor goes; the keys of the segments it starts with, in order; making
- *   a key for a segment a split makes, in the app's key space; each segment's text as it is elsewhere, asked once when
- *   the segment comes in (a split's is the app's text for a new segment, empty until it is saved); where each edit goes;
- *   and what the app composes in
+ * @param {SegmentsOptions<K>} options - Where the editor goes; the keys of the segments it starts with, in order;
+ *   making a key for a segment a split makes, in the app's key space; each segment's text as it is elsewhere, asked
+ *   once when the segment comes in (a split's is the app's text for a new segment, empty until it is saved); where each
+ *   edit goes; and what the app composes in
  * @returns {Segments<K>} The view; stopping, which destroys it; the segments in a state, in order; the command that
  *   splits the segment at the cursor (at the start of a non-empty segment the new, empty one goes before it, so the
  *   text keeps its key), for the app to bind; the segments a transaction made; the effects undoing a person's move,
