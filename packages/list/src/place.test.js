@@ -1,15 +1,16 @@
 import { describe, expect, test } from 'bun:test'
 
-import { placeFromBottom } from './place-from-bottom.js'
+import { place } from './place.js'
 import { rows } from './rows.js'
 
-describe('placeFromBottom', () => {
-  test("places an element's bottom where the layout counts its rank from, leaving its top to its height", () => {
+describe('place', () => {
+  test("counted from the bottom, places an element's bottom where the layout counts its rank from", () => {
     const ranks = new Map([
       ['a', 0],
       ['b', 2],
     ])
-    const facet = placeFromBottom({
+    const facet = place({
+      edge: 'bottom',
       layout: rows(30),
       rank: { rank: (/** @type {string} */ key) => ranks.get(key), watchRanks: () => () => undefined },
     })

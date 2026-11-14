@@ -1,6 +1,7 @@
 /**
- * A view counted from a top that moves: the part of a scroll container's view that falls on a list placed somewhere in
- * its content, in pixels from the list's top, so several lists can share one scroller.
+ * A view counted from an edge that moves: the part of a scroll container's view that falls on a list placed somewhere
+ * in its content, in pixels from the list's top, so several lists can share one scroller; or, for a list counted from
+ * its bottom (a chat), in pixels up from the list's bottom.
  */
 export type Watched<T> = Readonly<{
     get: () => T;
@@ -21,15 +22,18 @@ export type Visible = Readonly<{
  * @param {Readonly<{
  *   visible: Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>,
  *   top: Watched<number>,
- * }>} options - The container's view, and the list's top in its content
- * @returns {Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>} The view from the list's top,
- *   heard when either moves, and scrolling the container
+ *   edge?: 'top' | 'bottom',
+ * }>} options - The container's view, in pixels from its content's top; the list's edge in its content, its top or
+ *   its bottom (`topIn`); and which edge that is (`top` by default)
+ * @returns {Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>} The view from the list's edge, heard
+ *   when either moves, and scrolling the container (counted from the bottom, a positive amount scrolls up)
  */
-declare function viewFrom({ top, visible }: Readonly<{
+declare function viewFrom({ edge, top, visible }: Readonly<{
     visible: Watched<Visible> & Readonly<{
         scrollBy: (pixels: number) => void;
     }>;
     top: Watched<number>;
+    edge?: 'top' | 'bottom';
 }>): Watched<Visible> & Readonly<{
     scrollBy: (pixels: number) => void;
 }>;

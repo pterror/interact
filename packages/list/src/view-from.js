@@ -1,6 +1,7 @@
 /**
- * A view counted from a top that moves: the part of a scroll container's view that falls on a list placed somewhere in
- * its content, in pixels from the list's top, so several lists can share one scroller.
+ * A view counted from an edge that moves: the part of a scroll container's view that falls on a list placed somewhere
+ * in its content, in pixels from the list's top, so several lists can share one scroller; or, for a list counted from
+ * its bottom (a chat), in pixels up from the list's bottom.
  */
 
 /**
@@ -16,19 +17,22 @@
  * @param {Readonly<{
  *   visible: Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>,
  *   top: Watched<number>,
- * }>} options - The container's view, and the list's top in its content
- * @returns {Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>} The view from the list's top,
- *   heard when either moves, and scrolling the container
+ *   edge?: 'top' | 'bottom',
+ * }>} options - The container's view, in pixels from its content's top; the list's edge in its content, its top or
+ *   its bottom (`topIn`); and which edge that is (`top` by default)
+ * @returns {Watched<Visible> & Readonly<{ scrollBy: (pixels: number) => void }>} The view from the list's edge, heard
+ *   when either moves, and scrolling the container (counted from the bottom, a positive amount scrolls up)
  */
-function viewFrom({ top, visible }) {
+function viewFrom({ edge = 'top', top, visible }) {
+  const up = edge === 'bottom'
   return {
     get() {
       const { end, start } = visible.get()
       const from = top.get()
-      return { end: end - from, start: start - from }
+      return up ? { end: from - start, start: from - end } : { end: end - from, start: start - from }
     },
     scrollBy: (pixels) => {
-      visible.scrollBy(pixels)
+      visible.scrollBy(up ? -pixels : pixels)
     },
     watch(listener) {
       const stops = [visible.watch(listener), top.watch(listener)]

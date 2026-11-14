@@ -52,6 +52,15 @@ const placeAt = (element, top) => {
   element.getBoundingClientRect = () => new globalThis.window.DOMRect(0, top(), 0, 0)
 }
 
+/**
+ * @param {Element} element - The element to place
+ * @param {() => number} top - Its top in the window, asked each time it is measured
+ * @param {() => number} height - Its height, asked each time it is measured
+ */
+const placeSized = (element, top, height) => {
+  element.getBoundingClientRect = () => new globalThis.window.DOMRect(0, top(), 0, height())
+}
+
 describe('topIn', () => {
   test("is the element's top in the container's content and is heard when something above it changes size", () => {
     globalThis.ResizeObserver = FakeResizeObserver
@@ -77,5 +86,42 @@ describe('topIn', () => {
     aboveHeight = 10
     resized(above)
     expect([heard, observers.size]).toEqual([1, 0])
+  })
+
+  test("is the element's bottom in the container's content, heard when it or something above it changes size", () => {
+    globalThis.ResizeObserver = FakeResizeObserver
+    const container = document.createElement('div')
+    const above = document.createElement('div')
+    const list = document.createElement('div')
+    container.append(above, list)
+    let aboveHeight = 120
+    let listHeight = 300
+    placeSized(
+      container,
+      () => 50,
+      () => 400,
+    )
+    placeSized(
+      list,
+      () => 50 + aboveHeight,
+      () => listHeight,
+    )
+    const bottom = topIn(list, container, 'bottom')
+    expect(bottom.get()).toBe(420)
+    let heard = 0
+    const stop = bottom.watch(() => {
+      heard += 1
+    })
+    resized(above)
+    expect(heard).toBe(0)
+    aboveHeight = 200
+    resized(above)
+    listHeight = 360
+    resized(list)
+    expect([bottom.get(), heard]).toEqual([560, 2])
+    stop()
+    aboveHeight = 10
+    resized(above)
+    expect([heard, observers.size]).toEqual([2, 0])
   })
 })
