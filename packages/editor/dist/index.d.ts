@@ -10,6 +10,7 @@ export { keyboardInset } from './keyboard-inset.js';
 export { ruleOf } from './look.js';
 export { overlays } from './overlays.js';
 export { reader } from './reader.js';
+export { segmentGaps } from './segment-gaps.js';
 export { fromElsewhere, segments } from './segments.js';
 export { selectionBar } from './selection-bar.js';
 export { suggestions } from './suggestions.js';
