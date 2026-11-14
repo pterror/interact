@@ -90,6 +90,40 @@ function macros(read, pos) {
     : undefined
 }
 
+/**
+ * A block-type option in a section, drawn with an icon naming it
+ * @param {string} label - Its label
+ * @param {string} section - Its section
+ * @returns {import('./suggestions.js').Option} The option
+ */
+function blockOption(label, section) {
+  return {
+    apply() {
+      // Nothing to apply
+    },
+    icon: () => Object.assign(document.createElement('i'), { className: `icon-${label}` }),
+    label,
+    section,
+  }
+}
+
+/**
+ * Suggests block types wherever the cursor is, in an order no sort by label gives
+ * @type {import('./suggestions.js').Suggest}
+ */
+function blocks(_read, pos) {
+  return {
+    from: pos,
+    options: [
+      blockOption('Text', 'Basic'),
+      blockOption('Heading', 'Basic'),
+      blockOption('Page', 'Insert'),
+      blockOption('Bulleted', 'Basic'),
+    ],
+    to: pos,
+  }
+}
+
 describe('toolbar', () => {
   test('draws a button per tool, its state following the editor', () => {
     const view = viewOver('abc')
@@ -162,6 +196,29 @@ describe('suggestions', () => {
     startCompletion(view)
     await Bun.sleep(100)
     expect(currentCompletions(view.state).map((completion) => completion.label)).toEqual(['user'])
+    view.destroy()
+  })
+
+  test("options keep their answer's order, sections in the order they first come, each with its icon", async () => {
+    const view = viewOver('', [suggestions([blocks])])
+    startCompletion(view)
+    await Bun.sleep(100)
+    expect(currentCompletions(view.state).map((completion) => completion.label)).toEqual([
+      'Text',
+      'Heading',
+      'Bulleted',
+      'Page',
+    ])
+    const drawn = [...view.dom.querySelectorAll('.cm-tooltip-autocomplete li')]
+    expect(drawn.map((li) => li.querySelector('i')?.className)).toEqual([
+      'icon-Text',
+      'icon-Heading',
+      'icon-Bulleted',
+      'icon-Page',
+    ])
+    expect(
+      [...view.dom.querySelectorAll('.cm-tooltip-autocomplete completion-section')].map((h) => h.textContent),
+    ).toEqual(['Basic', 'Insert'])
     view.destroy()
   })
 })

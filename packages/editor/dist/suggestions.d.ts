@@ -9,6 +9,8 @@ export type Option = Readonly<{
     detail?: string;
     apply: (view: EditorView, from: number, to: number) => void;
     info?: () => import('./later.js').Later<HTMLElement>;
+    section?: string;
+    icon?: () => Element;
 }>;
 export type Suggest = (read: (from: number, to: number) => string, pos: number, explicit: boolean) => import('./later.js').Later<Readonly<{
     from: number;
@@ -16,7 +18,7 @@ export type Suggest = (read: (from: number, to: number) => string, pos: number, 
     options: readonly Option[];
 }> | undefined>;
 /**
- * Suggestions from sources
+ * Suggestions from sources. CodeMirror ranks the options by how well their labels match what's typed
  * @param {readonly Suggest[]} sources - The sources, asked in order; every answer is shown
  * @returns {import('@codemirror/state').Extension} The extension that shows them
  */
