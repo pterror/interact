@@ -74,7 +74,7 @@ describe('drag', () => {
     point(a, 'pointerup', 60)
     a.click()
     a.click()
-    expect(shown).toEqual(['none', 'b:true', 'none'])
+    expect(shown).toEqual(['none', 'b:true', 'none', 'none'])
     expect(moves).toEqual(['a->after b'])
     expect(picked).toEqual(['click'])
   })
@@ -89,6 +89,52 @@ describe('drag', () => {
     point(a, 'pointercancel', 60)
     expect(moves).toEqual([])
     expect(picked).toEqual(['click'])
+  })
+
+  test('shows where the pointer is from the press, over the item itself too, and a drop before its reorder', () => {
+    const element = document.createElement('div')
+    const a = document.createElement('div')
+    element.append(a)
+    document.body.append(element)
+    element.setPointerCapture = () => undefined
+    /** @type {string[]} */
+    const seen = []
+    /** @type {unknown[]} */
+    const asked = []
+    drag({
+      element,
+      gap: (at, pressed) => {
+        asked.push(pressed)
+        return { after: true, target: at.x > 20 ? 'b' : 'a' }
+      },
+      itemOf: (target) => (target === a ? { key: 'a' } : undefined),
+      reorder: (key, target) => {
+        seen.push(`reorder ${key}->${target}`)
+      },
+      showing: (at, { from, key, phase, point: { x } }) => {
+        seen.push(`${phase} ${key} ${String(x - from.x)} ${at === undefined ? 'none' : at.target}`)
+      },
+    })
+    point(a, 'pointerdown', 5)
+    point(a, 'pointermove', 15)
+    point(a, 'pointermove', 45)
+    point(a, 'pointerup', 45)
+    point(a, 'pointerdown', 5)
+    point(a, 'pointermove', 45)
+    point(a, 'pointercancel', 45)
+    expect(seen).toEqual([
+      'moving a 10 none',
+      'moving a 40 b',
+      'dropped a 40 none',
+      'reorder a->b',
+      'ended a 40 none',
+      'moving a 40 b',
+      'cancelled a 40 none',
+      'ended a 40 none',
+    ])
+    expect(asked[0]).toBe(asked[1])
+    expect(asked[0]).toEqual({ from: { x: 5, y: 0 }, key: 'a' })
+    expect(asked[2]).not.toBe(asked[0])
   })
 
   test('asks again where the drag would land when anything scrolls under a still pointer', () => {

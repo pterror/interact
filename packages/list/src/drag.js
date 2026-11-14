@@ -14,28 +14,46 @@ const THRESHOLD = 4
  */
 
 /**
+ * A point in the viewport, in CSS pixels
+ * @typedef {Readonly<{ x: number, y: number }>} Point
+ */
+
+/**
+ * The drag a question is about: the key dragged and where the pointer was pressed. One drag asks with the same record
+ * each time, and no other drag asks with it
+ * @template K
+ * @typedef {Readonly<{ key: K, from: Point }>} Pressed
+ */
+
+/**
+ * Where the pointer is in a drag, and how the drag stands: `moving`, then `dropped` (before reorder is called) or
+ * `cancelled`, then `ended` (after reorder is called), each of the last three once
+ * @template K
+ * @typedef {Readonly<{ key: K, from: Point, point: Point, phase: 'moving' | 'dropped' | 'cancelled' | 'ended' }>}
+ *   Motion
+ */
+
+/**
  * @template K
  * @typedef {Readonly<{
  *   element: Element,
  *   itemOf: (target: EventTarget | null) => Readonly<{ key: K }> | undefined,
- *   gap: (point: Readonly<{ x: number, y: number }>) => Readonly<{ target: K, after: boolean }> | undefined,
+ *   gap: (point: Point, drag: Pressed<K>) => Readonly<{ target: K, after: boolean }> | undefined,
  *   reorder: (key: K, target: K, after: boolean) => void,
- *   showing: (drag: Dragging<K> | undefined) => void,
+ *   showing: (drag: Dragging<K> | undefined, motion: Motion<K>) => void,
  * }>} DragOptions
  */
 
 /**
  * Lets items be dragged
  * @template K
- * @param {DragOptions<K>} options - Where items are, the item an element is in, the gap at a point, moving an item,
- *   and showing the drag (none when it ends)
+ * @param {DragOptions<K>} options - Where items are, the item an element is in, the gap at a point during a drag (a
+ *   gap at the dragged item itself lands nowhere), moving an item, and showing where the drag would land (none:
+ *   nowhere, or no longer moving) with where the pointer is and how the drag stands
  * @returns {() => void} Stops
  */
 function drag({ element, gap, itemOf, reorder, showing }) {
-  /**
-   * @type {{ key: K, x: number, y: number, pointer: number, moved: boolean, at: Dragging<K> | undefined,
-   *   point: Readonly<{ x: number, y: number }> } | undefined}
-   */
+  /** @type {{ pressed: Pressed<K>, pointer: number, moved: boolean, at: Dragging<K> | undefined, point: Point } | undefined} */
   let press = undefined
   let swallow = false
 
@@ -50,7 +68,17 @@ function drag({ element, gap, itemOf, reorder, showing }) {
     }
     swallow = false
     const point = { x: event.clientX, y: event.clientY }
-    press = { at: undefined, key: item.key, moved: false, point, pointer: event.pointerId, ...point }
+    press = { at: undefined, moved: false, point, pointer: event.pointerId, pressed: { from: point, key: item.key } }
+  }
+
+  /**
+   * @param {Readonly<NonNullable<typeof press>>} dragged - The drag
+   * @param {Motion<K>['phase']} phase - How it stands
+   * @returns {void}
+   */
+  const show = (dragged, phase) => {
+    const { from, key } = dragged.pressed
+    showing(phase === 'moving' ? dragged.at : undefined, { from, key, phase, point: dragged.point })
   }
 
   /**
@@ -61,11 +89,12 @@ function drag({ element, gap, itemOf, reorder, showing }) {
     if (press?.moved !== true) {
       return
     }
-    const found = gap(press.point)
+    const { key } = press.pressed
+    const found = gap(press.point, press.pressed)
     if (found !== undefined) {
-      press.at = found.target === press.key ? undefined : { after: found.after, key: press.key, target: found.target }
-      showing(press.at)
+      press.at = found.target === key ? undefined : { after: found.after, key, target: found.target }
     }
+    show(press, 'moving')
   }
 
   /**
@@ -76,7 +105,8 @@ function drag({ element, gap, itemOf, reorder, showing }) {
     if (!(event instanceof PointerEvent) || press?.pointer !== event.pointerId) {
       return
     }
-    if (!press.moved && Math.hypot(event.clientX - press.x, event.clientY - press.y) < THRESHOLD) {
+    const { from } = press.pressed
+    if (!press.moved && Math.hypot(event.clientX - from.x, event.clientY - from.y) < THRESHOLD) {
       return
     }
     if (!press.moved) {
@@ -96,16 +126,18 @@ function drag({ element, gap, itemOf, reorder, showing }) {
     if (!(event instanceof PointerEvent) || press?.pointer !== event.pointerId) {
       return
     }
-    const { at, moved: wasDrag } = press
+    const done = press
     press = undefined
-    if (!wasDrag) {
+    if (!done.moved) {
       return
     }
     swallow = true
-    showing(undefined)
-    if (event.type === 'pointerup' && at !== undefined) {
-      reorder(at.key, at.target, at.after)
+    const dropped = event.type === 'pointerup'
+    show(done, dropped ? 'dropped' : 'cancelled')
+    if (dropped && done.at !== undefined) {
+      reorder(done.at.key, done.at.target, done.at.after)
     }
+    show(done, 'ended')
   }
 
   /**
