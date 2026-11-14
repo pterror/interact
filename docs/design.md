@@ -803,6 +803,25 @@ when the piece is no longer drawn, as with list's `render`.
   - **Changed while building the antisocial network's block handles:** an order changed elsewhere could only be laid in
     as a `remove` and an `insert`, two transactions that lose the cursor of someone writing in the moved block, and
     whose first a drag takes as the reorder. `move` was added; nothing else changed.
+- **`segmentData({ of, initial, split })`** **(P)** returns `{ extension, get, change, put, inverse, changed }`: a value
+  kept with each segment of `segments` by its key (a block's type, whether a to-do is done), for what lives beside a
+  text and isn't text.
+  - **It goes with its segment.** Values are by key, so a moved segment keeps its own, a segment joined into another
+    keeps it while undo may bring it back, and a segment laid in from elsewhere takes the one `put` gave its key first.
+  - **Split.** A segment Enter splits off another starts with `split(value)` of the other's (a heading's next block is
+    text, a to-do's another to-do), before or after it. The other is found from where the transaction put the new
+    line break, in the state before it, and `of`; nothing of `segments` beyond `of` is read.
+  - **Changing one.** `change(key, value)` is an effect for the app's own transaction, so turning a block's type and
+    taking its markdown off are one change. `put(view, key, value)` is a change from elsewhere that history doesn't
+    record. `changed(transaction)` names the keys whose values a transaction changed other than by `put` (a change or a
+    split), for the app to save.
+  - **Undo.** The module depends on no history. `inverse(transaction)` gives the effects that put back what a
+    transaction's changes replaced, for the app's history (`invertedEffects.of(inverse)` with CodeMirror's).
+  - Not here: drawing. The app decorates each segment's lines from `of` and `get` (a heading's size, a checkbox, a
+    number), as it styles `data-segment`.
+  - **Added while building the antisocial network's typed blocks:** a block's type had been markdown in its text; kept
+    beside the text, it must survive Enter, joins, undo and moves, which only something that sees each transaction can
+    keep. `segments` didn't change.
 - **`segmentGaps({ view, of })`** **(P)**: a Gap (list's, case 7) over the segments of one editor, for `drag`. The
   segment drawn at the point's height is the target, before or after it by which half of its lines the point is in;
   above the first is before it, below the last after it. Heights are the editor's own (`lineBlockAt`), so segments
