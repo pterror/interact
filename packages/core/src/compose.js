@@ -356,7 +356,8 @@ function settle(widget, at, effects) {
   /** @type {Out[]} */
   const outs = []
   let going = at
-  for (const effect of effects) {
+  const sends = effects.some((effect) => typeOf(effect) === 'send')
+  for (const effect of sends ? [...effects] : effects) {
     if (typeOf(effect) === 'send' && isRecord(effect) && typeof effect['to'] === 'string') {
       const synced = syncProps(widget, going)
       const done = toChild(widget, synced.at, effect['to'], [], effect['input'])
@@ -490,10 +491,12 @@ function deliverIn(widget, at, path, input) {
  * @returns {Result<unknown, Out>} The state, and the effects that reach the host
  */
 function start(widget, props) {
-  const [own, effects] = widget.init(props)
+  const [own, given] = widget.init(props)
   if (!isComposite(widget)) {
-    return [own, effects.map((effect) => ({ effect, from: [] }))]
+    return [own, given.map((effect) => ({ effect, from: [] }))]
   }
+  // Held while the children start, which may call this widget again
+  const effects = [...given]
   /** @type {{ [child: string]: unknown }} */
   const children = {}
   /** @type {[string, readonly Out[]][]} */
