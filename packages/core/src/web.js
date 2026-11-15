@@ -1,11 +1,17 @@
 /**
  * What a part means, in the DOM's words, and DOM events as the contract's inputs: shared by the DOM and Solid
  * renderers. ARIA states become `aria-*` attributes as they are (a reference becomes the referenced part's id), `data`
- * becomes `data-*`, and `tabindex` and `hidden` are HTML's. Events pass through by name and value.
+ * becomes `data-*`, and `tabindex` and `hidden` are HTML's. Events pass through by name and value: an event goes to
+ * the innermost part listening for it, and a pointer event to the part under the pointer, the pressed element
+ * capturing the pointer so its release is never missed. `aria-modal` is carried out here: while a modal part is shown,
+ * everything outside it is inert, and focus goes back where it was when it closes.
  */
 
-/** @import { Node, Out, Target } from './compose.js' */
-/** @import { Key } from './contract.js' */
+import { host as run } from './host.js'
+
+/** @import { AnyWidget, Node, Out, Target } from './compose.js' */
+/** @import { Data, Key } from './contract.js' */
+/** @import { Host } from './host.js' */
 
 /**
  * How a host names things in the DOM: the prefix of every id, and a key as text for ids
@@ -163,4 +169,217 @@ function partName(target) {
   return [...target.owner, target.part].join('.')
 }
 
-export { attributesOf, effectTarget, effectType, elementFor, identity, idOf, inputOf, partName }
+/**
+ * What the page needs from the app: the widget and its props, how ids are made, how an announcement is worded, and
+ * what carries out the app's effects
+ * @typedef {Readonly<{
+ *   widget: AnyWidget,
+ *   props: unknown,
+ *   naming: Naming,
+ *   announce: (message: Readonly<{ [field: string]: Data }>) => string,
+ *   effect: (out: Out, host: Host) => void,
+ * }>} PageOptions
+ */
+
+/**
+ * A widget running in a page: `bind` gives an element a part's meaning and listeners (again on each change),
+ * `unbind` lets go of a part no longer drawn; `live` is where announcements are said
+ * @typedef {Readonly<{
+ *   host: Host,
+ *   live: Element,
+ *   bind: (key: string, element: Element, node: Node) => void,
+ *   unbind: (key: string) => void,
+ *   stop: () => void,
+ * }>} Page
+ */
+
+/**
+ * Runs a widget in a page
+ * @param {PageOptions} options - The widget and how the app takes part
+ * @returns {Page} The running widget, for a renderer to draw
+ */
+function page(options) {
+  const { naming } = options
+  /** @type {Map<string, Element>} */
+  const elements = new Map()
+  /** @type {WeakMap<Element, Node>} */
+  const nodes = new WeakMap()
+  /** @type {WeakMap<Element, ReadonlySet<string>>} */
+  const applied = new WeakMap()
+  /** @type {WeakMap<Element, Set<string>>} */
+  const listening = new WeakMap()
+  /** @type {WeakSet<Event>} */
+  const handled = new WeakSet()
+  /** @type {Map<string, Readonly<{ restore: Element | null, inert: readonly Element[] }>>} */
+  const modals = new Map()
+  const live = document.createElement('div')
+  live.setAttribute('role', 'status')
+
+  /**
+   * Carries out the effects the DOM has a way to: focus, reveal, announce. The rest are the app's
+   * @param {Out} out - The effect
+   * @param {Host} running - The running widget
+   * @returns {void}
+   */
+  const effect = (out, running) => {
+    const type = effectType(out)
+    if (type === 'preventDefault') {
+      return
+    }
+    if (type === 'focus' || type === 'reveal') {
+      const target = effectTarget(out)
+      const element = target === null ? undefined : elements.get(identity(target, naming))
+      if (element instanceof HTMLElement && type === 'focus') {
+        element.focus()
+      } else if (element !== undefined) {
+        element.scrollIntoView({ block: 'nearest' })
+      }
+      return
+    }
+    const { effect: made } = out
+    if (type === 'announce' && typeof made === 'object' && made !== null && 'message' in made) {
+      const { message } = made
+      if (typeof message === 'object' && message !== null && !Array.isArray(message)) {
+        live.textContent = options.announce(Object.fromEntries(Object.entries(message)))
+      }
+      return
+    }
+    options.effect(out, running)
+  }
+
+  const host = run({ effect, props: options.props, widget: options.widget })
+
+  /**
+   * The part an event is for: the part listening, or for a pointer event after the press, the innermost part under
+   * the pointer that takes it
+   * @param {Event} event - The event
+   * @param {Node} node - The part whose listener heard it
+   * @returns {Node} The part
+   */
+  const targetOf = (event, node) => {
+    if (!(event instanceof PointerEvent) || event.type === 'pointerdown') {
+      return node
+    }
+    for (
+      let under = document.elementFromPoint(event.clientX, event.clientY);
+      under !== null;
+      under = under.parentElement
+    ) {
+      const found = nodes.get(under)
+      if (found?.listens.includes(event.type) === true) {
+        return found
+      }
+    }
+    return node
+  }
+
+  /**
+   * Hears an event on an element, for the part it is drawn as
+   * @param {Element} element - The element
+   * @param {Event} event - The event
+   * @returns {void}
+   */
+  const hear = (element, event) => {
+    const node = nodes.get(element)
+    if (node === undefined || !node.listens.includes(event.type) || handled.has(event)) {
+      return
+    }
+    handled.add(event)
+    if (event instanceof PointerEvent && event.type === 'pointerdown' && event.isTrusted) {
+      element.setPointerCapture(event.pointerId)
+    }
+    const { target } = targetOf(event, node)
+    const outs = host.dispatch(target.owner, inputOf(event, target))
+    if (outs.some((out) => effectType(out) === 'preventDefault')) {
+      event.preventDefault()
+    }
+  }
+
+  /**
+   * Makes everything outside a shown modal part inert, and puts back the rest and focus once it is hidden
+   * @param {string} key - The part's identity
+   * @param {Element} element - Its element
+   * @param {boolean} shown - Whether it is shown
+   * @returns {void}
+   */
+  const modal = (key, element, shown) => {
+    const open = modals.get(key)
+    if (shown && open === undefined) {
+      /** @type {Element[]} */
+      const inert = []
+      for (let at = element; at.parentElement !== null && at !== document.body; at = at.parentElement) {
+        for (const sibling of at.parentElement.children) {
+          if (sibling !== at && sibling !== live && !sibling.hasAttribute('inert')) {
+            sibling.setAttribute('inert', '')
+            inert.push(sibling)
+          }
+        }
+      }
+      modals.set(key, { inert, restore: document.activeElement })
+    } else if (!shown && open !== undefined) {
+      modals.delete(key)
+      for (const sibling of open.inert) {
+        sibling.removeAttribute('inert')
+      }
+      const focused = document.activeElement
+      const lost = focused === null || focused === document.body || element.contains(focused)
+      if (open.restore instanceof HTMLElement && lost) {
+        open.restore.focus()
+      }
+    }
+  }
+
+  return {
+    bind: (key, element, node) => {
+      elements.set(key, element)
+      nodes.set(element, node)
+      const attributes = attributesOf(node, naming, elementFor(node.role).implicitRole)
+      for (const name of applied.get(element) ?? []) {
+        if (!attributes.has(name)) {
+          element.removeAttribute(name)
+        }
+      }
+      for (const [name, value] of attributes) {
+        if (value === null) {
+          element.removeAttribute(name)
+        } else if (element.getAttribute(name) !== value) {
+          element.setAttribute(name, value)
+        }
+      }
+      applied.set(element, new Set(attributes.keys()))
+      const heard = listening.get(element) ?? new Set()
+      for (const type of node.listens) {
+        if (!heard.has(type)) {
+          heard.add(type)
+          element.addEventListener(type, (event) => {
+            hear(element, event)
+          })
+        }
+      }
+      listening.set(element, heard)
+      if (node.aria['modal'] === true) {
+        modal(key, element, !node.hidden)
+      }
+    },
+    host,
+    live,
+    stop: () => {
+      host.stop()
+      for (const key of modals.keys()) {
+        const element = elements.get(key)
+        if (element !== undefined) {
+          modal(key, element, false)
+        }
+      }
+    },
+    unbind: (key) => {
+      const element = elements.get(key)
+      if (element !== undefined && modals.has(key)) {
+        modal(key, element, false)
+      }
+      elements.delete(key)
+    },
+  }
+}
+
+export { elementFor, identity, idOf, page, partName }
