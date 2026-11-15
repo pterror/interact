@@ -12,6 +12,40 @@ import { bindingsOf, blocksOf, eachInStmt } from './walk.js'
 /** @import { Plan } from './plan.js' */
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u
+
+/** Functions a module defines when it uses them: JavaScript's operations without the arrays they would make */
+const HELPERS = {
+  includesIn: [
+    '/**',
+    ' * Whether `list.slice(from, to)` includes `value`, without making the slice',
+    ' * @param list - The array',
+    ' * @param value - What is looked for, by SameValueZero as `includes` looks',
+    ' * @param from - Where the slice starts',
+    ' * @param to - Where it ends',
+    ' */',
+    'function includesIn(list, value, from, to = list.length) {',
+    '  const start = sliceIndex(from, list.length)',
+    '  const end = sliceIndex(to, list.length)',
+    '  for (let index = start; index < end; index += 1) {',
+    '    const item = list[index]',
+    '    if (item === value || (item !== item && value !== value)) {',
+    '      return true',
+    '    }',
+    '  }',
+    '  return false',
+    '}',
+    '',
+    '/**',
+    ' * An index as `slice` takes it: truncated, from the end if negative, within the array',
+    ' * @param index - The index',
+    ' * @param count - The length',
+    ' */',
+    'function sliceIndex(index, count) {',
+    '  const whole = Math.trunc(index) || 0',
+    '  return whole < 0 ? Math.max(count + whole, 0) : Math.min(whole, count)',
+    '}',
+  ],
+}
 const RESERVED = new Set([
   'break',
   'case',
@@ -105,6 +139,8 @@ function printJs(planned, imports) {
       '}',
     )
   }
+  const top = [imports.header, reference, ...children, '']
+  lines.splice(0, top.length, ...top, ...printer.helpers())
   return {
     dts: `${imports.header}\nexport declare const ${widget.name}: typeof import('${imports.source(widget.module)}').${widget.name}\n`,
     js: `${lines.join('\n')}\n`,
@@ -274,6 +310,7 @@ function docLines(doc, params, indent) {
  *   fn: (fn: Fn, indent: string) => string[],
  *   stmt: (stmt: Stmt, indent: string) => string[],
  *   expr: (value: Expr) => string,
+ *   helpers: () => string[],
  * }>} The printer
  */
 function makePrinter(nameOf, outer) {
@@ -283,6 +320,8 @@ function makePrinter(nameOf, outer) {
   let used = new Set(outer.values())
   /** @type {ReadonlySet<Binding>} */
   let read = new Set()
+  /** @type {Set<keyof typeof HELPERS>} */
+  const helpers = new Set()
 
   /**
    * A local's name, unique in its function
@@ -394,10 +433,7 @@ function makePrinter(nameOf, outer) {
         return [`${indent}while (${printExpr(one.test)}) {`, ...block(one.body, inner), `${indent}}`]
       }
       case 'emit': {
-        const items = one.items.filter((item) => !isEmpty(item))
-        return items.length === 0
-          ? []
-          : [`${indent}${localName(one.out)}.push(${items.map((item) => itemText(item)).join(', ')})`]
+        return pushLines(localName(one.out), one.items, indent)
       }
       case 'insert': {
         const items = one.items.map((item) => itemText(item)).join(', ')
@@ -419,6 +455,51 @@ function makePrinter(nameOf, outer) {
         throw new TypeError('Not a statement')
       }
     }
+  }
+
+  /**
+   * Appends items to the effect buffer: an array written out is appended item by item, and one chosen by a condition
+   * is appended in an `if`, so neither array is made
+   * @param {string} out - The buffer
+   * @param {readonly Item[]} items - The items
+   * @param {string} indent - The indent
+   * @returns {string[]} The lines
+   */
+  const pushLines = (out, items, indent) => {
+    /** @type {string[]} */
+    const lines = []
+    /** @type {string[]} */
+    let pushed = []
+    const flush = () => {
+      if (pushed.length > 0) {
+        lines.push(`${indent}${out}.push(${pushed.join(', ')})`)
+        pushed = []
+      }
+    }
+    for (const item of items) {
+      const { value } = item
+      if (!item.spread) {
+        pushed.push(printExpr(value))
+      } else if (isEmpty(item)) {
+        continue
+      } else if (value.kind === 'array') {
+        pushed.push(...value.items.map((inner) => itemText(inner)))
+      } else if (value.kind === 'conditional') {
+        flush()
+        const whenTrue = pushLines(out, [{ spread: true, value: value.whenTrue }], `${indent}  `)
+        const whenFalse = pushLines(out, [{ spread: true, value: value.whenFalse }], `${indent}  `)
+        if (whenTrue.length === 0 && whenFalse.length > 0) {
+          lines.push(`${indent}if (!${operand(value.test)}) {`, ...whenFalse, `${indent}}`)
+        } else if (whenTrue.length > 0) {
+          const otherwise = whenFalse.length > 0 ? [`${indent}} else {`, ...whenFalse] : []
+          lines.push(`${indent}if (${printExpr(value.test)}) {`, ...whenTrue, ...otherwise, `${indent}}`)
+        }
+      } else {
+        pushed.push(itemText(item))
+      }
+    }
+    flush()
+    return lines
   }
 
   /**
@@ -504,6 +585,9 @@ function makePrinter(nameOf, outer) {
         return `${nameOf(value.fn)}(${value.args.map((arg) => printExpr(arg)).join(', ')})`
       }
       case 'builtin': {
+        if (value.name === 'includesIn') {
+          helpers.add('includesIn')
+        }
         return `${value.name}(${value.args.map((arg) => printExpr(arg)).join(', ')})`
       }
       case 'method': {
@@ -548,7 +632,12 @@ function makePrinter(nameOf, outer) {
     }
   }
 
-  return { expr: printExpr, fn: printFn, stmt: printStmt }
+  return {
+    expr: printExpr,
+    fn: printFn,
+    helpers: () => [...helpers].flatMap((name) => [...HELPERS[name], '']),
+    stmt: printStmt,
+  }
 }
 
 /**

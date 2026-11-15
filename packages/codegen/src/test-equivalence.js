@@ -139,10 +139,10 @@ function toLua(value) {
     return String(value)
   }
   if (typeof value === 'number') {
-    if (!Number.isFinite(value) || Object.is(value, -0)) {
+    if (!Number.isFinite(value)) {
       throw new TypeError(`Inputs hold finite numbers: ${String(value)}`)
     }
-    return String(value)
+    return Object.is(value, -0) ? '-0.0' : String(value)
   }
   if (typeof value === 'string') {
     const bytes = [...new TextEncoder().encode(value)]

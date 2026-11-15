@@ -9,6 +9,8 @@ import { printLua } from './lua.js'
 import { plan } from './plan.js'
 import { load } from './program.js'
 
+/** @import { Source } from './program.js' */
+
 /**
  * Where a package's widgets are, and where the generated modules find what they import
  * @typedef {Readonly<{
@@ -41,7 +43,16 @@ function check(options) {
  *   (nothing is generated if it found anything), and each widget
  */
 function generate(options) {
-  const source = load(options.tsconfig)
+  return generateFrom(load(options.tsconfig), options)
+}
+
+/**
+ * Generates every widget an index exports, from a program already read
+ * @param {Source} source - The program
+ * @param {Omit<Options, 'tsconfig'>} options - Where the widgets are, and where the output imports from
+ * @returns {Readonly<{ diagnostics: readonly string[], widgets: readonly Generated[] }>} As `generate` gives
+ */
+function generateFrom(source, options) {
   const lowered = lower(source, options.index, options.root)
   if (lowered.diagnostics.length > 0) {
     return { diagnostics: lowered.diagnostics, widgets: [] }
@@ -65,4 +76,4 @@ function generate(options) {
   return { diagnostics: [], widgets }
 }
 
-export { check, generate }
+export { check, generate, generateFrom }

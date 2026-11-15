@@ -4,7 +4,7 @@
  * record used only for its fields becomes one local per field; a local that is a literal becomes a module constant.
  */
 
-import { eachInStmt, mapChildren } from './walk.js'
+import { blocksOf, eachExpr, eachInStmt, exprsOf, mapChildren } from './walk.js'
 
 /** @import ts from 'typescript' */
 /** @import { Binding, Constant, Entry, Expr, Fn, Pattern, Stmt } from './ir.js' */
@@ -30,7 +30,8 @@ import { eachInStmt, mapChildren } from './walk.js'
  */
 function normalize(fn, context) {
   const returns = block(fn.body, context, fn)
-  return literalsToConstants(scalarRecords(propagateAliases(returns), context), context, fn.module)
+  const inlined = inlineArrays(sliceSearches(propagateAliases(returns)))
+  return literalsToConstants(scalarRecords(inlined, context), context, fn.module)
 }
 
 /**
@@ -283,6 +284,146 @@ function propagateAliases(stmts) {
       ),
     ]
   })
+}
+
+/**
+ * Searches a slice without making it: `list.slice(from, to).includes(value)`, or `keysOf(x).includes(value)` where
+ * `keysOf` only returns a slice, becomes `includesIn(list, value, from, to)`
+ * @param {readonly Stmt[]} stmts - The function's body
+ * @returns {readonly Stmt[]} The body
+ */
+function sliceSearches(stmts) {
+  return rewriteBlocks(stmts, (stmt) => [
+    mapStmtExprs(stmt, (expr) =>
+      deepMap(expr, (one) => {
+        if (one.kind !== 'method' || one.name !== 'includes' || one.args.length !== 1) {
+          return one
+        }
+        const [value] = one.args
+        const slice = sliceOf(one.object)
+        if (value === undefined || slice === null) {
+          return one
+        }
+        return {
+          args: [slice.object, value, ...slice.args],
+          at: one.at,
+          kind: 'builtin',
+          name: 'includesIn',
+          type: one.type,
+        }
+      }),
+    ),
+  ])
+}
+
+/**
+ * The slice an expression is: a `slice` call, or a call of a function that only returns one, its parameters given
+ * as the arguments (each a local, a constant or a literal, so it can be read again)
+ * @param {Expr} expr - The expression
+ * @returns {(Expr & { kind: 'method' }) | null} The slice
+ */
+function sliceOf(expr) {
+  if (expr.kind === 'method' && expr.name === 'slice' && expr.args.length <= 2) {
+    return expr
+  }
+  if (
+    expr.kind !== 'call' ||
+    !expr.args.every((arg) => arg.kind === 'local' || arg.kind === 'constant' || arg.kind === 'literal')
+  ) {
+    return null
+  }
+  const [only] = expr.fn.body
+  if (expr.fn.body.length !== 1 || only?.kind !== 'return') {
+    return null
+  }
+  /** @type {Map<Binding, Expr>} */
+  const given = new Map()
+  for (const [at, param] of expr.fn.params.entries()) {
+    const arg = expr.args[at]
+    if (param.kind !== 'bind' || arg === undefined) {
+      return null
+    }
+    given.set(param.binding, arg)
+  }
+  const body = deepMap(only.value, (one) => (one.kind === 'local' ? (given.get(one.binding) ?? one) : one))
+  return body.kind === 'method' && body.name === 'slice' && body.args.length <= 2 ? body : null
+}
+
+/**
+ * Puts each local holding an array literal, or a choice of arrays (`same ? NONE : [...]`), where it is used, when it is
+ * used once and not in a loop or a function: an array of effects returned can then be appended without making it
+ * @param {readonly Stmt[]} stmts - The function's body
+ * @returns {readonly Stmt[]} The body
+ */
+function inlineArrays(stmts) {
+  /** @type {Map<Binding, number>} */
+  const uses = new Map()
+  /** @type {Set<Binding>} */
+  const looped = new Set()
+  /**
+   * Counts the reads of locals in some statements
+   * @param {readonly Stmt[]} list - The statements
+   * @param {boolean} inLoop - Whether they are in a loop
+   * @returns {void}
+   */
+  const count = (list, inLoop) => {
+    for (const stmt of list) {
+      for (const expr of exprsOf(stmt)) {
+        eachExpr(expr, (one) => {
+          if (one.kind === 'local') {
+            uses.set(one.binding, (uses.get(one.binding) ?? 0) + 1)
+            if (inLoop) {
+              looped.add(one.binding)
+            }
+          }
+          if (one.kind === 'lambda') {
+            for (const inner of one.body) {
+              eachInStmt(inner, (read) => {
+                if (read.kind === 'local') {
+                  looped.add(read.binding)
+                }
+              })
+            }
+          }
+        })
+      }
+      for (const inner of blocksOf(stmt)) {
+        count(inner, inLoop || stmt.kind === 'while')
+      }
+    }
+  }
+  count(stmts, false)
+  /** @type {Map<Binding, Expr>} */
+  const values = new Map()
+  return rewriteBlocks(stmts, (stmt) => {
+    if (
+      stmt.kind === 'const' &&
+      stmt.pattern.kind === 'bind' &&
+      isArrayChoice(stmt.value) &&
+      uses.get(stmt.pattern.binding) === 1 &&
+      !looped.has(stmt.pattern.binding)
+    ) {
+      values.set(stmt.pattern.binding, stmt.value)
+      return []
+    }
+    return [
+      mapStmtExprs(stmt, (expr) =>
+        deepMap(expr, (one) => (one.kind === 'local' ? (values.get(one.binding) ?? one) : one)),
+      ),
+    ]
+  })
+}
+
+/**
+ * Whether an expression is an array literal, a constant array, or a choice between such
+ * @param {Expr} expr - The expression
+ * @returns {boolean} Whether it is
+ */
+function isArrayChoice(expr) {
+  if (expr.kind === 'conditional') {
+    return isArrayChoice(expr.whenTrue) && isArrayChoice(expr.whenFalse)
+  }
+  return expr.kind === 'array' || (expr.kind === 'constant' && expr.constant.value.kind === 'array')
 }
 
 /**

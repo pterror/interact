@@ -89,19 +89,47 @@ const HELPERS = {
     'end',
   ],
   slice: [
-    '-- Array.prototype.slice(from, to): 0-based, negative from the end, clamped; to nil is the end',
+    '-- An index as Array.prototype.slice takes it: truncated (NaN 0), from the end if negative, clamped to the list',
+    'local function slice_index(index, count)',
+    '  if index ~= index then return 0 end',
+    '  if index < 0 then',
+    '    index = math.ceil(index) + count',
+    '    return index < 0 and 0 or index',
+    '  end',
+    '  index = math.floor(index)',
+    '  return index > count and count or index',
+    'end',
+    '',
+    '-- Array.prototype.slice(from, to): 0-based; to nil is the end',
     'local function slice(list, from, to)',
     '  local count = #list',
-    '  local function at(index)',
-    '    if index ~= index then return 0 end',
-    '    index = index < 0 and math.ceil(index) or math.floor(index)',
-    '    if index < 0 then return math.max(count + index, 0) end',
-    '    return math.min(index, count)',
-    '  end',
-    '  local first, last = at(from), to == nil and count or at(to)',
+    '  local first = slice_index(from, count)',
+    '  local last = to == nil and count or slice_index(to, count)',
     '  local out = {}',
-    '  for i = first + 1, last do out[#out + 1] = list[i] end',
+    '  for i = first + 1, last do out[i - first] = list[i] end',
     '  return out',
+    'end',
+  ],
+  int32: [
+    '-- ToInt32, as a JavaScript bitwise operator converts its operands: truncated, NaN and infinities 0, modulo 2^32',
+    'local function int32(x)',
+    '  local fast = bit.tobit(x)',
+    '  if fast == x then return fast end',
+    '  if x ~= x or x == math.huge or x == -math.huge then return 0 end',
+    '  if x < 0 then x = math.ceil(x) else x = math.floor(x) end',
+    '  return bit.tobit(x % 4294967296)',
+    'end',
+  ],
+  includesIn: [
+    '-- Whether list.slice(from, to) includes value (SameValueZero, as includes), without making the slice',
+    'local function includes_in(list, value, from, to)',
+    '  local count = #list',
+    '  local last = to == nil and count or slice_index(to, count)',
+    '  for i = slice_index(from, count) + 1, last do',
+    '    local item = list[i]',
+    '    if item == value or (item ~= item and value ~= value) then return true end',
+    '  end',
+    '  return false',
     'end',
   ],
   trunc: [
@@ -169,7 +197,7 @@ function luaModule(planned, checker, imports) {
   /** @type {Map<number, string>} */
   const names = new Map()
   /** @type {Set<string>} */
-  const taken = new Set(['M', 'out', ...Object.keys(HELPERS), 'index_of', widget.name])
+  const taken = new Set(['M', 'bit', 'out', ...Object.keys(HELPERS), 'index_of', 'slice_index', widget.name])
   /** @type {Set<keyof typeof HELPERS>} */
   const helpers = new Set()
 
@@ -342,7 +370,13 @@ function luaModule(planned, checker, imports) {
         if (!isNumber(value.index.type)) {
           refuse(value, 'an index that is not a number')
         }
-        return `${object}[${operand(value.index, pre, indent)} + 1]`
+        const index = isPure(value.index) ? operand(value.index, pre, indent) : held(value.index, 'index', pre, indent)
+        if (!falsy(checker.getNonNullableType(value.type))) {
+          return `(${index} >= 0 and ${object}[${index} + 1] or nil)`
+        }
+        const name = temp('item')
+        pre.push(`${indent}local ${name}`, `${indent}if ${index} >= 0 then ${name} = ${object}[${index} + 1] end`)
+        return name
       }
       case 'record': {
         return record(value, pre, indent)
@@ -560,24 +594,50 @@ function luaModule(planned, checker, imports) {
    * @returns {string} The array
    */
   const array = (value, pre, indent) => {
-    const texts = ordered(
-      value.items.map((item) => item.value),
-      pre,
-      indent,
-    )
     if (value.items.every((item) => !item.spread)) {
-      return `{ ${texts.join(', ')} }`.replace('{  }', '{}')
+      const texts = ordered(
+        value.items.map((item) => item.value),
+        pre,
+        indent,
+      )
+      return texts.length === 0 ? '{}' : `{ ${texts.join(', ')} }`
     }
     const name = temp('list')
-    pre.push(`${indent}local ${name} = {}`)
-    value.items.forEach((item, at) => {
-      const text = texts[at] ?? 'nil'
-      if (item.spread) {
-        pre.push(`${indent}for i = 1, #${text} do ${name}[#${name} + 1] = ${text}[i] end`)
-      } else {
-        pre.push(`${indent}${name}[#${name} + 1] = ${text}`)
+    const size = temp('size')
+    pre.push(`${indent}local ${name}, ${size} = {}, 0`)
+    for (const item of value.items) {
+      if (!item.spread) {
+        const text = expr(item.value, pre, indent)
+        pre.push(`${indent}${size} = ${size} + 1`, `${indent}${name}[${size}] = ${text}`)
+        continue
       }
-    })
+      const source = item.value
+      if (source.kind === 'method' && source.name === 'slice' && source.args.length <= 2) {
+        helpers.add('slice')
+        const list = held(source.object, 'list', pre, indent)
+        const [from, to] = source.args.map((arg) => held(arg, 'bound', pre, indent))
+        const count = temp('count')
+        const first = temp('first')
+        const last = temp('last')
+        pre.push(
+          `${indent}local ${count} = #${list}`,
+          `${indent}local ${first} = slice_index(${from ?? '0'}, ${count})`,
+          `${indent}local ${last} = ${to === undefined ? count : `slice_index(${to}, ${count})`}`,
+          `${indent}for i = ${first} + 1, ${last} do`,
+          `${indent}  ${size} = ${size} + 1`,
+          `${indent}  ${name}[${size}] = ${list}[i]`,
+          `${indent}end`,
+        )
+        continue
+      }
+      const list = held(source, 'list', pre, indent)
+      pre.push(
+        `${indent}for i = 1, #${list} do`,
+        `${indent}  ${size} = ${size} + 1`,
+        `${indent}  ${name}[${size}] = ${list}[i]`,
+        `${indent}end`,
+      )
+    }
     return name
   }
 
@@ -610,6 +670,11 @@ function luaModule(planned, checker, imports) {
         helpers.add('trunc')
         return `trunc(${texts.join(', ')})`
       }
+      case 'includesIn': {
+        helpers.add('slice')
+        helpers.add('includesIn')
+        return `includes_in(${texts.join(', ')})`
+      }
       case 'String': {
         const [arg] = value.args
         if (arg === undefined || !isString(arg.type)) {
@@ -631,7 +696,7 @@ function luaModule(planned, checker, imports) {
    * @returns {string} The expression
    */
   const binary = (value, pre, indent) => {
-    const [left, right] = ordered([value.left, value.right], pre, indent).map((text, at) => {
+    const [left = '', right = ''] = ordered([value.left, value.right], pre, indent).map((text, at) => {
       const side = at === 0 ? value.left : value.right
       return isAtomic(side, text) ? text : `(${text})`
     })
@@ -668,10 +733,71 @@ function luaModule(planned, checker, imports) {
       case '/': {
         return `${left} ${value.op} ${right}`
       }
+      case '&':
+      case '|':
+      case '^': {
+        const name = { '&': 'band', '^': 'bxor', '|': 'bor' }[value.op]
+        return `bit.${name}(${int32Of(value.left, left)}, ${int32Of(value.right, right)})`
+      }
+      case '<<':
+      case '>>':
+      case '>>>': {
+        const name = { '<<': 'lshift', '>>': 'arshift', '>>>': 'rshift' }[value.op]
+        const { right: by } = value
+        const count =
+          by.kind === 'literal' && typeof by.value === 'number' && Number.isInteger(by.value)
+            ? String(((by.value % 32) + 32) % 32)
+            : `bit.band(${int32Of(by, right)}, 31)`
+        const shifted = `bit.${name}(${int32Of(value.left, left)}, ${count})`
+        return value.op === '>>>' ? `(${shifted} % 4294967296)` : shifted
+      }
       default: {
         throw new TypeError('Not an operator')
       }
     }
+  }
+
+  /**
+   * An operand of a bitwise operator, converted as JavaScript converts it (ToInt32), unless it is an int32 already
+   * @param {Expr} value - The operand
+   * @param {string} text - Its text
+   * @returns {string} The converted operand
+   */
+  const int32Of = (value, text) => {
+    if (
+      value.kind === 'literal' &&
+      typeof value.value === 'number' &&
+      Number.isInteger(value.value) &&
+      Math.abs(value.value) < 2 ** 31
+    ) {
+      return text
+    }
+    if (value.kind === 'binary' && ['&', '|', '^', '<<', '>>'].includes(value.op)) {
+      return text
+    }
+    helpers.add('int32')
+    return `int32(${text})`
+  }
+
+  /**
+   * Whether an expression only reads locals, fields and indexes, so reading it twice reads the same
+   * @param {Expr} value - The expression
+   * @returns {boolean} Whether it does
+   */
+  const isPure = (value) => {
+    if (value.kind === 'local' || value.kind === 'constant' || value.kind === 'literal') {
+      return true
+    }
+    if (value.kind === 'field') {
+      return !value.optional && isPure(value.object)
+    }
+    if (value.kind === 'index') {
+      return isPure(value.object) && isPure(value.index)
+    }
+    if (value.kind === 'binary') {
+      return ['+', '-', '*'].includes(value.op) && isPure(value.left) && isPure(value.right)
+    }
+    return false
   }
 
   /**
@@ -686,9 +812,11 @@ function luaModule(planned, checker, imports) {
     /** @type {string[]} */
     const rightPre = []
     const right = operand(value.right, rightPre, `${indent}  `)
+    if (value.op === '??' && value.right.kind === 'literal' && value.right.value === null) {
+      return left
+    }
     if (value.op === '??') {
-      const simple = /^[\w.[\]"]+$/u.test(left)
-      if (rightPre.length === 0 && simple && !falsy(checker.getNonNullableType(value.left.type))) {
+      if (rightPre.length === 0 && isPure(value.left) && !falsy(checker.getNonNullableType(value.left.type))) {
         return `(${left} ~= nil and ${left} or ${right})`
       }
       const name = temp('chosen')
@@ -907,12 +1035,16 @@ function luaModule(planned, checker, imports) {
       }
       case 'filter': {
         const name = temp('kept')
+        const size = temp('size')
         const test = apply([item, `${index} - 1`, list])
         pre.push(
-          `${indent}local ${name} = {}`,
+          `${indent}local ${name}, ${size} = {}, 0`,
           `${indent}for ${index} = 1, #${list} do`,
           ...body,
-          `${inner}if ${test} then ${name}[#${name} + 1] = ${item} end`,
+          `${inner}if ${test} then`,
+          `${inner}  ${size} = ${size} + 1`,
+          `${inner}  ${name}[${size}] = ${item}`,
+          `${inner}end`,
           `${indent}end`,
         )
         return name
@@ -1131,30 +1263,12 @@ function luaModule(planned, checker, imports) {
         const out = localName(one.out)
         const lines = [...pre]
         for (const item of one.items) {
-          const value = item.value
-          const constantArray =
-            value.kind === 'constant' && value.constant.value.kind === 'array' ? value.constant.value : null
-          if (item.spread && constantArray?.items.every((inside) => !inside.spread) === true) {
-            lines.push(...spreadInto(out, value, indent))
-            continue
-          }
-          if (item.spread && value.kind === 'conditional') {
-            const test = expr(value.test, lines, indent)
-            lines.push(
-              `${indent}if ${test} then`,
-              ...spreadInto(out, value.whenTrue, inner),
-              `${indent}else`,
-              ...spreadInto(out, value.whenFalse, inner),
-              `${indent}end`,
-            )
-            continue
-          }
           if (item.spread) {
-            lines.push(...spreadInto(out, value, indent))
-            continue
+            lines.push(...spreadInto(out, item.value, indent))
+          } else {
+            const text = expr(item.value, lines, indent)
+            lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
           }
-          const text = expr(value, lines, indent)
-          lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
         }
         return lines
       }
@@ -1203,19 +1317,38 @@ function luaModule(planned, checker, imports) {
    * @returns {string[]} The lines
    */
   const spreadInto = (out, value, indent) => {
-    const constantArray =
-      value.kind === 'constant' && value.constant.value.kind === 'array' ? value.constant.value : null
-    if (constantArray?.items.length === 0) {
-      return []
-    }
+    const items = value.kind === 'constant' ? value.constant.value : value
     /** @type {string[]} */
     const lines = []
-    if (constantArray?.items.every((inside) => !inside.spread) === true) {
+    if (items.kind === 'array' && items.items.length === 0) {
+      return []
+    }
+    if (value.kind === 'array') {
+      for (const item of value.items) {
+        if (item.spread) {
+          lines.push(...spreadInto(out, item.value, indent))
+        } else {
+          const text = expr(item.value, lines, indent)
+          lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
+        }
+      }
+      return lines
+    }
+    if (value.kind === 'conditional') {
+      const test = expr(value.test, lines, indent)
+      const whenTrue = spreadInto(out, value.whenTrue, `${indent}  `)
+      const whenFalse = spreadInto(out, value.whenFalse, `${indent}  `)
+      if (whenTrue.length === 0) {
+        return whenFalse.length === 0
+          ? lines
+          : [...lines, `${indent}if not ${wrap(test)} then`, ...whenFalse, `${indent}end`]
+      }
+      const otherwise = whenFalse.length === 0 ? [] : [`${indent}else`, ...whenFalse]
+      return [...lines, `${indent}if ${test} then`, ...whenTrue, ...otherwise, `${indent}end`]
+    }
+    if (items.kind === 'array' && items.items.every((inside) => !inside.spread)) {
       const name = expr(value, lines, indent)
-      return [
-        ...lines,
-        ...constantArray.items.map((_, at) => `${indent}${out}[#${out} + 1] = ${name}[${String(at + 1)}]`),
-      ]
+      return [...lines, ...items.items.map((_, at) => `${indent}${out}[#${out} + 1] = ${name}[${String(at + 1)}]`)]
     }
     const name = held(value, 'effects', lines, indent)
     return [...lines, `${indent}for i = 1, #${name} do ${out}[#${out} + 1] = ${name}[i] end`]
@@ -1401,8 +1534,13 @@ function luaModule(planned, checker, imports) {
     }
     tail.push(...widgetTable('    '), 'end', '', 'return M')
   }
-  const helperLines = [...helpers].flatMap((name) => [...HELPERS[name], ''])
-  return `${[imports.header, '', 'local M = {}', '', ...helperLines, ...body, ...tail].join('\n')}\n`
+  // In HELPERS' order: a helper comes before one that calls it
+  const helperLines = Object.entries(HELPERS).flatMap(([name, lines]) =>
+    [...helpers].some((one) => one === name) ? [...lines, ''] : [],
+  )
+  const all = [...helperLines, ...body, ...tail].join('\n')
+  const requires = all.includes('bit.') ? ['local bit = require("bit")', ''] : []
+  return `${[imports.header, '', ...requires, 'local M = {}', '', all].join('\n')}\n`
 }
 
 /**

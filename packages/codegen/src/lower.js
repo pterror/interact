@@ -58,7 +58,13 @@ const PHASES = ['on', 'capture', 'bubble']
 
 /** @type {Readonly<Record<string, BinaryOp>>} */
 const BINARY = {
+  [ts.SyntaxKind.AmpersandToken]: '&',
   [ts.SyntaxKind.AsteriskToken]: '*',
+  [ts.SyntaxKind.BarToken]: '|',
+  [ts.SyntaxKind.CaretToken]: '^',
+  [ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken]: '>>>',
+  [ts.SyntaxKind.GreaterThanGreaterThanToken]: '>>',
+  [ts.SyntaxKind.LessThanLessThanToken]: '<<',
   [ts.SyntaxKind.EqualsEqualsEqualsToken]: '===',
   [ts.SyntaxKind.ExclamationEqualsEqualsToken]: '!==',
   [ts.SyntaxKind.GreaterThanEqualsToken]: '>=',
