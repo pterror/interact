@@ -60,7 +60,13 @@ describe.each(BROWSERS)('the palette and the right-click menu, in %s', (engine) 
       await page.keyboard.press('ControlOrMeta+k')
       const opened = await shown(page)
       expect(opened).toMatchObject({ active: 'Copy', focused: 'field', named: true, open: true, query: '' })
-      expect(opened.options.map((option) => option.split('|')[0])).toEqual(['Copy', 'Cut', 'Paste', 'Close tab'])
+      expect(opened.options.map((option) => option.split('|')[0])).toEqual([
+        'Copy',
+        'Cut',
+        'Paste',
+        'Close tab',
+        'From start',
+      ])
       expect(opened.options[0]?.split('|')[1]).toMatch(/^(?:Ctrl|⌘)\+C$/u)
       await page.keyboard.type('c')
       expect(await shown(page)).toMatchObject({ active: 'Copy', query: 'c' })
@@ -79,7 +85,7 @@ describe.each(BROWSERS)('the palette and the right-click menu, in %s', (engine) 
       await put(page)
       await page.keyboard.press('ControlOrMeta+k')
       await page.keyboard.press('ArrowUp')
-      expect(await shown(page)).toMatchObject({ active: 'Close tab', named: true })
+      expect(await shown(page)).toMatchObject({ active: 'From start', named: true })
       await page.keyboard.press('ArrowDown')
       await page.keyboard.press('ArrowDown')
       expect(await shown(page)).toMatchObject({ active: 'Cut' })
@@ -100,6 +106,16 @@ describe.each(BROWSERS)('the palette and the right-click menu, in %s', (engine) 
       expect(await shown(page)).toMatchObject({ open: true, query: '' })
       await page.mouse.click(5, 290)
       expect(await shown(page)).toMatchObject({ open: false })
+    })
+  })
+
+  test('a command runs, and its `when` is asked, where focus was before the palette opened', async () => {
+    await withPage({ engine, moduleUrl: import.meta.url }, async (page) => {
+      await put(page)
+      await page.keyboard.press('ControlOrMeta+k')
+      await page.keyboard.type('from')
+      await page.keyboard.press('Enter')
+      expect(await shown(page)).toMatchObject({ focused: 'Start', open: false, ran: ['start'] })
     })
   })
 

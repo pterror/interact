@@ -47,6 +47,7 @@ const COMMANDS = [
   noting('paste', 'Paste'),
   noting('close', 'Close tab'),
   noting('never', 'Never shown', { when: () => false }),
+  noting('start', 'From start', { when: () => document.activeElement?.textContent === 'Start' }),
 ]
 
 /**
@@ -88,10 +89,10 @@ function putPalette() {
         mouse: ['RightClick'],
         run(event) {
           if (event instanceof MouseEvent) {
-            menu.openAt({ getBoundingClientRect: () => new DOMRect(event.clientX, event.clientY, 0, 0) }, [
-              ...COMMANDS.slice(0, 3),
-              ...COMMANDS.slice(4),
-            ])
+            menu.openAt(
+              { getBoundingClientRect: () => new DOMRect(event.clientX, event.clientY, 0, 0) },
+              COMMANDS.filter((command) => command.id !== 'close' && command.id !== 'start'),
+            )
           }
         },
       },

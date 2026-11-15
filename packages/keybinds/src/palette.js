@@ -2,7 +2,8 @@
  * A ready-made command palette, wired from small pieces: a field and the commands that apply now, filtered as the
  * person types (list's combobox, case 5). It opens empty with the first command active; Up and Down move the active
  * command (wrapping at the ends), Enter or a click runs it, and the pointer resting on one makes it active. Running a
- * command closes the palette first and gives focus back where it was, so the command runs where the person was. While
+ * command closes the palette first and gives focus back where it was, so the command runs, and its `when` is asked, where
+ * the person was. While
  * open it is a manual popover centred on the viewport, holding focus in its field, so by the overlay rule the page's
  * bindings don't fire; Escape or a press outside closes it. It reads no key to open: the app opens it from a command
  * it binds. Unstyled, in the light DOM: the element is a `role=dialog` holding a `role=combobox` field and a
@@ -180,15 +181,18 @@ function palette({
   })
 
   /**
-   * Runs a command, if it still applies, closing the palette first
+   * Closes the palette, giving focus back, and runs a command if it applies there
    * @param {string | undefined} id - The command
    * @param {Event} event - What chose it
    * @returns {void}
    */
   const choose = (id, event) => {
     const command = id === undefined ? undefined : byId.get(id)
-    if (command !== undefined && applies(command)) {
-      open.set(false)
+    if (command === undefined) {
+      return
+    }
+    open.set(false)
+    if (applies(command)) {
       command.run(event)
     }
   }

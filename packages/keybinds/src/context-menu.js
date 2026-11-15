@@ -2,8 +2,8 @@
  * A ready-made right-click menu, wired from small pieces: the commands it is opened with, as a menu at a point or
  * against an element (list's menu, case 4). It opens with the first command active and focus on it; Up and Down move
  * the active command (wrapping at the ends), Home and End go to the ends, Enter, Space or a click runs it, and the
- * pointer resting on one makes it active. A command whose `when` doesn't hold is `aria-disabled` and doesn't run.
- * Running a command closes the menu first and gives focus back where it was. While open it is a manual popover, kept
+ * pointer resting on one makes it active. A command whose `when` doesn't hold as the menu opens is `aria-disabled` and
+ * doesn't run. Running a command closes the menu first and gives focus back where it was, and runs it if it applies there. While open it is a manual popover, kept
  * inside the window, that has focus, so by the overlay rule the page's bindings don't fire; Escape or a press outside
  * closes it. It reads no event to open: the app opens it from a command it binds (`RightClick`, `shift+F10`).
  * Unstyled, in the light DOM: the element is `role=menu`, each item a `role=menuitem` holding the command's label and
@@ -97,6 +97,8 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
   /** @type {Map<string, Command>} */
   const byId = new Map()
   const items = arrayList(NONE)
+  /** @type {Set<string>} */
+  const enabled = new Set()
   /** @type {Anchor} */
   let at = element
   const active = items.hold(undefined, 'next')
@@ -129,10 +131,7 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
         attribute: 'aria-disabled',
         on: 'true',
         test: {
-          has: (/** @type {string} */ id) => {
-            const command = byId.get(id)
-            return command !== undefined && !applies(command)
-          },
+          has: (/** @type {string} */ id) => byId.has(id) && !enabled.has(id),
           watch: (listener) =>
             items.watch(() => {
               listener()
@@ -147,15 +146,18 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
   element.tabIndex = -1
 
   /**
-   * Runs a command, if it applies, closing the menu first
+   * Closes the menu, giving focus back, and runs a command if it applied as the menu opened and still applies there
    * @param {string | undefined} id - The command
    * @param {Event} event - What chose it
    * @returns {void}
    */
   const choose = (id, event) => {
     const command = id === undefined ? undefined : byId.get(id)
-    if (command !== undefined && applies(command)) {
-      open.set(false)
+    if (command === undefined || !enabled.has(id ?? '')) {
+      return
+    }
+    open.set(false)
+    if (applies(command)) {
       command.run(event)
     }
   }
@@ -179,6 +181,7 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
       if (!open.get()) {
         items.set(NONE)
         byId.clear()
+        enabled.clear()
       }
     }),
     focusReturn({ element, open }),
@@ -235,6 +238,9 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
       at = anchorTo
       for (const command of commands) {
         byId.set(command.id, command)
+        if (applies(command)) {
+          enabled.add(command.id)
+        }
       }
       items.set(commands.map((command) => command.id))
       active.set(items.keys()[0])

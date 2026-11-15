@@ -724,6 +724,10 @@ Neither opens itself: the app binds a command that does (`palette.open.set(true)
   below a point or an element, its keys bound on itself (Up, Down, Home, End, Enter, Space). A command whose `when`
   doesn't hold is shown `aria-disabled`, as in the radial menu.
 - Each row is `cheatsheetRow` over the command: its label, and its bindings through `bindingParts`.
+- **Changed while wiring SillyTavern:** a command's `when` is often about where focus is (the chat box, a message), and
+  the palette and the menu hold focus while open, so a command chosen there didn't apply. Choosing one now closes the
+  surface first, giving focus back, and then asks `when` and runs it; the menu shows `aria-disabled` from `when` as it
+  opens, while focus is still where it was.
 - **Changed for the right-click menu:** a `RightClick` binding ran, and the browser's menu opened over it. `mouseListen`
   now cancels the `contextmenu` of a right press a handler took, heard on the window until the next press, since it goes
   to what is under the pointer by then, which can be the menu the press opened there.

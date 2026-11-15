@@ -2,8 +2,8 @@
  * A ready-made right-click menu, wired from small pieces: the commands it is opened with, as a menu at a point or
  * against an element (list's menu, case 4). It opens with the first command active and focus on it; Up and Down move
  * the active command (wrapping at the ends), Home and End go to the ends, Enter, Space or a click runs it, and the
- * pointer resting on one makes it active. A command whose `when` doesn't hold is `aria-disabled` and doesn't run.
- * Running a command closes the menu first and gives focus back where it was. While open it is a manual popover, kept
+ * pointer resting on one makes it active. A command whose `when` doesn't hold as the menu opens is `aria-disabled` and
+ * doesn't run. Running a command closes the menu first and gives focus back where it was, and runs it if it applies there. While open it is a manual popover, kept
  * inside the window, that has focus, so by the overlay rule the page's bindings don't fire; Escape or a press outside
  * closes it. It reads no event to open: the app opens it from a command it binds (`RightClick`, `shift+F10`).
  * Unstyled, in the light DOM: the element is `role=menu`, each item a `role=menuitem` holding the command's label and
