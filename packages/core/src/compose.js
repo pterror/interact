@@ -32,7 +32,7 @@
 
 /**
  * @typedef {Readonly<{
- *   handle(state: unknown, value: unknown, defaultPrevented: boolean): Result<unknown, unknown>,
+ *   handle(state: unknown, value: unknown, detail: Path | boolean): Result<unknown, unknown>,
  * }>['handle']} AnyHandler
  */
 
@@ -87,13 +87,15 @@
 
 /**
  * Handlers per child, per type of what it handles: every name is checked against the child's effect types (`on`) or
- * the host's event types (`capture`, `bubble`: any can happen on a child's parts)
+ * the host's event types (`capture`, `bubble`: any can happen on a child's parts). An `on` handler is told where under
+ * the child the effect came from (`[]`: the child itself), as a DOM listener reads `event.target`; a `bubble`
+ * handler, whether the target prevented the default
  * @template S, E, C, Of, Extra
  * @typedef {{ readonly [K in keyof C]?: {
  *   readonly [T in TypeOf<Of extends 'effect' ? EffectOf<C[K]> : HostEvent>]?: (
  *     state: S,
  *     value: Extract<Of extends 'effect' ? EffectOf<C[K]> : HostEvent, Readonly<{ type: T }>>,
- *     defaultPrevented: boolean,
+ *     detail: Of extends 'effect' ? Path : boolean,
  *   ) => Result<S, E | Send<keyof C & string> | Extra>
  * } }} Handlers
  */
@@ -414,7 +416,7 @@ function toChild(widget, at, name, rest, input) {
     if (handler === undefined) {
       outs.push({ effect: out.effect, from: [name, ...out.from] })
     } else {
-      const [next, effects] = handler(going.state, out.effect, false)
+      const [next, effects] = handler(going.state, out.effect, out.from)
       const done = settle(widget, { ...going, state: next }, effects)
       outs.push(...done.outs)
       going = done.at
