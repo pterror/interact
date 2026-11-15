@@ -1,7 +1,8 @@
 /**
  * The mouse as presses: a button going down is a press known by its name ("click", "middle", "back"), and its coming
  * up ends it. A button let go where the page doesn't see it is released by the next mouse event, which says which
- * buttons are down. A side button whose press or release a handler took doesn't navigate. With `wheel`, scrolling is
+ * buttons are down. A side button whose press or release a handler took doesn't navigate, and a right button whose
+ * press a handler took opens no context menu. With `wheel`, scrolling is
  * steps: a press per notch, or per `step` px of a trackpad's small deltas; the page holds still during a bound
  * gesture, and a pause of `idle` ms ends it. A step no handler takes gives the rest of the gesture to the page.
  */
@@ -55,6 +56,7 @@ const BUTTONS = ['click', 'middle', 'right', 'back', 'forward']
 const BITS = ['click', 'right', 'middle', 'back', 'forward']
 
 const SIDE = new Set(['back', 'forward'])
+const RIGHT = 'right'
 const DEFAULT_STEP = 50
 const DEFAULT_IDLE = 200
 const LINE_HEIGHT = 16
@@ -99,6 +101,33 @@ function mouseListen({ blocked = () => false, capture = false, target, to, wheel
   const swallowed = new Set()
   /** @type {Map<string, Gesture>} */
   const gestures = new Map()
+  /** @type {(() => void) | undefined} */
+  let menuGuard = undefined
+
+  const unguard = () => {
+    menuGuard?.()
+    menuGuard = undefined
+  }
+
+  /**
+   * Cancels the context menu of a right press a handler took. Its `contextmenu` goes to whatever is under the pointer
+   * by then, which can be what the press opened there (a menu in the top layer), outside where this listens; so it is
+   * heard on the window, until the next press.
+   * @param {EventTarget} view - The press's window
+   * @returns {void}
+   */
+  const guardMenu = (view) => {
+    unguard()
+    /** @param {Event} menu - A contextmenu */
+    const cancel = (menu) => {
+      menu.preventDefault()
+      unguard()
+    }
+    view.addEventListener('contextmenu', cancel, { capture: true })
+    menuGuard = () => {
+      view.removeEventListener('contextmenu', cancel, { capture: true })
+    }
+  }
 
   /**
    * Ends a button's press
@@ -136,12 +165,18 @@ function mouseListen({ blocked = () => false, capture = false, target, to, wheel
         release(id, new MouseEvent('mouseup', { button: BUTTONS.indexOf(id), cancelable: true }), false)
       }
     }
+    if (event.type === 'mousedown') {
+      unguard()
+    }
     if (name !== undefined && event.type === 'mousedown' && !blocked(event)) {
       swallowed.delete(name)
       down.add(name)
       const query = queryOf(name, eventModifiers(event))
-      if (to.down({ event, id: name, query, repeat: false, typing: false }) !== undefined && SIDE.has(name)) {
+      const took = to.down({ event, id: name, query, repeat: false, typing: false }) !== undefined
+      if (took && SIDE.has(name)) {
         swallowed.add(name)
+      } else if (took && name === RIGHT) {
+        guardMenu(event.view ?? globalThis)
       }
     } else if (name !== undefined && event.type === 'mouseup' && down.has(name)) {
       release(name, event, blocked(event))
@@ -190,6 +225,7 @@ function mouseListen({ blocked = () => false, capture = false, target, to, wheel
     for (const type of ['mousedown', 'mouseup', 'mousemove', 'auxclick']) {
       target.removeEventListener(type, onMouse, { capture })
     }
+    unguard()
     target.removeEventListener('wheel', onWheel, { capture })
     down.clear()
     swallowed.clear()

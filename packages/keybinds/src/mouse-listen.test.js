@@ -6,6 +6,7 @@ import { kbd, notes } from './test-keys.js'
 
 const LEFT = 0
 const MIDDLE = 1
+const RIGHT = 2
 const BACK = 3
 const FORWARD = 4
 const UNNAMED = 5
@@ -129,6 +130,21 @@ describe('side buttons', () => {
     cancelled(target, [mouse('mousedown', BACK), mouse('mouseup', BACK)])
     on = false
     expect(cancelled(target, [mouse('mousedown', BACK), mouse('auxclick', BACK)])).toEqual([false, false])
+  })
+})
+
+describe('the right button', () => {
+  test('opens no context menu after a press a binding took, wherever its contextmenu goes', () => {
+    const target = listen([{ mouse: ['RightClick'], run: () => undefined }])
+    const pressed = [mouse('mousedown', RIGHT), mouse('mouseup', RIGHT), mouse('auxclick', RIGHT)]
+    expect(cancelled(target, pressed)).toEqual([true, false, false])
+    expect(cancelled(globalThis, [mouse('contextmenu', RIGHT), mouse('contextmenu', RIGHT)])).toEqual([true, false])
+  })
+
+  test('leaves the context menu to the page when nothing ran', () => {
+    const target = listen([{ mouse: ['RightClick'], run: () => undefined, when: () => false }])
+    expect(cancelled(target, [mouse('mousedown', RIGHT)])).toEqual([false])
+    expect(cancelled(globalThis, [mouse('contextmenu', RIGHT)])).toEqual([false])
   })
 })
 

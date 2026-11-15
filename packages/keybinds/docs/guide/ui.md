@@ -1,9 +1,10 @@
 # Ready-made UI
 
-`cheatsheet()`, `radialMenu()` and `settings()` each build into an element the app gives them. They are unstyled: light
-DOM, no shadow root, no stylesheet; state shows only as `aria-*` and `data-*` attributes, and the only inline style is
-geometry that is behaviour (a popover's place, a radial slot's place). The app styles them with its own CSS. Until it
-does, the cheatsheet and the radial menu, which are popovers, have the browser's default popover styles.
+`cheatsheet()`, `radialMenu()`, `palette()`, `contextMenu()` and `settings()` each build into an element the app gives
+them. They are unstyled: light DOM, no shadow root, no stylesheet; state shows only as `aria-*` and `data-*` attributes,
+and the only inline style is geometry that is behaviour (a popover's place, a radial slot's place). The app styles them
+with its own CSS. Until it does, the cheatsheet and the radial menu, which are popovers, have the browser's default
+popover styles.
 
 ## People's bindings
 
@@ -64,6 +65,44 @@ point, with focus, so the page's bindings don't fire. Arrows point at a slot (or
 Shift+Tab go round, Enter and Space run the active item (`data-active`), the pointer resting on an item makes it active,
 a click runs it, and Escape or a press outside closes it; focus goes back where it was. An item whose `when` is false is
 `aria-disabled` and doesn't run.
+
+## palette()
+
+```js
+const commands = [
+  { id: 'save', keys: ['$mod+s'], label: 'Save', run: save },
+  { id: 'close', label: 'Close tab', run: close, when: () => tabs.length > 1 },
+]
+const shown = palette({ commands: () => commands, element })
+keybinds([...commands, { keys: ['$mod+k'], run: () => shown.open.set(true) }])
+```
+
+The commands whose `when` holds, each with its bindings as `<kbd>`s, filtered as the person types: a field
+(`role=combobox`) and a `role=listbox`, in a `role=dialog`. Up and Down move the active command (`data-active`,
+`aria-selected=true`), Enter or a click runs it after closing, so it runs where focus was. Escape or a press outside
+closes it. While open it is a manual popover centred on the viewport, with focus in its field, so the page's bindings
+don't fire. It reads no key to open: the app binds a command that opens it.
+
+## contextMenu()
+
+```js
+const menu = contextMenu({ element })
+keybinds(
+  [
+    {
+      mouse: ['RightClick'],
+      run: (event) =>
+        menu.openAt({ getBoundingClientRect: () => new DOMRect(event.clientX, event.clientY, 0, 0) }, commands),
+    },
+  ],
+  { target: message },
+)
+```
+
+The commands it is opened with, below a point or an element: `role=menu`, items `role=menuitem` with their bindings as
+`<kbd>`s. Up and Down move (wrapping), Home and End go to the ends, Enter, Space or a click runs the active command
+after closing; a command whose `when` is false is `aria-disabled` and doesn't run. A `RightClick` binding that runs
+keeps the browser's own menu from opening.
 
 ## settings()
 

@@ -1,8 +1,8 @@
 # @pterror/interact-list
 
-Lists people move through, pick from and see: listboxes, grids of cards, groups, nested regions, drag to reorder, and
-lists too long to draw, held in memory or by a server. Built from small modules the app wires by hand; nothing registers
-anything.
+Lists people move through, pick from and see: listboxes, menus, comboboxes, grids of cards, groups, nested regions, drag
+to reorder, and lists too long to draw, held in memory or by a server. Built from small modules the app wires by hand;
+nothing registers anything.
 
 ```bash
 npm install @pterror/interact-list

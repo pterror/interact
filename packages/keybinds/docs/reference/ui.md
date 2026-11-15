@@ -74,6 +74,70 @@ Pieces: `radialPlace({ radius?, size? })` (a Place: slot `rank` round the circle
 `extent` px square), `radialStep(keys)` (a Step round the filled slots, and `toward(slot)`, the filled slot nearest a
 direction), `focusReturn`.
 
+## palette(options)
+
+```ts
+function palette(options: PaletteOptions): Readonly<{ open: Cell<boolean>; stop: () => void }>
+type PaletteOptions = Readonly<{
+  element: HTMLElement
+  commands: () => readonly PaletteCommand[]
+  matches?: (command: PaletteCommand, query: string) => boolean
+  label?: string
+  placeholder?: string
+  layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>
+  rest?: number
+}>
+type PaletteCommand = Readonly<{
+  id: string
+  label: string
+  run: (event: Event) => boolean | void
+  when?: () => boolean
+  keys?: readonly string[]
+  mouse?: readonly string[]
+  pad?: readonly string[]
+}>
+type Cell<T> = Readonly<{ get: () => T; set: (value: T) => void; watch: (listener: () => void) => () => void }>
+```
+
+A command is one keybinds() binds, with an `id` and a `label`. Opening reads `commands()` and keeps those whose `when`
+holds; the field starts empty and the first command is active. Typing keeps the commands `matches` accepts (default:
+every word typed is in the label, ignoring case), in their order, and makes the first active. `role=dialog` holding a
+`role=combobox` field (naming the active option by `aria-activedescendant`) and a `role=listbox`; each option holds a
+`<span>` with the label and a span of `<kbd>`s per binding; the active one is `data-active` and `aria-selected=true`. Up
+and Down move (wrapping), Enter or a click runs (closing first, focus back where it was, `run` given the press or
+click), the pointer resting `rest` ms makes one active, Escape or a press outside closes. Open, it is a manual popover
+centred on the viewport with focus in its field.
+
+Pieces: list's `textValue({ field })` (the query) and `filtered({ list, query, matches })` (the matching keys, a list
+with holds of its own), `cheatsheetRow`, `bindingParts`, `focusReturn`.
+
+## contextMenu(options)
+
+```ts
+function contextMenu(options: ContextMenuOptions): Readonly<{
+  openAt: (anchor: Anchor, commands: readonly PaletteCommand[]) => void
+  close: () => void
+  open: Watched<boolean>
+  stop: () => void
+}>
+type ContextMenuOptions = Readonly<{
+  element: HTMLElement
+  label?: string
+  layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>
+  rest?: number
+}>
+type Anchor = Readonly<{
+  getBoundingClientRect: () => Readonly<{ left: number; top: number; right: number; bottom: number }>
+}>
+```
+
+`openAt` opens the commands below an anchor (a point: `{ getBoundingClientRect: () => new DOMRect(x, y, 0, 0) }`, or an
+element), afresh if open; with no commands it stays closed. `role=menu`, items `role=menuitem` (label and `<kbd>`s as in
+the palette), the active one `data-active` and named by `aria-activedescendant`, one whose `when` is false
+`aria-disabled` (it doesn't run). Open, it is a manual popover kept inside the window, with focus; Up and Down move
+(wrapping), Home and End go to the ends, Enter, Space or a click runs (closing first, focus back), Escape or a press
+outside closes. A `RightClick` binding that runs cancels the browser's own menu (`mouseListen`).
+
 ## settings(options)
 
 ```ts

@@ -1,7 +1,8 @@
 /**
  * The mouse as presses: a button going down is a press known by its name ("click", "middle", "back"), and its coming
  * up ends it. A button let go where the page doesn't see it is released by the next mouse event, which says which
- * buttons are down. A side button whose press or release a handler took doesn't navigate. With `wheel`, scrolling is
+ * buttons are down. A side button whose press or release a handler took doesn't navigate, and a right button whose
+ * press a handler took opens no context menu. With `wheel`, scrolling is
  * steps: a press per notch, or per `step` px of a trackpad's small deltas; the page holds still during a bound
  * gesture, and a pause of `idle` ms ends it. A step no handler takes gives the rest of the gesture to the page.
  */

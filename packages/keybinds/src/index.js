@@ -3,7 +3,7 @@
  * sequences, over binding tables); the keyboard, mouse and gamepads as presses; axes as values read when the app
  * asks; showing and recording bindings; modifiers alone as triggers; the overlay rule; people's rebindings, kept,
  * laid over a schema and edited; and ready-made compositions of them: keybinds(), cheatsheet(), radialMenu(),
- * settings(). Each is also its own module.
+ * settings(), palette(), contextMenu(). Each is also its own module.
  */
 
 export { aliases, keyAliases } from './aliases.js'
@@ -22,6 +22,7 @@ export { cheatsheetRow } from './cheatsheet-row.js'
 export { cheatsheetTrigger } from './cheatsheet-trigger.js'
 export { cheatsheet } from './cheatsheet.js'
 export { conflictQuestion } from './conflict-question.js'
+export { contextMenu } from './context-menu.js'
 export { findConflict } from './find-conflict.js'
 export { flipRelease } from './flip-release.js'
 export { focusReturn } from './focus-return.js'
@@ -58,6 +59,7 @@ export { focusInOverlay, outsideOverlay } from './overlay.js'
 export { padAxis } from './pad-axis.js'
 export { padButtons } from './pad-buttons.js'
 export { padAliases, padButtonNames, padParse } from './pad-parse.js'
+export { palette } from './palette.js'
 export { pads } from './pads.js'
 export { presses } from './presses.js'
 export { printed } from './printed.js'

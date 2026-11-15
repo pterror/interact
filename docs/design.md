@@ -161,6 +161,13 @@ own holds, or the server's). `activeDescendant` is given the field instead of th
 must work while typing. On a new query the active key becomes the first result **(P)**; Enter writes the active item's
 text into the field and closes the list **(P)**.
 
+**As built** (keybinds' `palette`, below): `textValue({ field })` is the field's value as a Watched and a Set, heard on
+`input` and on its own sets. `filtered({ list, query, matches })` keeps the keys of a list (`keys`, `watch`) that
+`matches(key, query)` accepts, in the list's order, as an `arrayList` of its own, so its `hold` holds from the filtered
+keys and a key the query leaves out moves inside the change, as a removed key does. Step is `arrayStep` over its keys.
+Matching is the app's: the palette's default keeps a command when every word typed is in its label, ignoring case
+**(P)**; ranking matches is not built.
+
 ## Case 6: grouping
 
 **Changed:** `render` first took a `container` and inserted elements itself. Nesting options inside `role=group`
@@ -683,11 +690,12 @@ on.
 - Rebinding: `bindingStore` over a storage (`localStorageBindings`), `bound`, `rebind`, `changedFields`, `findConflict`,
   `bindingLookup`, `flipRelease`; `recording` (the state machine) and `recordKey`, `recordMouse`, `recordPad`,
   `recordAxis`.
-- Compositions: `keybinds(bindings, options)`, and the ready-made UI `cheatsheet`, `radialMenu`, `settings`, each wiring
-  exported pieces (`cheatsheetKeys`, `cheatsheetRow`, `cheatsheetTrigger`, `categoryHeaders`, `focusReturn`;
-  `radialPlace`, a Place, and `radialStep`, a Step; `settingsKeys`, `settingsRow`, `settingsChip`, `settingsPrompt`,
-  `settingsQuestion`, `settingsRecorder`, `conflictQuestion`, `rebindKeys`/`Mouse`/`Pad`/`Axes`) with list's render,
-  groupMount, mark, move, pick, hoverIntent, popover, focusWhen and dismiss.
+- Compositions: `keybinds(bindings, options)`, and the ready-made UI `cheatsheet`, `radialMenu`, `palette`,
+  `contextMenu`, `settings`, each wiring exported pieces (`cheatsheetKeys`, `cheatsheetRow`, `cheatsheetTrigger`,
+  `categoryHeaders`, `focusReturn`; `radialPlace`, a Place, and `radialStep`, a Step; `settingsKeys`, `settingsRow`,
+  `settingsChip`, `settingsPrompt`, `settingsQuestion`, `settingsRecorder`, `conflictQuestion`,
+  `rebindKeys`/`Mouse`/`Pad`/`Axes`) with list's render, groupMount, mark, move, pick, hoverIntent, popover, focusWhen
+  and dismiss.
 
 Wiring, for one input: `keyListen → sequences → releases → holds → presses`; `releases` is given `took` from holds and
 presses. Which table a binding goes in is the syntax it names (`k:up`, `k:hold`, `k:tap`, `g i`), decided in
@@ -703,10 +711,31 @@ are manual popovers with focus while open, so the page's bindings don't fire the
 character with no Ctrl, Alt or Meta. Find gives every lookup's handlers best first, so Space bound with
 `when: not typing` leaves a Space inside a prefix to the `printed` binding.
 
-UX **(P)**: the radial menu's radius 100 px and slot 64 px; the cheatsheet opens after its modifier is held 1000 ms;
-recording takes the steps so far after a 1000 ms pause; the settings panel shows a Release switch only on a binding that
-is a release (it turns it back into a press), and recording a release is a switch in the prompt; the panel's texts
-("Press a key...", "+ Key", "Reset", "Reset all", "Already bound to …", "Replace", "Cancel").
+**The palette and the right-click menu** (from "Decided from editor.md"). Both show commands: a command is one
+`keybinds()` binds (`run(event)`, `when`, its bindings), with an `id` and a `label` (the cheatsheet's Entry). An
+editor's Tool becomes one in the app (`run: () => tool.run(view)`, `when: () => tool.applies?.(view.state) ?? true`).
+Neither opens itself: the app binds a command that does (`palette.open.set(true)`, `menu.openAt(anchor, commands)`).
+
+- `palette({ element, commands, matches?, label?, placeholder?, layout?, rest? })` is case 5: a field and a listbox in a
+  manual popover centred on the viewport, its keys bound on the field with `typing` (Up, Down, Enter). It reads
+  `commands()` each time it opens and keeps those whose `when` holds. Running closes it first, so focus is back where it
+  was when the command runs, and passes `run` the press or click that chose it.
+- `contextMenu({ element, label?, layout?, rest? })` is case 4 without submenus: `openAt(anchor, commands)` opens a menu
+  below a point or an element, its keys bound on itself (Up, Down, Home, End, Enter, Space). A command whose `when`
+  doesn't hold is shown `aria-disabled`, as in the radial menu.
+- Each row is `cheatsheetRow` over the command: its label, and its bindings through `bindingParts`.
+- **Changed for the right-click menu:** a `RightClick` binding ran, and the browser's menu opened over it. `mouseListen`
+  now cancels the `contextmenu` of a right press a handler took, heard on the window until the next press, since it goes
+  to what is under the pointer by then, which can be the menu the press opened there.
+- Not built: typeahead in the menu (case 3 would add it), submenus, ranking the palette's matches, and opening the menu
+  from a long press on a touch screen (no `RightClick` there).
+
+UX **(P)**: the palette's and the menu's moves wrap at the ends; the pointer resting 100 ms makes a command active; the
+palette's default texts ("Commands", "Type a command") and the menu's label ("Actions"); the radial menu's radius 100 px
+and slot 64 px; the cheatsheet opens after its modifier is held 1000 ms; recording takes the steps so far after a 1000
+ms pause; the settings panel shows a Release switch only on a binding that is a release (it turns it back into a press),
+and recording a release is a switch in the prompt; the panel's texts ("Press a key...", "+ Key", "Reset", "Reset all",
+"Already bound to …", "Replace", "Cancel").
 
 ## Editor (`packages/editor`, `packages/markdown`)
 
@@ -1060,9 +1089,9 @@ The textarea proxy (`mount.js`) goes once nothing reads a textarea's `value` for
 ### Decided from editor.md
 
 - **The palette and the right-click menu are interact modules.** editor.md puts commands and their surfaces in the core.
-  The palette is a combobox (case 5) over the Tools; the right-click menu is a menu (case 4) over them. Neither reads
-  keys: they are opened by Commands the app binds. Not built yet: the palette needs case 5's `textValue` and `filtered`,
-  which list doesn't have, and both are list wiring whose UX cases 4 and 5 mark as proposals.
+  The palette is a combobox (case 5) over the commands; the right-click menu is a menu (case 4) over them. Neither reads
+  keys to open: they are opened by commands the app binds. Built as keybinds' `palette` and `contextMenu` (Keybinds,
+  above), with list's `textValue` and `filtered`.
 - **Edit keeps the reader's place.** A selection in the reader becomes the same source range in the editor, through
   `positionAt`; with none, the cursor goes to the end of the text, where a person continues writing.
 - **Paste is the markdown package's.** Converting HTML to markdown is general markdown; the choice of what is pasted is
@@ -1095,6 +1124,7 @@ owns what it uses.
 | rangeSelection                               | held keys, Compare                                                | Test, toggle/extend/all      | selected intervals             | —                                           | any Compare                                      | —                                           | owns all     |
 | typeahead                                    | Find, Value, Set                                                  | `type`, Watched              | prefix → key                   | —                                           | late answers dropped if superseded               | —                                           | owns all     |
 | cell, popover, focusWhen, dismiss, textValue | Watched / Set                                                     | Watched, Set                 | one DOM behaviour each         | popover fits by its own placing             | —                                                | —                                           | owns all     |
+| filtered                                     | keys and watch, Watched query                                     | Drawn, Value, held keys      | the keys a query keeps         | beside arrayList, unchanged                 | any list, any query                              | `keys` and `watch` only, of the list        | owns all     |
 | withHeaders                                  | Drawn                                                             | Drawn                        | one transform                  | new Drawn                                   | —                                                | —                                           | owns all     |
 | adjacent                                     | Step, changes, Drawn                                              | Adjacent                     | one neighbour per drawn key    | added for runs                              | applies only each key's latest answer            | one Step direction                          | owns all     |
 | runs                                         | Adjacent, Together                                                | Test                         | one predicate over pairs       | new Test; withHeaders, groupMount unchanged | any answer timing                                | no items, no layout                         | owns all     |
