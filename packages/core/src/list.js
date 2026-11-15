@@ -5,7 +5,7 @@
  * come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again.
  * The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset.
  *
- * Selection is the value, by the contract's rule: with `selected` in its props, a choice shows at once and is pending
+ * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending
  * until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws
  * changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.
  */
@@ -23,7 +23,7 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
- *   selected?: Key | null,
+ *   selected: Readonly<{ value: Key | null }> | null,
  * }>} ListProps
  */
 
@@ -309,14 +309,14 @@ function keydown(state, input) {
  * @returns {Result<ListState, ListEffect>} The list, and any ask it needs
  */
 function propsChanged(state, props) {
-  const controlled = 'selected' in props
+  const controlled = props.selected !== null
   /** @type {ListState} */
   const next = {
     ...state,
     focusable: props.focusable,
     label: props.label,
     rows: props.rows,
-    selection: fromApp(state.selection, controlled, controlled ? (props.selected ?? null) : state.selection.app),
+    selection: fromApp(state.selection, controlled, props.selected === null ? state.selection.app : props.selected.value),
     shown: props.shown,
     source: props.source,
   }
@@ -457,7 +457,7 @@ const list = {
       revision: 0,
       rowSize: null,
       rows: props.rows,
-      selection: pending('selected' in props, props.selected ?? null),
+      selection: pending(props.selected !== null, props.selected === null ? null : props.selected.value),
       shown: props.shown,
       source: props.source,
       top: 0,

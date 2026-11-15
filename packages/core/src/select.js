@@ -21,7 +21,7 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   placeholder: string,
  *   rows: number,
  *   source: string,
- *   value?: Key | null,
+ *   value: Readonly<{ value: Key | null }> | null,
  * }>} SelectProps
  */
 
@@ -102,7 +102,7 @@ function step(own, input) {
   switch (input.type) {
     case 'props': {
       const { props } = input
-      const controlled = 'value' in props
+      const controlled = props.value !== null
       return [
         {
           ...own,
@@ -110,7 +110,7 @@ function step(own, input) {
           placeholder: props.placeholder,
           rows: props.rows,
           source: props.source,
-          value: fromApp(own.value, controlled, controlled ? (props.value ?? null) : own.value.app),
+          value: fromApp(own.value, controlled, props.value === null ? own.value.app : props.value.value),
         },
         NONE,
       ]
@@ -147,7 +147,7 @@ function init(props) {
       placeholder: props.placeholder,
       rows: props.rows,
       source: props.source,
-      value: pending('value' in props, props.value ?? null),
+      value: pending(props.value !== null, props.value === null ? null : props.value.value),
     },
     NONE,
   ]
@@ -180,7 +180,7 @@ const select = compose({
       focusable: false,
       label: own.label,
       rows: own.rows,
-      selected: shown(own.value),
+      selected: { value: shown(own.value) },
       shown: own.open,
       source: own.source,
     }),

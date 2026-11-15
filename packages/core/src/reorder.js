@@ -137,8 +137,8 @@ function moveKey(state, input) {
   }
   const { active } = state
   const rank = active === null ? null : rankOf(state, active)
-  const neighbour = rank === null ? undefined : state.keys[rank + by - state.from]
-  if (active === null || neighbour === undefined) {
+  const neighbour = rank === null ? null : (state.keys[rank + by - state.from] ?? null)
+  if (active === null || neighbour === null) {
     return [state, [{ type: 'preventDefault' }]]
   }
   const [next, effects] = moved(state, active, neighbour, by > 0)
@@ -180,9 +180,10 @@ function pointer(state, input) {
     return [{ ...state, drag: IDLE, swallow: drag.mode === 'dragging' }, NONE]
   }
   if (drag.mode === 'pressed') {
-    const travelled = Math.hypot(input.clientX - drag.x, input.clientY - drag.y)
+    const dx = input.clientX - drag.x
+    const dy = input.clientY - drag.y
     const dragging = { after: false, item: drag.item, mode: 'dragging', over: null, pointerId: drag.pointerId }
-    return travelled < state.dragDistance
+    return dx * dx + dy * dy < state.dragDistance * state.dragDistance
       ? [state, NONE]
       : [{ ...state, drag: { ...dragging, mode: 'dragging' } }, NONE]
   }
@@ -267,7 +268,7 @@ function stepOwn(state, input) {
         return toList(state, input)
       }
       return [
-        derived({ ...state, moves: state.moves.filter((move) => move !== undone) }),
+        derived({ ...state, moves: state.moves.filter((move) => move.id !== undone.id) }),
         [{ message: 'refused', type: 'announce', urgent: false, values: { item: undone.item } }],
       ]
     }

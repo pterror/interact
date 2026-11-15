@@ -80,7 +80,7 @@ const fruitDialog = dialog(select, ['content', 'trigger'])
 const ALL = ['apple', 'banana', 'cherry']
 const DIALOG = {
   closeLabel: 'Close',
-  content: { label: 'Fruit', placeholder: 'Choose', rows: 3, source: 'fruit' },
+  content: { label: 'Fruit', placeholder: 'Choose', rows: 3, source: 'fruit', value: null },
   open: true,
   title: 'Pick a fruit',
 }
@@ -161,6 +161,7 @@ const REORDER = {
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,
+  selected: null,
   shown: true,
   source: 'order',
 }

@@ -13,7 +13,7 @@ import { answer, click, keydown } from './test-inputs.js'
 const ALL = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape']
 
 /** @type {SelectProps} */
-const PROPS = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit' }
+const PROPS = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
 
 /**
  * Whether a value is a select's state
@@ -103,7 +103,7 @@ describe('select', () => {
   })
 
   test('given a value, shows a choice at once, pending; the props confirm it, a refusal undoes it', () => {
-    const props = { ...PROPS, value: 'cherry' }
+    const props = { ...PROPS, value: { value: 'cherry' } }
     let [state, effects] = send(started(props)[0], [], click('trigger'))
     expect(effects).toEqual([
       { effect: { id: 1, locate: 'cherry', rows: 6, source: 'fruit', type: 'ask' }, from: ['list'] },
@@ -113,7 +113,7 @@ describe('select', () => {
     ;[state, effects] = send(state, ['list'], click('option', 'fig'))
     expect(effects).toEqual([{ id: 1, type: 'change', value: 'fig' }])
     expect([state.own.open, shown(state.own.value), state.children.list.selection.app]).toEqual([false, 'fig', 'fig'])
-    const [confirmed] = send(state, [], { props: { ...props, value: 'fig' }, type: 'props' })
+    const [confirmed] = send(state, [], { props: { ...props, value: { value: 'fig' } }, type: 'props' })
     expect([confirmed.own.value.changes, shown(confirmed.own.value)]).toEqual([[], 'fig'])
     const [refused] = send(state, [], { id: 1, type: 'refused' })
     expect([shown(refused.own.value), refused.children.list.selection.app]).toEqual(['cherry', 'cherry'])

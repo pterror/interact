@@ -133,13 +133,14 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit', value: null }
 const ORDER = {
   dragDistance: 4,
   focusable: true,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,
+  selected: null,
   shown: true,
   source: 'fruit',
 }

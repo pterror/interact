@@ -2,13 +2,13 @@
  * A value a widget changes, by the contract's one rule: what it shows is the app's value plus the widget's own
  * changes not yet settled. A change shows at once and is pending until the app's value is the change's (confirmed:
  * it and every change before it are dropped) or the app refuses it (dropped alone). Uncontrolled (the app passes no
- * value), the widget's change is the value at once and nothing is pending.
+ * value), the widget's change is the value at once and nothing is pending. The value is a scalar, compared with `===`.
  */
 
-import { same } from './compose.js'
+/** @import { Key } from './contract.js' */
 
 /**
- * @template T
+ * @template {Key | boolean | null} T
  * @typedef {Readonly<{
  *   controlled: boolean,
  *   app: T,
@@ -19,7 +19,7 @@ import { same } from './compose.js'
 
 /**
  * A value as the app gives it, or keeps it to the widget
- * @template T
+ * @template {Key | boolean | null} T
  * @param {boolean} controlled - Whether the app gives the value
  * @param {T} value - The value
  * @returns {Pending<T>} The value, nothing pending
@@ -30,7 +30,7 @@ function pending(controlled, value) {
 
 /**
  * What the widget shows: its latest pending change, or the app's value
- * @template T
+ * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
  * @returns {T} What shows
  */
@@ -41,7 +41,7 @@ function shown(held) {
 
 /**
  * The widget changes the value
- * @template T
+ * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
  * @param {T} value - The new value
  * @returns {readonly [Pending<T>, number]} The value after, and the change's id
@@ -56,7 +56,7 @@ function change(held, value) {
 
 /**
  * The app gives its value: a pending change it confirms goes, with every change before it
- * @template T
+ * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
  * @param {boolean} controlled - Whether the app gives a value now
  * @param {T} value - The app's value (the widget's own, if not controlled)
@@ -66,13 +66,13 @@ function fromApp(held, controlled, value) {
   if (!controlled) {
     return { ...held, changes: [], controlled }
   }
-  const confirmed = held.changes.findLastIndex((one) => same(one.value, value))
+  const confirmed = held.changes.findLastIndex((one) => one.value === value)
   return { ...held, app: value, changes: held.changes.slice(confirmed + 1), controlled }
 }
 
 /**
  * The app refuses a change: it goes, undone
- * @template T
+ * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
  * @param {number} id - The change
  * @returns {Pending<T>} The value after

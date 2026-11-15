@@ -9,7 +9,7 @@ import { answer, click, keydown } from './test-inputs.js'
 const ALL = Array.from({ length: 100 }, (_, index) => `k${String(index)}`)
 
 /** @type {ListProps} */
-const PROPS = { focusable: true, label: 'Fruit', rows: 5, shown: true, source: 'fruit' }
+const PROPS = { focusable: true, label: 'Fruit', rows: 5, selected: null, shown: true, source: 'fruit' }
 
 /**
  * A list started with props, its first ask answered from `ALL`
@@ -83,7 +83,7 @@ describe('list', () => {
   })
 
   test('given a value, shows a choice at once, pending until the props confirm it, and undoes it when refused', () => {
-    const props = { ...PROPS, selected: 'k1' }
+    const props = { ...PROPS, selected: { value: 'k1' } }
     const [chosen, effects] = list.step(loaded(props), click('option', 'k2'))
     const selected = (/** @type {ListState} */ state, /** @type {string} */ key) => {
       const option = list.view(state, props)['option']
@@ -97,14 +97,14 @@ describe('list', () => {
         { item: 'k2', type: 'active' },
       ],
     ])
-    const [confirmed] = list.step(chosen, { props: { ...props, selected: 'k2' }, type: 'props' })
+    const [confirmed] = list.step(chosen, { props: { ...props, selected: { value: 'k2' } }, type: 'props' })
     expect([confirmed.selection.changes, selected(confirmed, 'k2')]).toEqual([[], true])
     const [refused] = list.step(chosen, { id: 1, type: 'refused' })
     expect([selected(refused, 'k1'), selected(refused, 'k2')]).toEqual([true, false])
   })
 
   test('asks for a window holding the selected key when shown, and makes it active', () => {
-    const props = { ...PROPS, selected: 'k50', shown: false }
+    const props = { ...PROPS, selected: { value: 'k50' }, shown: false }
     const [hidden] = list.init(props)
     const [state, effects] = list.step(hidden, { props: { ...props, shown: true }, type: 'props' })
     expect(effects).toEqual([{ id: 1, locate: 'k50', rows: 7, source: 'fruit', type: 'ask' }])

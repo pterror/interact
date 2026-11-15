@@ -86,7 +86,7 @@ describe('Interact', () => {
               },
             },
             get props() {
-              return { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: value() }
+              return { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: { value: value() } }
             },
             sources: { fruit: arraySource(FRUIT) },
             widget: select,

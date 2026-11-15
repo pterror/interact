@@ -14,6 +14,7 @@ const ORDER = {
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,
+  selected: null,
   shown: true,
   source: 'order',
 }

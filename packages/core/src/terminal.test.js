@@ -80,13 +80,14 @@ describe('terminal input', () => {
   })
 })
 
-const SELECT = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit' }
+const SELECT = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
 const ORDER = {
   dragDistance: 1,
   focusable: true,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,
+  selected: null,
   shown: true,
   source: 'fruit',
 }
