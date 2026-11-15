@@ -30,7 +30,8 @@ import { deliver, isRecord, resolve, start, typeOf } from './compose.js'
  */
 
 /**
- * A widget being run
+ * A widget being run. `state` is its state now; the next input may change that state in place, so it is read, not
+ * kept
  * @typedef {Readonly<{
  *   dispatch: (owner: Path, input: unknown) => readonly Out[],
  *   setProps: (props: unknown) => void,

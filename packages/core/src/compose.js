@@ -279,9 +279,13 @@ function compose(spec) {
 }
 
 /**
- * A delivery inside a composite as it goes: its own fields, its children's states, and the own fields its children
- * last had their props from
- * @typedef {Readonly<{ own: unknown, children: Readonly<{ [child: string]: unknown }>, synced: unknown }>} At
+ * A delivery inside a composite as it goes: its own fields, its children's states, and the props each child last had.
+ * The props are kept, not the own fields they came from: a step may have changed those fields in place since
+ * @typedef {Readonly<{
+ *   own: unknown,
+ *   children: Readonly<{ [child: string]: unknown }>,
+ *   synced: Readonly<{ [child: string]: unknown }>,
+ * }>} At
  */
 
 /**
@@ -299,6 +303,21 @@ function stateOf(at) {
 }
 
 /**
+ * The props a composite gives each child now
+ * @param {AnyComposite} widget - The composite
+ * @param {unknown} own - Its own fields
+ * @returns {Readonly<{ [child: string]: unknown }>} Each child's props
+ */
+function propsOf(widget, own) {
+  /** @type {{ [child: string]: unknown }} */
+  const props = {}
+  for (const name of Object.keys(widget.children)) {
+    props[name] = propsFor(widget, own, name)
+  }
+  return props
+}
+
+/**
  * Delivers each child whose props changed since `at.synced` its new props
  * @param {AnyComposite} widget - The composite
  * @param {At} at - The delivery under way
@@ -310,15 +329,14 @@ function syncProps(widget, at) {
   let going = at
   for (let round = 0; round < 16; round += 1) {
     const { own, synced } = going
-    const changed = Object.keys(widget.children).filter(
-      (name) => !same(propsFor(widget, synced, name), propsFor(widget, own, name)),
-    )
+    const now = propsOf(widget, own)
+    const changed = Object.keys(widget.children).filter((name) => !same(synced[name], now[name]))
     if (changed.length === 0) {
       return { at: going, outs }
     }
-    going = { children: going.children, own: going.own, synced: own }
+    going = { children: going.children, own: going.own, synced: now }
     for (const name of changed) {
-      const done = toChild(widget, going, name, [], { props: propsFor(widget, own, name), type: 'props' })
+      const done = toChild(widget, going, name, [], { props: now[name], type: 'props' })
       going = done.at
       outs.push(...done.outs)
     }
@@ -400,9 +418,10 @@ function toChild(widget, at, name, rest, input) {
 
 /**
  * Delivers an input to the widget at a path below `widget`, and gives the new state and the effects that reach
- * `widget`'s parent. Pure: the same state and input always give the same result
+ * `widget`'s parent. The state is handed over, as to a step: it may be changed in place, and only the state returned
+ * is used after. No clock, randomness or I/O: the same state and input always give the same result
  * @param {AnyWidget} widget - The outermost widget
- * @param {unknown} state - Its state
+ * @param {unknown} state - Its state, handed over
  * @param {Path} path - The widget the input is for: the owner of the part it happened on, or the one that asked,
  *   woke or changed something
  * @param {unknown} input - The input
@@ -417,7 +436,7 @@ function deliver(widget, state, path, input) {
     return [next, effects.map((effect) => ({ effect, from: [] }))]
   }
   const { children, own } = split(state)
-  const done = deliverIn(widget, { children, own, synced: own }, path, input)
+  const done = deliverIn(widget, { children, own, synced: propsOf(widget, own) }, path, input)
   const synced = syncProps(widget, done.at)
   return [stateOf(synced.at), [...done.outs, ...synced.outs]]
 }
@@ -479,23 +498,24 @@ function start(widget, props) {
   const children = {}
   /** @type {[string, readonly Out[]][]} */
   const started = []
+  const synced = propsOf(widget, own)
   for (const name of Object.keys(widget.children)) {
-    const [child, outs] = start(childOf(widget, name), propsFor(widget, own, name))
+    const [child, outs] = start(childOf(widget, name), synced[name])
     children[name] = child
     started.push([name, outs])
   }
   /** @type {Out[]} */
   const outs = []
   /** @type {At} */
-  let going = { children, own, synced: own }
+  let going = { children, own, synced }
   for (const [name, childOuts] of started) {
     const done = bubbleOuts(widget, going, name, childOuts)
     outs.push(...done.outs)
     going = done.at
   }
   const settled = settle(widget, going, effects)
-  const synced = syncProps(widget, settled.at)
-  return [stateOf(synced.at), [...outs, ...settled.outs, ...synced.outs]]
+  const done = syncProps(widget, settled.at)
+  return [stateOf(done.at), [...outs, ...settled.outs, ...done.outs]]
 }
 
 /**

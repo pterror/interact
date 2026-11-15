@@ -221,7 +221,9 @@
 
 /**
  * A widget: three pure functions. `init` gives the first state and what to do at once (a list asks for its first
- * window)
+ * window). A state handed to `step` is the step's: it may change it in place and return it, so whoever calls `step`
+ * (the host, a composite's runtime) never reads a state again once it has handed it over, and keeps only the state
+ * returned. The effects returned are the caller's
  * @template P, S, I, E
  * @typedef {Readonly<{
  *   init: (props: P) => Result<S, E>,
