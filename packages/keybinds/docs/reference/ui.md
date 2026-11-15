@@ -186,6 +186,11 @@ Every word the cheatsheet, settings panel, palette and menu show comes from a `s
 is a function of it: `alreadyBound(label)`, `add(input)`, `stepsSoFar(steps)`. Symbols (arrows, ⌘, key letters) are not
 words and are not in it. Modifiers show as symbols on a Mac and as `ctrl`, `alt` and `shift` elsewhere.
 
+## byPlatform({ mac, other })
+
+Chooses by the platform `$mod` is decided by: `keys: byPlatform({ mac: ['alt+Escape'], other: ['ctrl+Space'] })` is the
+Mac's binding on a Mac and the other elsewhere. Its second argument, whether this is a Mac, defaults to whether it is.
+
 ## rebindKeys(options?), rebindMouse(), rebindPad(options), rebindAxes(options?)
 
 ```ts
