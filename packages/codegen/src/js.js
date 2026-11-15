@@ -119,8 +119,10 @@ function printJs(planned, imports) {
   }
   const { factory } = widget
   if (factory === null) {
-    lines.push(`export const ${widget.name} = ${widgetObject(planned, nameOf, '  ', 'reference.view')}`)
+    const { kept, object } = widgetObject(planned, nameOf, '  ', 'reference.view')
+    lines.push(...kept, '', `export const ${widget.name} = ${object}`)
   } else {
+    const { kept, object } = widgetObject(planned, nameOf, '    ', 'view')
     const params = factory.params.map((param) => param.name).join(', ')
     lines.push(
       ...docLines(
@@ -135,7 +137,8 @@ function printJs(planned, imports) {
         .map((constant) => `  const ${nameOf(constant)} = ${printer.expr(constant.value)}`),
       ...planned.fns.filter((one) => isInside(one.at, factoryAt)).flatMap((fn) => printer.fn(fn, '  ')),
       `  const { view } = reference(${params})`,
-      `  return ${widgetObject(planned, nameOf, '    ', 'view')}`,
+      ...kept.map((line) => `  ${line}`),
+      `  return ${object}`,
       '}',
     )
   }
@@ -198,12 +201,16 @@ function moduleNames(planned) {
  * @param {(owner: Fn | Constant) => string} nameOf - Module-level names
  * @param {string} indent - The indent inside the object
  * @param {string} view - The view's source
- * @returns {string} The object's source
+ * @returns {Readonly<{ kept: readonly string[], object: string }>} The arrays its entries keep, declared, and the
+ *   object's source
  */
 function widgetObject(planned, nameOf, indent, view) {
   const { widget } = planned
+  /** @type {string[]} */
+  const kept = []
   /**
-   * An entry: a planned function, giving `[state, effects]` with a new effects array
+   * An entry: a planned function, giving `[state, effects]`. `init` makes its arrays; any other entry keeps its
+   * result and effects arrays between calls, making a new effects array only after one that had effects in it
    * @param {Fn} source - The source function
    * @returns {string} The entry
    */
@@ -213,8 +220,24 @@ function widgetObject(planned, nameOf, indent, view) {
       return nameOf(fn)
     }
     const params = fn.params.map((param) => patternText(param, (binding) => binding.name)).join(', ')
-    const args = [...fn.params.flatMap((param) => bindingsOf(param).map((binding) => binding.name)), 'out'].join(', ')
-    return `(${params}) => {\n${indent}  const out = []\n${indent}  return [${nameOf(fn)}(${args}), out]\n${indent}}`
+    const names = fn.params.flatMap((param) => bindingsOf(param).map((binding) => binding.name))
+    if (source === widget.init) {
+      const args = [...names, 'out'].join(', ')
+      return `(${params}) => {\n${indent}  const out = []\n${indent}  return [${nameOf(fn)}(${args}), out]\n${indent}}`
+    }
+    const out = `${nameOf(fn)}Out`
+    const result = `${nameOf(fn)}Result`
+    kept.push(`let ${out} = []`, `const ${result} = [null, ${out}]`)
+    return [
+      `(${params}) => {`,
+      `${indent}  if (${out}.length > 0) {`,
+      `${indent}    ${out} = []`,
+      `${indent}  }`,
+      `${indent}  ${result}[0] = ${nameOf(fn)}(${[...names, out].join(', ')})`,
+      `${indent}  ${result}[1] = ${out}`,
+      `${indent}  return ${result}`,
+      `${indent}}`,
+    ].join('\n')
   }
   /** @type {string[]} */
   const fields = []
@@ -237,7 +260,7 @@ function widgetObject(planned, nameOf, indent, view) {
     )
   }
   fields.push(`step: ${entry(widget.step)}`, view === 'view' ? 'view' : `view: ${view}`)
-  return `{\n${fields.map((field) => `${indent}${field},`).join('\n')}\n${indent.slice(2)}}`
+  return { kept, object: `{\n${fields.map((field) => `${indent}${field},`).join('\n')}\n${indent.slice(2)}}` }
 }
 
 /**

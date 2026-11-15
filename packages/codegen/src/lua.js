@@ -516,6 +516,7 @@ function luaModule(planned, checker, imports) {
         checker.isTupleType(objectType) ||
         (value.object.kind === 'local' && localName(value.object.binding) === 'out'))
     ) {
+      checkHoles(objectType, value.object)
       return `#${operand(value.object, pre, indent)}`
     }
     if (value.name === 'length' && isString(objectType)) {
@@ -523,12 +524,16 @@ function luaModule(planned, checker, imports) {
     }
     const object = operand(value.object, pre, indent)
     if (value.optional) {
-      if (/^[\w.[\]"]+$/u.test(object)) {
-        return `(${object} ~= nil and ${object}${member(value.name)} or nil)`
+      const held = /^[\w.[\]"]+$/u.test(object) ? object : temp('held')
+      if (held !== object) {
+        pre.push(`${indent}local ${held} = ${object}`)
       }
-      const name = temp('held')
-      pre.push(`${indent}local ${name} = ${object}`)
-      return `(${name} ~= nil and ${name}${member(value.name)} or nil)`
+      if (!falsy(checker.getNonNullableType(value.type))) {
+        return `(${held} ~= nil and ${held}${member(value.name)} or nil)`
+      }
+      const name = temp('read')
+      pre.push(`${indent}local ${name}`, `${indent}if ${held} ~= nil then ${name} = ${held}${member(value.name)} end`)
+      return name
     }
     return `${object}${member(value.name)}`
   }
@@ -890,6 +895,7 @@ function luaModule(planned, checker, imports) {
     if (value.object.kind === 'regex') {
       return refuse(value, 'a regular expression: Lua patterns are not JavaScript regular expressions')
     }
+    checkHoles(objectType, value.object)
     const list = held(value.object, 'list', pre, indent)
     const element = elementOf(checker, objectType)
     const [first, second] = value.args
