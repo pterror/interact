@@ -1,0 +1,25 @@
+{
+  "name": "@pterror/interact-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A proof of interact's core contract: widgets as pure init, step and view over plain data, composed by the DOM's event model, drawn by generic renderers",
+  "license": "ISC",
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./*": "./src/*.js"
+  },
+  "devDependencies": {
+    "solid-js": "1.9.17"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    }
+  }
+}

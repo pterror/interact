@@ -13,6 +13,13 @@
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
   "env": { "browser": true, "es2024": true },
   "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**"],
+  "overrides": [
+    {
+      // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`.
+      "files": ["packages/core/**/*.js"],
+      "rules": { "unicorn/no-null": "off" }
+    }
+  ],
   "rules": {
     "eslint/eqeqeq": "error",
     "eslint/no-empty": "error",

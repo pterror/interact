@@ -19,6 +19,7 @@ import {
 describe('packages', () => {
   test('depend at runtime on nothing outside this repo, but an adapter on the framework it adapts', async () => {
     expect(outsideDependencies(await manifests())).toEqual([
+      '@pterror/interact-core -> solid-js',
       '@pterror/interact-editor -> @codemirror/autocomplete',
       '@pterror/interact-editor -> @codemirror/language',
       '@pterror/interact-editor -> @codemirror/state',
