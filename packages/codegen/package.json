@@ -1,0 +1,14 @@
+{
+  "name": "@pterror/interact-codegen",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generates in-place JavaScript and LuaJIT steps from interact core widgets written in the core's source subset",
+  "license": "ISC",
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

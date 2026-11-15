@@ -16,3 +16,6 @@ packages/*/docs/.vitepress/dist/
 .normalize/*
 !.normalize/config.toml
 !.normalize/memory/
+
+# Generated
+packages/codegen/out/

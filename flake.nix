@@ -16,6 +16,8 @@
           buildInputs = with pkgs; [
             bun
             nodejs
+            # The code generator's equivalence tests run its Lua output.
+            luajit
           ];
           # Firefox and WebKit for the browser tests, patched for NixOS, at the revisions playwright-core expects
           PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;

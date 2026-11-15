@@ -1,0 +1,1550 @@
+/**
+ * Prints a planned widget as a LuaJIT module, from the same plan the JavaScript is printed from. JavaScript's meaning
+ * is kept exactly, or the generator refuses with the reason: `null` and `undefined` are `nil` (so a field is absent
+ * when it is null, an array never holds either, and `in` is only read where the field can't be null); arrays are
+ * 1-based tables, every index shifted; numbers are doubles in both, `%` is `math.fmod`, `Math.max`/`min` keep
+ * JavaScript's `NaN` and `-0` in local functions; strings are UTF-8 bytes, so only operations that mean the same on
+ * bytes as on UTF-16 (equality, `startsWith`, `endsWith`, `includes`, concatenation) are taken.
+ *
+ * A step's result is two return values (state, effects). The effects table is the module's own, emptied by the next
+ * call: the caller reads it before calling again.
+ */
+
+import ts from 'typescript'
+
+import { capital } from './normalize.js'
+import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
+import { bindingsOf } from './walk.js'
+
+/** @import { Binding, Constant, Expr, Fn, Pattern, Stmt } from './ir.js' */
+/** @import { Plan } from './plan.js' */
+
+const KEYWORDS = new Set([
+  'and',
+  'break',
+  'do',
+  'else',
+  'elseif',
+  'end',
+  'false',
+  'for',
+  'function',
+  'goto',
+  'if',
+  'in',
+  'local',
+  'nil',
+  'not',
+  'or',
+  'repeat',
+  'return',
+  'then',
+  'true',
+  'until',
+  'while',
+])
+const NAME = /^[A-Za-z_]\w*$/u
+
+/** Helpers a module defines when it uses them: where JavaScript's operation is not Lua's */
+const HELPERS = {
+  includes: [
+    '-- Array.prototype.includes: SameValueZero, so NaN is found',
+    'local function includes(list, value)',
+    '  for i = 1, #list do',
+    '    local item = list[i]',
+    '    if item == value or (item ~= item and value ~= value) then return true end',
+    '  end',
+    '  return false',
+    'end',
+  ],
+  indexOf: [
+    '-- Array.prototype.indexOf: the 0-based index of the first item === value, or -1',
+    'local function index_of(list, value)',
+    '  for i = 1, #list do',
+    '    if list[i] == value then return i - 1 end',
+    '  end',
+    '  return -1',
+    'end',
+  ],
+  max: [
+    '-- Math.max of two: NaN if either is, and +0 over -0',
+    'local function max(a, b)',
+    '  if a > b then return a end',
+    '  if b > a then return b end',
+    '  if a ~= a then return a end',
+    '  if b ~= b then return b end',
+    '  if a == 0 then return a + b end',
+    '  return a',
+    'end',
+  ],
+  min: [
+    '-- Math.min of two: NaN if either is, and -0 over +0',
+    'local function min(a, b)',
+    '  if a < b then return a end',
+    '  if b < a then return b end',
+    '  if a ~= a then return a end',
+    '  if b ~= b then return b end',
+    '  if a == 0 then return -(-a - b) end',
+    '  return a',
+    'end',
+  ],
+  slice: [
+    '-- Array.prototype.slice(from, to): 0-based, negative from the end, clamped; to nil is the end',
+    'local function slice(list, from, to)',
+    '  local count = #list',
+    '  local function at(index)',
+    '    if index ~= index then return 0 end',
+    '    index = index < 0 and math.ceil(index) or math.floor(index)',
+    '    if index < 0 then return math.max(count + index, 0) end',
+    '    return math.min(index, count)',
+    '  end',
+    '  local first, last = at(from), to == nil and count or at(to)',
+    '  local out = {}',
+    '  for i = first + 1, last do out[#out + 1] = list[i] end',
+    '  return out',
+    'end',
+  ],
+  trunc: [
+    '-- Math.trunc',
+    'local function trunc(x)',
+    '  if x >= 0 then return math.floor(x) end',
+    '  return math.ceil(x)',
+    'end',
+  ],
+}
+
+/**
+ * A reason the generator can't translate something exactly
+ */
+class RefusedError extends Error {
+  /**
+   * @param {string} message - Why, and where
+   */
+  constructor(message) {
+    super(message)
+    this.name = 'RefusedError'
+  }
+}
+
+/**
+ * Refuses, naming the place
+ * @param {Expr | Stmt} node - Where
+ * @param {string} message - Why
+ * @returns {never} Never
+ */
+function refuse(node, message) {
+  const file = node.at.getSourceFile()
+  const { character, line } = file.getLineAndCharacterOfPosition(node.at.getStart())
+  const where = `${file.fileName.split('/').slice(-3).join('/')}:${String(line + 1)}:${String(character + 1)}`
+  throw new RefusedError(`${where}: ${message}`)
+}
+
+/**
+ * Prints a planned widget as Lua, or gives why it can't
+ * @param {Plan} planned - The plan
+ * @param {ts.TypeChecker} checker - The checker
+ * @param {Readonly<{ header: string }>} imports - The module's header (a child widget is the module generated beside it)
+ * @returns {Readonly<{ lua: string }> | Readonly<{ refused: readonly string[] }>} The module, or the reasons
+ */
+function printLua(planned, checker, imports) {
+  try {
+    return { lua: luaModule(planned, checker, imports) }
+  } catch (error) {
+    if (error instanceof RefusedError) {
+      return { refused: [error.message] }
+    }
+    throw error
+  }
+}
+
+/**
+ * The module's source
+ * @param {Plan} planned - The plan
+ * @param {ts.TypeChecker} checker - The checker
+ * @param {Readonly<{ header: string }>} imports - The module's header
+ * @returns {string} The source
+ */
+function luaModule(planned, checker, imports) {
+  const { widget } = planned
+  /** @type {Map<number, string>} */
+  const names = new Map()
+  /** @type {Set<string>} */
+  const taken = new Set(['M', 'out', ...Object.keys(HELPERS), 'index_of', widget.name])
+  /** @type {Set<keyof typeof HELPERS>} */
+  const helpers = new Set()
+
+  /**
+   * A module-level name
+   * @param {Fn | Constant} owner - What it names
+   * @returns {string} The name
+   */
+  const nameOf = (owner) => {
+    const known = names.get(owner.id)
+    if (known !== undefined) {
+      return known
+    }
+    const base = snake(owner.module === widget.module ? owner.name : `${prefixOf(owner.module)}${capital(owner.name)}`)
+    let name = KEYWORDS.has(base) ? `${base}_` : base
+    for (let count = 2; taken.has(name); count += 1) {
+      name = `${base}${String(count)}`
+    }
+    taken.add(name)
+    names.set(owner.id, name)
+    return name
+  }
+  for (const fn of planned.fns) {
+    nameOf(fn)
+  }
+  for (const constant of planned.constants) {
+    nameOf(constant)
+  }
+
+  /** @type {Map<Binding, string>} */
+  let locals = new Map()
+  /** @type {Set<string>} */
+  let used = new Set()
+  let temps = 0
+
+  /**
+   * A local's name, unique in its function
+   * @param {Binding} binding - The local
+   * @returns {string} Its name
+   */
+  const localName = (binding) => {
+    const known = locals.get(binding)
+    if (known !== undefined) {
+      return known
+    }
+    const base = KEYWORDS.has(snake(binding.name)) ? `${snake(binding.name)}_` : snake(binding.name)
+    let name = base
+    for (let count = 2; used.has(name) || taken.has(name); count += 1) {
+      name = `${base}${String(count)}`
+    }
+    used.add(name)
+    locals.set(binding, name)
+    return name
+  }
+
+  /**
+   * A new local's name
+   * @param {string} base - What it holds
+   * @returns {string} A name not used in the function
+   */
+  const temp = (base) => {
+    temps += 1
+    let name = base
+    for (let count = 2; used.has(name) || taken.has(name); count += 1) {
+      name = `${base}${String(count)}`
+    }
+    used.add(name)
+    return name
+  }
+
+  /**
+   * Checks a type can be held in Lua exactly: no array of a type with `nil` among its values
+   * @param {ts.Type} type - The type
+   * @param {Expr} at - Where
+   * @returns {void}
+   */
+  const checkHoles = (type, at) => {
+    const element = elementOf(checker, type)
+    if (element !== null && (hasNull(element) || hasUndefined(element))) {
+      refuse(
+        at,
+        `an array of ${checker.typeToString(element)}: null in a Lua table is a hole, which # and ipairs stop at`,
+      )
+    }
+    const tuple = tupleOf(checker, checker.getNonNullableType(type))
+    if (tuple?.some((one) => hasNull(one) || hasUndefined(one)) === true) {
+      refuse(at, 'a tuple holding null, as data: null in a Lua table is a hole')
+    }
+  }
+
+  /**
+   * Whether a type's values can be `false` or `nil`, so `a and b or c` can't choose `b`
+   * @param {ts.Type} type - The type
+   * @returns {boolean} Whether they can
+   */
+  const falsy = (type) => {
+    const members = membersOf(type).flatMap((one) => {
+      if ((one.flags & (ts.TypeFlags.TypeParameter | ts.TypeFlags.Substitution)) === 0) {
+        return [one]
+      }
+      const constraint = checker.getBaseConstraintOfType(one)
+      return constraint === undefined || constraint === one ? [checker.getUnknownType()] : membersOf(constraint)
+    })
+    return members.some(
+      (one) =>
+        (one.flags &
+          (ts.TypeFlags.BooleanLike |
+            ts.TypeFlags.Null |
+            ts.TypeFlags.Undefined |
+            ts.TypeFlags.Unknown |
+            ts.TypeFlags.Any)) !==
+        0,
+    )
+  }
+
+  /**
+   * Whether a function returns a tuple, which Lua returns as several values
+   * @param {Fn} fn - The function
+   * @returns {boolean} Whether it does
+   */
+  const returnsTuple = (fn) => {
+    const plannedFn = planned.planned.get(fn) ?? fn
+    if (plannedFn.out !== null) {
+      return false
+    }
+    return tupleOf(checker, checker.getReturnTypeOfSignature(fn.type)) !== null
+  }
+
+  /**
+   * Prints an expression; statements it needs first go to `pre`
+   * @param {Expr} value - The expression
+   * @param {string[]} pre - Lines before, at the current indent
+   * @param {string} indent - The indent
+   * @returns {string} The expression
+   */
+  const expr = (value, pre, indent) => {
+    switch (value.kind) {
+      case 'literal': {
+        if (value.value === null) {
+          return 'nil'
+        }
+        if (typeof value.value === 'string') {
+          return quote(value.value)
+        }
+        if (typeof value.value === 'number') {
+          return numberText(value.value)
+        }
+        return String(value.value)
+      }
+      case 'undefined': {
+        return 'nil'
+      }
+      case 'local': {
+        return localName(value.binding)
+      }
+      case 'constant': {
+        return nameOf(value.constant)
+      }
+      case 'function': {
+        return nameOf(value.fn)
+      }
+      case 'field': {
+        return field(value, pre, indent)
+      }
+      case 'index': {
+        const object = operand(value.object, pre, indent)
+        if (value.index.kind === 'literal' && typeof value.index.value === 'number') {
+          return `${object}[${numberText(value.index.value + 1)}]`
+        }
+        if (!isNumber(value.index.type)) {
+          refuse(value, 'an index that is not a number')
+        }
+        return `${object}[${operand(value.index, pre, indent)} + 1]`
+      }
+      case 'record': {
+        return record(value, pre, indent)
+      }
+      case 'array': {
+        checkHoles(value.type, value)
+        return array(value, pre, indent)
+      }
+      case 'call': {
+        if (returnsTuple(value.fn)) {
+          refuse(value, 'a call returning a tuple used as a value: Lua returns it as several values')
+        }
+        return `${nameOf(value.fn)}(${args(value.args, pre, indent)})`
+      }
+      case 'builtin': {
+        return builtin(value, pre, indent)
+      }
+      case 'method': {
+        return method(value, pre, indent)
+      }
+      case 'unary': {
+        if (value.op === '!') {
+          return `not ${operand(value.operand, pre, indent)}`
+        }
+        return `-${operand(value.operand, pre, indent)}`
+      }
+      case 'binary': {
+        return binary(value, pre, indent)
+      }
+      case 'logical': {
+        return logical(value, pre, indent)
+      }
+      case 'conditional': {
+        return conditional(value, pre, indent)
+      }
+      case 'has': {
+        for (const one of membersOf(checker.getNonNullableType(value.object.type))) {
+          const prop = one.getProperty(value.name)
+          if (prop !== undefined) {
+            const propType = checker.getTypeOfSymbol(prop)
+            if (hasNull(propType) || hasUndefined(propType)) {
+              refuse(
+                value,
+                `\`'${value.name}' in\` where the field may be null: an absent and a nil field are one in Lua`,
+              )
+            }
+          }
+        }
+        return `${operand(value.object, pre, indent)}${member(value.name)} ~= nil`
+      }
+      case 'template': {
+        const parts = value.parts.map((part) => {
+          if (typeof part === 'string') {
+            return quote(part)
+          }
+          if (!isString(part.type)) {
+            refuse(part, 'a number in a template: Lua writes numbers differently (tostring)')
+          }
+          return operand(part, pre, indent)
+        })
+        return parts.length === 0 ? '""' : parts.join(' .. ')
+      }
+      case 'regex': {
+        return refuse(value, 'a regular expression: Lua patterns are not JavaScript regular expressions')
+      }
+      case 'lambda': {
+        return refuse(value, 'a function value outside an array method')
+      }
+      default: {
+        throw new Error('unreachable')
+      }
+    }
+  }
+
+  /**
+   * An expression, parenthesized unless it is an atom
+   * @param {Expr} value - The expression
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The operand
+   */
+  const operand = (value, pre, indent) => {
+    const text = expr(value, pre, indent)
+    return /^[\w.[\]"]+$/u.test(text) || /^[\w.]+\([^()]*\)$/u.test(text) ? text : `(${text})`
+  }
+
+  /**
+   * Arguments, each evaluated in order before what a later one needs first
+   * @param {readonly Expr[]} values - The arguments
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The arguments
+   */
+  const args = (values, pre, indent) => ordered(values, pre, indent).join(', ')
+
+  /**
+   * Expressions evaluated left to right: when a later one needs statements first, earlier calls are held in locals
+   * @param {readonly Expr[]} values - The expressions
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string[]} Their texts
+   */
+  const ordered = (values, pre, indent) => {
+    /** @type {string[]} */
+    const texts = []
+    for (const value of values) {
+      /** @type {string[]} */
+      const own = []
+      const text = expr(value, own, indent)
+      if (own.length > 0) {
+        texts.forEach((earlier, at) => {
+          if (/\(/u.test(earlier)) {
+            const name = temp('value')
+            pre.push(`${indent}local ${name} = ${earlier}`)
+            texts[at] = name
+          }
+        })
+      }
+      pre.push(...own)
+      texts.push(text)
+    }
+    return texts
+  }
+
+  /**
+   * A field read; `.length` of an array is `#`
+   * @param {Expr & { kind: 'field' }} value - The read
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The read
+   */
+  const field = (value, pre, indent) => {
+    const objectType = checker.getNonNullableType(value.object.type)
+    if (
+      value.name === 'length' &&
+      (checker.isArrayType(objectType) ||
+        checker.isTupleType(objectType) ||
+        (value.object.kind === 'local' && localName(value.object.binding) === 'out'))
+    ) {
+      return `#${operand(value.object, pre, indent)}`
+    }
+    if (value.name === 'length' && isString(objectType)) {
+      refuse(value, "a string's length: JavaScript counts UTF-16 units, Lua bytes")
+    }
+    const object = operand(value.object, pre, indent)
+    if (value.optional) {
+      if (/^[\w.[\]"]+$/u.test(object)) {
+        return `(${object} ~= nil and ${object}${member(value.name)} or nil)`
+      }
+      const name = temp('held')
+      pre.push(`${indent}local ${name} = ${object}`)
+      return `(${name} ~= nil and ${name}${member(value.name)} or nil)`
+    }
+    return `${object}${member(value.name)}`
+  }
+
+  /**
+   * A record literal: a table, or a copy of the spread ones with the fields set after
+   * @param {Expr & { kind: 'record' }} value - The literal
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The record
+   */
+  const record = (value, pre, indent) => {
+    if (value.entries.every((entry) => entry.kind === 'field')) {
+      /** @type {Map<string, string>} */
+      const fields = new Map()
+      const texts = ordered(
+        value.entries.map((entry) => entry.value),
+        pre,
+        indent,
+      )
+      value.entries.forEach((entry, at) => {
+        fields.set(entry.name, texts[at] ?? 'nil')
+      })
+      const parts = [...fields].filter(([, text]) => text !== 'nil').map(([name, text]) => `${key(name)} = ${text}`)
+      return parts.length === 0 ? '{}' : `{ ${parts.join(', ')} }`
+    }
+    const name = temp('copy')
+    const texts = ordered(
+      value.entries.map((entry) => entry.value),
+      pre,
+      indent,
+    )
+    pre.push(`${indent}local ${name} = {}`)
+    value.entries.forEach((entry, at) => {
+      const text = texts[at] ?? 'nil'
+      if (entry.kind === 'field') {
+        pre.push(`${indent}${name}${member(entry.name)} = ${text}`)
+        return
+      }
+      if (at > 0) {
+        if (!isExact(entry.value)) {
+          refuse(
+            entry.value,
+            'a spread after another of a record that may hold fields its type does not: a null one would not override',
+          )
+        }
+      }
+      pre.push(`${indent}for k, v in pairs(${text}) do ${name}[k] = v end`)
+      if (at > 0) {
+        for (const one of fieldsOf(checker, entry.value.type)) {
+          pre.push(`${indent}${name}${member(one)} = ${text}${member(one)}`)
+        }
+      }
+    })
+    return name
+  }
+
+  /**
+   * An array literal: a table, or one built item by item where it spreads
+   * @param {Expr & { kind: 'array' }} value - The literal
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The array
+   */
+  const array = (value, pre, indent) => {
+    const texts = ordered(
+      value.items.map((item) => item.value),
+      pre,
+      indent,
+    )
+    if (value.items.every((item) => !item.spread)) {
+      return `{ ${texts.join(', ')} }`.replace('{  }', '{}')
+    }
+    const name = temp('list')
+    pre.push(`${indent}local ${name} = {}`)
+    value.items.forEach((item, at) => {
+      const text = texts[at] ?? 'nil'
+      if (item.spread) {
+        pre.push(`${indent}for i = 1, #${text} do ${name}[#${name} + 1] = ${text}[i] end`)
+      } else {
+        pre.push(`${indent}${name}[#${name} + 1] = ${text}`)
+      }
+    })
+    return name
+  }
+
+  /**
+   * A Math function or `String`
+   * @param {Expr & { kind: 'builtin' }} value - The call
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The call
+   */
+  const builtin = (value, pre, indent) => {
+    const texts = ordered(value.args, pre, indent)
+    switch (value.name) {
+      case 'Math.max':
+      case 'Math.min': {
+        const helper = value.name === 'Math.max' ? 'max' : 'min'
+        helpers.add(helper)
+        if (texts.length === 0) {
+          return value.name === 'Math.max' ? '-math.huge' : 'math.huge'
+        }
+        return texts.slice(1).reduce((acc, text) => `${helper}(${acc}, ${text})`, texts[0] ?? '')
+      }
+      case 'Math.floor':
+      case 'Math.ceil':
+      case 'Math.abs':
+      case 'Math.sqrt': {
+        return `math.${value.name.slice(5)}(${texts.join(', ')})`
+      }
+      case 'Math.trunc': {
+        helpers.add('trunc')
+        return `trunc(${texts.join(', ')})`
+      }
+      case 'String': {
+        const [arg] = value.args
+        if (arg === undefined || !isString(arg.type)) {
+          refuse(value, 'String() of a number: Lua writes numbers differently (tostring)')
+        }
+        return texts.join(', ')
+      }
+      default: {
+        return refuse(value, `${value.name} has no exact Lua form here`)
+      }
+    }
+  }
+
+  /**
+   * A binary expression
+   * @param {Expr & { kind: 'binary' }} value - The expression
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The expression
+   */
+  const binary = (value, pre, indent) => {
+    const [left, right] = ordered([value.left, value.right], pre, indent).map((text, at) => {
+      const side = at === 0 ? value.left : value.right
+      return isAtomic(side, text) ? text : `(${text})`
+    })
+    switch (value.op) {
+      case '===': {
+        return `${left} == ${right}`
+      }
+      case '!==': {
+        return `${left} ~= ${right}`
+      }
+      case '%': {
+        return `math.fmod(${left}, ${right})`
+      }
+      case '+': {
+        if (isString(value.left.type) && isString(value.right.type)) {
+          return `${left} .. ${right}`
+        }
+        if (!isNumber(value.left.type) || !isNumber(value.right.type)) {
+          refuse(value, '+ of a string and a number')
+        }
+        return `${left} + ${right}`
+      }
+      case '<':
+      case '<=':
+      case '>':
+      case '>=': {
+        if (!isNumber(value.left.type) || !isNumber(value.right.type)) {
+          refuse(value, 'comparing strings: JavaScript compares UTF-16 units, Lua bytes')
+        }
+        return `${left} ${value.op} ${right}`
+      }
+      case '-':
+      case '*':
+      case '/': {
+        return `${left} ${value.op} ${right}`
+      }
+      default: {
+        throw new TypeError('Not an operator')
+      }
+    }
+  }
+
+  /**
+   * `&&`, `||`, `??`
+   * @param {Expr & { kind: 'logical' }} value - The expression
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The expression
+   */
+  const logical = (value, pre, indent) => {
+    const left = operand(value.left, pre, indent)
+    /** @type {string[]} */
+    const rightPre = []
+    const right = operand(value.right, rightPre, `${indent}  `)
+    if (value.op === '??') {
+      const simple = /^[\w.[\]"]+$/u.test(left)
+      if (rightPre.length === 0 && simple && !falsy(checker.getNonNullableType(value.left.type))) {
+        return `(${left} ~= nil and ${left} or ${right})`
+      }
+      const name = temp('chosen')
+      pre.push(
+        `${indent}local ${name} = ${left}`,
+        `${indent}if ${name} == nil then`,
+        ...rightPre,
+        `${indent}  ${name} = ${right}`,
+        `${indent}end`,
+      )
+      return name
+    }
+    if (rightPre.length === 0) {
+      return `${left} ${value.op === '&&' ? 'and' : 'or'} ${right}`
+    }
+    const name = temp('test')
+    pre.push(
+      `${indent}local ${name} = ${left}`,
+      `${indent}if ${value.op === '&&' ? '' : 'not '}${name} then`,
+      ...rightPre,
+      `${indent}  ${name} = ${right}`,
+      `${indent}end`,
+    )
+    return name
+  }
+
+  /**
+   * `test ? then : otherwise`
+   * @param {Expr & { kind: 'conditional' }} value - The expression
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The expression
+   */
+  const conditional = (value, pre, indent) => {
+    const test = expr(value.test, pre, indent)
+    /** @type {string[]} */
+    const thenPre = []
+    /** @type {string[]} */
+    const elsePre = []
+    const then = expr(value.whenTrue, thenPre, `${indent}  `)
+    const otherwise = expr(value.whenFalse, elsePre, `${indent}  `)
+    if (thenPre.length === 0 && elsePre.length === 0 && !falsy(value.whenTrue.type)) {
+      return `${wrap(test)} and ${wrap(then)} or ${wrap(otherwise)}`
+    }
+    const name = temp('chosen')
+    pre.push(
+      `${indent}local ${name}`,
+      `${indent}if ${test} then`,
+      ...thenPre,
+      `${indent}  ${name} = ${then}`,
+      `${indent}else`,
+      ...elsePre,
+      `${indent}  ${name} = ${otherwise}`,
+      `${indent}end`,
+    )
+    return name
+  }
+
+  /**
+   * An array or string method
+   * @param {Expr & { kind: 'method' }} value - The call
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The call's value
+   */
+  const method = (value, pre, indent) => {
+    const objectType = checker.getNonNullableType(value.object.type)
+    if (isString(objectType)) {
+      return stringMethod(value, pre, indent)
+    }
+    if (value.object.kind === 'regex') {
+      return refuse(value, 'a regular expression: Lua patterns are not JavaScript regular expressions')
+    }
+    const list = held(value.object, 'list', pre, indent)
+    const element = elementOf(checker, objectType)
+    const [first, second] = value.args
+    switch (value.name) {
+      case 'at': {
+        if (first?.kind === 'literal' && typeof first.value === 'number' && Number.isInteger(first.value)) {
+          const offset = first.value + 1
+          if (first.value >= 0) {
+            return `${list}[${String(offset)}]`
+          }
+          return offset === 0 ? `${list}[#${list}]` : `${list}[#${list} - ${String(-offset)}]`
+        }
+        return refuse(value, 'at() of an index not written out')
+      }
+      case 'includes': {
+        if (first === undefined) {
+          return refuse(value, 'includes() of nothing')
+        }
+        helpers.add('includes')
+        return `includes(${list}, ${expr(first, pre, indent)})`
+      }
+      case 'indexOf': {
+        if (first === undefined || second !== undefined) {
+          return refuse(value, 'indexOf() takes one value here')
+        }
+        helpers.add('indexOf')
+        return `index_of(${list}, ${expr(first, pre, indent)})`
+      }
+      case 'slice': {
+        helpers.add('slice')
+        const texts = ordered(value.args, pre, indent)
+        return `slice(${list}, ${texts[0] ?? '0'}${texts[1] === undefined ? '' : `, ${texts[1]}`})`
+      }
+      case 'join': {
+        if (element === null || !isString(element)) {
+          return refuse(value, 'join() of what is not strings: Lua writes numbers differently')
+        }
+        return `table.concat(${list}, ${first === undefined ? '","' : expr(first, pre, indent)})`
+      }
+      default: {
+        return loop(value, list, pre, indent)
+      }
+    }
+  }
+
+  /**
+   * An expression held in a local if it isn't one, so it is evaluated once
+   * @param {Expr} value - The expression
+   * @param {string} base - The local's name
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The local, or the expression if it is a name
+   */
+  const held = (value, base, pre, indent) => {
+    const text = expr(value, pre, indent)
+    if (/^[\w.]+$/u.test(text)) {
+      return text
+    }
+    const name = temp(base)
+    pre.push(`${indent}local ${name} = ${text}`)
+    return name
+  }
+
+  /**
+   * An array method taking a function, as a loop
+   * @param {Expr & { kind: 'method' }} value - The call
+   * @param {string} list - The array, a name
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The local holding the result
+   */
+  const loop = (value, list, pre, indent) => {
+    const [callback, initial] = value.args
+    if (callback === undefined) {
+      return refuse(value, `${value.name}() without a function`)
+    }
+    const inner = `${indent}  `
+    const index = temp('i')
+    /** @type {string[]} */
+    const body = []
+    /**
+     * The callback applied: a lambda's body inlined, or a function called
+     * @param {readonly string[]} params - The arguments' texts
+     * @returns {string} The result
+     */
+    const apply = (params) => {
+      if (callback.kind === 'function') {
+        return `${nameOf(callback.fn)}(${params.join(', ')})`
+      }
+      if (callback.kind !== 'lambda') {
+        return refuse(value, `${value.name}() of a function value`)
+      }
+      const [only] = callback.body
+      if (callback.body.length !== 1 || only?.kind !== 'return') {
+        return refuse(value, 'a function of several statements in an array method')
+      }
+      callback.params.forEach((param, at) => {
+        const text = params[at]
+        if (text !== undefined) {
+          body.push(...bindPattern(param, text, inner))
+        }
+      })
+      return expr(only.value, body, inner)
+    }
+    const item = `${list}[${index}]`
+    switch (value.name) {
+      case 'find':
+      case 'findLast':
+      case 'findIndex':
+      case 'findLastIndex':
+      case 'some':
+      case 'every': {
+        const name = temp(value.name === 'some' || value.name === 'every' ? 'all' : 'found')
+        const start =
+          value.name === 'every'
+            ? 'true'
+            : value.name.endsWith('Index')
+              ? '-1'
+              : value.name === 'some'
+                ? 'false'
+                : 'nil'
+        const range = value.name.startsWith('findLast') ? `#${list}, 1, -1` : `1, #${list}`
+        const test = apply([item, `${index} - 1`, list])
+        const hit =
+          value.name === 'some'
+            ? 'true'
+            : value.name === 'every'
+              ? 'false'
+              : value.name.endsWith('Index')
+                ? `${index} - 1`
+                : item
+        pre.push(
+          `${indent}local ${name} = ${start}`,
+          `${indent}for ${index} = ${range} do`,
+          ...body,
+          `${inner}if ${value.name === 'every' ? `not ${wrap(test)}` : test} then`,
+          `${inner}  ${name} = ${hit}`,
+          `${inner}  break`,
+          `${inner}end`,
+          `${indent}end`,
+        )
+        return name
+      }
+      case 'filter': {
+        const name = temp('kept')
+        const test = apply([item, `${index} - 1`, list])
+        pre.push(
+          `${indent}local ${name} = {}`,
+          `${indent}for ${index} = 1, #${list} do`,
+          ...body,
+          `${inner}if ${test} then ${name}[#${name} + 1] = ${item} end`,
+          `${indent}end`,
+        )
+        return name
+      }
+      case 'map': {
+        checkHoles(value.type, value)
+        const name = temp('mapped')
+        const result = apply([item, `${index} - 1`, list])
+        pre.push(
+          `${indent}local ${name} = {}`,
+          `${indent}for ${index} = 1, #${list} do`,
+          ...body,
+          `${inner}${name}[${index}] = ${result}`,
+          `${indent}end`,
+        )
+        return name
+      }
+      case 'reduce': {
+        if (initial === undefined) {
+          return refuse(value, 'reduce() without a first value')
+        }
+        const name = temp('acc')
+        const start = expr(initial, pre, indent)
+        const result = apply([name, item, `${index} - 1`, list])
+        pre.push(
+          `${indent}local ${name} = ${start}`,
+          `${indent}for ${index} = 1, #${list} do`,
+          ...body,
+          `${inner}${name} = ${result}`,
+          `${indent}end`,
+        )
+        return name
+      }
+      default: {
+        return refuse(value, `the array method ${value.name}() has no Lua form here`)
+      }
+    }
+  }
+
+  /**
+   * A string method, where its meaning on UTF-8 bytes is its meaning on UTF-16 units
+   * @param {Expr & { kind: 'method' }} value - The call
+   * @param {string[]} pre - Lines before
+   * @param {string} indent - The indent
+   * @returns {string} The call's value
+   */
+  const stringMethod = (value, pre, indent) => {
+    const [first] = value.args
+    switch (value.name) {
+      case 'startsWith':
+      case 'endsWith':
+      case 'includes': {
+        if (first === undefined || value.args.length > 1) {
+          return refuse(value, `${value.name}() takes one string here`)
+        }
+        const text = held(value.object, 'text', pre, indent)
+        const part = held(first, 'part', pre, indent)
+        if (value.name === 'startsWith') {
+          return `${text}:sub(1, #${part}) == ${part}`
+        }
+        if (value.name === 'endsWith') {
+          return `(#${part} == 0 or ${text}:sub(-#${part}) == ${part})`
+        }
+        return `${text}:find(${part}, 1, true) ~= nil`
+      }
+      default: {
+        return refuse(
+          value,
+          `the string method ${value.name}(): its JavaScript meaning (Unicode case, UTF-16 units) is not Lua's on bytes`,
+        )
+      }
+    }
+  }
+
+  /**
+   * Binds a pattern to a value's text
+   * @param {Pattern} pattern - The pattern
+   * @param {string} value - The value, a name or expression
+   * @param {string} indent - The indent
+   * @returns {string[]} The lines
+   */
+  const bindPattern = (pattern, value, indent) => {
+    if (pattern.kind === 'bind') {
+      return [`${indent}local ${localName(pattern.binding)} = ${value}`]
+    }
+    /** @type {{ pattern: Pattern, read: string }[]} */
+    const parts =
+      pattern.kind === 'tuple'
+        ? pattern.items.flatMap((item, at) =>
+            item === null ? [] : [{ pattern: item, read: `${value}[${String(at + 1)}]` }],
+          )
+        : pattern.fields.map((one) => ({ pattern: one.pattern, read: `${value}${member(one.name)}` }))
+    /** @type {string[]} */
+    const bound = []
+    for (const part of parts) {
+      if (part.pattern.kind !== 'bind') {
+        return parts.flatMap((one) => bindPattern(one.pattern, one.read, indent))
+      }
+      bound.push(localName(part.pattern.binding))
+    }
+    return [`${indent}local ${bound.join(', ')} = ${parts.map((part) => part.read).join(', ')}`]
+  }
+
+  /**
+   * A statement
+   * @param {Stmt} one - The statement
+   * @param {string} indent - The indent
+   * @returns {string[]} Its lines
+   */
+  const stmt = (one, indent) => {
+    /** @type {string[]} */
+    const pre = []
+    const inner = `${indent}  `
+    switch (one.kind) {
+      case 'const': {
+        if (one.pattern.kind === 'tuple' && one.value.kind === 'call' && returnsTuple(one.value.fn)) {
+          const call = `${nameOf(one.value.fn)}(${args(one.value.args, pre, indent)})`
+          const bound = one.pattern.items.map((item) => (item?.kind === 'bind' ? localName(item.binding) : '_'))
+          if (one.pattern.items.some((item) => item !== null && item.kind !== 'bind')) {
+            refuse(one, 'a nested pattern of several returned values')
+          }
+          return [...pre, `${indent}local ${bound.join(', ')} = ${call}`]
+        }
+        if (one.pattern.kind === 'bind') {
+          const text = expr(one.value, pre, indent)
+          return [...pre, `${indent}local ${localName(one.pattern.binding)} = ${text}`]
+        }
+        const text = held(one.value, 'value', pre, indent)
+        return [...pre, ...bindPattern(one.pattern, text, indent)]
+      }
+      case 'let': {
+        if (one.value.kind === 'undefined') {
+          return [`${indent}local ${localName(one.binding)}`]
+        }
+        const text = expr(one.value, pre, indent)
+        return [...pre, `${indent}local ${localName(one.binding)} = ${text}`]
+      }
+      case 'assign': {
+        const text = expr(one.value, pre, indent)
+        return [...pre, `${indent}${localName(one.binding)} = ${text}`]
+      }
+      case 'set': {
+        const text = expr(one.value, pre, indent)
+        return [...pre, `${indent}${localName(one.object)}${member(one.name)} = ${text}`]
+      }
+      case 'return': {
+        if (one.value.kind === 'call' && returnsTuple(one.value.fn)) {
+          return [...pre, `${indent}return ${nameOf(one.value.fn)}(${args(one.value.args, pre, indent)})`]
+        }
+        if (
+          one.value.kind === 'array' &&
+          tupleOf(checker, one.value.type) !== null &&
+          one.value.items.every((item) => !item.spread)
+        ) {
+          const texts = ordered(
+            one.value.items.map((item) => item.value),
+            pre,
+            indent,
+          )
+          return [...pre, `${indent}return ${texts.join(', ')}`]
+        }
+        const text = expr(one.value, pre, indent)
+        return [...pre, `${indent}return ${text}`]
+      }
+      case 'if': {
+        const test = expr(one.test, pre, indent)
+        const lines = [...pre, `${indent}if ${test} then`, ...block(one.whenTrue, inner)]
+        let otherwise = one.whenFalse
+        for (let [nested] = otherwise; otherwise.length === 1 && nested?.kind === 'if'; [nested] = otherwise) {
+          /** @type {string[]} */
+          const nestedPre = []
+          const nestedTest = expr(nested.test, nestedPre, indent)
+          if (nestedPre.length > 0) {
+            break
+          }
+          lines.push(`${indent}elseif ${nestedTest} then`, ...block(nested.whenTrue, inner))
+          otherwise = nested.whenFalse
+        }
+        if (otherwise.length > 0) {
+          lines.push(`${indent}else`, ...block(otherwise, inner))
+        }
+        return [...lines, `${indent}end`]
+      }
+      case 'switch': {
+        const subject = held(one.subject, 'subject', pre, indent)
+        const lines = [...pre]
+        one.cases.forEach((clause, at) => {
+          const tests = clause.tests.map((test) => `${subject} == ${expr(test, lines, indent)}`).join(' or ')
+          lines.push(`${indent}${at === 0 ? 'if' : 'elseif'} ${tests} then`, ...block(clause.body, inner))
+        })
+        if (one.fallback !== null) {
+          if (one.cases.length === 0) {
+            lines.push(...block(one.fallback, indent))
+            return lines
+          }
+          lines.push(`${indent}else`, ...block(one.fallback, inner))
+        }
+        return one.cases.length === 0 ? lines : [...lines, `${indent}end`]
+      }
+      case 'while': {
+        /** @type {string[]} */
+        const testPre = []
+        const test = expr(one.test, testPre, inner)
+        if (testPre.length > 0) {
+          return [
+            `${indent}while true do`,
+            ...testPre,
+            `${inner}if not ${wrap(test)} then break end`,
+            ...block(one.body, inner),
+            `${indent}end`,
+          ]
+        }
+        return [`${indent}while ${test} do`, ...block(one.body, inner), `${indent}end`]
+      }
+      case 'emit': {
+        const out = localName(one.out)
+        const lines = [...pre]
+        for (const item of one.items) {
+          const value = item.value
+          const constantArray =
+            value.kind === 'constant' && value.constant.value.kind === 'array' ? value.constant.value : null
+          if (item.spread && constantArray?.items.every((inside) => !inside.spread) === true) {
+            lines.push(...spreadInto(out, value, indent))
+            continue
+          }
+          if (item.spread && value.kind === 'conditional') {
+            const test = expr(value.test, lines, indent)
+            lines.push(
+              `${indent}if ${test} then`,
+              ...spreadInto(out, value.whenTrue, inner),
+              `${indent}else`,
+              ...spreadInto(out, value.whenFalse, inner),
+              `${indent}end`,
+            )
+            continue
+          }
+          if (item.spread) {
+            lines.push(...spreadInto(out, value, indent))
+            continue
+          }
+          const text = expr(value, lines, indent)
+          lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
+        }
+        return lines
+      }
+      case 'insert': {
+        const out = localName(one.out)
+        const at = expr(one.index, pre, indent)
+        return [
+          ...pre,
+          ...one.items.map((item, offset) => {
+            if (item.spread) {
+              refuse(one, 'inserting a spread of effects')
+            }
+            return `${indent}table.insert(${out}, ${at} + ${String(offset + 1)}, ${expr(item.value, pre, indent)})`
+          }),
+        ]
+      }
+      case 'scan': {
+        const target = localName(one.target)
+        const index = temp('i')
+        /** @type {string[]} */
+        const testPre = []
+        const test = expr(one.test, testPre, `${inner}  `)
+        return [
+          `${indent}local ${target} = false`,
+          `${indent}for ${index} = ${expr(one.from, pre, indent)} + 1, ${expr(one.to, pre, indent)} do`,
+          `${inner}local ${localName(one.param)} = ${localName(one.out)}[${index}]`,
+          ...testPre,
+          `${inner}if ${test} then`,
+          `${inner}  ${target} = true`,
+          `${inner}  break`,
+          `${inner}end`,
+          `${indent}end`,
+        ]
+      }
+      default: {
+        throw new Error('unreachable')
+      }
+    }
+  }
+
+  /**
+   * Appends an array's items to the buffer
+   * @param {string} out - The buffer
+   * @param {Expr} value - The array
+   * @param {string} indent - The indent
+   * @returns {string[]} The lines
+   */
+  const spreadInto = (out, value, indent) => {
+    const constantArray =
+      value.kind === 'constant' && value.constant.value.kind === 'array' ? value.constant.value : null
+    if (constantArray?.items.length === 0) {
+      return []
+    }
+    /** @type {string[]} */
+    const lines = []
+    if (constantArray?.items.every((inside) => !inside.spread) === true) {
+      const name = expr(value, lines, indent)
+      return [
+        ...lines,
+        ...constantArray.items.map((_, at) => `${indent}${out}[#${out} + 1] = ${name}[${String(at + 1)}]`),
+      ]
+    }
+    const name = held(value, 'effects', lines, indent)
+    return [...lines, `${indent}for i = 1, #${name} do ${out}[#${out} + 1] = ${name}[i] end`]
+  }
+
+  /**
+   * A block's lines
+   * @param {readonly Stmt[]} stmts - The block
+   * @param {string} indent - The indent
+   * @returns {string[]} The lines
+   */
+  const block = (stmts, indent) => stmts.flatMap((one) => stmt(one, indent))
+
+  /**
+   * A function
+   * @param {Fn} one - The function, planned
+   * @param {string} indent - The indent
+   * @returns {string[]} Its lines
+   */
+  const fn = (one, indent) => {
+    locals = new Map(factoryLocals)
+    used = new Set(factoryLocals.values())
+    temps = 0
+    const params = one.params.map((param) => {
+      if (param.kind !== 'bind') {
+        const name = temp('param')
+        return { name, pattern: param }
+      }
+      return { name: localName(param.binding), pattern: null }
+    })
+    if (one.out !== null) {
+      locals.set(one.out, 'out')
+      used.add('out')
+    }
+    /** @type {string[]} */
+    const unpack = params.flatMap(({ name, pattern }) =>
+      pattern === null ? [] : bindPattern(pattern, name, `${indent}  `),
+    )
+    const body = block(one.body, `${indent}  `)
+    const paramNames = params.map(({ name }) => name)
+    if (one.out !== null) {
+      paramNames.push('out')
+    }
+    return [
+      ...docLines(
+        one,
+        params.map(({ name }) => name),
+        indent,
+      ),
+      `${indent}local function ${nameOf(one)}(${paramNames.join(', ')})`,
+      ...unpack,
+      ...body,
+      `${indent}end`,
+    ]
+  }
+
+  /** @type {Map<Binding, string>} */
+  const factoryLocals = new Map()
+  for (const binding of widget.factory?.params ?? []) {
+    factoryLocals.set(binding, snake(binding.name))
+    taken.add(snake(binding.name))
+  }
+
+  const factoryAt = widget.factory?.at ?? null
+  const inFactory = new Set(planned.fns.filter((one) => isInside(one.at, factoryAt)))
+  /** @type {string[]} */
+  const body = []
+  for (const constant of planned.constants) {
+    if (isInside(constant.at, factoryAt)) {
+      continue
+    }
+    locals = new Map()
+    used = new Set()
+    /** @type {string[]} */
+    const pre = []
+    const text = expr(constant.value, pre, '')
+    if (pre.length > 0) {
+      refuse(constant.value, 'a constant built by statements')
+    }
+    body.push(`local ${nameOf(constant)} = ${text}`)
+  }
+  if (body.length > 0) {
+    body.push('')
+  }
+  for (const one of planned.fns) {
+    if (!inFactory.has(one)) {
+      body.push(...fn(one, ''), '')
+    }
+  }
+
+  /**
+   * The widget table's source
+   * @param {string} indent - The indent inside it
+   * @returns {string[]} Its lines, then the buffers it uses before it
+   */
+  const widgetTable = (indent) => {
+    /** @type {string[]} */
+    const buffers = []
+    /**
+     * An entry: the planned function, its effects in the entry's own buffer
+     * @param {Fn} source - The source function
+     * @param {string} name - The entry's name
+     * @returns {string} The entry
+     */
+    const entry = (source, name) => {
+      const one = planned.planned.get(source) ?? source
+      if (one.out === null) {
+        return nameOf(one)
+      }
+      const buffer = `${snake(name)}_out`
+      buffers.push(`${indent.slice(2)}local ${buffer} = {}`)
+      locals = new Map(factoryLocals)
+      used = new Set(factoryLocals.values())
+      const params = one.params.flatMap((param) => bindingsOf(param).map((binding) => localName(binding)))
+      return [
+        `function(${params.join(', ')})`,
+        `${indent}  for i = #${buffer}, 1, -1 do ${buffer}[i] = nil end`,
+        `${indent}  return ${nameOf(one)}(${[...params, buffer].join(', ')}), ${buffer}`,
+        `${indent}end`,
+      ].join('\n')
+    }
+    /** @type {string[]} */
+    const fields = []
+    const { composite } = widget
+    if (composite !== null) {
+      for (const phase of ['bubble', 'capture', 'on']) {
+        const handlers = composite.handlers.filter((one) => one.phase === phase)
+        /** @type {Map<string, string[]>} */
+        const byChild = new Map()
+        for (const handler of handlers) {
+          const list = byChild.get(handler.child) ?? []
+          list.push(`${key(handler.type)} = ${entry(handler.fn, handler.fn.name)}`)
+          byChild.set(handler.child, list)
+        }
+        fields.push(
+          `${phase} = { ${[...byChild].map(([child, list]) => `${key(child)} = { ${list.join(', ')} }`).join(', ')} }`,
+        )
+      }
+      const children = composite.children.map((child) => {
+        const { widget: made } = child
+        const value =
+          made.kind === 'export'
+            ? `require(${quote(made.name)}).${made.name}`
+            : (factoryLocals.get(made.binding) ?? made.binding.name)
+        return `${key(child.name)} = ${value}`
+      })
+      const props = composite.props.map((one) => `${key(one.child)} = ${nameOf(planned.planned.get(one.fn) ?? one.fn)}`)
+      fields.push(`children = { ${children.join(', ')} }`, `props = { ${props.join(', ')} }`)
+    }
+    fields.push(`init = ${entry(widget.init, 'init')}`, `step = ${entry(widget.step, 'step')}`)
+    return [...buffers, `${indent.slice(2)}return {`, ...fields.map((one) => `${indent}${one},`), `${indent.slice(2)}}`]
+  }
+
+  /** @type {string[]} */
+  const tail = []
+  if (widget.factory === null) {
+    const table = widgetTable('    ')
+    const at = table.findIndex((line) => line.trimStart().startsWith('return {'))
+    tail.push(...table.slice(0, at), `M.${widget.name} = {`, ...table.slice(at + 1, -1), '}', '', 'return M')
+  } else {
+    const { factory } = widget
+    tail.push(
+      `function M.${widget.name}(${factory.params.map((param) => factoryLocals.get(param) ?? param.name).join(', ')})`,
+    )
+    locals = new Map(factoryLocals)
+    used = new Set(factoryLocals.values())
+    for (const one of factory.locals) {
+      tail.push(...stmt(one, '  '))
+    }
+    for (const constant of planned.constants) {
+      if (isInside(constant.at, factoryAt)) {
+        /** @type {string[]} */
+        const pre = []
+        tail.push(...pre, `  local ${nameOf(constant)} = ${expr(constant.value, pre, '  ')}`)
+      }
+    }
+    const factoryNames = new Map(locals)
+    for (const one of inFactory) {
+      tail.push(...fn(one, '  '))
+      for (const [binding, name] of factoryNames) {
+        factoryLocals.set(binding, name)
+      }
+    }
+    tail.push(...widgetTable('    '), 'end', '', 'return M')
+  }
+  const helperLines = [...helpers].flatMap((name) => [...HELPERS[name], ''])
+  return `${[imports.header, '', 'local M = {}', '', ...helperLines, ...body, ...tail].join('\n')}\n`
+}
+
+/**
+ * A function's doc comment, as LuaCATS
+ * @param {Fn} fn - The function
+ * @param {readonly string[]} params - Its parameters' names
+ * @param {string} indent - The indent
+ * @returns {string[]} The lines
+ */
+function docLines(fn, params, indent) {
+  /** @type {string[]} */
+  const lines = fn.doc
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => `${indent}--- ${line}`)
+  params.forEach((name, at) => {
+    const said = fn.paramDocs[at] ?? ''
+    if (said !== '') {
+      lines.push(`${indent}---@param ${name} any ${said}`)
+    }
+  })
+  return lines
+}
+
+/**
+ * Whether a node is inside another
+ * @param {ts.Node} node - The node
+ * @param {ts.Node | null} outer - The other
+ * @returns {boolean} Whether it is
+ */
+function isInside(node, outer) {
+  return (
+    outer !== null && node.getSourceFile() === outer.getSourceFile() && node.pos >= outer.pos && node.end <= outer.end
+  )
+}
+
+/**
+ * A text wrapped in parentheses unless it is a name
+ * @param {string} text - The text
+ * @returns {string} It, safe as an operand
+ */
+function wrap(text) {
+  return /^[\w.[\]"]+$/u.test(text) ? text : `(${text})`
+}
+
+/**
+ * A field access
+ * @param {string} name - The field
+ * @returns {string} `.name`, or `["name"]` for a keyword or other name
+ */
+function member(name) {
+  return NAME.test(name) && !KEYWORDS.has(name) ? `.${name}` : `[${quote(name)}]`
+}
+
+/**
+ * A table constructor's key
+ * @param {string} name - The field
+ * @returns {string} `name` or `["name"]`
+ */
+function key(name) {
+  return NAME.test(name) && !KEYWORDS.has(name) ? name : `[${quote(name)}]`
+}
+
+/**
+ * A Lua string literal
+ * @param {string} text - The string
+ * @returns {string} The literal, its bytes UTF-8
+ */
+function quote(text) {
+  let out = '"'
+  for (const char of text) {
+    const code = char.codePointAt(0) ?? 0
+    if (char === '"' || char === '\\') {
+      out += `\\${char}`
+    } else if (code < 32 || code === 127) {
+      out += `\\${String(code)}`
+    } else {
+      out += char
+    }
+  }
+  return `${out}"`
+}
+
+/**
+ * A number literal, exact
+ * @param {number} value - The number
+ * @returns {string} Its Lua source
+ */
+function numberText(value) {
+  if (Object.is(value, -0)) {
+    return '-0.0'
+  }
+  if (Number.isNaN(value)) {
+    return '(0/0)'
+  }
+  if (!Number.isFinite(value)) {
+    return value > 0 ? 'math.huge' : '-math.huge'
+  }
+  return String(value)
+}
+
+/**
+ * A name in Lua's style: snake_case
+ * @param {string} name - The name, in camelCase
+ * @returns {string} The name
+ */
+function snake(name) {
+  return name.replaceAll(/(?<=[a-z0-9])(?<capital>[A-Z])/gu, '_$<capital>').toLowerCase()
+}
+
+/**
+ * The name a module's functions take in another module's output
+ * @param {string} module - The module's path
+ * @returns {string} The prefix
+ */
+function prefixOf(module) {
+  const base = module.split('/').at(-1) ?? module
+  return base.replace(/\.js$/u, '').replaceAll(/-(?<letter>\w)/gu, (_, letter) => String(letter).toUpperCase())
+}
+
+/**
+ * Whether a record's value has only its type's fields: a literal
+ * @param {Expr} value - The record
+ * @returns {boolean} Whether it does
+ */
+function isExact(value) {
+  return value.kind === 'record' && value.entries.every((entry) => entry.kind === 'field')
+}
+
+/**
+ * Whether a printed operand needs no parentheses
+ * @param {Expr} value - The expression
+ * @param {string} text - Its text
+ * @returns {boolean} Whether it is atomic
+ */
+function isAtomic(value, text) {
+  return (
+    ['local', 'constant', 'literal', 'field', 'index', 'call', 'builtin', 'undefined'].includes(value.kind) &&
+    !text.startsWith('-') &&
+    !text.includes(' ') &&
+    !text.startsWith('#')
+  )
+}
+
+export { printLua }

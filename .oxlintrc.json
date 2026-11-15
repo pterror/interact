@@ -12,12 +12,19 @@
   // typeCheck stays off: tsgo already type-checks every package in `bun run check`.
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
   "env": { "browser": true, "es2024": true },
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**"],
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**", "packages/codegen/out/**"],
   "overrides": [
     {
-      // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`.
-      "files": ["packages/core/**/*.js", "packages/solid/src/interact*.js"],
+      // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`; the
+      // code generator's intermediate form holds the same values.
+      "files": ["packages/core/**/*.js", "packages/solid/src/interact*.js", "packages/codegen/**/*.js"],
       "rules": { "unicorn/no-null": "off" }
+    },
+    {
+      // The generator reads the TypeScript compiler's nodes, types and symbols, which are mutable classes all the way
+      // down, and builds its plan of a function by updating that plan's own records as it walks it.
+      "files": ["packages/codegen/**/*.js"],
+      "rules": { "typescript/prefer-readonly-parameter-types": "off" }
     }
   ],
   "rules": {
