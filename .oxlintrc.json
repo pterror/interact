@@ -16,7 +16,7 @@
   "overrides": [
     {
       // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`.
-      "files": ["packages/core/**/*.js"],
+      "files": ["packages/core/**/*.js", "packages/solid/src/interact*.js"],
       "rules": { "unicorn/no-null": "off" }
     }
   ],

@@ -17,6 +17,7 @@ npm install @pterror/interact-solid solid-js
 | `fromTest(test)`         | Test                                        | an accessor per key                 |
 | `fromKeyed(read, watch)` | any answer per key, with its changed keys   | an accessor per key                 |
 | `componentItems(Item)`   | a component of `{ key }` giving one element | `create` and `drop`, for `render`   |
+| `Interact`               | an interact core widget and its props       | a component drawing and running it  |
 
 A Watched or Drawn made inside a Solid owner stops telling its listeners when that owner goes, so a module that never
 stops watching (`windowing`, `sizer`) leaves nothing running after the component that made it.
