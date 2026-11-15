@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import { deliver, start } from './compose.js'
+import { compose, deliver, resolve, start } from './compose.js'
+import { part } from './contract.js'
 import { dialog } from './dialog.js'
 import { menu } from './menu.js'
 import { reorderList } from './reorder.js'
@@ -8,8 +9,7 @@ import { select } from './select.js'
 import { answer, click, keydown, pointer } from './test-inputs.js'
 
 /** @import { MenuProps, MenuState } from './menu.js' */
-/** @import { ReorderState } from './reorder.js' */
-/** @import { ListProps } from './list.js' */
+/** @import { ReorderProps, ReorderState } from './reorder.js' */
 
 /** @type {MenuProps} */
 const MENU = {
@@ -39,7 +39,7 @@ function run(state, inputs) {
 
 describe('menu', () => {
   test('opens from the button with focus on the first item, moves with wrapping, and closes back to the button', () => {
-    const closed = menu.init(MENU)
+    const closed = menu.init(MENU)[0]
     let [state, effects] = run(closed, [click('button')])
     expect([state.open, effects]).toEqual([true, [{ item: 'cut', part: ['item'], type: 'focus' }]])
     ;[state, effects] = run(state, [keydown('item', 'ArrowUp', { item: 'cut' })])
@@ -52,7 +52,7 @@ describe('menu', () => {
   })
 
   test('activates an item, but not a disabled one', () => {
-    const [state] = run(menu.init(MENU), [click('button'), keydown('item', 'ArrowDown')])
+    const [state] = run(menu.init(MENU)[0], [click('button'), keydown('item', 'ArrowDown')])
     expect(state.active).toBe('copy')
     expect(run(state, [keydown('item', 'Enter')])[1]).toEqual([{ type: 'preventDefault' }])
     const [, effects] = run(state, [click('item', 'paste')])
@@ -63,7 +63,7 @@ describe('menu', () => {
   })
 
   test('typeahead moves by what was typed, asks to be woken to forget it, and cycles on a repeated letter', () => {
-    const [open] = run(menu.init(MENU), [click('button')])
+    const [open] = run(menu.init(MENU)[0], [click('button')])
     const [typed, effects] = run(open, [keydown('item', 'p', { timeStamp: 1000 })])
     expect(typed.active).toBe('paste')
     expect(effects.at(-1)).toEqual({ at: 1500, type: 'wake' })
@@ -80,7 +80,7 @@ const fruitDialog = dialog(select, ['content', 'trigger'])
 const ALL = ['apple', 'banana', 'cherry']
 const DIALOG = {
   closeLabel: 'Close',
-  content: { label: 'Fruit', placeholder: 'Choose', revision: 0, rows: 3 },
+  content: { label: 'Fruit', placeholder: 'Choose', rows: 3, source: 'fruit' },
   open: true,
   title: 'Pick a fruit',
 }
@@ -91,16 +91,24 @@ describe('dialog around a select', () => {
     expect(outs).toEqual([{ effect: { item: null, part: ['content', 'trigger'], type: 'focus' }, from: [] }])
   })
 
-  test('closes on an Escape the select left alone, but not on one that closed the select', () => {
+  test('closes on an Escape the select left alone, at once and pending, but not on one that closed the select', () => {
     const [first] = start(fruitDialog, DIALOG)
-    const [, closedEscape] = deliver(fruitDialog, first, ['content'], keydown('trigger', 'Escape'))
+    const [closed, closedEscape] = deliver(fruitDialog, first, ['content'], keydown('trigger', 'Escape'))
     expect(closedEscape).toEqual([
       { effect: { type: 'preventDefault' }, from: [] },
-      { effect: { type: 'change', value: false }, from: [] },
+      { effect: { id: 1, type: 'change', value: false }, from: [] },
+    ])
+    const [refused, focus] = deliver(fruitDialog, closed, [], { id: 1, type: 'refused' })
+    expect(resolve(fruitDialog, closed, DIALOG).hidden).toBe(true)
+    expect([focus, resolve(fruitDialog, refused, DIALOG).hidden]).toEqual([
+      [{ effect: { item: null, part: ['content', 'trigger'], type: 'focus' }, from: [] }],
+      false,
     ])
 
     const [opened, asks] = deliver(fruitDialog, first, ['content'], click('trigger'))
-    expect(asks).toEqual([{ effect: { id: 1, ranks: [0, 4], type: 'ask' }, from: ['content', 'list'] }])
+    expect(asks).toEqual([
+      { effect: { id: 1, ranks: [0, 4], source: 'fruit', type: 'ask' }, from: ['content', 'list'] },
+    ])
     const [loaded] = deliver(fruitDialog, opened, ['content', 'list'], answer(1, ALL, [0, 4]))
     const [, openEscape] = deliver(fruitDialog, loaded, ['content'], keydown('trigger', 'Escape'))
     expect(openEscape).toEqual([{ effect: { type: 'preventDefault' }, from: ['content'] }])
@@ -111,25 +119,74 @@ describe('dialog around a select', () => {
     const [opened] = deliver(fruitDialog, first, ['content'], click('trigger'))
     const [loaded] = deliver(fruitDialog, opened, ['content', 'list'], answer(1, ALL, [0, 4]))
     const [, outs] = deliver(fruitDialog, loaded, ['content', 'list'], click('option', 'banana'))
-    expect(outs).toEqual([{ effect: { type: 'change', value: 'banana' }, from: ['content'] }])
+    expect(outs).toEqual([{ effect: { id: 1, type: 'change', value: 'banana' }, from: ['content'] }])
+  })
+})
+
+describe('effects bubbling through on handlers', () => {
+  const around = compose({
+    children: { picker: fruitDialog },
+    init: (/** @type {Readonly<{ open: boolean }>} */ props) => [{ heard: 0, open: props.open }, []],
+    on: {
+      picker: {
+        change: (own, effect, from) => [
+          { ...own, heard: own.heard + 1, open: from.length === 0 ? effect.value === true : own.open },
+          [],
+        ],
+      },
+    },
+    props: { picker: (own) => ({ ...DIALOG, open: own.open }) },
+    step: (own, /** @type {Readonly<{ type: 'props', props: Readonly<{ open: boolean }> }>} */ input) => [
+      { ...own, open: input.props.open },
+      [],
+    ],
+    view: () => ({ root: part({ content: [{ child: 'picker' }] }) }),
+  })
+
+  test('go on up after a handler that hears them, unless it stops them, told where they came from', () => {
+    const [first] = start(around, { open: true })
+    const [, outs] = deliver(around, first, ['picker', 'content'], keydown('trigger', 'Escape'))
+    expect(outs).toEqual([
+      { effect: { type: 'preventDefault' }, from: ['picker'] },
+      { effect: { id: 1, type: 'change', value: false }, from: ['picker'] },
+    ])
   })
 })
 
 const KEYS = ['a', 'b', 'c', 'd', 'e', 'f']
-/** @type {ListProps} */
-const REORDER = { focusable: true, label: 'Order', revision: 0, rows: 4, shown: true }
+/** @type {ReorderProps} */
+const REORDER = {
+  dragDistance: 4,
+  focusable: true,
+  keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
+  label: 'Order',
+  rows: 4,
+  shown: true,
+  source: 'order',
+}
 
 /**
  * A reorderable list, loaded
  * @returns {ReorderState} The list
  */
 function loadedReorder() {
-  const [asking] = reorderList.step(reorderList.init(REORDER), { props: REORDER, type: 'props' })
+  const [asking] = reorderList.init(REORDER)
   return reorderList.step(asking, answer(1, KEYS, [0, 5]))[0]
 }
 
+/**
+ * The keys a reorderable list draws
+ * @param {ReorderState} state - The list
+ * @returns {readonly unknown[]} The keys
+ */
+function drawn(state) {
+  const root = reorderList.view(state, REORDER)['root']
+  const [each] = root === undefined || typeof root === 'function' ? [] : root.content
+  return each !== undefined && 'keys' in each ? each.keys : []
+}
+
 describe('reorderable list', () => {
-  test('a drag over a later option lands after it, emits move and an announcement, and swallows its click', () => {
+  test('a drag over a later option lands after it, shows at once, emits move and an announcement, and swallows its click', () => {
     let [state] = reorderList.step(loadedReorder(), pointer('pointerdown', 'option', 'b', [10, 30]))
     ;[state] = reorderList.step(state, pointer('pointermove', 'option', 'b', [10, 32]))
     expect(state.drag.mode).toBe('pressed')
@@ -144,11 +201,13 @@ describe('reorderable list', () => {
     let effects
     ;[state, effects] = reorderList.step(state, pointer('pointerup', 'option', 'd', [10, 70]))
     expect(effects).toEqual([
-      { after: true, item: 'b', target: 'd', type: 'move' },
-      { message: { count: 6, item: 'b', position: 4, what: 'moved' }, type: 'announce', urgent: false },
+      { after: true, id: 1, item: 'b', source: 'order', target: 'd', type: 'move' },
+      { message: 'moved', type: 'announce', urgent: false, values: { count: 6, item: 'b', position: 4 } },
+      { item: 'b', type: 'active' },
     ])
+    expect(drawn(state)).toEqual(['a', 'c', 'd', 'b'])
     ;[state, effects] = reorderList.step(state, click('option', 'd'))
-    expect([state.selected, effects]).toEqual([null, []])
+    expect([state.selection.app, effects]).toEqual([null, []])
   })
 
   test('a drag back over an earlier option lands before it; Escape cancels it', () => {
@@ -159,30 +218,53 @@ describe('reorderable list', () => {
     const [cancelled, effects] = reorderList.step(state, keydown('root', 'Escape'))
     expect([cancelled.drag, effects]).toEqual([
       { mode: 'idle' },
-      [{ type: 'preventDefault' }, { message: { item: 'c', what: 'cancelled' }, type: 'announce', urgent: false }],
+      [{ type: 'preventDefault' }, { message: 'cancelled', type: 'announce', urgent: false, values: { item: 'c' } }],
     ])
   })
 
-  test('Alt+ArrowDown moves the active option one place, past the window edge too, as it holds the next key', () => {
-    let [state] = reorderList.step(loadedReorder(), keydown('root', 'End'))
-    ;[state] = reorderList.step(state, answer(2, KEYS, [1, 6]))
-    ;[state] = reorderList.step(state, keydown('root', 'ArrowUp'))
-    expect([state.active, state.top]).toEqual(['e', 2])
-    const [moved, effects] = reorderList.step(state, keydown('root', 'ArrowDown', { altKey: true }))
-    expect(effects.slice(0, 2)).toEqual([
-      { type: 'preventDefault' },
-      { after: true, item: 'e', target: 'f', type: 'move' },
-    ])
-    expect([moved.active, moved.activeRank]).toEqual(['e', 5])
-    const [given] = reorderList.step(moved, { props: { ...REORDER, revision: 1 }, type: 'props' })
-    const [after] = reorderList.step(given, answer(given.asked, ['a', 'b', 'c', 'd', 'f', 'e'], [1, 6]))
-    expect([after.active, after.activeRank]).toEqual(['e', 5])
+  test('a press travels the distance its props give before it drags', () => {
+    const far = { ...REORDER, dragDistance: 20 }
+    let [state] = reorderList.step(reorderList.init(far)[0], { props: far, type: 'props' })
+    ;[state] = reorderList.step(state, answer(state.asked, KEYS, [0, 5]))
+    ;[state] = reorderList.step(state, pointer('pointerdown', 'option', 'b', [0, 0]))
+    ;[state] = reorderList.step(state, pointer('pointermove', 'option', 'b', [0, 10]))
+    expect(state.drag.mode).toBe('pressed')
+  })
+
+  test('quick moves each go against the order shown, pending moves included, before the host has any', () => {
+    let [state] = reorderList.step(loadedReorder(), keydown('root', 'ArrowDown'))
+    /** @type {readonly unknown[]} */
+    let effects
+    ;[state, effects] = reorderList.step(state, keydown('root', 'ArrowDown', { altKey: true }))
+    expect(effects[1]).toEqual({ after: true, id: 1, item: 'a', source: 'order', target: 'b', type: 'move' })
+    ;[state, effects] = reorderList.step(state, keydown('root', 'ArrowDown', { altKey: true }))
+    expect(effects[1]).toEqual({ after: true, id: 2, item: 'a', source: 'order', target: 'c', type: 'move' })
+    expect([drawn(state), state.active, state.activeRank]).toEqual([['b', 'c', 'a', 'd'], 'a', 2])
+  })
+
+  test('a confirmed move goes once an answer asked after it holds it; a refused one is undone and announced', () => {
+    let [state] = reorderList.step(loadedReorder(), keydown('root', 'ArrowDown'))
+    ;[state] = reorderList.step(state, keydown('root', 'ArrowDown', { altKey: true }))
+    ;[state] = reorderList.step(state, keydown('root', 'ArrowDown', { altKey: true }))
+    ;[state] = reorderList.step(state, { id: 1, type: 'confirmed' })
+    ;[state] = reorderList.step(state, { type: 'changed' })
+    ;[state] = reorderList.step(state, answer(state.asked, ['b', 'a', 'c', 'd', 'e', 'f'], [0, 5]))
+    expect([state.moves.map((move) => move.id), drawn(state)]).toEqual([[2], ['b', 'c', 'a', 'd']])
+    const [refused, effects] = reorderList.step(state, { id: 2, type: 'refused' })
+    expect([drawn(refused), refused.active, refused.activeRank]).toEqual([['b', 'a', 'c', 'd'], 'a', 1])
+    expect(effects).toEqual([{ message: 'refused', type: 'announce', urgent: false, values: { item: 'a' } }])
   })
 
   test('a press that never travels is a click, which chooses', () => {
     let [state] = reorderList.step(loadedReorder(), pointer('pointerdown', 'option', 'c', [0, 50]))
     ;[state] = reorderList.step(state, pointer('pointerup', 'option', 'c', [0, 50]))
     const [chosen, effects] = reorderList.step(state, click('option', 'c'))
-    expect([chosen.selected, effects]).toEqual(['c', [{ type: 'change', value: 'c' }]])
+    expect([chosen.selection.app, effects]).toEqual([
+      'c',
+      [
+        { id: 1, type: 'change', value: 'c' },
+        { item: 'c', type: 'active' },
+      ],
+    ])
   })
 })

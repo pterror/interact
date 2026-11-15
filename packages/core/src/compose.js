@@ -2,9 +2,12 @@
  * Widgets built from widgets, by the DOM's event model. An input goes to the widget owning the part it happened on;
  * an ancestor that declared `capture` for that child and input type hears it first and may stop it, and one that
  * declared `bubble` hears it after, told whether the target prevented its default. Effects bubble up through the
- * ancestors, each handling only the effect types it names in `on`, and reach the host with the path of the widget that
- * made them, which is where an `answer` or `time` goes back. A composite's state is plain data: its own fields, and
- * each child's state under the child's name. A composite's own step hands a child an input with `send`.
+ * ancestors: an ancestor that names an effect's type in `on` hears it, told where it came from, and the effect goes on
+ * up unless the handler stops it (`stopPropagation`). Effects reach the host with the path of the widget that made
+ * them, which is where an `answer`, `time`, `confirmed` or `refused` goes back.
+ *
+ * A composite's state is plain data: `{ own, children }`. Its own step, view and handlers see only `own`; a child is
+ * seen only through its view (placed with `{ child }`) and its effects, and given inputs with `send`.
  */
 
 /** @import { Content, HostEvent, Key, Path, Ref, Result, View } from './contract.js' */
@@ -16,28 +19,13 @@
  */
 
 /**
- * Keeps an input a capturing ancestor heard from reaching its target
+ * Keeps an input a capturing ancestor heard from reaching its target, or an effect an `on` handler heard from going on
+ * up
  * @typedef {Readonly<{ type: 'stopPropagation' }>} StopPropagation
  */
 
 /**
- * A widget the runtime can run: a leaf or a composite, its types erased. Every function's parameters are bivariant
- * (method syntax), so a typed widget is one
- * @typedef {Readonly<{
- *   init(props: unknown): unknown,
- *   step(state: unknown, input: unknown): Result<unknown, unknown>,
- *   view(state: unknown, props: unknown): View,
- * }>} AnyLeaf
- */
-
-/**
- * @typedef {Readonly<{
- *   handle(state: unknown, value: unknown, detail: Path | boolean): Result<unknown, unknown>,
- * }>['handle']} AnyHandler
- */
-
-/**
- * @typedef {Readonly<{ props(state: unknown): unknown }>['props']} AnyProps
+ * @typedef {Readonly<{ handle(state: unknown, value: unknown, detail: Path | boolean): Result<unknown, unknown> }>['handle']} AnyHandler
  */
 
 /**
@@ -45,9 +33,19 @@
  */
 
 /**
+ * A widget the runtime can run, its types erased. Every function's parameters are bivariant (method syntax), so a
+ * typed widget is one
+ * @typedef {Readonly<{
+ *   init(props: unknown): Result<unknown, unknown>,
+ *   step(state: unknown, input: unknown): Result<unknown, unknown>,
+ *   view(state: unknown, props: unknown): View,
+ * }>} AnyLeaf
+ */
+
+/**
  * @typedef {AnyLeaf & Readonly<{
  *   children: Readonly<{ [child: string]: AnyWidget }>,
- *   props: Readonly<{ [child: string]: AnyProps }>,
+ *   props: Readonly<{ [child: string]: Readonly<{ props(own: unknown): unknown }>['props'] }>,
  *   on: AnyHandlers,
  *   capture: AnyHandlers,
  *   bubble: AnyHandlers,
@@ -57,47 +55,35 @@
 /** @typedef {AnyLeaf | AnyComposite} AnyWidget */
 
 /**
- * The type of a widget's props, state, inputs or effects, read from its functions. A composite's effects are its own
- * (its `send`s aside) and its children's
+ * A composite's state
+ * @template O, C
+ * @typedef {Readonly<{ own: O, children: { readonly [K in keyof C]: StateOf<C[K]> } }>} CompositeState
+ */
+
+/**
+ * The type of a widget's props, state, inputs or effects, read from its functions. A composite's state is its own and
+ * its children's; its effects are its own (`send` and `stopPropagation` aside) and its children's
  * @template W
  * @typedef {W extends Readonly<{ init: (props: infer P) => unknown }> ? P : never} PropsOf
  */
 /**
  * @template W
- * @typedef {W extends Readonly<{ view: (state: infer S, props: never) => unknown }> ? S : never} StateOf
+ * @typedef {W extends Readonly<{ children: infer C, init: (props: never) => Result<infer O, unknown> }>
+ *   ? CompositeState<O, C>
+ *   : W extends Readonly<{ init: (props: never) => Result<infer S, unknown> }>
+ *     ? S
+ *     : never} StateOf
  */
 /**
  * @template W
  * @typedef {W extends Readonly<{ step: (state: never, input: infer I) => unknown }> ? I : never} InputOf
  */
 /**
+ * A composite's `step` type carries its children's effects too, so this never recurses into children
  * @template W
- * @typedef {W extends Readonly<{ children: infer C, step: (state: never, input: never) => Result<unknown, infer E> }>
- *   ? Exclude<E, Readonly<{ type: 'send' }>> | EffectOf<C[keyof C]>
- *   : W extends Readonly<{ step: (state: never, input: never) => Result<unknown, infer E> }>
- *     ? E
- *     : never} EffectOf
- */
-
-/**
- * A composite's state: its own fields and each child's state under the child's name
- * @template O, C
- * @typedef {O & { readonly [K in keyof C]: StateOf<C[K]> }} StateWith
- */
-
-/**
- * Handlers per child, per type of what it handles: every name is checked against the child's effect types (`on`) or
- * the host's event types (`capture`, `bubble`: any can happen on a child's parts). An `on` handler is told where under
- * the child the effect came from (`[]`: the child itself), as a DOM listener reads `event.target`; a `bubble`
- * handler, whether the target prevented the default
- * @template S, E, C, Of, Extra
- * @typedef {{ readonly [K in keyof C]?: {
- *   readonly [T in TypeOf<Of extends 'effect' ? EffectOf<C[K]> : HostEvent>]?: (
- *     state: S,
- *     value: Extract<Of extends 'effect' ? EffectOf<C[K]> : HostEvent, Readonly<{ type: T }>>,
- *     detail: Of extends 'effect' ? Path : boolean,
- *   ) => Result<S, E | Send<keyof C & string> | Extra>
- * } }} Handlers
+ * @typedef {W extends Readonly<{ step: (state: never, input: never) => Result<unknown, infer E> }>
+ *   ? Exclude<E, Readonly<{ type: 'send' | 'stopPropagation' }>>
+ *   : never} EffectOf
  */
 
 /**
@@ -106,32 +92,57 @@
  */
 
 /**
+ * `on` handlers per child, per effect type (each name checked against the child's effect types): told where under the
+ * child the effect came from (`[]`: the child itself), as a DOM listener reads `event.target`
+ * @template O, E, C
+ * @typedef {{ readonly [K in keyof C]?: {
+ *   readonly [T in TypeOf<EffectOf<C[K]>>]?: (
+ *     own: NoInfer<O>,
+ *     effect: Extract<EffectOf<C[K]>, Readonly<{ type: T }>>,
+ *     from: Path,
+ *   ) => Result<NoInfer<O>, E | Send<keyof C & string> | StopPropagation>
+ * } }} OnHandlers
+ */
+
+/**
+ * `capture` or `bubble` handlers per child, per host event type: told (`bubble`) whether the target prevented the
+ * default
+ * @template O, E, C, Extra
+ * @typedef {{ readonly [K in keyof C]?: {
+ *   readonly [T in TypeOf<HostEvent>]?: (
+ *     own: NoInfer<O>,
+ *     input: Extract<HostEvent, Readonly<{ type: T }>>,
+ *     defaultPrevented: boolean,
+ *   ) => Result<NoInfer<O>, E | Send<keyof C & string> | Extra>
+ * } }} InputHandlers
+ */
+
+/**
  * What `compose` takes. `init` gives the composite's own fields; each child starts from `props[child](own)`, and is
  * delivered `props` again whenever that changes. `step` handles inputs on the composite's own parts; `view` gives its
- * own parts, placing each child's root with `{ child }`. `on` handles children's effects (what a handler returns is
- * the composite's own), `capture` hears a child's inputs before the child (a `stopPropagation` effect keeps them from
- * it), `bubble` after it
+ * own parts, placing each child's root with `{ child }`
  * @template P, O, I, E, C
  * @typedef {Readonly<{
  *   children: C,
- *   props: { readonly [K in keyof C]: (state: O) => PropsOf<C[K]> },
- *   init: (props: P) => O,
- *   step: (state: StateWith<O, C>, input: I) => Result<StateWith<O, C>, E | Send<keyof C & string>>,
- *   view: (state: StateWith<O, C>, props: P) => View,
- *   on?: Handlers<StateWith<O, C>, E, C, 'effect', never>,
- *   capture?: Handlers<StateWith<O, C>, E, C, 'input', StopPropagation>,
- *   bubble?: Handlers<StateWith<O, C>, E, C, 'input', never>,
+ *   props: { readonly [K in keyof C]: (own: NoInfer<O>) => PropsOf<C[K]> },
+ *   init: (props: P) => Result<O, E | Send<keyof C & string>>,
+ *   step: (own: NoInfer<O>, input: I) => Result<NoInfer<O>, E | Send<keyof C & string>>,
+ *   view: (own: NoInfer<O>, props: NoInfer<P>) => View,
+ *   on?: OnHandlers<O, E, C>,
+ *   capture?: InputHandlers<O, E, C, StopPropagation>,
+ *   bubble?: InputHandlers<O, E, C, never>,
  * }>} CompositeSpec
  */
 
 /**
- * A composite, as `compose` makes it: `init` gives the whole state, children's included; `step` is its own
+ * A composite, as `compose` makes it: its `step` is its own, typed with the effects that leave it, its children's
+ * included
  * @template P, O, I, E, C
  * @typedef {Readonly<{
  *   children: C,
  *   props: CompositeSpec<P, O, I, E, C>['props'],
- *   init: (props: P) => StateWith<O, C>,
- *   step: CompositeSpec<P, O, I, E, C>['step'],
+ *   init: CompositeSpec<P, O, I, E, C>['init'],
+ *   step: (own: O, input: I) => Result<O, E | Send<keyof C & string> | EffectOf<C[keyof C]>>,
  *   view: CompositeSpec<P, O, I, E, C>['view'],
  *   on: NonNullable<CompositeSpec<P, O, I, E, C>['on']>,
  *   capture: NonNullable<CompositeSpec<P, O, I, E, C>['capture']>,
@@ -179,7 +190,7 @@ function same(a, b) {
     const fields = Object.keys(a)
     return (
       fields.length === Object.keys(b).length &&
-      fields.every((field) => Object.hasOwn(b, field) && same(a[field], b[field]))
+      fields.every((name) => Object.hasOwn(b, name) && same(a[name], b[name]))
     )
   }
   return false
@@ -204,16 +215,16 @@ function isComposite(widget) {
 }
 
 /**
- * A field of a composite's state
+ * A composite's state, split
  * @param {unknown} state - The state
- * @param {string} name - The field
- * @returns {unknown} Its value
+ * @returns {Readonly<{ own: unknown, children: Readonly<{ [child: string]: unknown }> }>} Its own fields, and its
+ *   children's states
  */
-function fieldOf(state, name) {
-  if (!isRecord(state) || !Object.hasOwn(state, name)) {
-    throw new TypeError(`The state has no field ${name}`)
+function split(state) {
+  if (!isRecord(state) || !isRecord(state['children'])) {
+    throw new TypeError('A composite state is { own, children }')
   }
-  return state[name]
+  return { children: state['children'], own: state['own'] }
 }
 
 /**
@@ -233,22 +244,23 @@ function childOf(widget, name) {
 /**
  * The props a composite gives a child now
  * @param {AnyComposite} widget - The composite
- * @param {unknown} state - Its state
+ * @param {unknown} own - Its own fields
  * @param {string} name - The child
  * @returns {unknown} The child's props
  */
-function propsFor(widget, state, name) {
+function propsFor(widget, own, name) {
   const props = widget.props[name]
   if (props === undefined) {
     throw new TypeError(`No props for ${name}`)
   }
-  return props(state)
+  return props(own)
 }
 
 /**
- * Makes a composite from children, its own parts and the handlers that join them. The handlers' names are checked
- * against the children's types
- * @template P, O, I, E
+ * Makes a composite from children, its own parts and the handlers that join them. Written inline, every handler's
+ * names and arguments are checked against the children's types
+ * @template P, O, I
+ * @template {Readonly<{ type: string }>} E
  * @template {Readonly<{ [child: string]: AnyWidget }>} C
  * @param {CompositeSpec<P, O, I, E, C>} spec - The children and how they are joined
  * @returns {Composite<P, O, I, E, C>} The composite, a widget
@@ -258,14 +270,7 @@ function compose(spec) {
     bubble: spec.bubble ?? {},
     capture: spec.capture ?? {},
     children: spec.children,
-    init(given) {
-      const own = spec.init(given)
-      const state = { ...own, ...initChildren(spec.children, spec.props, own) }
-      if (!hasChildren(state, spec.children)) {
-        throw new TypeError('A composite state holds every child')
-      }
-      return state
-    },
+    init: spec.init,
     on: spec.on ?? {},
     props: spec.props,
     step: spec.step,
@@ -274,70 +279,24 @@ function compose(spec) {
 }
 
 /**
- * Whether a composite's state holds a state for every child
- * @template O
- * @template {Readonly<{ [child: string]: AnyWidget }>} C
- * @param {O} state - The state
- * @param {C} children - The children
- * @returns {state is StateWith<O, C>} Whether it does
- */
-function hasChildren(state, children) {
-  return isRecord(state) && Object.keys(children).every((name) => Object.hasOwn(state, name))
-}
-
-/**
- * Each child's first state
- * @param {Readonly<{ [child: string]: AnyWidget }>} children - The children
- * @param {Readonly<{ [child: string]: AnyProps }>} props - Each child's props, from the composite's own fields
- * @param {unknown} own - The composite's own fields
- * @returns {{ [child: string]: unknown }} Each child's state, by name
- */
-function initChildren(children, props, own) {
-  /** @type {{ [child: string]: unknown }} */
-  const states = {}
-  for (const [name, child] of Object.entries(children)) {
-    const childProps = props[name]
-    if (childProps === undefined) {
-      throw new TypeError(`No props for ${name}`)
-    }
-    states[name] = child.init(childProps(own))
-  }
-  return states
-}
-
-/**
- * A composite's state with one child's state replaced
- * @param {unknown} state - The composite's state
- * @param {string} name - The child
- * @param {unknown} child - Its new state
- * @returns {unknown} The new state
- */
-function withChild(state, name, child) {
-  if (!isRecord(state)) {
-    throw new TypeError('A composite state is a plain object')
-  }
-  return { ...state, [name]: child }
-}
-
-/**
- * Effects from a widget's own step, as they leave it
- * @param {readonly unknown[]} effects - The effects
- * @returns {Out[]} Each, from the widget itself
- */
-function fromSelf(effects) {
-  return effects.map((effect) => ({ effect, from: [] }))
-}
-
-/**
- * A delivery inside a composite as it goes: the composite's state, and the state its children last had their props
- * from
- * @typedef {Readonly<{ state: unknown, synced: unknown }>} At
+ * A delivery inside a composite as it goes: its own fields, its children's states, and the own fields its children
+ * last had their props from
+ * @typedef {Readonly<{ own: unknown, children: Readonly<{ [child: string]: unknown }>, synced: unknown }>} At
  */
 
 /**
  * A delivery inside a composite, done: where it got to, and the effects that left the composite on the way
  * @typedef {Readonly<{ at: At, outs: readonly Out[] }>} Done
  */
+
+/**
+ * The composite's state at a point of a delivery
+ * @param {At} at - The point
+ * @returns {unknown} The state
+ */
+function stateOf(at) {
+  return { children: at.children, own: at.own }
+}
 
 /**
  * Delivers each child whose props changed since `at.synced` its new props
@@ -348,20 +307,19 @@ function fromSelf(effects) {
 function syncProps(widget, at) {
   /** @type {Out[]} */
   const outs = []
-  let { state, synced } = at
+  let going = at
   for (let round = 0; round < 16; round += 1) {
-    const before = synced
-    const now = state
+    const { own, synced } = going
     const changed = Object.keys(widget.children).filter(
-      (name) => !same(propsFor(widget, before, name), propsFor(widget, now, name)),
+      (name) => !same(propsFor(widget, synced, name), propsFor(widget, own, name)),
     )
     if (changed.length === 0) {
-      return { at: { state, synced }, outs }
+      return { at: going, outs }
     }
-    synced = now
+    going = { children: going.children, own: going.own, synced: own }
     for (const name of changed) {
-      const done = toChild(widget, { state, synced }, name, [], { props: propsFor(widget, now, name), type: 'props' })
-      ;({ state } = done.at)
+      const done = toChild(widget, going, name, [], { props: propsFor(widget, own, name), type: 'props' })
+      going = done.at
       outs.push(...done.outs)
     }
   }
@@ -386,7 +344,7 @@ function settle(widget, at, effects) {
       const done = toChild(widget, synced.at, effect['to'], [], effect['input'])
       outs.push(...synced.outs, ...done.outs)
       going = done.at
-    } else {
+    } else if (typeOf(effect) !== 'stopPropagation') {
       outs.push({ effect, from: [] })
     }
   }
@@ -394,8 +352,38 @@ function settle(widget, at, effects) {
 }
 
 /**
- * Delivers an input to a child (or one of its descendants, by `rest`) and bubbles what comes out through the
- * composite's `on` handlers for that child
+ * Bubbles a child's effects through the composite's `on` handlers for that child: a handler hears an effect of a type
+ * it names, and the effect goes on up after what the handler emits, unless the handler stops it
+ * @param {AnyComposite} widget - The composite
+ * @param {At} at - The delivery under way
+ * @param {string} name - The child
+ * @param {readonly Out[]} childOuts - The child's effects
+ * @returns {Done} The delivery after
+ */
+function bubbleOuts(widget, at, name, childOuts) {
+  const handlers = widget.on[name]
+  /** @type {Out[]} */
+  const outs = []
+  let going = at
+  for (const out of childOuts) {
+    const handler = handlers?.[typeOf(out.effect)]
+    let stopped = false
+    if (handler !== undefined) {
+      const [own, effects] = handler(going.own, out.effect, out.from)
+      stopped = effects.some((effect) => typeOf(effect) === 'stopPropagation')
+      const done = settle(widget, { ...going, own }, effects)
+      outs.push(...done.outs)
+      going = done.at
+    }
+    if (!stopped) {
+      outs.push({ effect: out.effect, from: [name, ...out.from] })
+    }
+  }
+  return { at: going, outs }
+}
+
+/**
+ * Delivers an input to a child (or one of its descendants, by `rest`) and bubbles what comes out
  * @param {AnyComposite} widget - The composite
  * @param {At} at - The delivery under way
  * @param {string} name - The child
@@ -405,24 +393,9 @@ function settle(widget, at, effects) {
  *   the input's default
  */
 function toChild(widget, at, name, rest, input) {
-  const [child, childOuts] = deliver(childOf(widget, name), fieldOf(at.state, name), rest, input)
-  const handlers = widget.on[name]
-  /** @type {Out[]} */
-  const outs = []
-  /** @type {At} */
-  let going = { ...at, state: withChild(at.state, name, child) }
-  for (const out of childOuts) {
-    const handler = handlers?.[typeOf(out.effect)]
-    if (handler === undefined) {
-      outs.push({ effect: out.effect, from: [name, ...out.from] })
-    } else {
-      const [next, effects] = handler(going.state, out.effect, out.from)
-      const done = settle(widget, { ...going, state: next }, effects)
-      outs.push(...done.outs)
-      going = done.at
-    }
-  }
-  return { at: going, outs, prevented: childOuts.some((out) => typeOf(out.effect) === 'preventDefault') }
+  const [child, childOuts] = deliver(childOf(widget, name), at.children[name], rest, input)
+  const done = bubbleOuts(widget, { ...at, children: { ...at.children, [name]: child } }, name, childOuts)
+  return { ...done, prevented: childOuts.some((out) => typeOf(out.effect) === 'preventDefault') }
 }
 
 /**
@@ -430,8 +403,8 @@ function toChild(widget, at, name, rest, input) {
  * `widget`'s parent. Pure: the same state and input always give the same result
  * @param {AnyWidget} widget - The outermost widget
  * @param {unknown} state - Its state
- * @param {Path} path - The widget the input is for: the owner of the part it happened on, or the one that asked or
- *   woke
+ * @param {Path} path - The widget the input is for: the owner of the part it happened on, or the one that asked,
+ *   woke or changed something
  * @param {unknown} input - The input
  * @returns {Result<unknown, Out>} The new state, and the effects with where each came from
  */
@@ -441,11 +414,12 @@ function deliver(widget, state, path, input) {
       throw new TypeError(`A leaf widget has no child ${path.join('/')}`)
     }
     const [next, effects] = widget.step(state, input)
-    return [next, fromSelf(effects)]
+    return [next, effects.map((effect) => ({ effect, from: [] }))]
   }
-  const done = deliverIn(widget, { state, synced: state }, path, input)
+  const { children, own } = split(state)
+  const done = deliverIn(widget, { children, own, synced: own }, path, input)
   const synced = syncProps(widget, done.at)
-  return [synced.at.state, [...done.outs, ...synced.outs]]
+  return [stateOf(synced.at), [...done.outs, ...synced.outs]]
 }
 
 /**
@@ -459,8 +433,8 @@ function deliver(widget, state, path, input) {
 function deliverIn(widget, at, path, input) {
   const [name, ...rest] = path
   if (name === undefined) {
-    const [next, effects] = widget.step(at.state, input)
-    return settle(widget, { ...at, state: next }, effects)
+    const [own, effects] = widget.step(at.own, input)
+    return settle(widget, { ...at, own }, effects)
   }
   const type = typeOf(input)
   /** @type {Out[]} */
@@ -468,12 +442,8 @@ function deliverIn(widget, at, path, input) {
   let going = at
   const capture = widget.capture[name]?.[type]
   if (capture !== undefined) {
-    const [next, effects] = capture(going.state, input, false)
-    const done = settle(
-      widget,
-      { ...going, state: next },
-      effects.filter((effect) => typeOf(effect) !== 'stopPropagation'),
-    )
+    const [own, effects] = capture(going.own, input, false)
+    const done = settle(widget, { ...going, own }, effects)
     outs.push(...done.outs)
     going = done.at
     if (effects.some((effect) => typeOf(effect) === 'stopPropagation')) {
@@ -487,75 +457,45 @@ function deliverIn(widget, at, path, input) {
   if (bubble === undefined) {
     return { at: delivered.at, outs }
   }
-  const [next, effects] = bubble(delivered.at.state, input, delivered.prevented)
-  const done = settle(widget, { ...delivered.at, state: next }, effects)
+  const [own, effects] = bubble(delivered.at.own, input, delivered.prevented)
+  const done = settle(widget, { ...delivered.at, own }, effects)
   outs.push(...done.outs)
   return { at: done.at, outs }
 }
 
 /**
- * Starts a widget: its first state, after it and every descendant, outermost first, were delivered their props once
- * (so a widget that needs something from the host, such as its first window of keys, asks for it then)
+ * Starts a widget: its first state, and the effects its `init`, and every descendant's, emit, bubbled as any effects
+ * are. Children start first, so the composite's own first effects can `send` to them
  * @param {AnyWidget} widget - The widget
  * @param {unknown} props - Its props
  * @returns {Result<unknown, Out>} The state, and the effects that reach the host
  */
 function start(widget, props) {
-  return mount(widget, widget.init(props), [], props)
-}
-
-/**
- * Delivers props to a widget and then to each of its descendants
- * @param {AnyWidget} root - The outermost widget
- * @param {unknown} state - Its state
- * @param {Path} path - The widget to mount, below `root`
- * @param {unknown} props - That widget's props
- * @returns {Result<unknown, Out>} The new state, and the effects
- */
-function mount(root, state, path, props) {
-  const [first, firstOuts] = deliver(root, state, path, { props, type: 'props' })
-  let next = first
-  const outs = [...firstOuts]
-  const widget = widgetAt(root, path)
-  if (isComposite(widget)) {
-    for (const name of Object.keys(widget.children)) {
-      const [after, more] = mount(root, next, [...path, name], propsFor(widget, stateAt(next, path), name))
-      next = after
-      outs.push(...more)
-    }
+  const [own, effects] = widget.init(props)
+  if (!isComposite(widget)) {
+    return [own, effects.map((effect) => ({ effect, from: [] }))]
   }
-  return [next, outs]
-}
-
-/**
- * The widget at a path
- * @param {AnyWidget} root - The outermost widget
- * @param {Path} path - The path
- * @returns {AnyWidget} The widget there
- */
-function widgetAt(root, path) {
-  let widget = root
-  for (const name of path) {
-    if (!isComposite(widget)) {
-      throw new TypeError(`No child ${name}`)
-    }
-    widget = childOf(widget, name)
+  /** @type {{ [child: string]: unknown }} */
+  const children = {}
+  /** @type {[string, readonly Out[]][]} */
+  const started = []
+  for (const name of Object.keys(widget.children)) {
+    const [child, outs] = start(childOf(widget, name), propsFor(widget, own, name))
+    children[name] = child
+    started.push([name, outs])
   }
-  return widget
-}
-
-/**
- * The state of the widget at a path
- * @param {unknown} state - The outermost widget's state
- * @param {Path} path - The path
- * @returns {unknown} That widget's state
- */
-function stateAt(state, path) {
-  let here = state
-  for (const name of path) {
-    here = fieldOf(here, name)
+  /** @type {Out[]} */
+  const outs = []
+  /** @type {At} */
+  let going = { children, own, synced: own }
+  for (const [name, childOuts] of started) {
+    const done = bubbleOuts(widget, going, name, childOuts)
+    outs.push(...done.outs)
+    going = done.at
   }
-  return here
+  const settled = settle(widget, going, effects)
+  const synced = syncProps(widget, settled.at)
+  return [stateOf(synced.at), [...outs, ...settled.outs, ...synced.outs]]
 }
 
 /**
@@ -632,7 +572,9 @@ function resolve(widget, state, props) {
  * @returns {Node} Its root part
  */
 function resolveAt(widget, state, props, owner, heard) {
-  const view = widget.view(state, props)
+  const composite = isComposite(widget) ? widget : null
+  const { children, own } = composite === null ? { children: {}, own: state } : split(state)
+  const view = widget.view(own, props)
 
   /**
    * What one content of a part draws
@@ -647,16 +589,16 @@ function resolveAt(widget, state, props, owner, heard) {
       return content.keys.map((key) => part(content.each, key))
     }
     if ('child' in content) {
-      if (!isComposite(widget)) {
+      if (composite === null) {
         throw new TypeError('A leaf widget has no children')
       }
       const name = content.child
-      const heardHere = [...Object.keys(widget.capture[name] ?? {}), ...Object.keys(widget.bubble[name] ?? {})]
+      const heardHere = [...Object.keys(composite.capture[name] ?? {}), ...Object.keys(composite.bubble[name] ?? {})]
       return [
         resolveAt(
-          childOf(widget, name),
-          fieldOf(state, name),
-          propsFor(widget, state, name),
+          childOf(composite, name),
+          children[name],
+          propsFor(composite, own, name),
           [...owner, name],
           [...heard, ...heardHere],
         ),
@@ -704,14 +646,4 @@ function resolveAt(widget, state, props, owner, heard) {
   return part('root', null)
 }
 
-/**
- * Whether two targets name the same part
- * @param {Target} a - One
- * @param {Target} b - The other
- * @returns {boolean} Whether they are the same
- */
-function sameTarget(a, b) {
-  return a.part === b.part && a.item === b.item && same(a.owner, b.owner)
-}
-
-export { compose, deliver, isRecord, resolve, same, sameTarget, start, stateAt, typeOf }
+export { compose, deliver, isRecord, resolve, same, start, typeOf }

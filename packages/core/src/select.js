@@ -1,23 +1,26 @@
 /**
  * A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/),
- * a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`; the list
- * is the windowed `list`, given the select's value as its own, so it only reports what was chosen. With `value` in
- * its props the select never changes it, and only emits `change`.
+ * a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known
+ * from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only
+ * reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once
+ * and is pending until the props confirm it or the app refuses it.
  */
 
 import { compose } from './compose.js'
 import { part, ref } from './contract.js'
-import { drawnKeys, list } from './list.js'
+import { list } from './list.js'
+import { change, fromApp, pending, refuse, shown } from './pending.js'
 
-/** @import { Blur, Change, Click, Key, KeyDown, PreventDefault, PropsInput, Result } from './contract.js' */
-/** @import { CompositeSpec, Send, StateWith } from './compose.js' */
+/** @import { Blur, Change, Click, Key, KeyDown, PreventDefault, PropsInput, Refused, Result } from './contract.js' */
+/** @import { Send, StopPropagation } from './compose.js' */
+/** @import { Pending } from './pending.js' */
 
 /**
  * @typedef {Readonly<{
  *   label: string,
  *   placeholder: string,
  *   rows: number,
- *   revision: number,
+ *   source: string,
  *   value?: Key | null,
  * }>} SelectProps
  */
@@ -25,167 +28,183 @@ import { drawnKeys, list } from './list.js'
 /**
  * @typedef {Readonly<{
  *   open: boolean,
- *   value: Key | null,
- *   controlled: boolean,
+ *   value: Pending<Key | null>,
+ *   active: Key | null,
  *   label: string,
  *   placeholder: string,
  *   rows: number,
- *   revision: number,
+ *   source: string,
  * }>} SelectOwn
  */
 
-/** @typedef {StateWith<SelectOwn, Readonly<{ list: typeof list }>>} SelectState */
-/** @typedef {KeyDown | Click | Blur | PropsInput<SelectProps>} SelectInput */
-/** @typedef {Change<Key | null> | PreventDefault | Send<'list'>} SelectEffect */
+/** @typedef {KeyDown | Click | Blur | PropsInput<SelectProps> | Refused} SelectInput */
+/** @typedef {Change<Key | null> | PreventDefault | Send<'list'> | StopPropagation} SelectEffect */
 
 /** @type {readonly SelectEffect[]} */
 const NONE = []
 /** @type {readonly SelectEffect[]} */
 const PREVENT = [{ type: 'preventDefault' }]
+/** @type {readonly SelectEffect[]} */
+const STOP = [{ type: 'stopPropagation' }]
 
 /**
  * Closes the select, choosing a key
- * @param {SelectState} state - The select
+ * @param {SelectOwn} own - The select
  * @param {Key | null} key - The key, or `null` to close choosing nothing
- * @returns {Result<SelectState, SelectEffect>} The select, and `change` if the value is another
+ * @returns {Result<SelectOwn, SelectEffect>} The select, and `change` if the value is another
  */
-function choose(state, key) {
-  const closed = { ...state, open: false }
-  if (key === null || key === state.value) {
+function choose(own, key) {
+  const closed = { ...own, open: false }
+  if (key === null || key === shown(own.value)) {
     return [closed, NONE]
   }
-  return [state.controlled ? closed : { ...closed, value: key }, [{ type: 'change', value: key }]]
+  const [value, id] = change(own.value, key)
+  return [{ ...closed, value }, [{ id, type: 'change', value: key }]]
 }
 
 /**
  * Handles a key on the trigger
- * @param {SelectState} state - The select
+ * @param {SelectOwn} own - The select
  * @param {KeyDown} input - The key
- * @returns {Result<SelectState, SelectEffect>} The select, and its effects
+ * @returns {Result<SelectOwn, SelectEffect>} The select, and its effects
  */
-function keydown(state, input) {
+function keydown(own, input) {
   const { key } = input
-  if (!state.open) {
+  if (!own.open) {
     if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') {
-      return [{ ...state, open: true }, PREVENT]
+      return [{ ...own, open: true }, PREVENT]
     }
     if (key === 'Home' || key === 'End') {
-      return [{ ...state, open: true }, [...PREVENT, { input, to: 'list', type: 'send' }]]
+      return [{ ...own, open: true }, [...PREVENT, { input, to: 'list', type: 'send' }]]
     }
-    return [state, NONE]
+    return [own, NONE]
   }
   if (key === 'Escape') {
-    return [{ ...state, open: false }, PREVENT]
+    return [{ ...own, open: false }, PREVENT]
   }
   if (key === 'Tab') {
-    return choose(state, state.list.active)
+    return choose(own, own.active)
   }
   if (key === 'Enter' || key === ' ' || (key === 'ArrowUp' && input.altKey)) {
-    const [next, effects] = choose(state, state.list.active)
+    const [next, effects] = choose(own, own.active)
     return [next, [...PREVENT, ...effects]]
   }
-  return [state, [{ input, to: 'list', type: 'send' }]]
+  return [own, [{ input, to: 'list', type: 'send' }]]
 }
 
 /**
- * The select's own step: its trigger, and its props
- * @param {SelectState} state - The select
+ * The select's own step: its trigger, its props, a refusal
+ * @param {SelectOwn} own - The select
  * @param {SelectInput} input - The input
- * @returns {Result<SelectState, SelectEffect>} The select, and its effects
+ * @returns {Result<SelectOwn, SelectEffect>} The select, and its effects
  */
-function step(state, input) {
+function step(own, input) {
   switch (input.type) {
     case 'props': {
       const { props } = input
       const controlled = 'value' in props
       return [
         {
-          ...state,
-          controlled,
+          ...own,
           label: props.label,
           placeholder: props.placeholder,
-          revision: props.revision,
           rows: props.rows,
-          value: controlled ? (props.value ?? null) : state.value,
+          source: props.source,
+          value: fromApp(own.value, controlled, controlled ? (props.value ?? null) : own.value.app),
         },
         NONE,
       ]
     }
+    case 'refused': {
+      return [{ ...own, value: refuse(own.value, input.id) }, NONE]
+    }
     case 'click': {
-      return [{ ...state, open: !state.open }, NONE]
+      return [{ ...own, open: !own.open }, NONE]
     }
     case 'keydown': {
-      return keydown(state, input)
+      return keydown(own, input)
     }
     case 'blur': {
-      return state.open ? choose(state, state.list.active) : [state, NONE]
+      return own.open ? choose(own, own.active) : [own, NONE]
     }
     default: {
-      return [state, NONE]
+      return [own, NONE]
     }
   }
 }
 
-/** @type {CompositeSpec<SelectProps, SelectOwn, SelectInput, SelectEffect, Readonly<{ list: typeof list }>>} */
-const spec = {
+/**
+ * The select's first own state
+ * @param {SelectProps} props - Its props
+ * @returns {Result<SelectOwn, SelectEffect>} The state, and nothing to do yet
+ */
+function init(props) {
+  return [
+    {
+      active: null,
+      label: props.label,
+      open: false,
+      placeholder: props.placeholder,
+      rows: props.rows,
+      source: props.source,
+      value: pending('value' in props, props.value ?? null),
+    },
+    NONE,
+  ]
+}
+
+const select = compose({
   bubble: {
     list: {
-      click: (state, input) => (state.open && input.item !== null ? [{ ...state, open: false }, NONE] : [state, NONE]),
+      click: (own, input) => (own.open && input.item !== null ? [{ ...own, open: false }, NONE] : [own, NONE]),
     },
   },
   capture: {
     list: {
-      mousedown: (state) => [state, PREVENT],
+      mousedown: (own) => [own, PREVENT],
     },
   },
   children: { list },
-  init: (props) => ({
-    controlled: 'value' in props,
-    label: props.label,
-    open: false,
-    placeholder: props.placeholder,
-    revision: props.revision,
-    rows: props.rows,
-    value: props.value ?? null,
-  }),
+  init,
   on: {
     list: {
-      change: (state, effect) => choose(state, effect.value),
+      active: (own, effect) => [{ ...own, active: effect.item }, STOP],
+      change: (own, effect) => {
+        const [next, effects] = choose(own, effect.value)
+        return [next, [...effects, ...STOP]]
+      },
     },
   },
   props: {
-    list: (state) => ({
+    list: (own) => ({
       focusable: false,
-      label: state.label,
-      revision: state.revision,
-      rows: state.rows,
-      selected: state.value,
-      shown: state.open,
+      label: own.label,
+      rows: own.rows,
+      selected: shown(own.value),
+      shown: own.open,
+      source: own.source,
     }),
   },
   step,
-  view: (state) => {
-    const { active } = state.list
-    const shownActive = state.open && active !== null && drawnKeys(state.list).includes(active) ? active : null
+  view: (own) => {
+    const value = shown(own.value)
     return {
       root: part({ content: [{ part: 'trigger' }, { child: 'list' }] }),
       trigger: part({
         aria: {
-          activedescendant: shownActive === null ? null : ref(['list', 'option'], shownActive),
+          activedescendant: own.active === null ? null : ref(['list', 'option'], own.active),
           controls: ref(['list', 'root'], null),
-          expanded: state.open,
+          expanded: own.open,
           haspopup: 'listbox',
-          label: state.label,
+          label: own.label,
         },
-        content: state.value === null ? [{ text: state.placeholder }] : [{ item: state.value }],
+        content: value === null ? [{ text: own.placeholder }] : [{ item: value }],
         listens: ['click', 'keydown', 'blur'],
         role: 'combobox',
         tabindex: 0,
       }),
     }
   },
-}
-
-const select = compose(spec)
+})
 
 export { select }

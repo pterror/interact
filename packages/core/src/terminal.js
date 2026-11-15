@@ -3,7 +3,8 @@
  * listbox or menu a line per option or item, a dialog a box, a heading bold; the focused part and the option a focused
  * part names by `aria-activedescendant` are drawn inverted, a selected option with a tick, a disabled one dim. Raw-mode
  * key presses become `keydown` with UI Events key values, and xterm's SGR mouse reports become pointer events and
- * clicks on the part under the pointer, at 8 by 16 CSS pixels a cell.
+ * clicks on the part under the pointer, in cells (from 0): a widget's thresholds are props, so the app gives them in
+ * cells. The app can draw any part itself (`parts`).
  *
  * What a browser does that a terminal doesn't, this does: focus (Tab through the parts with `tabindex` 0, kept inside
  * a shown `aria-modal` part, given back when it closes), a click on a button for Enter and Space, focus on a press,
@@ -11,11 +12,13 @@
  */
 
 import { host as run } from './host.js'
-import { identity } from './web.js'
+import { identity, partName } from './web.js'
+import { announcement } from './words.js'
 
-/** @import { AnyWidget, Node as Part, Out, Target } from './compose.js' */
+/** @import { Node as Part, Out, Target } from './compose.js' */
 /** @import { Data, Key } from './contract.js' */
-/** @import { Host } from './host.js' */
+/** @import { Host, HostOptions } from './host.js' */
+/** @import { Words } from './words.js' */
 
 /**
  * The terminal's input: text from a stream in raw mode
@@ -26,15 +29,21 @@ import { identity } from './web.js'
  */
 
 /**
- * @typedef {Readonly<{
- *   widget: AnyWidget,
- *   props: unknown,
- *   item: (key: Key) => string,
- *   announce: (message: Readonly<{ [field: string]: Data }>) => string,
- *   effect: (out: Out, host: Host) => void,
+ * How the app draws one part itself: the row's text, given the part, the text it would show, and whether it is lit
+ * (focused, or named by the focused part's `aria-activedescendant`), which the renderer still shows
+ * @typedef {(node: Part, look: Readonly<{ text: string, lit: boolean }>) => string} DrawPart
+ */
+
+/**
+ * What the host needs, and the terminal; optionally an item's text (by default its key as text), the words
+ * announcements use over the English ones, and parts the app draws itself, by name (`list.option`)
+ * @typedef {HostOptions & Readonly<{
  *   input: TerminalInput,
  *   write: (text: string) => void,
  *   columns: number,
+ *   item?: (key: Key) => string,
+ *   words?: Words,
+ *   parts?: Readonly<{ [name: string]: DrawPart }>,
  * }>} TerminalOptions
  */
 
@@ -45,8 +54,6 @@ import { identity } from './web.js'
  *   | Readonly<{ kind: 'quit' }>} TerminalEvent
  */
 
-/** CSS pixels a cell stands for, across and down: the contract's pointer coordinates are CSS pixels */
-const CELL = { x: 8, y: 16 }
 const ESC = '\u001B'
 const CSI_KEYS = new Map([
   ['A', 'ArrowUp'],
@@ -199,11 +206,11 @@ function isTarget(value) {
 /**
  * Lays a tree out as rows, by role
  * @param {Part} tree - The root
- * @param {Readonly<{ focused: string | null, item: (key: Key) => string }>} options - Which part has focus, and the
- *   host's text for items
+ * @param {Readonly<{ focused: string | null, item: (key: Key) => string, parts: Readonly<{ [name: string]: DrawPart }> }>} options
+ *   - Which part has focus, the host's text for items, and the parts the app draws
  * @returns {Layout} The rows, every part by identity, and each part's parent
  */
-function layout(tree, { focused, item }) {
+function layout(tree, { focused, item, parts }) {
   const naming = { id: '', keyId: String }
   /** @type {Map<string, Part>} */
   const nodes = new Map()
@@ -256,6 +263,10 @@ function layout(tree, { focused, item }) {
      */
     const line = (shown, how) => [[segment(indent, null, ''), segment(shown, key, how)]]
     const children = () => node.content.flatMap((content) => ('target' in content ? rows(content, `${indent}  `) : []))
+    const own = parts[partName(node.target)]
+    if (own !== undefined) {
+      return [...line(own(node, { lit, text }), style), ...children()]
+    }
     switch (node.role ?? '') {
       case 'combobox': {
         const label = typeof node.aria['label'] === 'string' ? `${node.aria['label']}: ` : ''
@@ -356,6 +367,8 @@ function paint(rows, columns) {
  *   The running widget, input fed as the terminal would, the screen's rows as plain text, and stopping
  */
 function renderTerminal(options) {
+  const item = options.item ?? String
+  const parts = options.parts ?? {}
   /** @type {string | null} */
   let focused = null
   let said = ''
@@ -380,27 +393,20 @@ function renderTerminal(options) {
     }
     if (type === 'focus' && typeof made === 'object' && made !== null && 'part' in made && Array.isArray(made.part)) {
       const path = made.part.map(String)
-      const item = 'item' in made && (typeof made.item === 'string' || typeof made.item === 'number') ? made.item : null
+      const key = 'item' in made && (typeof made.item === 'string' || typeof made.item === 'number') ? made.item : null
       const part = path.at(-1) ?? ''
-      setFocus(identity({ item, owner: [...out.from, ...path.slice(0, -1)], part }, { id: '', keyId: String }))
+      setFocus(identity({ item: key, owner: [...out.from, ...path.slice(0, -1)], part }, { id: '', keyId: String }))
       return
     }
-    if (
-      type === 'announce' &&
-      typeof made === 'object' &&
-      made !== null &&
-      'message' in made &&
-      typeof made.message === 'object' &&
-      made.message !== null
-    ) {
-      said = options.announce(Object.fromEntries(Object.entries(made.message)))
+    if (type === 'announce') {
+      said = announcement(out, options.words ?? {}, item)
       draw()
       return
     }
-    options.effect(out, running)
+    options.effect?.(out, running)
   }
 
-  const host = run({ effect, props: options.props, widget: options.widget })
+  const host = run({ ...options, effect })
 
   /**
    * Whether a part and every part around it is shown
@@ -514,7 +520,7 @@ function renderTerminal(options) {
    * @returns {void}
    */
   const draw = () => {
-    laid = layout(host.tree(), { focused, item: options.item })
+    laid = layout(host.tree(), { focused, item, parts })
     for (const [key, node] of laid.nodes) {
       if (node.aria['modal'] === true) {
         const open = shown(key)
@@ -531,7 +537,7 @@ function renderTerminal(options) {
     }
     if (focused === null || !laid.nodes.has(focused) || !shown(focused)) {
       focused = tabbable()[0] ?? null
-      laid = layout(host.tree(), { focused, item: options.item })
+      laid = layout(host.tree(), { focused, item, parts })
     }
     const status = [segment(said, null, 'dim')]
     options.write(`${ESC}[H${paint([...laid.rows, [], status], options.columns)}${ESC}[J`)
@@ -609,7 +615,7 @@ function renderTerminal(options) {
       return
     }
     const at = partAt(event.x, event.y)
-    const point = { button: 0, clientX: (event.x - 1) * CELL.x, clientY: (event.y - 1) * CELL.y, pointerId: 1 }
+    const point = { button: 0, clientX: event.x - 1, clientY: event.y - 1, pointerId: 1 }
     if (event.release) {
       fire(at, { ...point, type: 'pointerup' })
       const from = pressed

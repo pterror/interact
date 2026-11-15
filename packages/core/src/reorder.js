@@ -4,23 +4,27 @@
  * (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-rearrangeable/). It is the list with its step and
  * view wrapped: what it handles first is the drag and the move keys, and everything else is the list's.
  *
- * The order is the host's, so a reorder emits `move` (the dragged key, the key it lands next to, and on which side)
- * and waits for the collection to change (a new `revision`), as a value the widget doesn't own. ARIA has no word for
- * a dragged item or a drop place (`aria-grabbed` and `aria-dropeffect` are deprecated), so they are `data` states, and
- * a move is announced.
+ * The order is the collection's, by the contract's rule: a move shows at once, is emitted as `move` with an id, and
+ * stays pending, applied over the keys the host answers with, until the host has it (`confirmed`, then the next
+ * answer holds it) or refuses it (`refused`, which undoes it). Every move is made against the order shown, pending
+ * moves included. ARIA has no word for a dragged item or a drop place (`aria-grabbed` and `aria-dropeffect` are
+ * deprecated), so they are `data` states, and a move is announced.
  *
- * A drag starts once the pointer has moved `DRAG_PX` from where it was pressed, and lands by which option the pointer
- * is over: after it when that option is later than the dragged one, before it when earlier. No geometry beyond the
- * pointer's travel and the part under it is needed.
+ * A drag starts once the pointer has moved `dragDistance` (in the target's units) from where it was pressed, and
+ * lands by which option the pointer is over: after it when that option is later than the dragged one, before it when
+ * earlier.
  */
 
-import { list, rankOf } from './list.js'
+import { list, rankOf, tellActive, topFor, withActive } from './list.js'
 
-/** @import { Announce, Key, KeyDown, Part, Pointer, Result, View, Widget } from './contract.js' */
+/** @import { Announce, Confirmed, Key, KeyDown, Part, Pointer, PropsInput, Result, View, Widget } from './contract.js' */
 /** @import { ListEffect, ListInput, ListProps, ListState } from './list.js' */
 
-/** How far, in CSS pixels, a press must travel to become a drag */
-const DRAG_PX = 4
+/**
+ * The list's props, the keys that move an option (shown as `aria-keyshortcuts`, so they follow the host's bindings),
+ * and how far a press travels to become a drag
+ * @typedef {ListProps & Readonly<{ keyshortcuts: string, dragDistance: number }>} ReorderProps
+ */
 
 /**
  * @typedef {Readonly<{ mode: 'idle' }>
@@ -29,11 +33,29 @@ const DRAG_PX = 4
  */
 
 /**
- * `swallow`: the click a drag ends with is coming, and isn't a choice
- * @typedef {ListState & Readonly<{ drag: Drag, swallow: boolean }>} ReorderState
+ * A move not yet in the keys the host answers with. `through` is the first ask whose answer holds it, once the host
+ * confirmed it
+ * @typedef {Readonly<{ id: number, item: Key, target: Key, after: boolean, confirmed: boolean, through: number | null }>} Move
  */
-/** @typedef {ListInput | Pointer} ReorderInput */
-/** @typedef {ListEffect | Announce | Readonly<{ type: 'move', item: Key, target: Key, after: boolean }>} ReorderEffect */
+
+/**
+ * `base` is the keys as the host answered them, `keys` (the list's) those with `moves` applied. `swallow`: the click
+ * a drag ends with is coming, and isn't a choice
+ * @typedef {ListState & Readonly<{
+ *   drag: Drag,
+ *   swallow: boolean,
+ *   base: readonly Key[],
+ *   moves: readonly Move[],
+ *   keyshortcuts: string,
+ *   dragDistance: number,
+ * }>} ReorderState
+ */
+
+/** @typedef {Exclude<ListInput, PropsInput<ListProps>> | PropsInput<ReorderProps> | Pointer | Confirmed} ReorderInput */
+/**
+ * @typedef {ListEffect | Announce
+ *   | Readonly<{ type: 'move', id: number, source: string, item: Key, target: Key, after: boolean }>} ReorderEffect
+ */
 
 /** @type {readonly ReorderEffect[]} */
 const NONE = []
@@ -41,7 +63,34 @@ const NONE = []
 const IDLE = { mode: 'idle' }
 
 /**
- * Moves an item next to another: the move for the host, the active item following it, and the announcement
+ * Keys with one move applied: the item taken out, and put next to its target if the target is among them
+ * @param {readonly Key[]} keys - The keys
+ * @param {Move} move - The move
+ * @returns {readonly Key[]} The keys after
+ */
+function applied(keys, move) {
+  const without = keys.filter((key) => key !== move.item)
+  const at = without.indexOf(move.target)
+  if (at === -1) {
+    return without
+  }
+  const place = move.after ? at + 1 : at
+  return [...without.slice(0, place), move.item, ...without.slice(place)]
+}
+
+/**
+ * The list with its keys made again from the host's and the moves pending
+ * @param {ReorderState} state - The list
+ * @returns {ReorderState} The list
+ */
+function derived(state) {
+  const keys = state.moves.reduce(applied, state.base)
+  const next = withActive({ ...state, keys })
+  return { ...state, ...next, base: state.base, moves: state.moves }
+}
+
+/**
+ * Moves an item next to another: pending, shown at once, the active item following it, emitted and announced
  * @param {ReorderState} state - The list
  * @param {Key} item - The item moved
  * @param {Key} target - The item it lands next to
@@ -49,23 +98,34 @@ const IDLE = { mode: 'idle' }
  * @returns {Result<ReorderState, ReorderEffect>} The list, and its effects
  */
 function moved(state, item, target, after) {
-  const rank = rankOf(state, target) ?? 0
-  const top = rank < state.top ? rank : rank >= state.top + state.rows ? rank - state.rows + 1 : state.top
+  const id = state.selection.next
+  /** @type {Move} */
+  const move = { after, confirmed: false, id, item, target, through: null }
+  const next = derived({
+    ...state,
+    active: item,
+    drag: IDLE,
+    follow: 'key',
+    moves: [...state.moves, move],
+    selection: { ...state.selection, next: id + 1 },
+  })
+  const rank = rankOf(next, item) ?? 0
   return [
-    { ...state, active: item, activeRank: rank, drag: IDLE, follow: 'key', top },
+    { ...next, activeRank: rank, top: topFor(next, rank) },
     [
-      { after, item, target, type: 'move' },
+      { after, id, item, source: state.source, target, type: 'move' },
       {
-        message: { count: state.count ?? -1, item, position: rank + 1, what: 'moved' },
+        message: 'moved',
         type: 'announce',
         urgent: false,
+        values: { count: state.count ?? -1, item, position: rank + 1 },
       },
     ],
   ]
 }
 
 /**
- * Alt+ArrowUp or Alt+ArrowDown: the active option moves one place
+ * Alt+ArrowUp or Alt+ArrowDown: the active option moves one place, in the order shown
  * @param {ReorderState} state - The list
  * @param {KeyDown} input - The key
  * @returns {Result<ReorderState, ReorderEffect> | null} The list and its effects, or `null` if the key isn't one
@@ -75,8 +135,9 @@ function moveKey(state, input) {
   if (!input.altKey || input.ctrlKey || input.metaKey || by === 0) {
     return null
   }
-  const { active, activeRank } = state
-  const neighbour = activeRank === null ? undefined : state.keys[activeRank + by - state.from]
+  const { active } = state
+  const rank = active === null ? null : rankOf(state, active)
+  const neighbour = rank === null ? undefined : state.keys[rank + by - state.from]
   if (active === null || neighbour === undefined) {
     return [state, [{ type: 'preventDefault' }]]
   }
@@ -93,15 +154,17 @@ function moveKey(state, input) {
 function pointer(state, input) {
   const { drag } = state
   if (input.type === 'pointerdown') {
-    return input.button === 0 && input.part === 'option' && input.item !== null
-      ? [
-          {
-            ...state,
-            drag: { item: input.item, mode: 'pressed', pointerId: input.pointerId, x: input.clientX, y: input.clientY },
-          },
-          NONE,
-        ]
-      : [state, NONE]
+    if (input.button !== 0 || input.part !== 'option' || input.item === null) {
+      return [state, NONE]
+    }
+    const pressed = {
+      item: input.item,
+      mode: 'pressed',
+      pointerId: input.pointerId,
+      x: input.clientX,
+      y: input.clientY,
+    }
+    return [{ ...state, drag: { ...pressed, mode: 'pressed' } }, NONE]
   }
   if (drag.mode === 'idle' || drag.pointerId !== input.pointerId) {
     return [state, NONE]
@@ -118,15 +181,10 @@ function pointer(state, input) {
   }
   if (drag.mode === 'pressed') {
     const travelled = Math.hypot(input.clientX - drag.x, input.clientY - drag.y)
-    return travelled < DRAG_PX
+    const dragging = { after: false, item: drag.item, mode: 'dragging', over: null, pointerId: drag.pointerId }
+    return travelled < state.dragDistance
       ? [state, NONE]
-      : [
-          {
-            ...state,
-            drag: { after: false, item: drag.item, mode: 'dragging', over: null, pointerId: drag.pointerId },
-          },
-          NONE,
-        ]
+      : [{ ...state, drag: { ...dragging, mode: 'dragging' } }, NONE]
   }
   if (input.part !== 'option' || input.item === null) {
     return [state, NONE]
@@ -151,17 +209,45 @@ function cancelled(state) {
   }
   return [
     { ...state, drag: IDLE, swallow: true },
-    [{ message: { item: state.drag.item, what: 'cancelled' }, type: 'announce', urgent: false }],
+    [{ message: 'cancelled', type: 'announce', urgent: false, values: { item: state.drag.item } }],
   ]
 }
 
 /**
- * The step: the drag and the move keys first, then the list's
+ * Hands an input to the list, keeping the reorder's own fields, and keeps the pending moves over what the host
+ * answers: a move the host confirmed goes once an ask made after the confirmation is answered
+ * @param {ReorderState} state - The list
+ * @param {ListInput} input - The input
+ * @returns {Result<ReorderState, ReorderEffect>} The list, and its effects
+ */
+function toList(state, input) {
+  const [next, effects] = list.step(state, input)
+  const asked = next.asked > state.asked
+  const moves = state.moves.map((move) =>
+    asked && move.confirmed && move.through === null ? { ...move, through: next.asked } : move,
+  )
+  const own = {
+    base: state.base,
+    drag: state.drag,
+    dragDistance: state.dragDistance,
+    keyshortcuts: state.keyshortcuts,
+    moves,
+    swallow: state.swallow,
+  }
+  if (input.type === 'answer' && input.id === state.asked) {
+    const kept = moves.filter((move) => move.through === null || move.through > input.id)
+    return [derived({ ...next, ...own, base: next.keys, moves: kept }), effects]
+  }
+  return [{ ...next, ...own }, effects]
+}
+
+/**
+ * The step before `active` is told: the drag, the move keys and the host's word on moves first, then the list's
  * @param {ReorderState} state - The list
  * @param {ReorderInput} input - The input
  * @returns {Result<ReorderState, ReorderEffect>} The list, and its effects
  */
-function step(state, input) {
+function stepOwn(state, input) {
   switch (input.type) {
     case 'pointerdown':
     case 'pointermove':
@@ -169,39 +255,63 @@ function step(state, input) {
     case 'pointercancel': {
       return pointer(state, input)
     }
+    case 'confirmed': {
+      return [
+        { ...state, moves: state.moves.map((move) => (move.id === input.id ? { ...move, confirmed: true } : move)) },
+        NONE,
+      ]
+    }
+    case 'refused': {
+      const undone = state.moves.find((move) => move.id === input.id)
+      if (undone === undefined) {
+        return toList(state, input)
+      }
+      return [
+        derived({ ...state, moves: state.moves.filter((move) => move !== undone) }),
+        [{ message: 'refused', type: 'announce', urgent: false, values: { item: undone.item } }],
+      ]
+    }
+    case 'props': {
+      const { dragDistance, keyshortcuts } = input.props
+      return toList({ ...state, dragDistance, keyshortcuts }, input)
+    }
     case 'keydown': {
       if (input.key === 'Escape' && state.drag.mode === 'dragging') {
         const [next, effects] = cancelled(state)
         return [next, [{ type: 'preventDefault' }, ...effects]]
       }
-      const handled = moveKey(state, input)
-      if (handled !== null) {
-        return handled
-      }
-      break
+      return moveKey(state, input) ?? toList(state, input)
     }
     case 'click': {
-      if (state.swallow) {
-        return [{ ...state, swallow: false }, NONE]
-      }
-      break
+      return state.swallow ? [{ ...state, swallow: false }, NONE] : toList(state, input)
     }
     case 'answer':
-    case 'props': {
-      break
+    case 'changed':
+    case 'measured':
+    case 'scroll': {
+      return toList(state, input)
     }
     default: {
-      break
+      return toList(state, input)
     }
   }
-  const [next, effects] = list.step(state, input)
-  return [{ ...next, drag: state.drag, swallow: state.swallow }, effects]
+}
+
+/**
+ * The step
+ * @param {ReorderState} state - The list
+ * @param {ReorderInput} input - The input
+ * @returns {Result<ReorderState, ReorderEffect>} The list, and its effects
+ */
+function step(state, input) {
+  const result = stepOwn(state, input)
+  return result[1].some((effect) => effect.type === 'active') ? result : tellActive(state, result)
 }
 
 /**
  * The list's view, with the drag shown and the pointer heard
  * @param {ReorderState} state - The list
- * @param {ListProps} props - Its props
+ * @param {ReorderProps} props - Its props
  * @returns {View} Its parts
  */
 function view(state, props) {
@@ -215,7 +325,7 @@ function view(state, props) {
   /** @type {Part} */
   const reorderRoot = {
     ...root,
-    aria: { ...root.aria, keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown' },
+    aria: { ...root.aria, keyshortcuts: state.keyshortcuts },
     data: { ...root.data, dragging: drag.mode === 'dragging' },
     listens: [...root.listens, 'pointermove', 'pointerup', 'pointercancel'],
   }
@@ -238,9 +348,23 @@ function view(state, props) {
   }
 }
 
-/** @type {Widget<ListProps, ReorderState, ReorderInput, ReorderEffect>} */
+/** @type {Widget<ReorderProps, ReorderState, ReorderInput, ReorderEffect>} */
 const reorderList = {
-  init: (props) => ({ ...list.init(props), drag: IDLE, swallow: false }),
+  init: (props) => {
+    const [state, effects] = list.init(props)
+    return [
+      {
+        ...state,
+        base: [],
+        drag: IDLE,
+        dragDistance: props.dragDistance,
+        keyshortcuts: props.keyshortcuts,
+        moves: [],
+        swallow: false,
+      },
+      effects,
+    ]
+  },
   step,
   view,
 }

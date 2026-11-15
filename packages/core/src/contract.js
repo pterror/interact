@@ -5,8 +5,14 @@
  * anything global; a widget never calls the host.
  *
  * Inputs are the web's UI Events by name and value (`click`, `keydown` with standard `key` values, pointer and focus
- * events), each naming the part it happened on, plus `answer`, `props` and `time`. Effects are data the host carries
+ * events), each naming the part it happened on, plus what the host tells a widget: `answer`, `props`, `time`,
+ * `changed`, `confirmed`, `refused`, and geometry only as `scroll` and `measured`. Effects are data the host carries
  * out.
+ *
+ * A value a widget changes follows one rule: what it shows is the app's value plus its own changes not yet settled.
+ * A change shows at once, is emitted with an id, and stays pending until the app's value confirms it (the app's
+ * props, or `confirmed` for a collection) or the app refuses it (`refused`), which undoes it. With no value from the
+ * app, the widget's value is its own.
  */
 
 /**
@@ -92,7 +98,8 @@
  */
 
 /**
- * A pointer event, with the UI Events fields a widget reads. `clientX`/`clientY` are CSS pixels
+ * A pointer event, with the UI Events fields a widget reads. `clientX`/`clientY` are in the target's own units (CSS
+ * pixels in a browser, cells in a terminal); a widget's thresholds are props, in the same units
  * @typedef {On & Readonly<{
  *   type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
  *   pointerId: number,
@@ -118,12 +125,38 @@
  */
 
 /**
- * An input from the host's events: any of these can happen on any part
- * @typedef {KeyDown | Click | Pointer | MouseDown | Focused | Blur} HostEvent
+ * A part scrolled: `offset` is how far its content is scrolled, in the target's units (UI Events' `scroll` carries no
+ * value; this is its element's `scrollTop`)
+ * @typedef {On & Readonly<{ type: 'scroll', offset: number }>} Scroll
  */
 
 /**
- * The props now: the parent's or the app's. Delivered once when a widget starts, and whenever they change
+ * A part's size, measured by the host, in the target's units
+ * @typedef {On & Readonly<{ type: 'measured', size: number }>} Measured
+ */
+
+/**
+ * An input from the host's events: any of these can happen on any part
+ * @typedef {KeyDown | Click | Pointer | MouseDown | Focused | Blur | Scroll | Measured} HostEvent
+ */
+
+/**
+ * The collection a widget asked about changed: what it holds may be stale
+ * @typedef {Readonly<{ type: 'changed' }>} Changed
+ */
+
+/**
+ * The app took a change the widget emitted (`id`): the collection now has it
+ * @typedef {Readonly<{ type: 'confirmed', id: number }>} Confirmed
+ */
+
+/**
+ * The app refused a change the widget emitted (`id`): the widget undoes it
+ * @typedef {Readonly<{ type: 'refused', id: number }>} Refused
+ */
+
+/**
+ * The props now: the parent's or the app's, whenever they change
  * @template P
  * @typedef {Readonly<{ type: 'props', props: P }>} PropsInput
  */
@@ -140,10 +173,11 @@
  */
 
 /**
- * A question for the host: the keys at ranks `[from, to)`, or (`locate`) a window of `rows` keys that holds a key.
- * The answer comes back to the widget that asked, as `answer` with the same `id`
- * @typedef {Readonly<{ type: 'ask', id: number, ranks: readonly [number, number] }>
- *   | Readonly<{ type: 'ask', id: number, locate: Key, rows: number }>} Ask
+ * A question for the host about a collection, named by `source`: the keys at ranks `[from, to)`, or (`locate`) a
+ * window of `rows` keys that holds a key. The answer comes back to the widget that asked, as `answer` with the same
+ * `id`
+ * @typedef {Readonly<{ type: 'ask', id: number, source: string, ranks: readonly [number, number] }>
+ *   | Readonly<{ type: 'ask', id: number, source: string, locate: Key, rows: number }>} Ask
  */
 
 /**
@@ -157,15 +191,20 @@
  */
 
 /**
- * Tells the app a value changed
+ * Tells the app a value changed. `id` names the change, for `refused`
  * @template T
- * @typedef {Readonly<{ type: 'change', value: T }>} Change
+ * @typedef {Readonly<{ type: 'change', value: T, id: number }>} Change
  */
 
 /**
- * Something for screen readers to say. `message` is what happened, as data: the host words it, since words are the
- * app's (its language, its items' names)
- * @typedef {Readonly<{ type: 'announce', message: Readonly<{ [field: string]: Data }>, urgent: boolean }>} Announce
+ * Something for screen readers to say: which message (`message`, an id the host words in its language) and what it
+ * is about (`values`, keys among them, which the host names)
+ * @typedef {Readonly<{
+ *   type: 'announce',
+ *   message: string,
+ *   values: Readonly<{ [field: string]: Data }>,
+ *   urgent: boolean,
+ * }>} Announce
  */
 
 /**
@@ -181,10 +220,11 @@
  */
 
 /**
- * A widget: three pure functions
+ * A widget: three pure functions. `init` gives the first state and what to do at once (a list asks for its first
+ * window)
  * @template P, S, I, E
  * @typedef {Readonly<{
- *   init: (props: P) => S,
+ *   init: (props: P) => Result<S, E>,
  *   step: (state: S, input: I) => Result<S, E>,
  *   view: (state: S, props: P) => View,
  * }>} Widget

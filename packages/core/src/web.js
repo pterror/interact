@@ -8,10 +8,12 @@
  */
 
 import { host as run } from './host.js'
+import { announcement } from './words.js'
 
-/** @import { AnyWidget, Node, Out, Target } from './compose.js' */
-/** @import { Data, Key } from './contract.js' */
-/** @import { Host } from './host.js' */
+/** @import { Node, Out, Target } from './compose.js' */
+/** @import { Key } from './contract.js' */
+/** @import { Host, HostOptions } from './host.js' */
+/** @import { Words } from './words.js' */
 
 /**
  * How a host names things in the DOM: the prefix of every id, and a key as text for ids
@@ -121,6 +123,9 @@ function inputOf(event, target) {
   if (event instanceof MouseEvent) {
     return { ...base, ...modifiers(event), button: event.button }
   }
+  if (event.type === 'scroll' && event.currentTarget instanceof Element) {
+    return { ...base, offset: event.currentTarget.scrollTop }
+  }
   return base
 }
 
@@ -170,22 +175,33 @@ function partName(target) {
 }
 
 /**
- * What the page needs from the app: the widget and its props, how ids are made, how an announcement is worded, and
- * what carries out the app's effects
- * @typedef {Readonly<{
- *   widget: AnyWidget,
- *   props: unknown,
- *   naming: Naming,
- *   announce: (message: Readonly<{ [field: string]: Data }>) => string,
- *   effect: (out: Out, host: Host) => void,
+ * What the page needs from the app: what the host needs, and optionally how ids are made (by default a prefix of its
+ * own and each key as text), the words announcements use over the English ones, and an item's name in them (by
+ * default the key as text)
+ * @typedef {HostOptions & Readonly<{
+ *   naming?: Naming,
+ *   words?: Words,
+ *   name?: (key: Key) => string,
  * }>} PageOptions
  */
+
+let made = 0
+
+/**
+ * Ids the host makes when the app names nothing: a prefix no other widget on the page has, and each key as text
+ * @returns {Naming} The naming
+ */
+function ownNaming() {
+  made += 1
+  return { id: `interact${String(made)}`, keyId: String }
+}
 
 /**
  * A widget running in a page: `bind` gives an element a part's meaning and listeners (again on each change),
  * `unbind` lets go of a part no longer drawn; `live` is where announcements are said
  * @typedef {Readonly<{
  *   host: Host,
+ *   naming: Naming,
  *   live: Element,
  *   bind: (key: string, element: Element, node: Node) => void,
  *   unbind: (key: string) => void,
@@ -199,7 +215,9 @@ function partName(target) {
  * @returns {Page} The running widget, for a renderer to draw
  */
 function page(options) {
-  const { naming } = options
+  const naming = options.naming ?? ownNaming()
+  const words = options.words ?? {}
+  const nameOf = options.name ?? String
   /** @type {Map<string, Element>} */
   const elements = new Map()
   /** @type {WeakMap<Element, Node>} */
@@ -236,18 +254,14 @@ function page(options) {
       }
       return
     }
-    const { effect: made } = out
-    if (type === 'announce' && typeof made === 'object' && made !== null && 'message' in made) {
-      const { message } = made
-      if (typeof message === 'object' && message !== null && !Array.isArray(message)) {
-        live.textContent = options.announce(Object.fromEntries(Object.entries(message)))
-      }
+    if (type === 'announce') {
+      live.textContent = announcement(out, words, nameOf)
       return
     }
-    options.effect(out, running)
+    options.effect?.(out, running)
   }
 
-  const host = run({ effect, props: options.props, widget: options.widget })
+  const host = run({ ...options, effect })
 
   /**
    * The part an event is for: the part listening, or for a pointer event after the press, the innermost part under
@@ -363,6 +377,7 @@ function page(options) {
     },
     host,
     live,
+    naming,
     stop: () => {
       host.stop()
       for (const key of modals.keys()) {

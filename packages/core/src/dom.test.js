@@ -5,6 +5,7 @@ import axe from 'axe-core'
 import { isRecord } from './compose.js'
 import { dialog } from './dialog.js'
 import { renderDom } from './dom.js'
+import { arraySource } from './host.js'
 import { menu } from './menu.js'
 import { reorderList } from './reorder.js'
 import { select } from './select.js'
@@ -17,58 +18,51 @@ const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 const NAMING = { id: 'w', keyId: String }
 
 /**
- * Answers every ask at once from a collection in memory; everything else the app hears is kept
- * @param {readonly string[]} all - The collection
- * @param {(out: Out) => void} keep - Where the app's other effects go
- * @returns {(out: Out, host: Host) => void} The app's effect handler
- */
-function answerFrom(all, keep) {
-  return (out, running) => {
-    const { effect } = out
-    if (typeof effect === 'object' && effect !== null && 'type' in effect && effect.type === 'ask' && 'id' in effect) {
-      const [from, to] = 'ranks' in effect && Array.isArray(effect.ranks) ? effect.ranks.map(Number) : [0, all.length]
-      const keys = all.slice(from, to)
-      running.dispatch(out.from, { count: all.length, from, id: effect.id, keys, type: 'answer' })
-    } else {
-      keep(out)
-    }
-  }
-}
-
-/**
- * Draws a widget into a fresh container in the document
+ * Draws a widget into a fresh container in the document, its lists over `FRUIT` held by the host as the source
+ * `fruit`, with the renderer's defaults for everything else
  * @param {AnyWidget} widget - The widget
  * @param {unknown} props - Its props
- * @returns {Readonly<{ container: HTMLElement, host: Host, stop: () => void, heard: readonly Out[] }>} The container,
- *   the running widget, and the effects the app heard
+ * @returns {Readonly<{ container: HTMLElement, host: Host, stop: () => void, heard: () => readonly unknown[], fruit: ReturnType<typeof arraySource> }>}
+ *   The container, the running widget, the app's effects but `active`, and the source
  */
 function draw(widget, props) {
   /** @type {Out[]} */
   const heard = []
+  const fruit = arraySource(FRUIT)
   const container = document.createElement('div')
   document.body.append(container)
   const rendered = renderDom({
-    announce: (message) => `${text(message['item'])} ${text(message['what'])}`,
     container,
-    effect: answerFrom(FRUIT, (out) => {
+    effect: (out) => {
       heard.push(out)
-    }),
-    item: String,
+    },
     naming: NAMING,
-    parts: {},
     props,
+    sources: { fruit },
     widget,
   })
-  return { container, heard, ...rendered }
+  return {
+    container,
+    fruit,
+    heard: () => heard.map((out) => out.effect).filter((effect) => isRecord(effect) && effect['type'] !== 'active'),
+    ...rendered,
+  }
 }
 
 /**
- * A message field as text
- * @param {unknown} value - The field
- * @returns {string} Its text
+ * The options' text, in order
+ * @returns {(string | null)[]} Each option's text
  */
-function text(value) {
-  return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+function shown() {
+  return [...document.querySelectorAll('[role=option]')].map((option) => option.textContent)
+}
+
+/**
+ * Lets the source's answers, which come a microtask later, arrive
+ * @returns {Promise<void>} When they have
+ */
+async function settled() {
+  await Bun.sleep(0)
 }
 
 /**
@@ -139,10 +133,19 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', revision: 0, rows: 4 }
+const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const ORDER = {
+  dragDistance: 4,
+  focusable: true,
+  keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
+  label: 'Order',
+  rows: 4,
+  shown: true,
+  source: 'fruit',
+}
 
 describe('the DOM renderer', () => {
-  test('gives every part the attributes its view means, and a listener for each input it takes', () => {
+  test('gives every part the attributes its view means, and a listener for each input it takes', async () => {
     const { container, host, stop } = draw(select, SELECT)
     cleanup.push(stop)
     const trigger = container.querySelector('[role=combobox]')
@@ -150,6 +153,7 @@ describe('the DOM renderer', () => {
       throw new TypeError('No trigger')
     }
     trigger.click()
+    await settled()
     press(trigger, 'ArrowDown')
     const parts = partsOf(host.tree())
     expect(parts.length).toBe(7)
@@ -201,7 +205,7 @@ describe('the DOM renderer', () => {
     }
   })
 
-  test('runs the select: keys on the trigger, a click on an option, and change to the app', () => {
+  test('runs the select: keys on the trigger, a click on an option, and change to the app', async () => {
     const { container, heard, stop } = draw(select, SELECT)
     cleanup.push(stop)
     const trigger = container.querySelector('[role=combobox]')
@@ -209,6 +213,7 @@ describe('the DOM renderer', () => {
       throw new TypeError('No trigger')
     }
     expect(press(trigger, 'ArrowDown').defaultPrevented).toBe(true)
+    await settled()
     expect(container.querySelector('[role=listbox]')?.hasAttribute('hidden')).toBe(false)
     expect(container.querySelectorAll('[role=option]').length).toBe(4)
     const cherry = container.querySelector('#w-list-option-Cherry')
@@ -219,7 +224,7 @@ describe('the DOM renderer', () => {
     cherry.dispatchEvent(down)
     expect(down.defaultPrevented).toBe(true)
     cherry.click()
-    expect(heard.map((out) => out.effect)).toEqual([{ type: 'change', value: 'Cherry' }])
+    expect(heard()).toEqual([{ id: 1, type: 'change', value: 'Cherry' }])
     expect(trigger.textContent).toBe('Cherry')
     expect(container.querySelector('[role=listbox]')?.hasAttribute('hidden')).toBe(true)
   })
@@ -232,6 +237,7 @@ describe('the DOM renderer', () => {
     if (trigger !== null) {
       press(trigger, 'ArrowDown')
     }
+    await settled()
     expect(await violations(picked.container)).toEqual([])
 
     const items = FRUIT.slice(0, 3).map((name) => ({ disabled: false, key: name, text: name }))
@@ -240,8 +246,9 @@ describe('the DOM renderer', () => {
     menued.container.querySelector('button')?.click()
     expect(await violations(menued.container)).toEqual([])
 
-    const ordered = draw(reorderList, { focusable: true, label: 'Order', revision: 0, rows: 4, shown: true })
+    const ordered = draw(reorderList, ORDER)
     cleanup.push(ordered.stop)
+    await settled()
     expect(await violations(ordered.container)).toEqual([])
 
     const modal = draw(dialog(select, ['content', 'trigger']), {
@@ -265,14 +272,16 @@ describe('the DOM renderer', () => {
     expect(document.activeElement?.getAttribute('role')).toBe('combobox')
     expect(opener.hasAttribute('inert')).toBe(true)
     press(document.activeElement ?? opener, 'Escape')
-    expect(modal.heard.map((out) => out.effect)).toEqual([{ type: 'change', value: false }])
+    expect(modal.heard()).toEqual([{ id: 1, type: 'change', value: false }])
+    expect(document.querySelector('[role=dialog]')?.hasAttribute('hidden')).toBe(true)
     modal.host.setProps(props)
     expect([opener.hasAttribute('inert'), document.activeElement]).toEqual([false, opener])
   })
 
-  test('the reorderable list: a pointer drag over options marks the drop and emits move; Alt+ArrowDown too', () => {
-    const ordered = draw(reorderList, { focusable: true, label: 'Order', revision: 0, rows: 4, shown: true })
+  test('the reorderable list: a drag shows at once, the host source takes it, and Alt+ArrowDown goes on from it', async () => {
+    const ordered = draw(reorderList, ORDER)
     cleanup.push(ordered.stop)
+    await settled()
     const banana = document.querySelector('#w-option-Banana')
     const date = document.querySelector('#w-option-Date')
     if (banana === null || date === null) {
@@ -286,15 +295,19 @@ describe('the DOM renderer', () => {
     expect(document.querySelector('[data-dragged]')).toBe(banana)
     expect(document.querySelector('[data-drop=after]')).toBe(date)
     date.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 0, clientY: 60, pointerId: 1 }))
-    expect(ordered.heard.map((out) => out.effect)).toEqual([
-      { after: true, item: 'Banana', target: 'Date', type: 'move' },
-    ])
-    expect(document.querySelector('[role=status]')?.textContent).toBe('Banana moved')
+    expect(shown()).toEqual(['Apple', 'Cherry', 'Date', 'Banana'])
+    expect(document.querySelector('[role=status]')?.textContent).toBe('Banana moved to position 4 of 6')
     const root = document.querySelector('[role=listbox]')
     if (root === null) {
       throw new TypeError('No list')
     }
+    expect(root.getAttribute('aria-keyshortcuts')).toBe('Alt+ArrowUp Alt+ArrowDown')
     expect(press(root, 'ArrowDown', { altKey: true }).defaultPrevented).toBe(true)
-    expect(ordered.heard.at(-1)?.effect).toEqual({ after: true, item: 'Banana', target: 'Elderberry', type: 'move' })
+    expect(shown()).toEqual(['Cherry', 'Date', 'Elderberry', 'Banana'])
+    await settled()
+    await settled()
+    expect(ordered.fruit.keys()).toEqual(['Apple', 'Cherry', 'Date', 'Elderberry', 'Banana', 'Fig'])
+    expect(shown()).toEqual(['Cherry', 'Date', 'Elderberry', 'Banana'])
+    expect(ordered.heard()).toEqual([])
   })
 })

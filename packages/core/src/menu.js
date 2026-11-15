@@ -251,7 +251,7 @@ function view(state) {
 
 /** @type {Widget<MenuProps, MenuState, MenuInput, MenuEffect>} */
 const menu = {
-  init: (props) => ({ active: null, items: props.items, label: props.label, open: false, prefix: '', until: 0 }),
+  init: (props) => [{ active: null, items: props.items, label: props.label, open: false, prefix: '', until: 0 }, NONE],
   step,
   view,
 }

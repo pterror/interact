@@ -18,10 +18,12 @@ import { elementFor, identity, page, partName } from './web.js'
  */
 
 /**
+ * Where to draw, and what the page needs; optionally how the host draws an item (by default its key as text) and the
+ * parts the app makes itself, by name (`list.option`)
  * @typedef {PageOptions & Readonly<{
  *   container: Element,
- *   item: (key: Key) => string | globalThis.Node,
- *   parts: Readonly<{ [name: string]: (target: Target) => Made }>,
+ *   item?: (key: Key) => string | globalThis.Node,
+ *   parts?: Readonly<{ [name: string]: (target: Target) => Made }>,
  * }>} DomOptions
  */
 
@@ -64,10 +66,21 @@ function placeChildren(slot, children) {
  * @returns {Readonly<{ host: Host, stop: () => void }>} The running widget, and stopping it
  */
 function renderDom(options) {
-  const { container, naming } = options
+  const { container } = options
+  const item = options.item ?? String
+  const parts = options.parts ?? {}
   /** @type {Map<string, Made>} */
   const made = new Map()
-  const running = page(options)
+  const running = page({
+    ...options,
+    name:
+      options.name ??
+      ((key) => {
+        const drawn = item(key)
+        return typeof drawn === 'string' ? drawn : (drawn.textContent ?? '')
+      }),
+  })
+  const { naming } = running
 
   /**
    * Makes the element for a part
@@ -75,7 +88,7 @@ function renderDom(options) {
    * @returns {Made} The element and where its content goes
    */
   const create = (node) => {
-    const make = options.parts[partName(node.target)]
+    const make = parts[partName(node.target)]
     if (make !== undefined) {
       return make(node.target)
     }
@@ -103,7 +116,7 @@ function renderDom(options) {
       if ('target' in content) {
         return draw(content, seen)
       }
-      const text = 'text' in content ? content.text : options.item(content.item)
+      const text = 'text' in content ? content.text : item(content.item)
       return typeof text === 'string' ? textAt(slot, index, text) : text
     })
     placeChildren(slot, children)

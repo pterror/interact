@@ -2,21 +2,25 @@
  * A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox
  * (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a
  * window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys
- * come from the host by `ask`; only the answer to the latest ask is used. A new `revision` in its props (the
- * collection changed) asks again.
+ * come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again.
+ * The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset.
  *
- * Selection is the value: with `selected` in its props the list never changes it, and only emits `change`.
+ * Selection is the value, by the contract's rule: with `selected` in its props, a choice shows at once and is pending
+ * until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws
+ * changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.
  */
 
 import { part, ref } from './contract.js'
+import { change, fromApp, pending, refuse, shown } from './pending.js'
 
-/** @import { Answer, Ask, Change, Click, Key, KeyDown, Part, PreventDefault, PropsInput, Result, View, Widget } from './contract.js' */
+/** @import { Answer, Ask, Change, Changed, Click, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, View, Widget } from './contract.js' */
+/** @import { Pending } from './pending.js' */
 
 /**
  * @typedef {Readonly<{
  *   label: string,
  *   rows: number,
- *   revision: number,
+ *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
  *   selected?: Key | null,
@@ -24,7 +28,8 @@ import { part, ref } from './contract.js'
  */
 
 /**
- * What the latest ask asked for: a window from a rank, or a window holding a key (whose rank isn't known yet)
+ * What the latest ask asked for: a window from a rank, or a window holding a key (whose rank isn't known yet), of the
+ * collection as it was at `revision` (how many `changed` the list has heard)
  * @typedef {Readonly<{ top: number, rows: number, revision: number }>
  *   | Readonly<{ locate: Key, rows: number, revision: number }>} Asked
  */
@@ -32,15 +37,15 @@ import { part, ref } from './contract.js'
 /**
  * `top` is the first rank drawn; `keys` the keys held, from rank `from`. `active` is the active key; `activeRank`
  * its rank, which leads while `follow` is `rank` (a move to a rank not held yet) and follows the key otherwise;
- * `last` is a move to the last option before the count is known
+ * `last` is a move to the last option before the count is known. `rowSize` is an option's measured size
  * @typedef {Readonly<{
  *   label: string,
  *   rows: number,
- *   revision: number,
+ *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
- *   controlled: boolean,
- *   selected: Key | null,
+ *   selection: Pending<Key | null>,
+ *   revision: number,
  *   count: number | null,
  *   top: number,
  *   from: number,
@@ -50,11 +55,13 @@ import { part, ref } from './contract.js'
  *   active: Key | null,
  *   activeRank: number | null,
  *   follow: 'key' | 'rank' | 'last',
+ *   rowSize: number | null,
  * }>} ListState
  */
 
-/** @typedef {KeyDown | Click | PropsInput<ListProps> | Answer} ListInput */
-/** @typedef {Ask | Change<Key | null> | PreventDefault} ListEffect */
+/** @typedef {Readonly<{ type: 'active', item: Key | null }>} Active */
+/** @typedef {KeyDown | Click | Scroll | Measured | PropsInput<ListProps> | Answer | Changed | Refused} ListInput */
+/** @typedef {Ask | Change<Key | null> | PreventDefault | Active} ListEffect */
 
 /** @type {readonly ListEffect[]} */
 const NONE = []
@@ -90,8 +97,18 @@ function drawnKeys(state) {
 }
 
 /**
- * Asks for what the list needs and doesn't have: the window (with one key either side) for its revision, or, when it
- * is shown with a selected key and nothing active, a window holding that key
+ * The active key, if the list draws it
+ * @param {ListState} state - The list
+ * @returns {Key | null} The key
+ */
+function drawnActive(state) {
+  const { active } = state
+  return state.shown && active !== null && drawnKeys(state).includes(active) ? active : null
+}
+
+/**
+ * Asks for what the list needs and doesn't have: the window (with one key either side) for the collection as it is,
+ * or, when it is shown with a selected key and nothing active, a window holding that key
  * @param {ListState} state - The list
  * @returns {Result<ListState, ListEffect>} The list, and the ask, if any
  */
@@ -99,7 +116,7 @@ function ensure(state) {
   if (!state.shown) {
     return [state, NONE]
   }
-  const { askedFor, revision, rows, top } = state
+  const { askedFor, revision, rows, source, top } = state
   if (
     askedFor !== null &&
     ('locate' in askedFor || askedFor.top === top) &&
@@ -108,23 +125,17 @@ function ensure(state) {
   ) {
     return [state, NONE]
   }
-  if (state.count === null && state.active === null && state.selected !== null) {
-    const id = state.asked + 1
+  const selected = shown(state.selection)
+  const id = state.asked + 1
+  if (state.count === null && state.active === null && selected !== null) {
     return [
-      {
-        ...state,
-        active: state.selected,
-        asked: id,
-        askedFor: { locate: state.selected, revision, rows },
-        follow: 'key',
-      },
-      [{ id, locate: state.selected, rows: rows + 2, type: 'ask' }],
+      { ...state, active: selected, asked: id, askedFor: { locate: selected, revision, rows }, follow: 'key' },
+      [{ id, locate: selected, rows: rows + 2, source, type: 'ask' }],
     ]
   }
-  const id = state.asked + 1
   return [
     { ...state, asked: id, askedFor: { revision, rows, top } },
-    [{ id, ranks: [Math.max(0, top - 1), top + rows + 1], type: 'ask' }],
+    [{ id, ranks: [Math.max(0, top - 1), top + rows + 1], source, type: 'ask' }],
   ]
 }
 
@@ -183,6 +194,16 @@ function withActive(state) {
 }
 
 /**
+ * The window's first rank, moved as little as shows a rank
+ * @param {ListState} state - The list
+ * @param {number} rank - The rank to show
+ * @returns {number} The first rank
+ */
+function topFor(state, rank) {
+  return rank < state.top ? rank : rank >= state.top + state.rows ? rank - state.rows + 1 : state.top
+}
+
+/**
  * Makes the option at a rank active, moving the window to show it
  * @param {ListState} state - The list
  * @param {number} wanted - The rank, clamped to the list
@@ -196,7 +217,7 @@ function moveTo(state, wanted) {
     return [state, NONE]
   }
   const rank = Math.max(0, Math.min(wanted, state.count - 1))
-  const top = rank < state.top ? rank : rank >= state.top + state.rows ? rank - state.rows + 1 : state.top
+  const top = topFor(state, rank)
   const key = keyAt(state, rank)
   /** @type {ListState} */
   const moved =
@@ -213,12 +234,11 @@ function moveTo(state, wanted) {
  * @returns {Result<ListState, ListEffect>} The list, and `change` if the value is another
  */
 function choose(state, key) {
-  if (key === state.selected) {
+  if (key === shown(state.selection)) {
     return [state, NONE]
   }
-  /** @type {ListEffect} */
-  const change = { type: 'change', value: key }
-  return [state.controlled ? state : { ...state, selected: key }, [change]]
+  const [selection, id] = change(state.selection, key)
+  return [{ ...state, selection }, [{ id, type: 'change', value: key }]]
 }
 
 /**
@@ -290,17 +310,15 @@ function keydown(state, input) {
  */
 function propsChanged(state, props) {
   const controlled = 'selected' in props
-  const selected = controlled ? (props.selected ?? null) : state.selected
   /** @type {ListState} */
   const next = {
     ...state,
-    controlled,
     focusable: props.focusable,
     label: props.label,
-    revision: props.revision,
     rows: props.rows,
-    selected,
+    selection: fromApp(state.selection, controlled, controlled ? (props.selected ?? null) : state.selection.app),
     shown: props.shown,
+    source: props.source,
   }
   if (!props.shown) {
     return [{ ...next, active: null, activeRank: null, askedFor: null, count: null, follow: 'key' }, NONE]
@@ -309,12 +327,12 @@ function propsChanged(state, props) {
 }
 
 /**
- * The step
+ * The list's own step, before `active` is told
  * @param {ListState} state - The list
  * @param {ListInput} input - The input
  * @returns {Result<ListState, ListEffect>} The list, and its effects
  */
-function step(state, input) {
+function stepOwn(state, input) {
   switch (input.type) {
     case 'props': {
       return propsChanged(state, input.props)
@@ -322,8 +340,24 @@ function step(state, input) {
     case 'answer': {
       return answered(state, input)
     }
+    case 'changed': {
+      return ensure({ ...state, revision: state.revision + 1 })
+    }
+    case 'refused': {
+      return [{ ...state, selection: refuse(state.selection, input.id) }, NONE]
+    }
     case 'keydown': {
       return keydown(state, input)
+    }
+    case 'scroll': {
+      if (state.rowSize === null || state.count === null) {
+        return [state, NONE]
+      }
+      const top = Math.max(0, Math.min(Math.floor(input.offset / state.rowSize), state.count - state.rows))
+      return ensure({ ...state, top })
+    }
+    case 'measured': {
+      return [{ ...state, rowSize: input.size }, NONE]
     }
     case 'click': {
       if (input.part !== 'option' || input.item === null) {
@@ -339,24 +373,46 @@ function step(state, input) {
 }
 
 /**
+ * Emits `active` when the active option drawn changed between two states
+ * @template {ListState} S
+ * @template E
+ * @param {S} before - The list before
+ * @param {Result<S, E>} result - The step's result
+ * @returns {Result<S, E | Active>} The result, `active` added if it changed
+ */
+function tellActive(before, [after, effects]) {
+  const item = drawnActive(after)
+  return item === drawnActive(before) ? [after, effects] : [after, [...effects, { item, type: 'active' }]]
+}
+
+/**
+ * The step
+ * @param {ListState} state - The list
+ * @param {ListInput} input - The input
+ * @returns {Result<ListState, ListEffect>} The list, and its effects
+ */
+function step(state, input) {
+  return tellActive(state, stepOwn(state, input))
+}
+
+/**
  * The view
  * @param {ListState} state - The list
  * @returns {View} Its parts
  */
 function view(state) {
   const keys = drawnKeys(state)
-  const { active } = state
-  const shownActive = active !== null && keys.includes(active) ? active : null
+  const active = drawnActive(state)
   return {
     option: (key) => optionPart(state, key),
     root: part({
       aria: {
-        activedescendant: state.focusable && shownActive !== null ? ref(['option'], shownActive) : null,
+        activedescendant: state.focusable && active !== null ? ref(['option'], active) : null,
         label: state.label,
       },
       content: [{ each: 'option', keys }],
       hidden: !state.shown,
-      listens: state.focusable ? ['keydown'] : [],
+      listens: state.focusable ? ['keydown', 'scroll'] : ['scroll'],
       role: 'listbox',
       tabindex: state.focusable ? 0 : null,
     }),
@@ -374,38 +430,40 @@ function optionPart(state, key) {
   return part({
     aria: {
       posinset: rank === null ? null : rank + 1,
-      selected: key === state.selected,
+      selected: key === shown(state.selection),
       setsize: state.count ?? -1,
     },
     content: [{ item: key }],
     data: { active: key === state.active },
-    listens: ['click'],
+    listens: ['click', 'measured'],
     role: 'option',
   })
 }
 
 /** @type {Widget<ListProps, ListState, ListInput, ListEffect>} */
 const list = {
-  init: (props) => ({
-    active: null,
-    activeRank: null,
-    asked: 0,
-    askedFor: null,
-    controlled: 'selected' in props,
-    count: null,
-    focusable: props.focusable,
-    follow: 'key',
-    from: 0,
-    keys: [],
-    label: props.label,
-    revision: props.revision,
-    rows: props.rows,
-    selected: props.selected ?? null,
-    shown: props.shown,
-    top: 0,
-  }),
+  init: (props) =>
+    ensure({
+      active: null,
+      activeRank: null,
+      asked: 0,
+      askedFor: null,
+      count: null,
+      focusable: props.focusable,
+      follow: 'key',
+      from: 0,
+      keys: [],
+      label: props.label,
+      revision: 0,
+      rowSize: null,
+      rows: props.rows,
+      selection: pending('selected' in props, props.selected ?? null),
+      shown: props.shown,
+      source: props.source,
+      top: 0,
+    }),
   step,
   view,
 }
 
-export { drawnKeys, keyAt, list, rankOf }
+export { drawnKeys, list, rankOf, tellActive, topFor, withActive }

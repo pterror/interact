@@ -1,59 +1,49 @@
 import { describe, expect, test } from 'bun:test'
 
+import { isRecord } from './compose.js'
 import { dialog } from './dialog.js'
+import { arraySource } from './host.js'
 import { reorderList } from './reorder.js'
 import { select } from './select.js'
 import { parseInput, renderTerminal } from './terminal.js'
 
 /** @import { AnyWidget, Out } from './compose.js' */
-/** @import { Host } from './host.js' */
+/** @import { DrawPart } from './terminal.js' */
 
 const ESC = '\u001B'
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 
 /**
- * Runs a widget in a terminal that is only a string, answering asks from `FRUIT`
+ * Runs a widget in a terminal that is only a string, its lists over `FRUIT` as the host's source `fruit`
  * @param {AnyWidget} widget - The widget
  * @param {unknown} props - Its props
- * @returns {Readonly<{ feed: (text: string) => void, screen: () => readonly string[], heard: readonly Out[] }>} Input,
- *   the screen, and the app's other effects
+ * @param {Readonly<{ [name: string]: DrawPart }>} parts - Parts the app draws itself
+ * @returns {Readonly<{ feed: (text: string) => Promise<void>, screen: () => readonly string[], heard: () => readonly unknown[] }>}
+ *   Input (resolving once the source's answers came), the screen, and the app's effects but `active`
  */
-function terminal(widget, props) {
+function terminal(widget, props, parts = {}) {
   /** @type {Out[]} */
   const heard = []
-  /**
-   * Answers asks; keeps the rest
-   * @param {Out} out - An effect
-   * @param {Host} running - The widget
-   * @returns {void}
-   */
-  const effect = (out, running) => {
-    const { effect: made } = out
-    if (typeof made === 'object' && made !== null && 'type' in made && made.type === 'ask' && 'id' in made) {
-      const [from, to] = 'ranks' in made && Array.isArray(made.ranks) ? made.ranks.map(Number) : [0, FRUIT.length]
-      running.dispatch(out.from, {
-        count: FRUIT.length,
-        from,
-        id: made.id,
-        keys: FRUIT.slice(from, to),
-        type: 'answer',
-      })
-    } else {
-      heard.push(out)
-    }
-  }
   const shown = renderTerminal({
-    announce: (message) =>
-      `${typeof message['item'] === 'string' ? message['item'] : ''} ${typeof message['what'] === 'string' ? message['what'] : ''}`,
     columns: 60,
-    effect,
+    effect: (out) => {
+      heard.push(out)
+    },
     input: { off: () => undefined, on: () => undefined },
-    item: String,
+    parts,
     props,
+    sources: { fruit: arraySource(FRUIT) },
     widget,
     write: () => undefined,
   })
-  return { feed: shown.feed, heard, screen: shown.screen }
+  return {
+    feed: async (text) => {
+      shown.feed(text)
+      await Bun.sleep(0)
+    },
+    heard: () => heard.map((out) => out.effect).filter((effect) => isRecord(effect) && effect['type'] !== 'active'),
+    screen: shown.screen,
+  }
 }
 
 /**
@@ -90,45 +80,64 @@ describe('terminal input', () => {
   })
 })
 
-const SELECT = { label: 'Fruit', placeholder: 'Choose', revision: 0, rows: 4 }
+const SELECT = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit' }
+const ORDER = {
+  dragDistance: 1,
+  focusable: true,
+  keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
+  label: 'Order',
+  rows: 4,
+  shown: true,
+  source: 'fruit',
+}
 
 describe('the terminal renderer', () => {
-  test('draws the select by role, and runs it from the keys, the trigger having focus', () => {
+  test('draws the select by role, and runs it from the keys, the trigger having focus', async () => {
     const shown = terminal(select, SELECT)
     expect(shown.screen()).toEqual(['Fruit: [ Choose ▾ ]'])
-    shown.feed(`${ESC}[B${ESC}[B${ESC}[B`)
+    await shown.feed(`${ESC}[B`)
+    await shown.feed(`${ESC}[B${ESC}[B`)
     expect(shown.screen()).toEqual(['Fruit: [ Choose ▴ ]', '    Apple', '    Banana', '    Cherry', '    Date'])
-    shown.feed('\r')
+    await shown.feed('\r')
     expect(shown.screen()).toEqual(['Fruit: [ Banana ▾ ]'])
-    expect(shown.heard.map((out) => out.effect)).toEqual([{ type: 'change', value: 'Banana' }])
+    expect(shown.heard()).toEqual([{ id: 1, type: 'change', value: 'Banana' }])
   })
 
-  test('a mouse press on an option keeps focus on the trigger, and its click chooses', () => {
+  test('a mouse press on an option keeps focus on the trigger, and its click chooses', async () => {
     const shown = terminal(select, SELECT)
-    shown.feed(`${mouse(0, 10, 1)}${mouse(0, 10, 1, true)}`)
+    await shown.feed(`${mouse(0, 10, 1)}${mouse(0, 10, 1, true)}`)
     expect(shown.screen()).toHaveLength(5)
-    shown.feed(`${mouse(0, 6, 4)}${mouse(0, 6, 4, true)}`)
+    await shown.feed(`${mouse(0, 6, 4)}${mouse(0, 6, 4, true)}`)
     expect(shown.screen()).toEqual(['Fruit: [ Cherry ▾ ]'])
-    shown.feed(`${ESC}[B`)
+    await shown.feed(`${ESC}[B`)
     expect(shown.screen()[3]).toBe('  ✓ Cherry')
   })
 
-  test('a mouse drag reorders, shown as it goes, and Alt+ArrowDown moves the active option', () => {
-    const shown = terminal(reorderList, { focusable: true, label: 'Order', revision: 0, rows: 4, shown: true })
-    shown.feed(`${mouse(0, 4, 1)}${mouse(32, 4, 2)}${mouse(32, 4, 3)}`)
-    expect(shown.screen()).toEqual(['  ⠿ Apple', '    Banana', '    Cherry', '  ──────', '    Date'])
-    shown.feed(mouse(0, 4, 3, true))
-    expect(shown.heard.map((out) => out.effect)).toEqual([
-      { after: true, item: 'Apple', target: 'Cherry', type: 'move' },
-    ])
-    const keyed = terminal(reorderList, { focusable: true, label: 'Order', revision: 0, rows: 4, shown: true })
-    keyed.feed(`${ESC}[B${ESC}[1;3B`)
-    expect(keyed.heard.map((out) => out.effect)).toEqual([
-      { after: true, item: 'Apple', target: 'Banana', type: 'move' },
-    ])
+  test('draws a part the way the app says, still lit when active', async () => {
+    const shown = terminal(select, SELECT, {
+      'list.option': (_node, look) => `${look.lit ? '>' : ' '} ${look.text.toUpperCase()}`,
+    })
+    await shown.feed(`${ESC}[B`)
+    await shown.feed(`${ESC}[B`)
+    expect(shown.screen().slice(1, 3)).toEqual(['  > APPLE', '    BANANA'])
   })
 
-  test('Tab stays inside a shown dialog, and Escape from a closed select inside reaches the dialog', () => {
+  test('a mouse drag a cell far reorders, shown as it goes and at once on release, and Alt+ArrowDown goes on from it', async () => {
+    const shown = terminal(reorderList, ORDER)
+    await shown.feed('')
+    await shown.feed(`${mouse(0, 4, 1)}${mouse(32, 4, 2)}${mouse(32, 4, 3)}`)
+    expect(shown.screen()).toEqual(['  ⠿ Apple', '    Banana', '    Cherry', '  ──────', '    Date'])
+    const releasing = shown.feed(mouse(0, 4, 3, true))
+    expect(shown.screen()).toEqual(['    Banana', '    Cherry', '    Apple', '    Date'])
+    await releasing
+    await shown.feed(`${ESC}[1;3B`)
+    expect(shown.screen()).toEqual(['    Banana', '    Cherry', '    Date', '    Apple'])
+    await shown.feed('')
+    expect(shown.screen()).toEqual(['    Banana', '    Cherry', '    Date', '    Apple'])
+    expect(shown.heard()).toEqual([])
+  })
+
+  test('Tab stays inside a shown dialog, and Escape from a closed select inside reaches the dialog', async () => {
     const shown = terminal(dialog(select, ['content', 'trigger']), {
       closeLabel: 'Close',
       content: SELECT,
@@ -136,12 +145,8 @@ describe('the terminal renderer', () => {
       title: 'Pick a fruit',
     })
     expect(shown.screen()).toEqual(['┌─ Pick a fruit ─', '│ Fruit: [ Choose ▾ ]', '│ [ Close ]', '└────'])
-    shown.feed('\t\r')
-    expect(shown.heard.map((out) => out.effect)).toEqual([{ type: 'change', value: false }])
-    shown.feed(`\t${ESC}`)
-    expect(shown.heard.map((out) => out.effect)).toEqual([
-      { type: 'change', value: false },
-      { type: 'change', value: false },
-    ])
+    await shown.feed('\t\r')
+    expect(shown.heard()).toEqual([{ id: 1, type: 'change', value: false }])
+    expect(shown.screen()).toEqual([])
   })
 })
