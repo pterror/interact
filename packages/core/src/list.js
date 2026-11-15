@@ -316,7 +316,11 @@ function propsChanged(state, props) {
     focusable: props.focusable,
     label: props.label,
     rows: props.rows,
-    selection: fromApp(state.selection, controlled, props.selected === null ? state.selection.app : props.selected.value),
+    selection: fromApp(
+      state.selection,
+      controlled,
+      props.selected === null ? state.selection.app : props.selected.value,
+    ),
     shown: props.shown,
     source: props.source,
   }
