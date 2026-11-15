@@ -37,6 +37,9 @@ import { bindingParts } from './binding-parts.js'
 import { cheatsheetRow } from './cheatsheet-row.js'
 import { focusReturn } from './focus-return.js'
 import { keybinds } from './keybinds.js'
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * A command as keybinds() binds it, with what it is called: what it does (given the press or click that chose it),
@@ -57,8 +60,7 @@ import { keybinds } from './keybinds.js'
  *   element: HTMLElement,
  *   commands: () => readonly Command[],
  *   matches?: (command: Command, query: string) => boolean,
- *   label?: string,
- *   placeholder?: string,
+ *   strings?: StringsOption,
  *   layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>,
  *   rest?: number,
  * }>} PaletteOptions
@@ -95,8 +97,8 @@ function labelHasWords(command, query) {
 /**
  * Builds a command palette in an element
  * @param {PaletteOptions} options - Its element; its commands (those that apply are read each time it opens); whether
- *   a command matches what is typed (default: every word is in its label); the dialog's label and the field's
- *   placeholder; the person's keyboard layout (layout()), for how bindings are shown; and how long the pointer rests on
+ *   a command matches what is typed (default: every word is in its label); the words to show in place of English
+ *   (`commands` labels the dialog, `typeCommand` is the field's placeholder); the person's keyboard layout (layout()), for how bindings are shown; and how long the pointer rests on
  *   a command to make it active, as for hoverIntent()
  * @returns {Readonly<{ open: Readonly<{ get: () => boolean, set: (open: boolean) => void,
  *   watch: (listener: () => void) => () => void }>, stop: () => void }>} Whether it is open, and opening and closing
@@ -106,15 +108,9 @@ function labelHasWords(command, query) {
  * const shown = palette({ commands: () => commands, element })
  * keybinds([...commands, { keys: ['$mod+k'], run: () => shown.open.set(true) }])
  */
-function palette({
-  commands,
-  element,
-  label = 'Commands',
-  layout,
-  matches = labelHasWords,
-  placeholder = 'Type a command',
-  rest,
-}) {
+function palette({ commands, element, layout, matches = labelHasWords, rest, strings }) {
+  const words = withStrings(strings)
+  const label = words.commands
   made += 1
   const prefix = `keybinds-palette-${String(made)}`
   const open = cell(false)
@@ -128,7 +124,7 @@ function palette({
   field.setAttribute('aria-autocomplete', 'list')
   field.setAttribute('aria-controls', `${prefix}-list`)
   field.setAttribute('aria-label', label)
-  field.placeholder = placeholder
+  field.placeholder = words.typeCommand
   field.autocomplete = 'off'
   field.spellcheck = false
   const options = document.createElement('div')
@@ -169,7 +165,7 @@ function palette({
       ids(idOf),
       cheatsheetRow({
         entryOf: (id) => byId.get(id),
-        parts: (command) => bindingParts(command, layout?.get()),
+        parts: (command) => bindingParts(command, layout?.get(), strings),
         watch: () => () => undefined,
       }),
       activeDescendant({ active, element: field, idOf }),

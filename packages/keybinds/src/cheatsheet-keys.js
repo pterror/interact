@@ -1,8 +1,12 @@
 /**
  * The ids a cheatsheet shows, as render draws them: while it is open, each id not hidden that has a binding, grouped by
- * category (in the order categories first come, "Other" for none), in the schema's order within each; nothing while
+ * category (in the order categories first come, `other` for none), in the schema's order within each; nothing while
  * it is closed.
  */
+
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * @typedef {Readonly<{ category?: string, hidden?: boolean, keys?: readonly string[], mouse?: readonly string[],
@@ -15,11 +19,9 @@
  */
 
 /**
- * @typedef {Readonly<{ bindings: Watched<Readonly<Record<string, Entry>>>, open: Watched<boolean> }>}
+ * @typedef {Readonly<{ bindings: Watched<Readonly<Record<string, Entry>>>, open: Watched<boolean>, strings?: StringsOption }>}
  *   CheatsheetKeysOptions
  */
-
-const OTHER = 'Other'
 
 /** @type {readonly string[]} */
 const NONE = []
@@ -30,24 +32,27 @@ const FIELDS = ['keys', 'mouse', 'pad', 'axes']
 /**
  * An entry's category
  * @param {Entry | undefined} entry - The entry
- * @returns {string} Its category, or "Other"
+ * @param {string} other - The category of an entry with none
+ * @returns {string} Its category
  */
-function categoryOf(entry) {
+function categoryOf(entry, other) {
   const category = entry?.category ?? ''
-  return category === '' ? OTHER : category
+  return category === '' ? other : category
 }
 
 /**
  * The ids to show
- * @param {CheatsheetKeysOptions} options - The bindings in effect, by id; and whether the cheatsheet is open
+ * @param {CheatsheetKeysOptions} options - The bindings in effect, by id; whether the cheatsheet is open; and the
+ *   words to show in place of English
  * @returns {Readonly<{ keys: () => readonly string[], watch: (listener: () => void) => () => void,
  *   groupOf: (id: string) => string }>} The Drawn, and an id's category
  */
-function cheatsheetKeys({ bindings, open }) {
+function cheatsheetKeys({ bindings, open, strings }) {
+  const { other } = withStrings(strings)
   /** @type {Readonly<{ from: Readonly<Record<string, Entry>>, keys: readonly string[] }> | undefined} */
   let made = undefined
   return {
-    groupOf: (id) => categoryOf(bindings.get()[id]),
+    groupOf: (id) => categoryOf(bindings.get()[id], other),
     keys() {
       if (!open.get()) {
         return NONE
@@ -58,7 +63,7 @@ function cheatsheetKeys({ bindings, open }) {
         const groups = new Map()
         for (const [id, entry] of Object.entries(from)) {
           if (entry.hidden !== true && FIELDS.some((field) => (entry[field]?.length ?? 0) > 0)) {
-            const category = categoryOf(entry)
+            const category = categoryOf(entry, other)
             groups.set(category, [...(groups.get(category) ?? []), id])
           }
         }

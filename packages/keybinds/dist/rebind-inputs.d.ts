@@ -3,6 +3,7 @@
  * its recorder, a binding's normal form (for conflicts) and how a binding looks. A gamepad's can be recorded only
  * while one is connected.
  */
+import type { StringsOption } from './strings.js';
 export type Modifiers = Readonly<{
     ctrl: boolean;
     alt: boolean;
@@ -46,25 +47,32 @@ export type Input = Readonly<{
 export type KeysOptions = Readonly<{
     syntax?: readonly KeySyntax[];
     layout?: Watched<ReadonlyMap<string, string> | undefined>;
+    strings?: StringsOption;
 }>;
 /**
  * Key bindings
- * @param {KeysOptions} [options] - The key syntax on; and the person's keyboard layout (layout())
+ * @param {KeysOptions} [options] - The key syntax on; the person's keyboard layout (layout()); and the words to show
+ *   in place of English
  * @returns {Input} The input
  */
-declare function rebindKeys({ layout, syntax }?: KeysOptions): Input;
+declare function rebindKeys({ layout, strings, syntax }?: KeysOptions): Input;
 /**
  * Mouse bindings
+ * @param {Readonly<{ strings?: StringsOption }>} [options] - The words to show in place of English
  * @returns {Input} The input
  */
-declare function rebindMouse(): Input;
+declare function rebindMouse({ strings }?: Readonly<{
+    strings?: StringsOption;
+}>): Input;
 /**
  * Gamepad bindings, recordable while a pad is connected
- * @param {Readonly<{ pads: Watched<readonly Pad[]> }>} options - The pads (pads())
+ * @param {Readonly<{ pads: Watched<readonly Pad[]>, strings?: StringsOption }>} options - The pads (pads()); and the
+ *   words to show in place of English
  * @returns {Input} The input
  */
-declare function rebindPad({ pads }: Readonly<{
+declare function rebindPad({ pads, strings }: Readonly<{
     pads: Watched<readonly Pad[]>;
+    strings?: StringsOption;
 }>): Input;
 /**
  * Axis bindings: the mouse, a stick or trigger, or two keys
@@ -72,7 +80,7 @@ declare function rebindPad({ pads }: Readonly<{
  *   to record a stick or trigger
  * @returns {Input} The input
  */
-declare function rebindAxes({ layout, pads, syntax }?: KeysOptions & Readonly<{
+declare function rebindAxes({ layout, pads, strings, syntax }?: KeysOptions & Readonly<{
     pads?: Watched<readonly Pad[]>;
 }>): Input;
 export { rebindAxes, rebindKeys, rebindMouse, rebindPad };

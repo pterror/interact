@@ -30,9 +30,11 @@ import {
 } from '@pterror/interact-list'
 
 import { bindingParts } from './binding-parts.js'
+/** @import { StringsOption } from './strings.js' */
 import { cheatsheetRow } from './cheatsheet-row.js'
 import { focusReturn } from './focus-return.js'
 import { keybinds } from './keybinds.js'
+import { withStrings } from './strings.js'
 
 /**
  * A command as keybinds() binds it, with what it is called: what it does (given the press or click that chose it),
@@ -58,7 +60,7 @@ import { keybinds } from './keybinds.js'
 /**
  * @typedef {Readonly<{
  *   element: HTMLElement,
- *   label?: string,
+ *   strings?: StringsOption,
  *   layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>,
  *   rest?: number,
  * }>} ContextMenuOptions
@@ -80,7 +82,7 @@ function applies(command) {
 
 /**
  * Builds a right-click menu in an element
- * @param {ContextMenuOptions} options - Its element; its label; the person's keyboard layout (layout()), for how
+ * @param {ContextMenuOptions} options - Its element; the words to show in place of English (`actions` labels it); the person's keyboard layout (layout()), for how
  *   bindings are shown; and how long the pointer rests on a command to make it active, as for hoverIntent()
  * @returns {Readonly<{ openAt: (anchor: Anchor, commands: readonly Command[]) => void, close: () => void,
  *   open: Readonly<{ get: () => boolean, watch: (listener: () => void) => () => void }>, stop: () => void }>}
@@ -90,7 +92,8 @@ function applies(command) {
  * const menu = contextMenu({ element })
  * keybinds([{ mouse: ['RightClick'], run: (event) => menu.openAt(pointOf(event), messageCommands) }])
  */
-function contextMenu({ element, label = 'Actions', layout, rest }) {
+function contextMenu({ element, layout, rest, strings }) {
+  const label = withStrings(strings).actions
   made += 1
   const prefix = `keybinds-menu-${String(made)}`
   const open = cell(false)
@@ -122,7 +125,7 @@ function contextMenu({ element, label = 'Actions', layout, rest }) {
       ids(idOf),
       cheatsheetRow({
         entryOf: (id) => byId.get(id),
-        parts: (command) => bindingParts(command, layout?.get()),
+        parts: (command) => bindingParts(command, layout?.get(), strings),
         watch: () => () => undefined,
       }),
       activeDescendant({ active, element, idOf }),

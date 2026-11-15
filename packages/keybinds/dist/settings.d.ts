@@ -10,6 +10,7 @@
  * recording() and settingsRecorder() (recording), categoryHeaders(), the inputs (rebindKeys(), ...), with list's
  * render and groupMount.
  */
+import type { StringsOption } from './strings.js';
 export type Field = 'axes' | 'keys' | 'mouse' | 'pad';
 export type Entry = Readonly<{
     label: string;
@@ -59,16 +60,18 @@ export type SettingsOptions = Readonly<{
     holds?: boolean;
     sequences?: boolean;
     pause?: number;
+    strings?: StringsOption;
 }>;
 /**
  * Builds a settings panel in an element
  * @param {SettingsOptions} options - Its element; the schema; a person's overrides (bindingStore()); the inputs shown
  *   and recorded (rebindKeys(), rebindMouse(), rebindPad(), rebindAxes()); which syntax can be recorded, as
  *   keybinds() has it on: releases (":up"), holds (":hold", ":tap"), sequences ("g i"); and how long a pause takes
- *   the steps so far, as for recording()
+ *   the steps so far, as for recording(); and the words to show in place of English (the inputs have their own
+ *   `strings`)
  * @returns {() => void} Stopping, and taking out what it put in the element
  * @example
  * const stop = settings({ element, inputs: [rebindKeys(), rebindMouse()], overrides, schema })
  */
-declare function settings({ element, holds, inputs, overrides, pause, releases, schema, sequences }: SettingsOptions): () => void;
+declare function settings({ element, holds, inputs, overrides, pause, releases, schema, sequences, strings }: SettingsOptions): () => void;
 export { settings };

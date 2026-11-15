@@ -24,6 +24,9 @@ import { settingsQuestion } from './settings-question.js'
 import { settingsRecorder } from './settings-recorder.js'
 import { settingsRow } from './settings-row.js'
 import { splitBinding } from './split-binding.js'
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
 
 /** @typedef {'axes' | 'keys' | 'mouse' | 'pad'} Field */
 
@@ -69,6 +72,7 @@ import { splitBinding } from './split-binding.js'
  *   holds?: boolean,
  *   sequences?: boolean,
  *   pause?: number,
+ *   strings?: StringsOption,
  * }>} SettingsOptions
  */
 
@@ -88,12 +92,14 @@ function inPrompt(event) {
  * @param {SettingsOptions} options - Its element; the schema; a person's overrides (bindingStore()); the inputs shown
  *   and recorded (rebindKeys(), rebindMouse(), rebindPad(), rebindAxes()); which syntax can be recorded, as
  *   keybinds() has it on: releases (":up"), holds (":hold", ":tap"), sequences ("g i"); and how long a pause takes
- *   the steps so far, as for recording()
+ *   the steps so far, as for recording(); and the words to show in place of English (the inputs have their own
+ *   `strings`)
  * @returns {() => void} Stopping, and taking out what it put in the element
  * @example
  * const stop = settings({ element, inputs: [rebindKeys(), rebindMouse()], overrides, schema })
  */
-function settings({ element, holds, inputs, overrides, pause, releases, schema, sequences }) {
+function settings({ element, holds, inputs, overrides, pause, releases, schema, sequences, strings }) {
+  const words = withStrings(strings)
   made += 1
   const edits = rebind({ overrides, schema })
   /** @type {(field: Field) => Input | undefined} */
@@ -120,7 +126,7 @@ function settings({ element, holds, inputs, overrides, pause, releases, schema, 
   }
   /** @type {(slot: Slot, binding: string) => readonly string[]} */
   const parts = (slot, binding) => inputOf(slot.field)?.parts(binding) ?? [binding]
-  const keys = settingsKeys(schema)
+  const keys = settingsKeys(schema, words)
   const headers = categoryHeaders({
     categoryOf: keys.groupOf,
     drawn: keys,
@@ -130,7 +136,7 @@ function settings({ element, holds, inputs, overrides, pause, releases, schema, 
   const resetAll = document.createElement('button')
   resetAll.type = 'button'
   resetAll.dataset['keybinds'] = 'reset-all'
-  resetAll.textContent = 'Reset all'
+  resetAll.textContent = words.resetAll
   resetAll.addEventListener('click', edits.resetAll)
   element.append(resetAll, groups)
   const rendered = render({
@@ -142,9 +148,10 @@ function settings({ element, holds, inputs, overrides, pause, releases, schema, 
           accept: question.accept,
           cancel: question.cancel,
           labelOf: (id) => schema[id]?.label ?? id,
+          strings: words,
         }),
         changed: edits.changed,
-        chip: settingsChip({ offer: question.offer, parts, record, remove: edits.remove }),
+        chip: settingsChip({ offer: question.offer, parts, record, remove: edits.remove, strings: words }),
         entryOf: (id) => {
           const entry = schema[id]
           return entry === undefined ? undefined : { ...edits.bindings.get()[id], label: entry.label }
@@ -154,6 +161,7 @@ function settings({ element, holds, inputs, overrides, pause, releases, schema, 
           parts,
           prompt: (slot, release) => inputOf(slot.field)?.prompt(release) ?? '',
           recording: recorded,
+          strings: words,
           ...(holds === undefined ? {} : { holds }),
           ...(releases === undefined ? {} : { releases }),
           ...(sequences === undefined ? {} : { sequences }),
@@ -162,6 +170,7 @@ function settings({ element, holds, inputs, overrides, pause, releases, schema, 
         record,
         recording: recorded,
         reset: edits.reset,
+        strings: words,
         watch(listener) {
           const stops = [edits.bindings.watch(listener), ...inputs.flatMap((input) => input.watch?.(listener) ?? [])]
           return () => {

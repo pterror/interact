@@ -19,6 +19,8 @@ import { cheatsheetRow } from './cheatsheet-row.js'
 import { cheatsheetTrigger } from './cheatsheet-trigger.js'
 import { focusReturn } from './focus-return.js'
 
+/** @import { StringsOption } from './strings.js' */
+
 /**
  * @typedef {Readonly<{ label: string, category?: string, hidden?: boolean, keys?: readonly string[],
  *   mouse?: readonly string[], pad?: readonly string[], axes?: readonly string[] }>} Entry
@@ -44,6 +46,7 @@ import { focusReturn } from './focus-return.js'
  *   modifier?: string,
  *   delay?: number,
  *   target?: EventTarget,
+ *   strings?: StringsOption,
  * }>} CheatsheetOptions
  */
 
@@ -56,7 +59,7 @@ let made = 0
  * Builds a cheatsheet in an element
  * @param {CheatsheetOptions} options - Its element; the schema, and a person's overrides (bindingStore()); whether an
  *   id's command applies now (default: all do); the person's keyboard layout (layout()); and its trigger, as for
- *   cheatsheetTrigger()
+ *   cheatsheetTrigger(); and the words to show in place of English
  * @returns {Readonly<{ open: Readonly<{ get: () => boolean, set: (open: boolean) => void,
  *   watch: (listener: () => void) => () => void }>, stop: () => void }>} Whether it is open, and stopping
  * @example
@@ -70,6 +73,7 @@ function cheatsheet({
   modifier,
   overrides = NO_OVERRIDES,
   schema,
+  strings,
   target,
 }) {
   made += 1
@@ -88,7 +92,7 @@ function cheatsheet({
     },
     watch: overrides.watch,
   }
-  const keys = cheatsheetKeys({ bindings, open })
+  const keys = cheatsheetKeys({ bindings, open, strings })
   const headers = categoryHeaders({ categoryOf: keys.groupOf, drawn: keys, prefix })
   const rendered = render({
     create: (key) => headers.header(key) ?? document.createElement('div'),
@@ -96,7 +100,7 @@ function cheatsheet({
     facets: [
       cheatsheetRow({
         entryOf: (id) => bindings.get()[id],
-        parts: (entry) => bindingParts(entry, layout?.get()),
+        parts: (entry) => bindingParts(entry, layout?.get(), strings),
         watch(listener) {
           const stops = [bindings.watch(listener), ...(layout === undefined ? [] : [layout.watch(listener)])]
           return () => {

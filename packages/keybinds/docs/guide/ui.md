@@ -120,6 +120,9 @@ pause of `pause` ms (default 1000) or Done ends. A Release switch shows on a bin
 turns it back into a press. Each edit is one write to the overrides, of the fields that differ. It is no overlay: show
 it in your own dialog.
 
+Every word comes from a `strings` option (`settings({ strings })`, and the inputs'), `defaultStrings` in English;
+`{ resetAll: 'Tout réinitialiser' }` replaces one and leaves the rest. The cheatsheet, palette and menu take it too.
+
 The inputs are `rebindKeys({ syntax, layout })`, `rebindMouse()`, `rebindPad({ pads })` (recordable while a pad is
 connected) and `rebindAxes({ pads, syntax, layout })`.
 

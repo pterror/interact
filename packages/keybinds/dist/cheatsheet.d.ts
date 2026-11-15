@@ -8,6 +8,7 @@
  * cheatsheetRow() (a row's contents), cheatsheetTrigger() (when it opens), categoryHeaders(), focusReturn(), with list's
  * render, groupMount, mark, popover, focusWhen and dismiss.
  */
+import type { StringsOption } from './strings.js';
 export type Entry = Readonly<{
     label: string;
     category?: string;
@@ -36,18 +37,19 @@ export type CheatsheetOptions = Readonly<{
     modifier?: string;
     delay?: number;
     target?: EventTarget;
+    strings?: StringsOption;
 }>;
 /**
  * Builds a cheatsheet in an element
  * @param {CheatsheetOptions} options - Its element; the schema, and a person's overrides (bindingStore()); whether an
  *   id's command applies now (default: all do); the person's keyboard layout (layout()); and its trigger, as for
- *   cheatsheetTrigger()
+ *   cheatsheetTrigger(); and the words to show in place of English
  * @returns {Readonly<{ open: Readonly<{ get: () => boolean, set: (open: boolean) => void,
  *   watch: (listener: () => void) => () => void }>, stop: () => void }>} Whether it is open, and stopping
  * @example
  * const sheet = cheatsheet({ element, overrides: bindingStore(localStorageBindings('app:keys')), schema })
  */
-declare function cheatsheet({ applies, delay, element, layout, modifier, overrides, schema, target, }: CheatsheetOptions): Readonly<{
+declare function cheatsheet({ applies, delay, element, layout, modifier, overrides, schema, strings, target, }: CheatsheetOptions): Readonly<{
     open: Readonly<{
         get: () => boolean;
         set: (open: boolean) => void;

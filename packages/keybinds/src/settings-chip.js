@@ -7,6 +7,9 @@
 
 import { flipRelease } from './flip-release.js'
 import { splitBinding } from './split-binding.js'
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
 
 /** @typedef {'axes' | 'keys' | 'mouse' | 'pad'} Field */
 
@@ -18,6 +21,7 @@ import { splitBinding } from './split-binding.js'
  *   record: (slot: Slot) => void,
  *   remove: (slot: Slot) => void,
  *   offer: (slot: Slot, binding: string) => void,
+ *   strings?: StringsOption,
  * }>} SettingsChipOptions
  */
 
@@ -40,10 +44,11 @@ function button(name, text, click) {
 /**
  * Makes chips
  * @param {SettingsChipOptions} options - A binding's display parts; recording a slot again; removing its binding;
- *   and offering a binding for it
+ *   and offering a binding for it; and the words to show in place of English
  * @returns {(slot: Slot, binding: string) => HTMLElement} A binding's chip
  */
-function settingsChip({ offer, parts, record, remove }) {
+function settingsChip({ offer, parts, record, remove, strings }) {
+  const words = withStrings(strings)
   return (slot, binding) => {
     const keys = button('keys', '', () => {
       record(slot)
@@ -60,14 +65,14 @@ function settingsChip({ offer, parts, record, remove }) {
     const switches = []
     if (slot.field === 'axes') {
       const inverted = trimmed.startsWith('-')
-      const invert = button('invert', 'Invert', () => {
+      const invert = button('invert', words.invert, () => {
         offer(slot, inverted ? trimmed.slice('-'.length) : `-${trimmed}`)
       })
       invert.setAttribute('aria-pressed', String(inverted))
       switches.push(invert)
     }
     if (splitBinding(binding).suffix === ':up') {
-      const release = button('release', 'Release', () => {
+      const release = button('release', words.release, () => {
         offer(slot, flipRelease(binding))
       })
       release.setAttribute('aria-pressed', 'true')
@@ -76,7 +81,7 @@ function settingsChip({ offer, parts, record, remove }) {
     const removing = button('remove', '×', () => {
       remove(slot)
     })
-    removing.setAttribute('aria-label', 'Remove')
+    removing.setAttribute('aria-label', words.remove)
     const chip = document.createElement('span')
     chip.dataset['keybinds'] = 'binding'
     chip.append(keys, ...switches, removing)

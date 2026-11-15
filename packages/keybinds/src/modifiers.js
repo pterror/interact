@@ -3,6 +3,10 @@
  * platform's own (Meta on a Mac, Ctrl elsewhere).
  */
 
+import { withStrings } from './strings.js'
+
+/** @import { Strings, StringsOption } from './strings.js' */
+
 /**
  * Which modifiers are held, or which a binding needs
  * @typedef {Readonly<{ ctrl: boolean, alt: boolean, shift: boolean, meta: boolean }>} Modifiers
@@ -34,18 +38,23 @@ const NAMES = new Map([
   ['shift', 'shift'],
 ])
 
-/** @type {ReadonlyMap<string, string>} */
-const SHOWN = new Map([
-  ['$mod', isMac ? '⌘' : 'Ctrl'],
-  ['alt', isMac ? '⌥' : 'Alt'],
-  ['cmd', '⌘'],
-  ['command', '⌘'],
-  ['control', isMac ? '⌃' : 'Ctrl'],
-  ['ctrl', isMac ? '⌃' : 'Ctrl'],
-  ['meta', '⌘'],
-  ['option', isMac ? '⌥' : 'Alt'],
-  ['shift', isMac ? '⇧' : 'Shift'],
-])
+/**
+ * How each modifier is shown: a symbol on a Mac, a name elsewhere
+ * @param {Strings} strings - The names
+ * @returns {ReadonlyMap<string, string>} By the modifier as a binding writes it
+ */
+const shown = (strings) =>
+  new Map([
+    ['$mod', isMac ? '⌘' : strings.ctrl],
+    ['alt', isMac ? '⌥' : strings.alt],
+    ['cmd', '⌘'],
+    ['command', '⌘'],
+    ['control', isMac ? '⌃' : strings.ctrl],
+    ['ctrl', isMac ? '⌃' : strings.ctrl],
+    ['meta', '⌘'],
+    ['option', isMac ? '⌥' : strings.alt],
+    ['shift', isMac ? '⇧' : strings.shift],
+  ])
 
 /** @type {Modifiers} */
 const noModifiers = { alt: false, ctrl: false, meta: false, shift: false }
@@ -103,10 +112,11 @@ function eventModifierParts(event, shift = event.shiftKey) {
 /**
  * How a modifier in a binding is shown on this platform
  * @param {string} part - One part of a binding, lowercase
+ * @param {StringsOption} [strings] - The names to show on a platform that has names (`ctrl`, `alt`, `shift`)
  * @returns {string | undefined} Its symbol or name, or nothing if it isn't a modifier
  */
-function formatModifier(part) {
-  return SHOWN.get(part)
+function formatModifier(part, strings) {
+  return shown(withStrings(strings)).get(part)
 }
 
 export { eventModifierParts, eventModifiers, formatModifier, isMac, modifierPrefix, noModifiers, parseModifiers }

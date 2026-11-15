@@ -7,6 +7,10 @@
  * were made.
  */
 
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
+
 /** @typedef {'axes' | 'keys' | 'mouse' | 'pad'} Field */
 
 /** @typedef {Readonly<{ id: string, field: Field, index?: number | undefined }>} Slot */
@@ -39,6 +43,7 @@
  *   record: (slot: Slot) => void,
  *   reset: (id: string) => void,
  *   watch: (listener: () => void) => () => void,
+ *   strings?: StringsOption,
  * }>} SettingsRowOptions
  */
 
@@ -89,11 +94,25 @@ function button(name, text, click) {
  * @param {SettingsRowOptions<R, Q>} options - An id's bindings in effect (and label); its inputs; whether its
  *   bindings differ from its defaults; what is being recorded (recording()); the question asked (conflictQuestion());
  *   a binding's chip, the prompt and the question as elements; recording a slot; resetting an id; and hearing what
- *   every row shows change
+ *   every row shows change; and the words to show in place of English
  * @returns {Readonly<{ apply: (key: string | Header, element: Element) => void,
  *   watch: (listener: (keys?: readonly (string | Header)[]) => void) => () => void }>} The facet
  */
-function settingsRow({ ask, changed, chip, entryOf, inputsOf, prompt, question, record, recording, reset, watch }) {
+function settingsRow({
+  ask,
+  changed,
+  chip,
+  entryOf,
+  inputsOf,
+  prompt,
+  question,
+  record,
+  recording,
+  reset,
+  strings,
+  watch,
+}) {
+  const words = withStrings(strings)
   return {
     apply(key, element) {
       const entry = typeof key === 'string' ? entryOf(key) : undefined
@@ -126,14 +145,14 @@ function settingsRow({ ask, changed, chip, entryOf, inputsOf, prompt, question, 
           : inputs
               .filter((input) => input.available?.() ?? true)
               .map(({ field, label }) =>
-                button('add', `+ ${label}`, () => {
+                button('add', words.add(label), () => {
                   record({ field, id: key })
                 }),
               )
       const label = document.createElement('span')
       label.textContent = entry.label
       const differs = changed(key)
-      const resetting = button('reset', 'Reset', () => {
+      const resetting = button('reset', words.reset, () => {
         reset(key)
       })
       resetting.setAttribute('aria-disabled', String(!differs))

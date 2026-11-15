@@ -6,6 +6,7 @@
  * nothing differs). A row whose bindings differ from its defaults is `data-changed`. Header rows are left as they
  * were made.
  */
+import type { StringsOption } from './strings.js';
 export type Field = 'axes' | 'keys' | 'mouse' | 'pad';
 export type Slot = Readonly<{
     id: string;
@@ -47,6 +48,7 @@ export type SettingsRowOptions<R extends Readonly<{
     record: (slot: Slot) => void;
     reset: (id: string) => void;
     watch: (listener: () => void) => () => void;
+    strings?: StringsOption;
 }>;
 /**
  * Fills rows
@@ -54,13 +56,13 @@ export type SettingsRowOptions<R extends Readonly<{
  * @param {SettingsRowOptions<R, Q>} options - An id's bindings in effect (and label); its inputs; whether its
  *   bindings differ from its defaults; what is being recorded (recording()); the question asked (conflictQuestion());
  *   a binding's chip, the prompt and the question as elements; recording a slot; resetting an id; and hearing what
- *   every row shows change
+ *   every row shows change; and the words to show in place of English
  * @returns {Readonly<{ apply: (key: string | Header, element: Element) => void,
  *   watch: (listener: (keys?: readonly (string | Header)[]) => void) => () => void }>} The facet
  */
 declare function settingsRow<R extends Readonly<{
     slot: Slot;
-}>, Q>({ ask, changed, chip, entryOf, inputsOf, prompt, question, record, recording, reset, watch }: SettingsRowOptions<R, Q>): Readonly<{
+}>, Q>({ ask, changed, chip, entryOf, inputsOf, prompt, question, record, recording, reset, strings, watch, }: SettingsRowOptions<R, Q>): Readonly<{
     apply: (key: string | Header, element: Element) => void;
     watch: (listener: (keys?: readonly (string | Header)[]) => void) => () => void;
 }>;

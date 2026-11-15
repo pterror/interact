@@ -18,6 +18,9 @@ import { recordAxis } from './record-axis.js'
 import { recordKey } from './record-key.js'
 import { recordMouse } from './record-mouse.js'
 import { recordPad } from './record-pad.js'
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * @typedef {Readonly<{ ctrl: boolean, alt: boolean, shift: boolean, meta: boolean }>} Modifiers
@@ -66,8 +69,8 @@ import { recordPad } from './record-pad.js'
  */
 
 /**
- * @typedef {Readonly<{ syntax?: readonly KeySyntax[], layout?: Watched<ReadonlyMap<string, string> | undefined> }>}
- *   KeysOptions
+ * @typedef {Readonly<{ syntax?: readonly KeySyntax[], layout?: Watched<ReadonlyMap<string, string> | undefined>,
+ *   strings?: StringsOption }>} KeysOptions
  */
 
 /** @type {(listener: () => void) => () => void} */
@@ -75,16 +78,18 @@ const NEVER = () => () => undefined
 
 /**
  * Key bindings
- * @param {KeysOptions} [options] - The key syntax on; and the person's keyboard layout (layout())
+ * @param {KeysOptions} [options] - The key syntax on; the person's keyboard layout (layout()); and the words to show
+ *   in place of English
  * @returns {Input} The input
  */
-function rebindKeys({ layout, syntax = [] } = {}) {
+function rebindKeys({ layout, strings, syntax = [] } = {}) {
+  const words = withStrings(strings)
   return {
     field: 'keys',
-    label: 'Key',
+    label: words.keyInput,
     lookup: bindingLookup((step) => keyParse(step, syntax)),
-    parts: (binding) => formatSteps(binding, (step) => formatKey(step, layout?.get())),
-    prompt: (release) => (release ? 'Press and release a key...' : 'Press a key...'),
+    parts: (binding) => formatSteps(binding, (step) => formatKey(step, layout?.get(), words), words),
+    prompt: (release) => (release ? words.pressReleaseKey : words.pressKey),
     record: ({ done, ignore, release }) => recordKey({ done, ignore, release, syntax }),
     watch: layout?.watch ?? NEVER,
   }
@@ -92,32 +97,36 @@ function rebindKeys({ layout, syntax = [] } = {}) {
 
 /**
  * Mouse bindings
+ * @param {Readonly<{ strings?: StringsOption }>} [options] - The words to show in place of English
  * @returns {Input} The input
  */
-function rebindMouse() {
+function rebindMouse({ strings } = {}) {
+  const words = withStrings(strings)
   return {
     field: 'mouse',
-    label: 'Mouse',
+    label: words.mouseInput,
     lookup: bindingLookup(mouseParse),
-    parts: (binding) => formatSteps(binding, formatMouse),
-    prompt: (release) => (release ? 'Press and release a button...' : 'Click or scroll...'),
+    parts: (binding) => formatSteps(binding, (step) => formatMouse(step, words), words),
+    prompt: (release) => (release ? words.pressReleaseButton : words.clickOrScroll),
     record: ({ done, ignore, release }) => recordMouse({ done, ignore, release }),
   }
 }
 
 /**
  * Gamepad bindings, recordable while a pad is connected
- * @param {Readonly<{ pads: Watched<readonly Pad[]> }>} options - The pads (pads())
+ * @param {Readonly<{ pads: Watched<readonly Pad[]>, strings?: StringsOption }>} options - The pads (pads()); and the
+ *   words to show in place of English
  * @returns {Input} The input
  */
-function rebindPad({ pads }) {
+function rebindPad({ pads, strings }) {
+  const words = withStrings(strings)
   return {
     available: () => pads.get().length > 0,
     field: 'pad',
-    label: 'Gamepad',
+    label: words.gamepadInput,
     lookup: bindingLookup((step) => padParse(step)),
-    parts: (binding) => formatSteps(binding, formatPad),
-    prompt: (release) => (release ? 'Press and release a gamepad button...' : 'Press a gamepad button...'),
+    parts: (binding) => formatSteps(binding, (step) => formatPad(step, words), words),
+    prompt: (release) => (release ? words.pressReleasePadButton : words.pressButton),
     record: ({ done, release }) => recordPad({ done, pads, release }),
     watch(listener) {
       let connected = pads.get().length > 0
@@ -138,13 +147,14 @@ function rebindPad({ pads }) {
  *   to record a stick or trigger
  * @returns {Input} The input
  */
-function rebindAxes({ layout, pads, syntax = [] } = {}) {
+function rebindAxes({ layout, pads, strings, syntax = [] } = {}) {
+  const words = withStrings(strings)
   return {
     field: 'axes',
-    label: 'Axis',
+    label: words.axisInput,
     lookup: (binding) => axisParse(binding, syntax).lookup,
-    parts: (binding) => formatAxis(binding, layout?.get()),
-    prompt: () => 'Move the mouse, tilt a stick, or press two keys...',
+    parts: (binding) => formatAxis(binding, layout?.get(), words),
+    prompt: () => words.moveAxis,
     record: ({ done }) => recordAxis({ done, syntax, ...(pads === undefined ? {} : { pads }) }),
     watch: layout?.watch ?? NEVER,
   }

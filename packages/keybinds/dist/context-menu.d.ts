@@ -11,6 +11,7 @@
  * list's arrayList, render, flowMount, ids, mark, activeDescendant, move, wrapStep, hoverIntent, popover, focusWhen
  * and dismiss, with cheatsheetRow(), bindingParts() and focusReturn().
  */
+import type { StringsOption } from './strings.js';
 export type Command = Readonly<{
     id: string;
     label: string;
@@ -30,7 +31,7 @@ export type Anchor = Readonly<{
 }>;
 export type ContextMenuOptions = Readonly<{
     element: HTMLElement;
-    label?: string;
+    strings?: StringsOption;
     layout?: Readonly<{
         get: () => ReadonlyMap<string, string> | undefined;
     }>;
@@ -38,7 +39,7 @@ export type ContextMenuOptions = Readonly<{
 }>;
 /**
  * Builds a right-click menu in an element
- * @param {ContextMenuOptions} options - Its element; its label; the person's keyboard layout (layout()), for how
+ * @param {ContextMenuOptions} options - Its element; the words to show in place of English (`actions` labels it); the person's keyboard layout (layout()), for how
  *   bindings are shown; and how long the pointer rests on a command to make it active, as for hoverIntent()
  * @returns {Readonly<{ openAt: (anchor: Anchor, commands: readonly Command[]) => void, close: () => void,
  *   open: Readonly<{ get: () => boolean, watch: (listener: () => void) => () => void }>, stop: () => void }>}
@@ -48,7 +49,7 @@ export type ContextMenuOptions = Readonly<{
  * const menu = contextMenu({ element })
  * keybinds([{ mouse: ['RightClick'], run: (event) => menu.openAt(pointOf(event), messageCommands) }])
  */
-declare function contextMenu({ element, label, layout, rest }: ContextMenuOptions): Readonly<{
+declare function contextMenu({ element, layout, rest, strings }: ContextMenuOptions): Readonly<{
     openAt: (anchor: Anchor, commands: readonly Command[]) => void;
     close: () => void;
     open: Readonly<{

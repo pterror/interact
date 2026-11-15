@@ -4,36 +4,39 @@
  */
 
 import { padAliases } from './pad-parse.js'
+import { withStrings } from './strings.js'
 
-/** @type {ReadonlyMap<string, string>} */
-const SHOWN = new Map([
-  ['a', 'A'],
-  ['b', 'B'],
-  ['back', 'Back'],
-  ['down', 'D-pad ↓'],
-  ['home', 'Home'],
-  ['lb', 'LB'],
-  ['left', 'D-pad ←'],
-  ['ls', 'LS'],
-  ['lt', 'LT'],
-  ['rb', 'RB'],
-  ['right', 'D-pad →'],
-  ['rs', 'RS'],
-  ['rt', 'RT'],
-  ['start', 'Start'],
-  ['up', 'D-pad ↑'],
-  ['x', 'X'],
-  ['y', 'Y'],
-])
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * A gamepad binding as display parts
  * @param {string} binding - One step of a binding, without a suffix: "rt"
+ * @param {StringsOption} [strings] - The words to show in place of English
  * @returns {string[]} The button as shown; one it doesn't know, as written
  */
-function formatPad(binding) {
+function formatPad(binding, strings) {
+  const words = withStrings(strings)
+  const shown = new Map([
+    ['a', 'A'],
+    ['b', 'B'],
+    ['back', words.back],
+    ['down', words.dpadDown],
+    ['home', words.home],
+    ['lb', 'LB'],
+    ['left', words.dpadLeft],
+    ['ls', 'LS'],
+    ['lt', 'LT'],
+    ['rb', 'RB'],
+    ['right', words.dpadRight],
+    ['rs', 'RS'],
+    ['rt', 'RT'],
+    ['start', words.start],
+    ['up', words.dpadUp],
+    ['x', 'X'],
+    ['y', 'Y'],
+  ])
   const name = binding.trim().toLowerCase()
-  return [SHOWN.get(padAliases.get(name) ?? name) ?? binding]
+  return [shown.get(padAliases.get(name) ?? name) ?? binding]
 }
 
 export { formatPad }

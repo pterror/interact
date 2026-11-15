@@ -4,40 +4,44 @@
  */
 
 import { formatKey } from './format-key.js'
+import { withStrings } from './strings.js'
 
-/** @type {ReadonlyMap<string, string>} */
-const SHOWN = new Map([
-  ['mouse:x', 'Mouse ↔'],
-  ['mouse:y', 'Mouse ↕'],
-  ['pad:lt', 'LT'],
-  ['pad:lx', 'Left stick ↔'],
-  ['pad:ly', 'Left stick ↕'],
-  ['pad:rt', 'RT'],
-  ['pad:rx', 'Right stick ↔'],
-  ['pad:ry', 'Right stick ↕'],
-])
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * An axis binding as display parts
  * @param {string} binding - The binding
  * @param {ReadonlyMap<string, string>} [layout] - What each physical key types on the person's layout, as for
  *   formatKey()
+ * @param {StringsOption} [strings] - The words to show in place of English
  * @returns {string[]} The parts as shown
  */
-function formatAxis(binding, layout) {
+function formatAxis(binding, layout, strings) {
+  const words = withStrings(strings)
   const written = binding.trim().toLowerCase()
   const invert = written.startsWith('-')
   const source = written.slice(invert ? 1 : 0)
   const keys = source.startsWith('keys:') ? source.slice('keys:'.length).split('/') : []
   const [negative = '', positive = ''] = keys
-  const shown = SHOWN.get(source)
+  const shown = new Map([
+    ['mouse:x', words.mouseX],
+    ['mouse:y', words.mouseY],
+    ['pad:lt', 'LT'],
+    ['pad:lx', words.leftStickX],
+    ['pad:ly', words.leftStickY],
+    ['pad:rt', 'RT'],
+    ['pad:rx', words.rightStickX],
+    ['pad:ry', words.rightStickY],
+  ]).get(source)
   const pair = keys.length === 2 && negative !== '' && positive !== ''
   if (!pair && shown === undefined) {
     return [binding]
   }
   return [
-    ...(pair ? [...formatKey(negative, layout), '/', ...formatKey(positive, layout)] : [shown ?? binding]),
-    ...(invert ? ['Inverted'] : []),
+    ...(pair
+      ? [...formatKey(negative, layout, words), '/', ...formatKey(positive, layout, words)]
+      : [shown ?? binding]),
+    ...(invert ? [words.inverted] : []),
   ]
 }
 

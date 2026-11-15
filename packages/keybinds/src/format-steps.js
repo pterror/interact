@@ -4,25 +4,27 @@
  */
 
 import { splitBinding } from './split-binding.js'
+import { withStrings } from './strings.js'
 
-/** @type {ReadonlyMap<string, string>} */
-const SUFFIXES = new Map([
-  [':hold', 'Hold'],
-  [':tap', 'Tap'],
-  [':up', 'Release'],
-])
+/** @import { StringsOption } from './strings.js' */
 
 /**
  * A binding as display parts
  * @param {string} binding - The binding
  * @param {(step: string) => readonly string[]} format - How one step is shown: formatKey, formatMouse, formatPad
+ * @param {StringsOption} [strings] - The words to show in place of English (`andThen`, `hold`, `tap`, `release`)
  * @returns {string[]} The parts as shown
  */
-function formatSteps(binding, format) {
+function formatSteps(binding, format, strings) {
+  const words = withStrings(strings)
   const { steps, suffix } = splitBinding(binding)
-  const shown = SUFFIXES.get(suffix)
+  const shown = new Map([
+    [':hold', words.hold],
+    [':tap', words.tap],
+    [':up', words.release],
+  ]).get(suffix)
   return [
-    ...steps.flatMap((step, index) => [...(index === 0 ? [] : ['then']), ...format(step)]),
+    ...steps.flatMap((step, index) => [...(index === 0 ? [] : [words.andThen]), ...format(step)]),
     ...(shown === undefined ? [] : [shown]),
   ]
 }

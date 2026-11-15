@@ -4,6 +4,7 @@
  * axis): Release (`data-keybinds=record-release`), Hold and Tap (`record-hold`, `record-tap`), several steps
  * (`record-steps`), each `aria-pressed`, and Done once there are steps (`record-done`).
  */
+import type { StringsOption } from './strings.js';
 export type Suffix = '' | ':hold' | ':tap' | ':up';
 export type Field = 'axes' | 'keys' | 'mouse' | 'pad';
 export type Recorded<S extends Readonly<{
@@ -26,15 +27,16 @@ export type SettingsPromptOptions<S extends Readonly<{
     releases?: boolean;
     holds?: boolean;
     sequences?: boolean;
+    strings?: StringsOption;
 }>;
 /**
  * Makes prompts
  * @template {Readonly<{ field: Field }>} S
  * @param {SettingsPromptOptions<S>} options - What to do, for a slot's input (a release, if asked); a binding's
- *   display parts; the recording (recording()); and which syntax is on
+ *   display parts; the recording (recording()); which syntax is on; and the words to show in place of English
  * @returns {(recorded: Recorded<S>) => HTMLElement} The prompt for what is being recorded
  */
 declare function settingsPrompt<S extends Readonly<{
     field: Field;
-}>>({ holds, parts, prompt, recording, releases, sequences }: SettingsPromptOptions<S>): (recorded: Recorded<S>) => HTMLElement;
+}>>({ holds, parts, prompt, recording, releases, sequences, strings }: SettingsPromptOptions<S>): (recorded: Recorded<S>) => HTMLElement;
 export { settingsPrompt };

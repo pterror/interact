@@ -5,6 +5,10 @@
  * (`record-steps`), each `aria-pressed`, and Done once there are steps (`record-done`).
  */
 
+import { withStrings } from './strings.js'
+
+/** @import { StringsOption } from './strings.js' */
+
 /** @typedef {'' | ':hold' | ':tap' | ':up'} Suffix */
 
 /** @typedef {'axes' | 'keys' | 'mouse' | 'pad'} Field */
@@ -24,6 +28,7 @@
  *   releases?: boolean,
  *   holds?: boolean,
  *   sequences?: boolean,
+ *   strings?: StringsOption,
  * }>} SettingsPromptOptions
  */
 
@@ -51,15 +56,16 @@ function toggle(name, text, on, click) {
  * Makes prompts
  * @template {Readonly<{ field: Field }>} S
  * @param {SettingsPromptOptions<S>} options - What to do, for a slot's input (a release, if asked); a binding's
- *   display parts; the recording (recording()); and which syntax is on
+ *   display parts; the recording (recording()); which syntax is on; and the words to show in place of English
  * @returns {(recorded: Recorded<S>) => HTMLElement} The prompt for what is being recorded
  */
-function settingsPrompt({ holds = false, parts, prompt, recording, releases = false, sequences = false }) {
+function settingsPrompt({ holds = false, parts, prompt, recording, releases = false, sequences = false, strings }) {
+  const words = withStrings(strings)
   return ({ slot, steps, suffix }) => {
     const text = document.createElement('span')
     text.textContent =
       steps !== undefined && steps.length > 0
-        ? `${parts(slot, steps.join(' ')).join(' ')} then...`
+        ? words.stepsSoFar(parts(slot, steps.join(' ')).join(' '))
         : prompt(slot, suffix === ':up')
     /** @type {(name: string, text: string, captured: ':hold' | ':tap' | ':up') => HTMLButtonElement} */
     const captures = (name, label, captured) =>
@@ -71,10 +77,14 @@ function settingsPrompt({ holds = false, parts, prompt, recording, releases = fa
     element.dataset['keybinds'] = 'prompt'
     element.append(
       text,
-      ...(press && releases ? [captures('record-release', 'Release', ':up')] : []),
-      ...(press && holds ? [captures('record-hold', 'Hold', ':hold'), captures('record-tap', 'Tap', ':tap')] : []),
-      ...(press && sequences ? [toggle('record-steps', 'Steps', steps !== undefined, recording.toggleSteps)] : []),
-      ...(steps !== undefined && steps.length > 0 ? [toggle('record-done', 'Done', undefined, recording.finish)] : []),
+      ...(press && releases ? [captures('record-release', words.release, ':up')] : []),
+      ...(press && holds
+        ? [captures('record-hold', words.hold, ':hold'), captures('record-tap', words.tap, ':tap')]
+        : []),
+      ...(press && sequences ? [toggle('record-steps', words.steps, steps !== undefined, recording.toggleSteps)] : []),
+      ...(steps !== undefined && steps.length > 0
+        ? [toggle('record-done', words.done, undefined, recording.finish)]
+        : []),
     )
     return element
   }

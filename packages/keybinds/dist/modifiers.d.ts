@@ -2,6 +2,7 @@
  * Modifier keys, as bindings write them and as events report them: Ctrl, Alt, Shift and Meta, and `$mod` for the
  * platform's own (Meta on a Mac, Ctrl elsewhere).
  */
+import type { StringsOption } from './strings.js';
 export type Modifiers = Readonly<{
     ctrl: boolean;
     alt: boolean;
@@ -15,6 +16,7 @@ export type ModifierState = Readonly<{
     shiftKey: boolean;
     metaKey: boolean;
 }>;
+/** @import { Strings, StringsOption } from './strings.js' */
 /**
  * Which modifiers are held, or which a binding needs
  * @typedef {Readonly<{ ctrl: boolean, alt: boolean, shift: boolean, meta: boolean }>} Modifiers
@@ -59,7 +61,8 @@ declare function eventModifierParts(event: ModifierState, shift?: boolean): read
 /**
  * How a modifier in a binding is shown on this platform
  * @param {string} part - One part of a binding, lowercase
+ * @param {StringsOption} [strings] - The names to show on a platform that has names (`ctrl`, `alt`, `shift`)
  * @returns {string | undefined} Its symbol or name, or nothing if it isn't a modifier
  */
-declare function formatModifier(part: string): string | undefined;
+declare function formatModifier(part: string, strings?: StringsOption): string | undefined;
 export { eventModifierParts, eventModifiers, formatModifier, isMac, modifierPrefix, noModifiers, parseModifiers };

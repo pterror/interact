@@ -35,6 +35,7 @@ type CheatsheetOptions = Readonly<{
   modifier?: string // default "$mod"
   delay?: number // default 1000 ms
   target?: EventTarget
+  strings?: StringsOption
 }>
 ```
 
@@ -82,8 +83,7 @@ type PaletteOptions = Readonly<{
   element: HTMLElement
   commands: () => readonly PaletteCommand[]
   matches?: (command: PaletteCommand, query: string) => boolean
-  label?: string
-  placeholder?: string
+  strings?: StringsOption // `commands` labels the dialog, `typeCommand` is the field's placeholder
   layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>
   rest?: number
 }>
@@ -122,7 +122,7 @@ function contextMenu(options: ContextMenuOptions): Readonly<{
 }>
 type ContextMenuOptions = Readonly<{
   element: HTMLElement
-  label?: string
+  strings?: StringsOption // `actions` labels the menu
   layout?: Readonly<{ get: () => ReadonlyMap<string, string> | undefined }>
   rest?: number
 }>
@@ -151,6 +151,7 @@ type SettingsOptions = Readonly<{
   holds?: boolean
   sequences?: boolean
   pause?: number // default 1000 ms
+  strings?: StringsOption
 }>
 type Input = Readonly<{
   field: 'axes' | 'keys' | 'mouse' | 'pad'
@@ -169,11 +170,27 @@ Rows per id not hidden, grouped by category; each piece names itself in `data-ke
 `record-tap`, `record-steps`, `record-done`, `conflict`, `replace`, `cancel`); switches are `aria-pressed`; a changed
 row is `data-changed`. Returns stopping, which takes out what it put in.
 
+## Strings
+
+```ts
+const defaultStrings: Strings // every word, in English
+type Strings = Readonly<Record<string, string | ((value: string) => string)>> // by name: resetAll, reset, remove, ...
+type StringsOption = Readonly<Partial<Strings>> | undefined
+function withStrings(strings?: StringsOption): Strings
+```
+
+Every word the cheatsheet, settings panel, palette and menu show comes from a `strings` option holding any of
+`defaultStrings` to replace; the rest stay English. The panel's inputs (`rebindKeys`, `rebindMouse`, `rebindPad`,
+`rebindAxes`) take their own, for their names, prompts and how a binding's parts read (`bindingParts`, `formatKey`,
+`formatMouse`, `formatPad`, `formatAxis`, `formatSteps` and `formatModifier` take it last). A string that holds a value
+is a function of it: `alreadyBound(label)`, `add(input)`, `stepsSoFar(steps)`. Symbols (arrows, ⌘, key letters) are not
+words and are not in it. Modifiers show as symbols on a Mac and as `ctrl`, `alt` and `shift` elsewhere.
+
 ## rebindKeys(options?), rebindMouse(), rebindPad(options), rebindAxes(options?)
 
 ```ts
 function rebindKeys(options?: KeysOptions): Input
-type KeysOptions = Readonly<{ syntax?: readonly KeySyntax[]; layout?: Watched<Layout> }>
+type KeysOptions = Readonly<{ syntax?: readonly KeySyntax[]; layout?: Watched<Layout>; strings?: StringsOption }>
 ```
 
 Each input as the settings panel shows and records it. `rebindPad({ pads })` is recordable only while a pad is

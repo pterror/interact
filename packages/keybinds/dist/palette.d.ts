@@ -12,6 +12,7 @@
  * textValue, filtered, render, flowMount, ids, mark, reveal, activeDescendant, move, wrapStep, hoverIntent, popover,
  * focusWhen and dismiss, with cheatsheetRow(), bindingParts() and focusReturn().
  */
+import type { StringsOption } from './strings.js';
 export type Command = Readonly<{
     id: string;
     label: string;
@@ -25,8 +26,7 @@ export type PaletteOptions = Readonly<{
     element: HTMLElement;
     commands: () => readonly Command[];
     matches?: (command: Command, query: string) => boolean;
-    label?: string;
-    placeholder?: string;
+    strings?: StringsOption;
     layout?: Readonly<{
         get: () => ReadonlyMap<string, string> | undefined;
     }>;
@@ -35,8 +35,8 @@ export type PaletteOptions = Readonly<{
 /**
  * Builds a command palette in an element
  * @param {PaletteOptions} options - Its element; its commands (those that apply are read each time it opens); whether
- *   a command matches what is typed (default: every word is in its label); the dialog's label and the field's
- *   placeholder; the person's keyboard layout (layout()), for how bindings are shown; and how long the pointer rests on
+ *   a command matches what is typed (default: every word is in its label); the words to show in place of English
+ *   (`commands` labels the dialog, `typeCommand` is the field's placeholder); the person's keyboard layout (layout()), for how bindings are shown; and how long the pointer rests on
  *   a command to make it active, as for hoverIntent()
  * @returns {Readonly<{ open: Readonly<{ get: () => boolean, set: (open: boolean) => void,
  *   watch: (listener: () => void) => () => void }>, stop: () => void }>} Whether it is open, and opening and closing
@@ -46,7 +46,7 @@ export type PaletteOptions = Readonly<{
  * const shown = palette({ commands: () => commands, element })
  * keybinds([...commands, { keys: ['$mod+k'], run: () => shown.open.set(true) }])
  */
-declare function palette({ commands, element, label, layout, matches, placeholder, rest, }: PaletteOptions): Readonly<{
+declare function palette({ commands, element, layout, matches, rest, strings }: PaletteOptions): Readonly<{
     open: Readonly<{
         get: () => boolean;
         set: (open: boolean) => void;
