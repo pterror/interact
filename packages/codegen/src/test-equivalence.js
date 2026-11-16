@@ -344,6 +344,10 @@ const WORDS = [
   'lime',
   'mango',
   'Ünder',
+  'ΣΟΦΙΑΣ',
+  'İstanbul',
+  'ǅemal',
+  '𐐀𐐨𐐯',
 ]
 
 /**
@@ -629,6 +633,13 @@ function menuEnvironment(pick) {
         'é',
         'ü',
         'É',
+        'Σ',
+        'σ',
+        'İ',
+        'i',
+        'ǆ',
+        '𐐀',
+        '\u2028',
       ])
       return keydown(pick.chance(80) ? 'item' : 'button', key, { ctrlKey: pick.chance(5), item, timeStamp: now })
     }

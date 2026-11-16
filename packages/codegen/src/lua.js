@@ -4,14 +4,15 @@
  * when it is null, an array never holds either, and `in` is only read where the field can't be null); arrays are
  * 1-based tables, every index shifted; numbers are doubles in both, `%` is `math.fmod`, `Math.max`/`min` keep
  * JavaScript's `NaN` and `-0` in local functions; strings are UTF-8 bytes, so only operations that mean the same on
- * bytes as on UTF-16 (equality, `startsWith`, `endsWith`, `includes`, concatenation) are taken.
+ * bytes as on UTF-16 for well-formed text (equality, `startsWith`, `endsWith`, `includes`, concatenation, `split`) are
+ * taken, and `toLowerCase` and `/^.$/u` by code point, with tables of the generator's Unicode (case.js).
  *
- * A step's result is two return values (state, effects). The effects table is the module's own, emptied by the next
- * call: the caller reads it before calling again.
+ * Effects are calls on the host, as in the JavaScript.
  */
 
 import ts from 'typescript'
 
+import { lowerHelper } from './case.js'
 import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
 import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
@@ -111,6 +112,42 @@ const HELPERS = {
     '  local out = {}',
     '  for i = first + 1, last do out[i - first] = list[i] end',
     '  return out',
+    'end',
+  ],
+  oneCharacter: [
+    String.raw`-- /^.$/u.test(s): one code point, not a line terminator (\n, \r, U+2028, U+2029); s well-formed UTF-8`,
+    'local function one_character(s)',
+    '  local n, c = #s, s:byte(1)',
+    '  if c == nil then return false end',
+    '  local size = c < 0x80 and 1 or c >= 0xF0 and 4 or c >= 0xE0 and 3 or 2',
+    '  if size ~= n then return false end',
+    String.raw`  return s ~= "\n" and s ~= "\r" and s ~= "\226\128\168" and s ~= "\226\128\169"`,
+    'end',
+  ],
+  split: [
+    "-- String.prototype.split(separator): by the separator's bytes, which are its UTF-16 units' places in well-formed",
+    '-- UTF-8; by "" each UTF-16 unit, which UTF-8 holds only for a code point below U+10000',
+    'local function split(s, separator)',
+    '  local parts, n = {}, 0',
+    '  if separator == "" then',
+    String.raw`    for part in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do`,
+    String.raw`      if #part == 4 then error("split(\"\") of a code point past U+FFFF gives a lone surrogate, which UTF-8 has not") end`,
+    '      n = n + 1',
+    '      parts[n] = part',
+    '    end',
+    '    return parts',
+    '  end',
+    '  local at = 1',
+    '  while true do',
+    '    local from, to = s:find(separator, at, true)',
+    '    n = n + 1',
+    '    if from == nil then',
+    '      parts[n] = s:sub(at)',
+    '      return parts',
+    '    end',
+    '    parts[n] = s:sub(at, from - 1)',
+    '    at = to + 1',
+    '  end',
     'end',
   ],
   int32: [
@@ -247,6 +284,8 @@ function luaModule(planned, checker, imports, others) {
   ])
   /** @type {Set<keyof typeof HELPERS>} */
   const helpers = new Set()
+  /** @type {Set<'lower'>} */
+  const tables = new Set()
 
   /**
    * A module-level name
@@ -966,6 +1005,16 @@ function luaModule(planned, checker, imports, others) {
       return stringMethod(value, pre, indent)
     }
     if (value.object.kind === 'regex') {
+      const [subject] = value.args
+      if (
+        value.name === 'test' &&
+        value.object.pattern === '^.$' &&
+        value.object.flags === 'u' &&
+        subject !== undefined
+      ) {
+        helpers.add('oneCharacter')
+        return `one_character(${operand(subject, pre, indent)})`
+      }
       return refuse(value, 'a regular expression: Lua patterns are not JavaScript regular expressions')
     }
     checkHoles(objectType, value.object)
@@ -1188,6 +1237,20 @@ function luaModule(planned, checker, imports, others) {
           return `(#${part} == 0 or ${text}:sub(-#${part}) == ${part})`
         }
         return `${text}:find(${part}, 1, true) ~= nil`
+      }
+      case 'split': {
+        if (first === undefined || value.args.length > 1 || !isString(first.type)) {
+          return refuse(value, 'split() takes one string here')
+        }
+        helpers.add('split')
+        return `split(${operand(value.object, pre, indent)}, ${operand(first, pre, indent)})`
+      }
+      case 'toLowerCase': {
+        if (value.args.length > 0) {
+          return refuse(value, 'toLowerCase() takes nothing')
+        }
+        tables.add('lower')
+        return `lower(${operand(value.object, pre, indent)})`
       }
       default: {
         return refuse(
@@ -1548,7 +1611,7 @@ function luaModule(planned, checker, imports, others) {
   const helperLines = Object.entries(HELPERS).flatMap(([name, lines]) =>
     [...helpers].some((one) => one === name) ? [...lines, ''] : [],
   )
-  const all = [...helperLines, ...body, ...tail].join('\n')
+  const all = [...helperLines, ...(tables.has('lower') ? [...lowerHelper(), ''] : []), ...body, ...tail].join('\n')
   const requires = all.includes('bit.') ? ['local bit = require("bit")', ''] : []
   const head = [
     '-- Where an effect the widget makes comes from: the widget itself',

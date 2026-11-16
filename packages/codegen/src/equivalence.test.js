@@ -232,12 +232,49 @@ describe('generated code does what its source does, step for step', () => {
     await check('reorderList', reorderList, await generatedExport('reorderList'), runs, null)
   })
 
-  test("menu: JavaScript; its Lua is refused, as typeahead's case folding is Unicode's", async () => {
-    expect(generated.get('menu')?.refused).toEqual([
-      "core/src/menu.js:108:34: the string method toLowerCase(): its JavaScript meaning (Unicode case, UTF-16 units) is not Lua's on bytes",
-    ])
+  test("menu: JavaScript and Lua, typeahead's case as JavaScript's", async () => {
     const runs = [...MENU_RUNS, ...menuRuns(menu, 3, RUNS, LENGTH)].map((run) => asDeliveries(run))
     await check('menu', menu, await generatedExport('menu'), runs, null)
+  })
+
+  test("Lua's toLowerCase is JavaScript's for every code point, and Σ's final form after and before each", async () => {
+    const lua = generated.get('menu')?.lua ?? ''
+    const first = lua.indexOf('-- String.prototype.toLowerCase')
+    const end = lua.indexOf('\nend\n', lua.indexOf('local function lower(s)')) + 5
+    const script = `${lua.slice(first, end)}
+local function utf8(cp) return utf8_char(cp) end
+local out = {}
+for cp = 0, 0x10FFFF do
+  if cp < 0xD800 or cp > 0xDFFF then
+    local c = utf8(cp)
+    out[#out + 1] = lower(c) .. "|" .. lower("A" .. c .. "\\206\\163") .. "|" .. lower("A\\206\\163" .. c)
+  end
+end
+io.write(table.concat(out, "\\255"))
+`
+    await Bun.write(`${dir}/lower.lua`, `local bit = require("bit")\n${script}`)
+    const bytes = new Uint8Array(await Bun.$`luajit ${dir}/lower.lua`.arrayBuffer())
+    const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true })
+    /** @type {string[]} */
+    const made = []
+    let from = 0
+    for (let at = 0; at <= bytes.length; at += 1) {
+      if (at === bytes.length || bytes[at] === 255) {
+        made.push(decoder.decode(bytes.subarray(from, at)))
+        from = at + 1
+      }
+    }
+    /** @type {string[]} */
+    const expected = []
+    for (let cp = 0; cp <= 1_114_111; cp += 1) {
+      if (cp < 55_296 || cp > 57_343) {
+        const c = String.fromCodePoint(cp)
+        expected.push(`${c.toLowerCase()}|${`A${c}Σ`.toLowerCase()}|${`AΣ${c}`.toLowerCase()}`)
+      }
+    }
+    const wrong = expected.findIndex((line, at) => line !== made[at])
+    expect(wrong === -1 ? null : { at: wrong, expected: expected[wrong], made: made[wrong] }).toBeNull()
+    expect(made.length).toBe(expected.length)
   })
 
   test('a binary search in a loop, a `let` changed in it and a shift: JavaScript and Lua', async () => {
