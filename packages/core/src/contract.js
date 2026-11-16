@@ -21,6 +21,17 @@
  */
 
 /**
+ * Integers of a width. A number declared `i32` is an integer from -2^31 to 2^31 - 1; `u32` from 0 to 2^32 - 1; `i53`
+ * one a double holds exactly, below 2^53 either way. To JavaScript each is a number. The code generator checks that
+ * every value stored where one is declared is such an integer: where a value might leave the range, the source writes
+ * the wrap (`(x) | 0` to i32, `x >>> 0` to u32) or the clamp itself
+ * @typedef {number} i32
+ */
+
+/** @typedef {number} u32 */
+/** @typedef {number} i53 */
+
+/**
  * An item's identity. Opaque: the core compares keys with `===` and never reads into them
  * @typedef {string | number} Key
  */
@@ -147,12 +158,12 @@
 
 /**
  * The app took a change the widget emitted (`id`): the collection now has it
- * @typedef {Readonly<{ type: 'confirmed', id: number }>} Confirmed
+ * @typedef {Readonly<{ type: 'confirmed', id: i32 }>} Confirmed
  */
 
 /**
  * The app refused a change the widget emitted (`id`): the widget undoes it
- * @typedef {Readonly<{ type: 'refused', id: number }>} Refused
+ * @typedef {Readonly<{ type: 'refused', id: i32 }>} Refused
  */
 
 /**
@@ -169,15 +180,15 @@
 /**
  * The answer to an `ask` for keys: `keys` are the keys at ranks `from`, `from + 1`, ...; `count` is how many items there
  * are. `id` is the ask's
- * @typedef {Readonly<{ type: 'answer', id: number, from: number, keys: readonly Key[], count: number }>} Answer
+ * @typedef {Readonly<{ type: 'answer', id: i32, from: i32, keys: readonly Key[], count: i32 }>} Answer
  */
 
 /**
  * A question for the host about a collection, named by `source`: the keys at ranks `[from, to)`, or (`locate`) a
  * window of `rows` keys that holds a key. The answer comes back to the widget that asked, as `answer` with the same
  * `id`
- * @typedef {Readonly<{ type: 'ask', id: number, source: string, ranks: readonly [number, number] }>
- *   | Readonly<{ type: 'ask', id: number, source: string, locate: Key, rows: number }>} Ask
+ * @typedef {Readonly<{ type: 'ask', id: i32, source: string, ranks: readonly [i32, i32] }>
+ *   | Readonly<{ type: 'ask', id: i32, source: string, locate: Key, rows: i32 }>} Ask
  */
 
 /**
@@ -193,7 +204,7 @@
 /**
  * Tells the app a value changed. `id` names the change, for `refused`
  * @template T
- * @typedef {Readonly<{ type: 'change', value: T, id: number }>} Change
+ * @typedef {Readonly<{ type: 'change', value: T, id: i32 }>} Change
  */
 
 /**

@@ -11,7 +11,7 @@ import { part, ref } from './contract.js'
 import { list } from './list.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 
-/** @import { Blur, Change, Click, Key, KeyDown, PreventDefault, PropsInput, Refused, Result } from './contract.js' */
+/** @import { Blur, Change, Click, i32, Key, KeyDown, PreventDefault, PropsInput, Refused, Result } from './contract.js' */
 /** @import { Send, StopPropagation } from './compose.js' */
 /** @import { Pending } from './pending.js' */
 
@@ -19,7 +19,7 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  * @typedef {Readonly<{
  *   label: string,
  *   placeholder: string,
- *   rows: number,
+ *   rows: i32,
  *   source: string,
  *   value: Readonly<{ value: Key | null }> | null,
  * }>} SelectProps
@@ -32,7 +32,7 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   active: Key | null,
  *   label: string,
  *   placeholder: string,
- *   rows: number,
+ *   rows: i32,
  *   source: string,
  * }>} SelectOwn
  */

@@ -5,15 +5,15 @@
  * value), the widget's change is the value at once and nothing is pending. The value is a scalar, compared with `===`.
  */
 
-/** @import { Key } from './contract.js' */
+/** @import { i32, Key } from './contract.js' */
 
 /**
  * @template {Key | boolean | null} T
  * @typedef {Readonly<{
  *   controlled: boolean,
  *   app: T,
- *   changes: readonly Readonly<{ id: number, value: T }>[],
- *   next: number,
+ *   changes: readonly Readonly<{ id: i32, value: T }>[],
+ *   next: i32,
  * }>} Pending
  */
 
@@ -44,14 +44,14 @@ function shown(held) {
  * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
  * @param {T} value - The new value
- * @returns {readonly [Pending<T>, number]} The value after, and the change's id
+ * @returns {readonly [Pending<T>, i32]} The value after, and the change's id
  */
 function change(held, value) {
   const id = held.next
   if (!held.controlled) {
-    return [{ ...held, app: value, next: id + 1 }, id]
+    return [{ ...held, app: value, next: (id + 1) | 0 }, id]
   }
-  return [{ ...held, changes: [...held.changes, { id, value }], next: id + 1 }, id]
+  return [{ ...held, changes: [...held.changes, { id, value }], next: (id + 1) | 0 }, id]
 }
 
 /**
@@ -74,7 +74,7 @@ function fromApp(held, controlled, value) {
  * The app refuses a change: it goes, undone
  * @template {Key | boolean | null} T
  * @param {Pending<T>} held - The value
- * @param {number} id - The change
+ * @param {i32} id - The change
  * @returns {Pending<T>} The value after
  */
 function refuse(held, id) {

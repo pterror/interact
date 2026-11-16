@@ -13,13 +13,13 @@
 import { part, ref } from './contract.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 
-/** @import { Answer, Ask, Change, Changed, Click, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, View, Widget } from './contract.js' */
+/** @import { Answer, Ask, Change, Changed, Click, i32, i53, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, View, Widget } from './contract.js' */
 /** @import { Pending } from './pending.js' */
 
 /**
  * @typedef {Readonly<{
  *   label: string,
- *   rows: number,
+ *   rows: i32,
  *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
@@ -30,8 +30,8 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
 /**
  * What the latest ask asked for: a window from a rank, or a window holding a key (whose rank isn't known yet), of the
  * collection as it was at `revision` (how many `changed` the list has heard)
- * @typedef {Readonly<{ top: number, rows: number, revision: number }>
- *   | Readonly<{ locate: Key, rows: number, revision: number }>} Asked
+ * @typedef {Readonly<{ top: i32, rows: i32, revision: i32 }>
+ *   | Readonly<{ locate: Key, rows: i32, revision: i32 }>} Asked
  */
 
 /**
@@ -40,20 +40,20 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  * `last` is a move to the last option before the count is known. `rowSize` is an option's measured size
  * @typedef {Readonly<{
  *   label: string,
- *   rows: number,
+ *   rows: i32,
  *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
  *   selection: Pending<Key | null>,
- *   revision: number,
- *   count: number | null,
- *   top: number,
- *   from: number,
+ *   revision: i32,
+ *   count: i32 | null,
+ *   top: i32,
+ *   from: i32,
  *   keys: readonly Key[],
- *   asked: number,
+ *   asked: i32,
  *   askedFor: Asked | null,
  *   active: Key | null,
- *   activeRank: number | null,
+ *   activeRank: i32 | null,
  *   follow: 'key' | 'rank' | 'last',
  *   rowSize: number | null,
  * }>} ListState
@@ -70,17 +70,17 @@ const NONE = []
  * The rank of a held key
  * @param {ListState} state - The list
  * @param {Key} key - The key
- * @returns {number | null} Its rank, or `null` if it isn't held
+ * @returns {i32 | null} Its rank, or `null` if it isn't held
  */
 function rankOf(state, key) {
   const index = state.keys.indexOf(key)
-  return index === -1 ? null : state.from + index
+  return index === -1 ? null : (state.from + index) | 0
 }
 
 /**
  * The key held at a rank
  * @param {ListState} state - The list
- * @param {number} rank - The rank
+ * @param {i32} rank - The rank
  * @returns {Key | null} The key, or `null` if it isn't held
  */
 function keyAt(state, rank) {
@@ -126,16 +126,16 @@ function ensure(state) {
     return [state, NONE]
   }
   const selected = shown(state.selection)
-  const id = state.asked + 1
+  const id = (state.asked + 1) | 0
   if (state.count === null && state.active === null && selected !== null) {
     return [
       { ...state, active: selected, asked: id, askedFor: { locate: selected, revision, rows }, follow: 'key' },
-      [{ id, locate: selected, rows: rows + 2, source, type: 'ask' }],
+      [{ id, locate: selected, rows: (rows + 2) | 0, source, type: 'ask' }],
     ]
   }
   return [
     { ...state, asked: id, askedFor: { revision, rows, top } },
-    [{ id, ranks: [Math.max(0, top - 1), top + rows + 1], source, type: 'ask' }],
+    [{ id, ranks: [Math.max(0, top - 1), (top + rows + 1) | 0], source, type: 'ask' }],
   ]
 }
 
@@ -154,7 +154,7 @@ function answered(state, answer) {
   const top =
     located === -1
       ? Math.max(0, Math.min(state.top, count - state.rows))
-      : Math.max(0, Math.min(from + located - Math.floor(state.rows / 2), count - state.rows))
+      : Math.max(0, Math.min(from + located - Math.floor(state.rows / 2), (count - state.rows) | 0))
   /** @type {ListState} */
   const held = {
     ...state,
@@ -196,17 +196,17 @@ function withActive(state) {
 /**
  * The window's first rank, moved as little as shows a rank
  * @param {ListState} state - The list
- * @param {number} rank - The rank to show
- * @returns {number} The first rank
+ * @param {i32} rank - The rank to show
+ * @returns {i32} The first rank
  */
 function topFor(state, rank) {
-  return rank < state.top ? rank : rank >= state.top + state.rows ? rank - state.rows + 1 : state.top
+  return rank < state.top ? rank : rank >= state.top + state.rows ? (rank - state.rows + 1) | 0 : state.top
 }
 
 /**
  * Makes the option at a rank active, moving the window to show it
  * @param {ListState} state - The list
- * @param {number} wanted - The rank, clamped to the list
+ * @param {i53} wanted - The rank, clamped to the list
  * @returns {Result<ListState, ListEffect>} The list, and any ask it needs
  */
 function moveTo(state, wanted) {
@@ -245,7 +245,7 @@ function choose(state, key) {
  * The rank a key moves the active option to
  * @param {ListState} state - The list
  * @param {string} key - The UI Events key value
- * @returns {number | null} The rank, or `null` if the key doesn't move it
+ * @returns {i53 | null} The rank, or `null` if the key doesn't move it
  */
 function rankFor(state, key) {
   const { activeRank, count, rows } = state
@@ -345,7 +345,7 @@ function stepOwn(state, input) {
       return answered(state, input)
     }
     case 'changed': {
-      return ensure({ ...state, revision: state.revision + 1 })
+      return ensure({ ...state, revision: (state.revision + 1) | 0 })
     }
     case 'refused': {
       return [{ ...state, selection: refuse(state.selection, input.id) }, NONE]
@@ -357,7 +357,7 @@ function stepOwn(state, input) {
       if (state.rowSize === null || state.count === null) {
         return [state, NONE]
       }
-      const top = Math.max(0, Math.min(Math.floor(input.offset / state.rowSize), state.count - state.rows))
+      const top = Math.max(0, Math.min(Math.floor(input.offset / state.rowSize) | 0, state.count - state.rows))
       return ensure({ ...state, top })
     }
     case 'measured': {
