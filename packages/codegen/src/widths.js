@@ -6,6 +6,9 @@
  * `x | 0` (to i32) and `x >>> 0` (to u32), which wrap as the source says. A value that may leave the range is
  * reported: the source writes the wrap or the clamp, nothing does it implicitly. `+x` is a double.
  *
+ * One exception: an i53 counted on by one (`id + 1`, `n - 1`) is still an i53. It would take 2^53 steps to leave
+ * the range, which no count of events reaches, so an id or counter needs no wrap.
+ *
  * What it learns is each number's range, which the Lua printer uses to leave out conversions JavaScript's operators
  * do that the range makes nothing.
  */
@@ -31,6 +34,7 @@ const WIDTHS = {
 }
 
 const I32 = WIDTHS['i32'] ?? { hi: 0, int: true, lo: 0 }
+const I53 = WIDTHS['i53'] ?? I32
 const U32 = WIDTHS['u32'] ?? I32
 /** An index an array method gives: -1, or an index of an array */
 const FOUND = { hi: 2 ** 32 - 2, int: true, lo: -1 }
@@ -295,6 +299,9 @@ function checkWidths(widgets, checker, root) {
       case '*': {
         if (left === null || right === null) {
           return null
+        }
+        if (expr.op !== '*' && same53(left) && right.int && right.lo === right.hi && Math.abs(right.lo) === 1) {
+          return I53
         }
         const corners =
           expr.op === '+'
@@ -613,6 +620,15 @@ function union(a, b) {
     return null
   }
   return { hi: Math.max(a.hi, b.hi), int: a.int && b.int, lo: Math.min(a.lo, b.lo) }
+}
+
+/**
+ * Whether a range is exactly i53's
+ * @param {Range} range - The range
+ * @returns {boolean} Whether it is
+ */
+function same53(range) {
+  return range.int && range.lo === I53.lo && range.hi === I53.hi
 }
 
 /**

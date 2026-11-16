@@ -48,7 +48,8 @@ function widths(value) {
   const widget = `
 /** @typedef {number} i32 */
 /** @typedef {number} u32 */
-/** @typedef {Readonly<{ n: i32, list: readonly i32[] }>} S */
+/** @typedef {number} i53 */
+/** @typedef {Readonly<{ n: i32, id: i53, list: readonly i32[] }>} S */
 /** @typedef {Readonly<{ type: 'go', by: i32, at: number }>} I */
 /**
  * The step
@@ -57,11 +58,11 @@ function widths(value) {
  * @returns {readonly [S, readonly never[]]} The result
  */
 function step(state, input) {
-  return [{ ...state, n: ${value} }, []]
+  return [{ ...state, id: state.id + 1, n: ${value} }, []]
 }
 
 export const widget = {
-  init: (/** @type {i32} */ n) => [{ list: [], n }, []],
+  init: (/** @type {i32} */ n) => [{ id: 0, list: [], n }, []],
   step,
   view: () => ({}),
 }
