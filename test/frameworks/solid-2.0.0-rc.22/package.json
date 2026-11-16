@@ -1,0 +1,12 @@
+{
+  "name": "@pterror/interact-test-solid-2.0.0-rc.22",
+  "private": true,
+  "description": "The framework version solid-2.0.0-rc.22 the components are tested against",
+  "type": "module",
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "@solidjs/web": "2.0.0-rc.22",
+    "axe-core": "^4.14.0",
+    "solid-js": "2.0.0-rc.22"
+  }
+}

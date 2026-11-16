@@ -150,12 +150,22 @@ async function load(path) {
 }
 
 /**
- * Imports every module the packages ship
+ * Whether a module is for a major version of its framework other than the one the repo develops against (Solid 2's
+ * entry and adapter), which only that version's fixture in test/frameworks can import
+ * @param {string} path - The module, from the repo root
+ * @returns {boolean} Whether it is
+ */
+function forAnotherVersion(path) {
+  return path === 'packages/solid/src/2.js' || path.startsWith('packages/solid/src/solid-2/')
+}
+
+/**
+ * Imports every module the packages ship, but those for another version of their framework
  * @returns {Promise<void>} When all have loaded
  */
 async function importEveryModule() {
   const modules = await shippedModules()
-  await Promise.all(modules.map(async (path) => load(`${ROOT}${path}`)))
+  await Promise.all(modules.filter((path) => !forAnotherVersion(path)).map(async (path) => load(`${ROOT}${path}`)))
 }
 
 /** @type {readonly Readonly<{ pattern: RegExp, what: string }>[]} */

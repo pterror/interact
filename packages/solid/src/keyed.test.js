@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 
 import { arrayList, keySet } from '@pterror/interact-list'
-import { createRenderEffect, createRoot, createSignal } from 'solid-js'
+import { createRoot, createSignal } from 'solid-js'
 
-import { fromKeyed } from './from-keyed.js'
-import { fromTest } from './from-test.js'
+import { adapter, flush, fromKeyed, fromTest } from '#test-solid'
 
 describe('fromTest', () => {
   test('reruns only the computations reading the keys a change names', () => {
@@ -16,13 +15,17 @@ describe('fromTest', () => {
     createRoot(() => {
       const isActive = fromTest(active)
       for (const key of keys) {
-        createRenderEffect(() => {
-          isActive(key)
-          runs.set(key, (runs.get(key) ?? 0) + 1)
-        })
+        adapter.renderEffect(
+          () => isActive(key),
+          () => {
+            runs.set(key, (runs.get(key) ?? 0) + 1)
+          },
+          false,
+        )
       }
     })
     active.set('k5')
+    flush()
     const rerun = keys.filter((key) => (runs.get(key) ?? 0) > 1)
     expect(rerun).toEqual(['k0', 'k5'])
   })
@@ -49,9 +52,13 @@ describe('fromTest', () => {
     const seen = []
     const dispose = createRoot((disposeRoot) => {
       const isClosed = fromTest(closedTest)
-      createRenderEffect(() => {
-        seen.push(isClosed('a'))
-      })
+      adapter.renderEffect(
+        () => isClosed('a'),
+        (closedNow) => {
+          seen.push(closedNow)
+        },
+        false,
+      )
       expect(isClosed('z')).toBe(false)
       return disposeRoot
     })
@@ -60,6 +67,7 @@ describe('fromTest', () => {
     for (const listener of listeners) {
       listener()
     }
+    flush()
     expect(asked).toEqual(['a'])
     expect(seen).toEqual([true, false])
     dispose()
@@ -90,18 +98,23 @@ describe('fromKeyed', () => {
           }
         },
       )
-      createRenderEffect(() => {
-        if (showing()) {
-          seen.push(nodeOf('a'))
-        }
-      })
+      adapter.renderEffect(
+        () => (showing() ? [nodeOf('a')] : []),
+        (/** @type {readonly (string | undefined)[]} */ shown) => {
+          seen.push(...shown)
+        },
+        false,
+      )
     })
     setNodes(new Map([['a', 'Alpha, renamed']]))
+    flush()
     for (const listener of listeners) {
       listener(['a'])
     }
+    flush()
     expect(seen).toEqual(['Alpha', 'Alpha, renamed'])
     setShowing(false)
+    flush()
     await Promise.resolve()
     read.length = 0
     for (const listener of listeners) {

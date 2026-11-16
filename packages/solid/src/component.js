@@ -21,23 +21,13 @@ import {
   same,
   widgetProps,
 } from '@pterror/interact-core'
-import {
-  createComponent,
-  createEffect,
-  createMemo,
-  createSignal,
-  createUniqueId,
-  onCleanup,
-  onMount,
-  untrack,
-} from 'solid-js'
-import { Dynamic } from 'solid-js/web'
+import { createComponent, createUniqueId, untrack } from 'solid-js'
 
-import { Interact } from './interact.js'
+import { interactWith } from './interact.js'
 
 /** @import { Description, Host, Key, Names, Naming, Out, OutsideGiven, Props, Source, Words, Sourced } from '@pterror/interact-core' */
-/** @import { Component as SolidComponent, JSX } from 'solid-js' */
-/** @import { PartProps } from './interact.js' */
+/** @import { Component as SolidComponent } from 'solid-js' */
+/** @import { Adapter, PartProps, SolidElement } from './adapter.js' */
 
 /**
  * What a bound value's change callback is given beside the value: `refuse` undoes the change, now or later
@@ -52,7 +42,7 @@ import { Interact } from './interact.js'
  * refers to (its visible `label`), each by id, as an element, or by a function giving it
  * @template {string} Parts
  * @typedef {Readonly<{
- *   item?: (key: Key) => JSX.Element,
+ *   item?: (key: Key) => SolidElement,
  *   itemName?: (key: Key) => string,
  *   name?: string,
  *   parts?: Readonly<{ [P in Parts]?: SolidComponent<PartProps> }>,
@@ -144,125 +134,155 @@ function isCallback(value) {
 
 /**
  * Makes a component from a widget's description
- * @template O
- * @template {string} Parts
- * @param {Description} description - The widget, and how the component takes its props
- * @returns {Component<O, Parts>} The component
+ * @typedef {<O, Parts extends string>(description: Description) => Component<O, Parts>} Make
  */
-function component(description) {
+
+/**
+ * `component` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {Make} Making a component from a widget's description
+ */
+function componentWith(solid) {
+  const Interact = interactWith(solid)
   /**
-   * The component
-   * @param {Given} props - Its props
-   * @returns {JSX.Element} The widget, drawn
+   * Makes a component from a widget's description
+   * @template O
+   * @template {string} Parts
+   * @param {Description} description - The widget, and how the component takes its props
+   * @returns {Component<O, Parts>} The component
    */
-  const Generated = (props) => {
-    const [held, setHeld] = createSignal(untrack(() => heldFrom(description, props, NAMES)))
-    const items = itemSources()
-    const given = () => givenFrom(description, items.read(description, props).props, held(), NAMES)
-    const widget = createMemo(() => widgetProps(description, given()), undefined, { equals: same })
-    createEffect(() => {
-      items.read(description, props)
-      items.apply()
-    })
-    const initial = untrack(held)
-
+  const component = (description) => {
     /**
-     * Hears an effect the widget gives the app
-     * @param {Out} out - The effect
-     * @param {Host} host - The running widget
-     * @returns {void}
+     * The component
+     * @param {Given} props - Its props
+     * @returns {SolidElement} The widget, drawn
      */
-    const effect = (out, host) => {
-      const routed = route(description, out)
-      if (routed === null) {
-        return
+    const Generated = (props) => {
+      const initial = untrack(() => heldFrom(description, props, NAMES))
+      /** What is held with every change so far, which a read of the signal shows only once Solid applies it */
+      let now = initial
+      const [held, setHeld] = solid.signal(initial)
+      /**
+       * Holds a value
+       * @param {ReturnType<typeof heldFrom>} next - What is held now
+       * @returns {void}
+       */
+      const hold = (next) => {
+        now = next
+        setHeld(next)
       }
-      const at = propsAt(props, routed.inside)
-      if ('event' in routed) {
-        const heard = at[`on${capital(routed.event)}`]
-        if (isCallback(heard)) {
-          heard(routed.effect)
+      const items = itemSources()
+      const given = () => givenFrom(description, items.read(description, props).props, held(), NAMES)
+      const widget = solid.memo(() => widgetProps(description, given()), same)
+      solid.effect(
+        () => items.read(description, props),
+        () => {
+          items.apply()
+        },
+        false,
+      )
+
+      /**
+       * Hears an effect the widget gives the app
+       * @param {Out} out - The effect
+       * @param {Host} host - The running widget
+       * @returns {void}
+       */
+      const effect = (out, host) => {
+        const routed = route(description, out)
+        if (routed === null) {
+          return
         }
-        return
-      }
-      const described = describedAt(description, routed.inside)
-      if (described.value === null) {
-        return
-      }
-      const own = ownValue(described, at, NAMES)
-      const before = heldAt(held(), routed.inside)
-      const { id, value } = routed.change
-      if (own) {
-        setHeld((now) => holding(now, routed.inside, value))
-      }
-      const { prop } = described.value
-      const heard = at[prop === 'value' ? 'onChange' : `on${capital(prop)}Change`]
-      if (isCallback(heard)) {
-        heard(value, {
-          refuse: () => {
-            if (own && heldAt(held(), routed.inside) === value) {
-              setHeld((now) => holding(now, routed.inside, before))
-            }
-            host.dispatch(out.from, { id, type: 'refused' })
-          },
-        })
-      }
-    }
-
-    const options = hostOptions(
-      props,
-      { id: createUniqueId(), keyId: String },
-      () => props,
-      untrack(() => items.read(description, props).sources),
-    )
-    const drawn = createComponent(Interact, {
-      ...options,
-      effect,
-      get item() {
-        return props.item
-      },
-      get parts() {
-        return props.parts
-      },
-      get props() {
-        return widget()
-      },
-      widget: description.widget,
-    })
-    if (!inForm(description) || typeof untrack(() => props.name) !== 'string') {
-      return drawn
-    }
-    /**
-     * Gives a value of its own back what it started as, when its form is reset
-     * @returns {void}
-     */
-    const reset = () => {
-      if (ownValue(description, props, NAMES)) {
-        setHeld(initial)
-      }
-    }
-    const field = createComponent(Dynamic, {
-      component: 'input',
-      get name() {
-        return props.name
-      },
-      ref: (/** @type {HTMLInputElement} */ input) => {
-        onMount(() => {
-          const { form } = input
-          form?.addEventListener('reset', reset)
-          onCleanup(() => {
-            form?.removeEventListener('reset', reset)
+        const at = propsAt(props, routed.inside)
+        if ('event' in routed) {
+          const heard = at[`on${capital(routed.event)}`]
+          if (isCallback(heard)) {
+            heard(routed.effect)
+          }
+          return
+        }
+        const described = describedAt(description, routed.inside)
+        if (described.value === null) {
+          return
+        }
+        const own = ownValue(described, at, NAMES)
+        const before = heldAt(now, routed.inside)
+        const { id, value } = routed.change
+        if (own) {
+          hold(holding(now, routed.inside, value))
+        }
+        const { prop } = described.value
+        const heard = at[prop === 'value' ? 'onChange' : `on${capital(prop)}Change`]
+        if (isCallback(heard)) {
+          heard(value, {
+            refuse: () => {
+              if (own && heldAt(now, routed.inside) === value) {
+                hold(holding(now, routed.inside, before))
+              }
+              host.dispatch(out.from, { id, type: 'refused' })
+            },
           })
-        })
-      },
-      type: 'hidden',
-      get value() {
-        return formValue(description, given()) ?? ''
-      },
-    })
-    return [drawn, field]
+        }
+      }
+
+      const options = hostOptions(
+        props,
+        { id: createUniqueId(), keyId: String },
+        () => props,
+        untrack(() => items.read(description, props).sources),
+      )
+      const drawn = createComponent(Interact, {
+        ...options,
+        effect,
+        get item() {
+          return props.item
+        },
+        get parts() {
+          return props.parts
+        },
+        get props() {
+          return widget()
+        },
+        widget: description.widget,
+      })
+      if (!inForm(description) || typeof untrack(() => props.name) !== 'string') {
+        return drawn
+      }
+      /**
+       * Gives a value of its own back what it started as, when its form is reset
+       * @returns {void}
+       */
+      const reset = () => {
+        if (ownValue(description, props, NAMES)) {
+          hold(initial)
+        }
+      }
+      /** @type {HTMLInputElement | null} */
+      let input = null
+      const field = solid.element('input', {
+        get name() {
+          return props.name
+        },
+        ref: (/** @type {HTMLInputElement} */ element) => {
+          input = element
+        },
+        type: 'hidden',
+        get value() {
+          return formValue(description, given()) ?? ''
+        },
+      })
+      solid.settled(() => {
+        const form = input?.form ?? null
+        form?.addEventListener('reset', reset)
+        return () => {
+          form?.removeEventListener('reset', reset)
+        }
+      })
+      return [drawn, field]
+    }
+    return Object.assign(Generated, { description })
   }
-  return Object.assign(Generated, { description })
+  return component
 }
 
-export { component }
+export { componentWith }

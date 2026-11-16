@@ -380,7 +380,179 @@ export { ${widget.name} }
 }
 
 /**
- * Solid's components, beside the package's own modules
+ * A Solid widget's module: a function binding the widget to an entry's `component`, so every entry (one per major
+ * version of Solid) shares the module
+ * @param {Described} widget - The widget
+ * @param {string} header - The generated files' header
+ * @returns {string} The module
+ */
+function solidModule(widget, header) {
+  const name = capital(widget.name)
+  const binder = `${widget.name}With`
+  const bound = widget.value === null ? 'never' : `'${widget.value.prop}'`
+  const coreTypes = widget.events.length > 0 ? 'EffectOf, PropsOf' : 'PropsOf'
+  const imported = widgetImports(widget)
+  const factory = widget.factory !== null
+  const types = [
+    `/** @import { ${factory ? 'AnyComponent, Component, Make, Own, OwnOf, PartsInside' : 'Component, Make, Own'} } from '../component.js' */`,
+    `/** @import { ${coreTypes} } from '@pterror/interact-core' */`,
+    imported.types,
+  ].join('\n')
+  if (widget.factory === null) {
+    return `${header}
+${imported.code}
+
+${types}
+
+/** @typedef {typeof source} Widget */
+/** @typedef {PropsOf<Widget>} WidgetProps */
+
+/** @typedef {${partUnion(widget)}} ${name}Parts */
+/** @typedef {Own<WidgetProps, ${bound}, ${valueType(widget)}, ${eventType(widget)}, unknown, ${sourceUnion(widget)}>} ${name}Props */
+
+/**
+ * Makes \`${name}\` with an entry's \`component\`
+ * @param {Make} component - The entry's \`component\`
+ * @returns {Component<${name}Props, ${name}Parts>} The component
+ */
+function ${binder}(component) {
+  return component(${descriptionLiteral(widget, 'widget', '{}')})
+}
+
+export { ${binder} }
+`
+  }
+  const factoryParams = widget.factory
+  const inside = insideParams(widget)
+  const generics = inside.map((param) => `   * @template {AnyComponent} ${capital(param.name)}`).join('\n')
+  const params = factoryParams
+    .map((param) =>
+      param.inside === null
+        ? `   * @param {Parameters<typeof source>[${String(factoryParams.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
+        : `   * @param {${capital(param.name)}} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
+    )
+    .join('\n')
+  const insideProps = `Readonly<{ ${inside.map((param) => `${param.inside}: OwnOf<${capital(param.name)}>`).join(', ')} }>`
+  const parts = [
+    partUnion(widget),
+    ...inside.map((param) => `PartsInside<${capital(param.name)}, '${param.inside}'>`),
+  ].join(' | ')
+  const args = factoryParams
+    .map((param) => (param.inside === null ? param.name : `${param.name}.description.widget`))
+    .join(', ')
+  const insideLiteral = `{ ${inside.map((param) => `${param.inside}: ${param.name}.description`).join(', ')} }`
+  return `${header}
+${imported.code}
+
+${types}
+
+/** @typedef {ReturnType<typeof source>} Widget */
+/** @typedef {PropsOf<Widget>} WidgetProps */
+
+/**
+ * Makes \`${widget.name}\` with an entry's \`component\`
+ * @param {Make} component - The entry's \`component\`
+ * @returns The factory of components
+ */
+function ${binder}(component) {
+  /**
+${docLines(widget.doc).replaceAll(/^/gmu, '  ')}
+${generics}
+${params}
+   * @returns {Component<Own<WidgetProps, ${bound}, ${valueType(widget)}, ${eventType(widget)}, ${insideProps}, ${sourceUnion(widget)}>, ${parts}>}
+   *   The component
+   */
+  const ${widget.name} = (${factoryParams.map((param) => param.name).join(', ')}) =>
+    component(${descriptionLiteral(widget, `widget(${args})`, insideLiteral)})
+  return ${widget.name}
+}
+
+export { ${binder} }
+`
+}
+
+/**
+ * The modules of Solid's package that an entry binds to its version's adapter, by what each exports; the others it
+ * exports as they are
+ * @type {readonly Readonly<{ name: string, module: string, bound: boolean }>[]}
+ */
+const SOLID_GLUE = [
+  { bound: true, module: 'component', name: 'component' },
+  { bound: false, module: 'component-items', name: 'componentItems' },
+  { bound: true, module: 'from-keyed', name: 'fromKeyed' },
+  { bound: true, module: 'from-test', name: 'fromTest' },
+  { bound: true, module: 'from-watched', name: 'fromWatched' },
+  { bound: true, module: 'interact', name: 'Interact' },
+  { bound: true, module: 'to-drawn', name: 'toDrawn' },
+  { bound: false, module: 'to-set', name: 'toSet' },
+  { bound: false, module: 'to-value', name: 'toValue' },
+  { bound: true, module: 'to-watched', name: 'toWatched' },
+]
+
+/**
+ * The function binding one of Solid's package's modules to an adapter, by what it makes
+ * @param {string} name - What it makes
+ * @returns {string} Its name
+ */
+function solidBinder(name) {
+  return `${name.slice(0, 1).toLowerCase()}${name.slice(1)}With`
+}
+
+/**
+ * The name an entry of Solid's package exports a widget's component by: a factory's own name, or the component's
+ * @param {Described} widget - The widget
+ * @returns {string} The name
+ */
+function solidExport(widget) {
+  return widget.factory === null ? capital(widget.name) : widget.name
+}
+
+/**
+ * An entry of Solid's package: the package's modules and every widget's component, bound to one version's adapter
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @param {string} doc - What the entry is
+ * @param {string} adapter - The version's adapter, from the entry
+ * @returns {string} The entry
+ */
+function solidEntry(widgets, header, doc, adapter) {
+  const bound = SOLID_GLUE.filter((glue) => glue.bound)
+  const imports = [
+    `import { adapter } from '${adapter}'`,
+    ...bound.map((glue) => `import { ${solidBinder(glue.name)} } from './${glue.module}.js'`),
+    `import { ${widgets.map((widget) => `${widget.name}With`).join(', ')} } from './widgets/index.js'`,
+  ]
+  const asTheyAre = SOLID_GLUE.filter((glue) => !glue.bound).map(
+    (glue) => `export { ${glue.name} } from './${glue.module}.js'`,
+  )
+  const made = [
+    ...bound.map((glue) => `const ${glue.name} = /* @__PURE__ */ ${solidBinder(glue.name)}(adapter)`),
+    ...widgets.map(
+      (widget) => `
+/**
+${docLines(widget.doc)}
+ */
+const ${solidExport(widget)} = /* @__PURE__ */ ${widget.name}With(component)`,
+    ),
+  ]
+  return `${header}
+/**
+${docLines(doc)}
+ */
+
+${imports.join('\n')}
+
+${asTheyAre.join('\n')}
+
+${made.join('\n')}
+
+export { ${[...bound.map((glue) => glue.name), ...widgets.map((widget) => solidExport(widget))].join(', ')} }
+`
+}
+
+/**
+ * Solid's components, beside the package's own modules: each widget's module, shared by the entries, and an entry per
+ * major version of Solid, binding them and the package's modules to that version's adapter
  * @param {readonly Described[]} widgets - The widgets
  * @param {string} header - The generated files' header
  * @returns {Files} The files
@@ -389,9 +561,24 @@ function solid(widgets, header) {
   /** @type {Map<string, string>} */
   const files = new Map()
   for (const widget of widgets) {
-    files.set(`widgets/${fileName(widget.name)}.js`, componentModule(widget, header, '../component.js', false))
+    files.set(`widgets/${fileName(widget.name)}.js`, solidModule(widget, header))
   }
-  files.set('widgets/index.js', componentIndex(widgets, header, '').replaceAll("'./widgets/", "'./"))
+  files.set(
+    'widgets/index.js',
+    `${header}
+${widgets.map((widget) => `export { ${widget.name}With } from './${fileName(widget.name)}.js'`).join('\n')}
+`,
+  )
+  const about =
+    "Solid and interact's abstractions, both ways: signals and memos as Values, Watched, Drawn and Sets; Watched and Tests as accessors; a component as what render draws; `Interact`, any interact core widget drawn by Solid; and a component for each of the core's widgets, generated from it."
+  files.set(
+    'index.js',
+    solidEntry(widgets, header, `${about} For Solid 1.8+ (\`solid-js\` and \`solid-js/web\`).`, './solid-1/adapter.js'),
+  )
+  files.set(
+    '2.js',
+    solidEntry(widgets, header, `${about} For Solid 2 (\`solid-js\` 2 and \`@solidjs/web\`).`, './solid-2/adapter.js'),
+  )
   return files
 }
 

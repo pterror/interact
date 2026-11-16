@@ -7,6 +7,8 @@ Value, Watched, Drawn or Set; any Watched or Test is an accessor; any component 
 npm install @pterror/interact-solid solid-js
 ```
 
+For Solid 2, import from `@pterror/interact-solid/2` (and install `@solidjs/web`), which exports the same names.
+
 | Bridge                   | From                                        | To                                  |
 | ------------------------ | ------------------------------------------- | ----------------------------------- |
 | `toValue(accessor)`      | a signal, memo or derived function          | Value, read untracked               |
@@ -62,7 +64,9 @@ function Entries() {
 ```
 
 An item's component runs when render makes its element; its effects (`onMount` included) run after the element is in
-place when a Solid update is under way, and before it otherwise. Read layout in a facet (`measure`, `place`). Leave the
-attributes and styles a facet sets to the facet.
+place when a Solid update is under way, and before it otherwise. In Solid 2 a change is applied at the next flush (a
+microtask later, or `flush()`): a Watched hears it then, and an item's effects (`onSettled` included) run then, after
+the element is in place. Read layout in a facet (`measure`, `place`). Leave the attributes and styles a facet sets to
+the facet.
 
 Needs `@pterror/interact-list` 0.2.0 or later, for render's `drop`.

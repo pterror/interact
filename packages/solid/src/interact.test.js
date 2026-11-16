@@ -2,10 +2,9 @@ import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource, select } from '@pterror/interact-core'
 import axe from 'axe-core'
-import { createComponent, createRoot, createSignal, mergeProps, splitProps } from 'solid-js'
-import { Dynamic, insert } from 'solid-js/web'
+import { createComponent, createRoot, createSignal } from 'solid-js'
 
-import { Interact } from './interact.js'
+import { adapter, flush, insert, Interact, omit } from '#test-solid'
 
 /** @import { Key, Out } from '@pterror/interact-core' */
 
@@ -75,16 +74,12 @@ describe('Interact', () => {
             parts: {
               option: (part) => {
                 made += 1
-                const [own, rest] = splitProps(part, ['children', 'part'])
-                return createComponent(
-                  Dynamic,
-                  mergeProps(rest, {
-                    get children() {
-                      return [rest['aria-selected'] === 'true' ? '✓ ' : '', own.children]
-                    },
-                    component: 'div',
-                  }),
-                )
+                const rest = omit(part, ['children', 'part'])
+                return adapter.element('div', rest, {
+                  get children() {
+                    return [rest['aria-selected'] === 'true' ? '✓ ' : '', part.children]
+                  },
+                })
               },
             },
             get props() {
@@ -97,17 +92,20 @@ describe('Interact', () => {
         return dispose
       }),
     )
+    flush()
     const trigger = container.querySelector('[role=combobox]')
     expect(trigger?.textContent).toBe('Choose')
     press(trigger, 'ArrowDown')
     await settled()
     press(trigger, 'ArrowDown')
+    flush()
     const options = [...container.querySelectorAll('[role=option]')]
     expect(options.map((option) => option.textContent)).toEqual(['Apple', 'Banana', 'Cherry', 'Date'])
     expect(made).toBe(4)
     const id = trigger?.id ?? ''
     expect(trigger?.getAttribute('aria-activedescendant')).toBe(id.replace(/-trigger$/u, '-list-option-Banana'))
     press(trigger, 'Enter')
+    flush()
     expect(heard.map((out) => out.effect)).toEqual([{ id: 1, type: 'change', value: 'Banana' }])
     expect([trigger?.textContent, value()]).toEqual(['Banana', 'Banana'])
     expect(container.querySelector('[role=listbox]')?.hasAttribute('hidden')).toBe(true)
@@ -116,6 +114,7 @@ describe('Interact', () => {
     expect(container.querySelector('[aria-selected=true]')?.textContent).toBe('✓ Banana')
     expect([[...container.querySelectorAll('[role=option]')], made]).toEqual([options, 4])
     setValue('Fig')
+    flush()
     expect(trigger?.textContent).toBe('Fig')
     const result = await axe.run(container, { rules: { 'color-contrast': { enabled: false } } })
     expect(result.violations.map((one) => one.id)).toEqual([])

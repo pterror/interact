@@ -4,10 +4,11 @@
  * is called in: they see its context, and are disposed with it, if render hasn't dropped them by then. So call it
  * where render is called, and stop render there too (`onCleanup(rendered.stop)`).
  *
- * The component runs when render makes the element, which render then puts in place. Its effects (`onMount`
- * included) run at the end of the Solid update under way, which is after the element is in place; outside one, at the
- * end of making the element, before it is in place. Layout is read by facets (`measure`, `place`), which render
- * applies once the element is in place.
+ * The component runs when render makes the element, which render then puts in place. Its effects run once Solid
+ * applies the update under way, which is after the element is in place; in Solid 1, outside an update, they (`onMount`
+ * included) run at the end of making the element, before it is in place, while Solid 2 runs them (`onSettled`
+ * included) at the next flush, after. Layout is read by facets (`measure`, `place`), which render applies once the
+ * element is in place.
  */
 import type { Component } from 'solid-js';
 /**

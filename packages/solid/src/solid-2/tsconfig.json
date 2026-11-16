@@ -1,0 +1,16 @@
+{
+  // The package checked against Solid 2, from the version matrix's install of it, as its tests run there:
+  // `#test-solid` by the `solid-2` condition
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "customConditions": ["solid-2"],
+    // @solidjs/web 2.0.0-rc.22's declarations import `heldRead` from solid-js, whose declarations don't export it
+    "skipLibCheck": true,
+    "paths": {
+      "solid-js": ["../../../../test/frameworks/solid-2.0.0-rc.22/node_modules/solid-js"],
+      "@solidjs/web": ["../../../../test/frameworks/solid-2.0.0-rc.22/node_modules/@solidjs/web"]
+    }
+  },
+  "include": ["../**/*"],
+  "exclude": ["../index.js", "../solid-1/**"]
+}

@@ -11,6 +11,7 @@
   "files": [
     "src",
     "!src/**/*.test.js",
+    "!src/**/tsconfig.json",
     "dist",
     "!dist/**/*.test.d.ts"
   ],
@@ -18,10 +19,20 @@
   "sideEffects": false,
   "main": "src/index.js",
   "types": "dist/index.d.ts",
+  "imports": {
+    "#test-solid": {
+      "solid-2": "./src/solid-2/test-solid.js",
+      "default": "./src/solid-1/test-solid.js"
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./src/index.js"
+    },
+    "./2": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/2.js"
     },
     "./*": {
       "types": "./dist/*.d.ts",
@@ -40,6 +51,12 @@
   },
   "peerDependencies": {
     "@pterror/interact-core": "workspace:^",
-    "solid-js": "^1.8.0"
+    "@solidjs/web": "^2.0.0-rc.22",
+    "solid-js": "^1.8.0 || ^2.0.0-rc.22"
+  },
+  "peerDependenciesMeta": {
+    "@solidjs/web": {
+      "optional": true
+    }
   }
 }

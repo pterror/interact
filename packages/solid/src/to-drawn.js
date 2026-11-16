@@ -3,19 +3,34 @@
  */
 
 /** @import { Accessor } from 'solid-js' */
+/** @import { Adapter } from './adapter.js' */
 
-import { toWatched } from './to-watched.js'
+import { toWatchedWith } from './to-watched.js'
 
 /**
- * Keys in a signal or memo as a Drawn
+ * Keys now, and hearing them change
  * @template K
- * @param {Accessor<readonly K[]>} accessor - The keys, in order, each once
- * @returns {Readonly<{ keys: () => readonly K[], watch: (listener: () => void) => () => void }>} The keys now, and
- *   hearing them change
+ * @typedef {Readonly<{ keys: () => readonly K[], watch: (listener: () => void) => () => void }>} Drawn
  */
-function toDrawn(accessor) {
-  const watched = toWatched(accessor)
-  return { keys: watched.get, watch: watched.watch }
+
+/**
+ * `toDrawn` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<K>(accessor: Accessor<readonly K[]>) => Drawn<K>} Keys in a signal or memo as a Drawn
+ */
+function toDrawnWith(solid) {
+  const toWatched = toWatchedWith(solid)
+  /**
+   * Keys in a signal or memo as a Drawn
+   * @template K
+   * @param {Accessor<readonly K[]>} accessor - The keys, in order, each once
+   * @returns {Drawn<K>} The keys now, and hearing them change
+   */
+  const toDrawn = (accessor) => {
+    const watched = toWatched(accessor)
+    return { keys: watched.get, watch: watched.watch }
+  }
+  return toDrawn
 }
 
-export { toDrawn }
+export { toDrawnWith }

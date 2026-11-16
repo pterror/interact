@@ -5,13 +5,13 @@
  * `createUniqueId`.
  */
 import type { Description, Key, Naming, OutsideGiven, Props, Source, Words, Sourced } from '@pterror/interact-core';
-import type { Component as SolidComponent, JSX } from 'solid-js';
-import type { PartProps } from './interact.js';
+import type { Component as SolidComponent } from 'solid-js';
+import type { Adapter, PartProps, SolidElement } from './adapter.js';
 export type Change = Readonly<{
     refuse: () => void;
 }>;
 export type HostProps<Parts extends string> = Readonly<{
-    item?: (key: Key) => JSX.Element;
+    item?: (key: Key) => SolidElement;
     itemName?: (key: Key) => string;
     name?: string;
     parts?: Readonly<{ [P in Parts]?: SolidComponent<PartProps>; }>;
@@ -60,12 +60,15 @@ export type AnyComponent = Readonly<{
 export type OwnOf<C extends AnyComponent> = NonNullable<C['types']>['own'];
 export type PartsInside<C extends AnyComponent, Inside extends string> = Exclude<NonNullable<C['types']>['parts'], 'root'> | Inside;
 export type Given = HostProps<string> & Props;
+export type Make = <O, Parts extends string>(description: Description) => Component<O, Parts>;
 /**
  * Makes a component from a widget's description
- * @template O
- * @template {string} Parts
- * @param {Description} description - The widget, and how the component takes its props
- * @returns {Component<O, Parts>} The component
+ * @typedef {<O, Parts extends string>(description: Description) => Component<O, Parts>} Make
  */
-declare function component<O, Parts extends string>(description: Description): Component<O, Parts>;
-export { component };
+/**
+ * `component` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {Make} Making a component from a widget's description
+ */
+declare function componentWith(solid: Adapter): Make;
+export { componentWith };

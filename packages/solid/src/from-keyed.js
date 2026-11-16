@@ -6,7 +6,9 @@
  * is owned by the Solid owner it is made in, and stops listening when that is disposed.
  */
 
-import { batch, createSignal, getListener, onCleanup, untrack } from 'solid-js'
+/** @import { Adapter } from './adapter.js' */
+
+import { onCleanup, untrack } from 'solid-js'
 
 /**
  * A key some computation reads: its answer, setting it, and how many computations read it
@@ -15,66 +17,69 @@ import { batch, createSignal, getListener, onCleanup, untrack } from 'solid-js'
  */
 
 /**
- * Answers per key as accessors
- * @template K, T
- * @param {(key: K) => T} read - A key's answer now
- * @param {(listener: (keys?: readonly K[]) => void) => () => void} watch - Hearing the keys whose answer changed (none:
- *   any)
- * @returns {(key: K) => T} A key's answer, tracked when read in a computation
+ * `fromKeyed` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<K, T>(read: (key: K) => T, watch: (listener: (keys?: readonly K[]) => void) => () => void) => (key: K) =>
+ *   T} Answers per key as accessors
  */
-function fromKeyed(read, watch) {
-  /** @type {Map<K, Followed<T>>} */
-  const followed = new Map()
-
+function fromKeyedWith(solid) {
   /**
-   * Reads a followed key's answer again
-   * @param {K} key - The key
-   * @returns {void}
+   * Answers per key as accessors
+   * @template K, T
+   * @param {(key: K) => T} read - A key's answer now
+   * @param {(listener: (keys?: readonly K[]) => void) => () => void} watch - Hearing the keys whose answer changed
+   *   (none: any)
+   * @returns {(key: K) => T} A key's answer, tracked when read in a computation
    */
-  const reread = (key) => {
-    followed.get(key)?.set(untrack(() => read(key)))
-  }
+  const fromKeyed = (read, watch) => {
+    /** @type {Map<K, Followed<T>>} */
+    const followed = new Map()
 
-  onCleanup(
-    watch((keys) => {
-      batch(() => {
-        for (const key of keys ?? [...followed.keys()]) {
-          reread(key)
-        }
-      })
-    }),
-  )
-
-  return (key) => {
-    if (getListener() === null) {
-      return read(key)
+    /**
+     * Reads a followed key's answer again
+     * @param {K} key - The key
+     * @returns {void}
+     */
+    const reread = (key) => {
+      followed.get(key)?.set(untrack(() => read(key)))
     }
-    let entry = followed.get(key)
-    if (entry === undefined) {
-      const [get, setValue] = createSignal(untrack(() => read(key)))
-      /** @type {Followed<T>} */
-      const made = {
-        get,
-        readers: 0,
-        set: (value) => {
-          setValue(() => value)
-        },
+
+    onCleanup(
+      watch((keys) => {
+        solid.batch(() => {
+          for (const key of keys ?? [...followed.keys()]) {
+            reread(key)
+          }
+        })
+      }),
+    )
+
+    return (key) => {
+      if (!solid.tracking()) {
+        return read(key)
       }
-      followed.set(key, made)
-      entry = made
-    }
-    const reading = entry
-    reading.readers += 1
-    onCleanup(() => {
-      reading.readers -= 1
-      queueMicrotask(() => {
-        if (reading.readers === 0 && followed.get(key) === reading) {
-          followed.delete(key)
-        }
+      let entry = followed.get(key)
+      if (entry === undefined) {
+        const [get, set] = solid.signal(untrack(() => read(key)))
+        /** @type {Followed<T>} */
+        const made = { get, readers: 0, set }
+        followed.set(key, made)
+        entry = made
+      }
+      const reading = entry
+      reading.readers += 1
+      onCleanup(() => {
+        reading.readers -= 1
+        queueMicrotask(() => {
+          if (reading.readers === 0 && followed.get(key) === reading) {
+            followed.delete(key)
+          }
+        })
       })
-    })
-    return reading.get()
+      return reading.get()
+    }
   }
+  return fromKeyed
 }
 
-export { fromKeyed }
+export { fromKeyedWith }

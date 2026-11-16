@@ -5,6 +5,7 @@
  * names, and only when that key's answer is another one; a change naming no keys rereads the followed keys alone. It
  * is owned by the Solid owner it is made in, and stops listening when that is disposed.
  */
+import type { Adapter } from './adapter.js';
 export type Followed<T> = {
     readonly get: () => T;
     readonly set: (value: T) => void;
@@ -16,12 +17,10 @@ export type Followed<T> = {
  * @typedef {{ readonly get: () => T, readonly set: (value: T) => void, readers: number }} Followed
  */
 /**
- * Answers per key as accessors
- * @template K, T
- * @param {(key: K) => T} read - A key's answer now
- * @param {(listener: (keys?: readonly K[]) => void) => () => void} watch - Hearing the keys whose answer changed (none:
- *   any)
- * @returns {(key: K) => T} A key's answer, tracked when read in a computation
+ * `fromKeyed` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<K, T>(read: (key: K) => T, watch: (listener: (keys?: readonly K[]) => void) => () => void) => (key: K) =>
+ *   T} Answers per key as accessors
  */
-declare function fromKeyed<K, T>(read: (key: K) => T, watch: (listener: (keys?: readonly K[]) => void) => () => void): (key: K) => T;
-export { fromKeyed };
+declare function fromKeyedWith(solid: Adapter): <K, T>(read: (key: K) => T, watch: (listener: (keys?: readonly K[]) => void) => () => void) => (key: K) => T;
+export { fromKeyedWith };

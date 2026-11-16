@@ -4,25 +4,34 @@
  */
 
 /** @import { Accessor } from 'solid-js' */
+/** @import { Adapter } from './adapter.js' */
 
-import { createSignal, onCleanup, untrack } from 'solid-js'
+import { onCleanup, untrack } from 'solid-js'
 
 /**
- * A Watched as an accessor
- * @template T
- * @param {Readonly<{ get: () => T, watch: (listener: () => void) => () => void }>} watched - The value, and hearing it
- *   change
- * @returns {Accessor<T>} The value, tracked; computations rerun only when it is another value
+ * `fromWatched` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<T>(watched: Readonly<{ get: () => T, watch: (listener: () => void) => () => void }>) => Accessor<T>} A
+ *   Watched as an accessor
  */
-function fromWatched(watched) {
-  const [value, setValue] = createSignal(untrack(() => watched.get()))
-  onCleanup(
-    watched.watch(() => {
-      const next = untrack(() => watched.get())
-      setValue(() => next)
-    }),
-  )
-  return value
+function fromWatchedWith(solid) {
+  /**
+   * A Watched as an accessor
+   * @template T
+   * @param {Readonly<{ get: () => T, watch: (listener: () => void) => () => void }>} watched - The value, and hearing
+   *   it change
+   * @returns {Accessor<T>} The value, tracked; computations rerun only when it is another value
+   */
+  const fromWatched = (watched) => {
+    const [value, setValue] = solid.signal(untrack(() => watched.get()))
+    onCleanup(
+      watched.watch(() => {
+        setValue(untrack(() => watched.get()))
+      }),
+    )
+    return value
+  }
+  return fromWatched
 }
 
-export { fromWatched }
+export { fromWatchedWith }

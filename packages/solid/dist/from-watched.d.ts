@@ -3,15 +3,15 @@
  * disposed.
  */
 import type { Accessor } from 'solid-js';
+import type { Adapter } from './adapter.js';
 /**
- * A Watched as an accessor
- * @template T
- * @param {Readonly<{ get: () => T, watch: (listener: () => void) => () => void }>} watched - The value, and hearing it
- *   change
- * @returns {Accessor<T>} The value, tracked; computations rerun only when it is another value
+ * `fromWatched` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<T>(watched: Readonly<{ get: () => T, watch: (listener: () => void) => () => void }>) => Accessor<T>} A
+ *   Watched as an accessor
  */
-declare function fromWatched<T>(watched: Readonly<{
+declare function fromWatchedWith(solid: Adapter): <T>(watched: Readonly<{
     get: () => T;
     watch: (listener: () => void) => () => void;
-}>): Accessor<T>;
-export { fromWatched };
+}>) => Accessor<T>;
+export { fromWatchedWith };

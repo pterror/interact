@@ -1,47 +1,35 @@
 /**
  * Draws any interact core widget's view with Solid, generically: `Interact` is a component over a widget and its
- * props (reactive, delivered as `props` inputs). Each part is drawn once, by identity, with `Dynamic` (so a server
- * renders it and the client hydrates it), its attributes the core's (`attributesOf`) and updated in place when that
- * part's own meaning changes; its contents are a keyed list, so a widget's step reruns only what it changed. The
- * listeners and modality are the core's `page`, which finds each part by its id once it is drawn. Ids are Solid's own
+ * props (reactive, delivered as `props` inputs). Each part is drawn once, by identity, as an element a server renders
+ * and the client hydrates, its attributes the core's (`attributesOf`) and updated in place when that part's own
+ * meaning changes; its contents are a keyed list, so a widget's step reruns only what it changed. The listeners and
+ * modality are the core's `page`, which finds each part by its id once each change is drawn. Ids are Solid's own
  * (`createUniqueId`), so they match between server and client, unless the app names them.
  */
 
 import { attributesOf, elementFor, identity, itemText, page, partName, same } from '@pterror/interact-core'
-import {
-  createComponent,
-  createMemo,
-  createRenderEffect,
-  createSignal,
-  createUniqueId,
-  mapArray,
-  mergeProps,
-  on,
-  onCleanup,
-  onMount,
-  untrack,
-} from 'solid-js'
-import { Dynamic, isServer } from 'solid-js/web'
+import { createMemo, createUniqueId, onCleanup, untrack } from 'solid-js'
 
 /** @import { Key, Naming, Node as Part, PageOptions } from '@pterror/interact-core' */
-/** @import { Component, JSX } from 'solid-js' */
+/** @import { Component } from 'solid-js' */
+/** @import { Adapter, PartOf as Of, PartProps as Given, SolidElement } from './adapter.js' */
 
 /**
  * Which part a replaced part is
- * @typedef {Readonly<{ name: string, item: Key | null }>} PartOf
+ * @typedef {Of} PartOf
  */
 
 /**
  * The props a replaced part is given: its attributes (its id among them), which its element takes, its contents, and
  * which part it is
- * @typedef {Readonly<{ [attribute: string]: unknown }> & Readonly<{ children?: JSX.Element, part: PartOf }>} PartProps
+ * @typedef {Given} PartProps
  */
 
 /**
  * What the page needs, optionally how an item is drawn (by default its text in its source) and the parts the app draws itself,
  * by name (`option`)
  * @typedef {PageOptions & Readonly<{
- *   item?: ((key: Key) => JSX.Element) | undefined,
+ *   item?: ((key: Key) => SolidElement) | undefined,
  *   parts?: Readonly<{ [name: string]: Component<PartProps> | undefined }> | undefined,
  * }>} InteractProps
  */
@@ -98,164 +86,160 @@ function solidAttributes(attributes) {
 
 /**
  * A content as it is now
- * @param {JSX.Element | (() => JSX.Element)} content - The content, or what gives it
- * @returns {JSX.Element} It
+ * @param {SolidElement | (() => SolidElement)} content - The content, or what gives it
+ * @returns {SolidElement} It
  */
 function resolved(content) {
   return typeof content === 'function' ? content() : content
 }
 
 /**
- * The live region before Solid draws it
- * @returns {Element | null} None
+ * `Interact` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {(props: InteractProps) => SolidElement} A component drawing and running a widget
  */
-function noElement() {
-  return null
-}
-
-/**
- * A widget, drawn and run by Solid
- * @param {InteractProps} props - The widget, its props, and how the app takes part
- * @returns {JSX.Element} Its root part, and the live region it announces in
- */
-function Interact(props) {
-  const { sources, translate } = props
+function interactWith(solid) {
   /**
-   * An item as the app draws it, or its text in its source
-   * @param {Readonly<{ item: Key, source: string }>} content - The item
-   * @returns {JSX.Element} What it draws
+   * A widget, drawn and run by Solid
+   * @param {InteractProps} props - The widget, its props, and how the app takes part
+   * @returns {SolidElement} Its root part, and the live region it announces in
    */
-  const item = (content) => (props.item === undefined ? itemText(content, sources) : props.item(content.item))
-  const [live, setLive] = createSignal(noElement())
-  const running = page(
-    {
-      effect: (out, host) => {
-        props.effect?.(out, host)
-      },
-      name: props.name ?? String,
-      naming: props.naming ?? { id: createUniqueId(), keyId: String },
-      props: untrack(() => props.props),
-      widget: props.widget,
-      words: props.words ?? {},
-      ...(sources === undefined ? {} : { sources }),
-      ...(translate === undefined ? {} : { translate }),
-      ...(props.outside === undefined ? {} : { outside: props.outside }),
-    },
-    live,
-  )
-  const { naming } = running
-  const [version, setVersion] = createSignal(0)
-
-  /**
-   * Listens on every part drawn, once the region beside them is in the document
-   * @returns {void}
-   */
-  const drawn = () => {
-    const region = live()
-    if (region !== null) {
-      running.drawn(running.host.tree(), region)
-    }
-  }
-
-  if (!isServer) {
-    const unwatch = running.host.watch(() => {
-      setVersion((last) => last + 1)
-      drawn()
-    })
-    onCleanup(() => {
-      unwatch()
-      running.stop()
-    })
-    createRenderEffect(
-      on(
-        () => props.props,
-        (next) => {
-          running.host.setProps(next)
-        },
-        { defer: true },
-      ),
-    )
-  }
-  const parts = createMemo(() => {
-    version()
-    /** @type {Map<string, Flat>} */
-    const all = new Map()
-    flatten(running.host.tree(), naming, all)
-    return all
-  })
-
-  /**
-   * Draws a part: made once, its attributes updated when it changes, its contents a keyed list
-   * @param {string} key - The part's identity
-   * @returns {JSX.Element} Its element
-   */
-  const draw = (key) => {
-    const flat = createMemo(() => parts().get(key), undefined, { equals: same })
-    const first = untrack(flat)
-    if (first === undefined) {
-      throw new TypeError(`No part ${key}`)
-    }
-    const node = () => flat()?.node ?? first.node
-    const name = partName(first.node.target)
-    const replaced = props.parts?.[name]
-    const { implicitRole, tag } = elementFor(first.node.role)
-    const attributes = createMemo(
-      () => solidAttributes(attributesOf(node(), naming, replaced === undefined ? implicitRole : null)),
-      undefined,
-      { equals: same },
-    )
-    const content = createMemo(() => flat()?.content ?? [], undefined, { equals: same })
+  const Interact = (props) => {
+    const { sources, translate } = props
     /**
-     * One of the part's contents
-     * @param {string} entry - Which: a part's identity, or a text or item's place
-     * @param {() => number} index - Its place
-     * @returns {JSX.Element | (() => JSX.Element)} What it draws
+     * An item as the app draws it, or its text in its source
+     * @param {Readonly<{ item: Key, source: string }>} content - The item
+     * @returns {SolidElement} What it draws
      */
-    const drawContent = (entry, index) => {
-      if (entry.startsWith('part ')) {
-        return draw(entry.slice('part '.length))
-      }
-      const value = () => flat()?.values[index()] ?? null
-      return () => {
-        const given = value()
-        return given === null ? '' : 'text' in given ? given.text : item(given)
-      }
-    }
-    const extra = tag === 'button' && replaced === undefined ? { type: 'button' } : {}
-    const children = isServer
-      ? () => content().map((entry, index) => drawContent(entry, () => index))
-      : mapArray(content, drawContent)
-    const rest = {
-      /**
-       * The part's contents, each text or item as it is now: drawn only once the part is (a server keys a part for
-       * hydration as it draws it, before its contents, as the client claims them)
-       * @returns {JSX.Element} The contents
-       */
-      get children() {
-        return children().map((child) => resolved(child))
+    const item = (content) => (props.item === undefined ? itemText(content, sources) : props.item(content.item))
+    /** @type {Element | null} */
+    let region = null
+    const running = page(
+      {
+        effect: (out, host) => {
+          props.effect?.(out, host)
+        },
+        name: props.name ?? String,
+        naming: props.naming ?? { id: createUniqueId(), keyId: String },
+        props: untrack(() => props.props),
+        widget: props.widget,
+        words: props.words ?? {},
+        ...(sources === undefined ? {} : { sources }),
+        ...(translate === undefined ? {} : { translate }),
+        ...(props.outside === undefined ? {} : { outside: props.outside }),
       },
-    }
-    if (replaced !== undefined) {
-      return createComponent(replaced, mergeProps(attributes, rest, { part: { item: first.node.target.item, name } }))
-    }
-    return createComponent(Dynamic, mergeProps(attributes, rest, extra, { component: tag }))
-  }
+      () => region,
+    )
+    const { naming } = running
+    let changes = 0
+    const [version, setVersion] = solid.signal(changes)
 
-  const root = draw(identity(untrack(() => running.host.tree()).target, naming))
-  onMount(() => {
-    drawn()
-    running.host.begin()
-  })
-  return [
-    root,
-    createComponent(Dynamic, {
-      component: 'div',
-      ref: (/** @type {Element} */ element) => {
-        setLive(element)
+    /**
+     * Listens on every part drawn, once the region beside them is in the document
+     * @returns {void}
+     */
+    const drawn = () => {
+      if (region !== null) {
+        running.drawn(running.host.tree(), region)
+      }
+    }
+
+    if (!solid.isServer) {
+      const unwatch = running.host.watch(() => {
+        changes += 1
+        setVersion(changes)
+      })
+      onCleanup(() => {
+        unwatch()
+        running.stop()
+      })
+    }
+    solid.renderEffect(
+      () => props.props,
+      (next) => {
+        running.host.setProps(next)
       },
-      role: 'status',
-    }),
-  ]
+      true,
+    )
+    solid.effect(version, drawn, true)
+    const parts = createMemo(() => {
+      version()
+      /** @type {Map<string, Flat>} */
+      const all = new Map()
+      flatten(running.host.tree(), naming, all)
+      return all
+    })
+
+    /**
+     * Draws a part: made once, its attributes updated when it changes, its contents a keyed list
+     * @param {string} key - The part's identity
+     * @returns {SolidElement} Its element
+     */
+    const draw = (key) => {
+      const flat = solid.memo(() => parts().get(key), same)
+      const first = untrack(flat)
+      if (first === undefined) {
+        throw new TypeError(`No part ${key}`)
+      }
+      const node = () => flat()?.node ?? first.node
+      const name = partName(first.node.target)
+      const replaced = props.parts?.[name]
+      const { implicitRole, tag } = elementFor(first.node.role)
+      const attributes = solid.memo(
+        () => solidAttributes(attributesOf(node(), naming, replaced === undefined ? implicitRole : null)),
+        same,
+      )
+      const content = solid.memo(() => flat()?.content ?? [], same)
+      /**
+       * One of the part's contents
+       * @param {string} entry - Which: a part's identity, or a text or item's place
+       * @param {() => number} index - Its place
+       * @returns {SolidElement | (() => SolidElement)} What it draws
+       */
+      const drawContent = (entry, index) => {
+        if (entry.startsWith('part ')) {
+          return draw(entry.slice('part '.length))
+        }
+        const value = () => flat()?.values[index()] ?? null
+        return () => {
+          const given = value()
+          return given === null ? '' : 'text' in given ? given.text : item(given)
+        }
+      }
+      const children = solid.contents(content, drawContent)
+      const rest = {
+        /**
+         * The part's contents, each text or item as it is now: drawn only once the part is (a server keys a part for
+         * hydration as it draws it, before its contents, as the client claims them)
+         * @returns {SolidElement} The contents
+         */
+        get children() {
+          return children().map((child) => resolved(child))
+        },
+      }
+      if (replaced !== undefined) {
+        return solid.part(replaced, attributes, rest, { item: first.node.target.item, name })
+      }
+      return solid.element(tag, attributes, rest, tag === 'button' ? { type: 'button' } : {})
+    }
+
+    const root = draw(identity(untrack(() => running.host.tree()).target, naming))
+    solid.settled(() => {
+      drawn()
+      running.host.begin()
+      return undefined
+    })
+    return [
+      root,
+      solid.element('div', {
+        ref: (/** @type {Element} */ element) => {
+          region = element
+        },
+        role: 'status',
+      }),
+    ]
+  }
+  return Interact
 }
 
-export { Interact }
+export { interactWith }

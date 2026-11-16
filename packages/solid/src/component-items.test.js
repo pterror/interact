@@ -1,21 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 
 import { arrayList, computedKeysAt, computedLocate, flowMount, mark, render, windowing } from '@pterror/interact-list'
-import {
-  createComponent,
-  createContext,
-  createRenderEffect,
-  createRoot,
-  createSignal,
-  onCleanup,
-  onMount,
-  useContext,
-} from 'solid-js'
+import { createContext, createRoot, createSignal, onCleanup, useContext } from 'solid-js'
 
-import { componentItems } from './component-items.js'
-import { fromTest } from './from-test.js'
-import { toDrawn } from './to-drawn.js'
-import { toWatched } from './to-watched.js'
+import { adapter, componentItems, flush, fromTest, provide, SETTLES_IN_PLACE, toDrawn, toWatched } from '#test-solid'
 
 const Theme = createContext('none')
 
@@ -53,21 +41,18 @@ describe('componentItems', () => {
     /** @type {string[]} */
     const disposed = []
     const dispose = createRoot((disposeRoot) => {
-      createComponent(Theme.Provider, {
-        get children() {
-          const items = componentItems((/** @type {Readonly<{ key: string }>} */ props) => {
-            const element = document.createElement('div')
-            element.textContent = `${props.key} ${useContext(Theme)}`
-            onCleanup(() => {
-              disposed.push(props.key)
-            })
-            return element
+      provide(Theme, 'dark', () => {
+        const items = componentItems((/** @type {Readonly<{ key: string }>} */ props) => {
+          const element = document.createElement('div')
+          element.textContent = `${props.key} ${useContext(Theme)}`
+          onCleanup(() => {
+            disposed.push(props.key)
           })
-          const rendered = render({ ...items, drawn: list, facets: [], mount: flowMount(container) })
-          onCleanup(rendered.stop)
-          return undefined
-        },
-        value: 'dark',
+          return element
+        })
+        const rendered = render({ ...items, drawn: list, facets: [], mount: flowMount(container) })
+        onCleanup(rendered.stop)
+        return undefined
       })
       return disposeRoot
     })
@@ -97,7 +82,9 @@ describe('componentItems', () => {
       render({ ...items, drawn: toDrawn(keys), facets: [], mount: flowMount(container) })
     })
     setKeys(['a', 'b'])
+    flush()
     setKeys(['a', 'b', 'c'])
+    flush()
     expect(shown(container)).toEqual(['a', 'b', 'c'])
     expect([made, disposed]).toEqual([3, 0])
   })
@@ -135,20 +122,24 @@ describe('componentItems', () => {
     createRoot(() => {
       const items = componentItems((/** @type {Readonly<{ key: string }>} */ props) => {
         const element = document.createElement('div')
-        onMount(() => {
+        adapter.settled(() => {
           mounted.push([props.key, element.isConnected])
+          return undefined
         })
         return element
       })
       render({ ...items, drawn: toDrawn(keys), facets: [], mount: flowMount(container) })
       render({ ...items, drawn: list, facets: [], mount: flowMount(container) })
     })
+    flush()
     mounted.length = 0
     setKeys(['a', 'b'])
+    flush()
     list.set(['x', 'y'])
+    flush()
     expect(mounted).toEqual([
       ['b', true],
-      ['y', false],
+      ['y', SETTLES_IN_PLACE],
     ])
     container.remove()
   })
@@ -178,19 +169,16 @@ describe('componentItems', () => {
      */
     const Region = (props) => {
       const element = document.createElement('div')
-      createComponent(Theme.Provider, {
-        get children() {
-          const items = componentItems(Member)
-          const rendered = render({
-            ...items,
-            drawn: arrayList([`${props.key}1`, `${props.key}2`]),
-            facets: [],
-            mount: flowMount(element),
-          })
-          onCleanup(rendered.stop)
-          return undefined
-        },
-        value: props.key,
+      provide(Theme, props.key, () => {
+        const items = componentItems(Member)
+        const rendered = render({
+          ...items,
+          drawn: arrayList([`${props.key}1`, `${props.key}2`]),
+          facets: [],
+          mount: flowMount(element),
+        })
+        onCleanup(rendered.stop)
+        return undefined
       })
       return element
     }
@@ -227,10 +215,14 @@ describe('a billion keys drawn by Solid components', () => {
       const items = componentItems((/** @type {Readonly<{ key: string }>} */ props) => {
         made += 1
         const element = document.createElement('div')
-        createRenderEffect(() => {
-          reran += 1
-          element.className = isActive(props.key) ? 'active' : ''
-        })
+        adapter.renderEffect(
+          () => isActive(props.key),
+          (activeNow) => {
+            reran += 1
+            element.className = activeNow ? 'active' : ''
+          },
+          false,
+        )
         return element
       })
       render({
@@ -250,6 +242,7 @@ describe('a billion keys drawn by Solid components', () => {
     reran = 0
     list.set(['k0', 'k1000'])
     active.set('k1000')
+    flush()
     expect(reran).toBe(1)
     expect(container.querySelector('.active[data-active]')).not.toBeNull()
   })

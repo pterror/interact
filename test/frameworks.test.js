@@ -2,7 +2,9 @@
  * Runs each framework package's tests against every other version of its framework the package supports: each
  * directory in test/frameworks is a workspace whose dependencies are one version, into which the package's sources and
  * tests are copied (under its node_modules, where nothing else looks for tests), so the framework they import is that
- * version. The package's own run, in the main suite, is the version its manifest develops against.
+ * version. Each run is given the condition naming the framework and its major version (`solid-2`), by which a
+ * package's tests can import what that version needs. The package's own run, in the main suite, is the version its
+ * manifest develops against, with no such condition.
  */
 
 import { describe, expect, test } from 'bun:test'
@@ -23,6 +25,7 @@ const fixtures = await Array.fromAsync(new Bun.Glob('*/package.json').scan({ cwd
  */
 async function runIn(fixture) {
   const framework = fixture.replace(/-[\d.]+(?:-[\w.]+)?$/u, '')
+  const major = fixture.slice(framework.length + 1).split('.')[0] ?? ''
   const name = PACKAGES[framework]
   if (name === undefined) {
     throw new Error(`No package for ${fixture}`)
@@ -41,6 +44,8 @@ async function runIn(fixture) {
       'browser',
       '--conditions',
       'development',
+      '--conditions',
+      `${framework}-${major}`,
       ...tests.map((file) => `./node_modules/.under-test/${name}/${file}`),
     ],
     { cwd: dir, stderr: 'pipe', stdout: 'pipe' },

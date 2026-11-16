@@ -1,4 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  // Solid 2's modules, checked against Solid 2 by src/solid-2/tsconfig.json
+  "exclude": ["src/2.js", "src/solid-2/**"]
 }

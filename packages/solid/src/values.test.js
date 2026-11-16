@@ -1,21 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import { cell } from '@pterror/interact-list'
-import { batch, createMemo, createRenderEffect, createRoot, createSignal } from 'solid-js'
+import { createMemo, createRoot, createSignal } from 'solid-js'
 
-import { fromWatched } from './from-watched.js'
-import { toDrawn } from './to-drawn.js'
-import { toSet } from './to-set.js'
-import { toValue } from './to-value.js'
-import { toWatched } from './to-watched.js'
+import { adapter, batch, flush, fromWatched, toDrawn, toSet, toValue, toWatched } from '#test-solid'
 
-/**
- * A value that is a function
- * @returns {string} Which it is
- */
-function first() {
-  return 'first'
-}
+/** @import { Signal } from 'solid-js' */
 
 describe('toWatched', () => {
   test('tells a listener each change, as the write happens, and only when the value is another one', () => {
@@ -27,19 +17,24 @@ describe('toWatched', () => {
       heard.push(parity.get())
     })
     setCount(3)
+    flush()
     expect(heard).toEqual([])
     setCount(4)
+    flush()
     expect(heard).toEqual([0])
     batch(() => {
       setCount(5)
       setCount(6)
       expect(heard).toEqual([0])
     })
+    flush()
     expect(heard).toEqual([0])
     setCount(7)
+    flush()
     expect(heard).toEqual([0, 1])
     stop()
     setCount(8)
+    flush()
     expect(heard).toEqual([0, 1])
   })
 
@@ -50,17 +45,25 @@ describe('toWatched', () => {
     let runs = 0
     let listened = 0
     createRoot(() => {
-      createRenderEffect(() => {
-        runs += 1
-        watched.get()
-      })
+      adapter.renderEffect(
+        () => {
+          runs += 1
+          return watched.get()
+        },
+        () => {
+          // Only whether the computation reruns is checked
+        },
+        false,
+      )
     })
     watched.watch(() => {
       listened += 1
       other()
     })
     setShown('b')
+    flush()
     setOther(1)
+    flush()
     expect([runs, listened]).toEqual([1, 1])
   })
 
@@ -68,15 +71,18 @@ describe('toWatched', () => {
     const [count, setCount] = createSignal(1)
     /** @type {number[]} */
     const heard = []
-    createRoot((dispose) => {
+    const dispose = createRoot((disposeRoot) => {
       const watched = toWatched(count)
       watched.watch(() => {
         heard.push(watched.get())
       })
-      setCount(2)
-      dispose()
+      return disposeRoot
     })
+    setCount(2)
+    flush()
+    dispose()
     setCount(3)
+    flush()
     expect(heard).toEqual([2])
   })
 
@@ -89,24 +95,33 @@ describe('toWatched', () => {
       heard.push(drawn.keys())
     })
     setKeys(['b'])
+    flush()
     expect(heard).toEqual([['b']])
   })
 })
 
 describe('toValue and toSet', () => {
   test('read a signal untracked, and store a function as a value rather than calling it', () => {
-    const [action, setAction] = createSignal(first)
+    /** @type {Signal<(() => string) | undefined>} */
+    const [action, setAction] = createSignal()
     const value = toValue(action)
     const set = toSet(setAction)
     let runs = 0
     createRoot(() => {
-      createRenderEffect(() => {
-        runs += 1
-        value()
-      })
+      adapter.renderEffect(
+        () => {
+          runs += 1
+          return value()
+        },
+        () => {
+          // Only whether the computation reruns is checked
+        },
+        false,
+      )
     })
     set(() => 'second')
-    expect(value()()).toBe('second')
+    flush()
+    expect(value()?.()).toBe('second')
     expect(runs).toBe(1)
   })
 })
@@ -130,18 +145,25 @@ describe('fromWatched', () => {
     const seen = []
     const dispose = createRoot((disposeRoot) => {
       const value = fromWatched(watched)
-      createRenderEffect(() => {
-        seen.push(value())
-      })
+      adapter.renderEffect(
+        value,
+        (shown) => {
+          seen.push(shown)
+        },
+        false,
+      )
       return disposeRoot
     })
     active.set('b')
+    flush()
     active.set('b')
+    flush()
     expect(seen).toEqual(['a', 'b'])
     expect(listening).toBe(1)
     dispose()
     expect(listening).toBe(0)
     active.set('c')
+    flush()
     expect(seen).toEqual(['a', 'b'])
   })
 })

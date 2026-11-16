@@ -2,20 +2,35 @@
  * A Test as a Solid accessor per key: whether it holds for the key, rerunning a computation only when that changes.
  */
 
-import { fromKeyed } from './from-keyed.js'
+/** @import { Adapter } from './adapter.js' */
+
+import { fromKeyedWith } from './from-keyed.js'
 
 /**
- * A Test as an accessor
+ * A Test: whether it holds for a key, and hearing the keys it changed for (none: any)
  * @template K
- * @param {Readonly<{ has: (key: K) => boolean, watch: (listener: (keys?: readonly K[]) => void) => () => void }>} test
- *   - Whether it holds for a key, and hearing the keys it changed for (none: any)
- * @returns {(key: K) => boolean} Whether it holds for a key, tracked when read in a computation
+ * @typedef {Readonly<{ has: (key: K) => boolean, watch: (listener: (keys?: readonly K[]) => void) => () => void }>} Test
  */
-function fromTest(test) {
-  return fromKeyed(
-    (key) => test.has(key),
-    (listener) => test.watch(listener),
-  )
+
+/**
+ * `fromTest` for a version of Solid
+ * @param {Adapter} solid - The version's adapter
+ * @returns {<K>(test: Test<K>) => (key: K) => boolean} A Test as an accessor
+ */
+function fromTestWith(solid) {
+  const fromKeyed = fromKeyedWith(solid)
+  /**
+   * A Test as an accessor
+   * @template K
+   * @param {Test<K>} test - The Test
+   * @returns {(key: K) => boolean} Whether it holds for a key, tracked when read in a computation
+   */
+  const fromTest = (test) =>
+    fromKeyed(
+      (key) => test.has(key),
+      (listener) => test.watch(listener),
+    )
+  return fromTest
 }
 
-export { fromTest }
+export { fromTestWith }

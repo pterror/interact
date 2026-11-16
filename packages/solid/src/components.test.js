@@ -9,13 +9,12 @@ import {
   takesItemsInAForm,
   violations,
 } from '@pterror/interact-core/test-components'
-import { createComponent, createRoot, createSignal, mergeProps, splitProps } from 'solid-js'
-import { Dynamic, hydrate, insert } from 'solid-js/web'
+import { createComponent, createRoot, createSignal } from 'solid-js'
 
-import { dialog, Select } from './index.js'
+import { adapter, CONDITIONS, dialog, flush, hydrate, insert, merge, omit, Select } from '#test-solid'
 
 /** @import { Mounting } from '@pterror/interact-core/test-components' */
-/** @import { JSX } from 'solid-js' */
+/** @import { SolidElement } from './adapter.js' */
 
 const PickDialog = dialog(Select, ['content', 'trigger'])
 const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
@@ -51,7 +50,7 @@ function containerIn() {
 /**
  * Draws a Solid tree into a container
  * @param {HTMLElement} container - The container
- * @param {() => JSX.Element} code - What to draw
+ * @param {() => SolidElement} code - What to draw
  * @returns {() => void} Taking it down
  */
 function drawIn(container, code) {
@@ -64,14 +63,14 @@ function drawIn(container, code) {
 /**
  * The app around a component, as the checks mount it
  * @param {Mounting} mounting - What to mount
- * @returns {JSX.Element} The component
+ * @returns {SolidElement} The component
  */
 function app(mounting) {
   const [value, setValue] = createSignal(mounting.value)
   const [open, setOpen] = createSignal(mounting.open)
   const { mode, naming, sources } = mounting
   const { source: _source, ...unsourced } = SELECT
-  const select = mergeProps(
+  const select = merge(
     mounting.items === undefined ? SELECT : unsourced,
     mode === 'app'
       ? {
@@ -88,11 +87,11 @@ function app(mounting) {
     },
   )
   if (mounting.kind === 'select') {
-    return createComponent(Select, mergeProps(select, { naming, ...collectionOf(mounting) }))
+    return createComponent(Select, merge(select, { naming, ...collectionOf(mounting) }))
   }
   return createComponent(
     PickDialog,
-    mergeProps(
+    merge(
       {
         closeLabel: 'Close',
         ignoreOutside: false,
@@ -118,7 +117,10 @@ function app(mounting) {
 
 const solid = {
   mount: (/** @type {Mounting} */ mounting) => drawIn(mounting.container, () => app(mounting)),
-  settle: settled,
+  settle: async () => {
+    flush()
+    await settled()
+  },
 }
 
 describe('the Solid components', () => {
@@ -136,7 +138,13 @@ describe('the Solid components', () => {
 
   test('hydrate what a server rendered, with ids from createUniqueId, to the same DOM, which then runs', async () => {
     const server = Bun.spawn(
-      [process.execPath, '--conditions', 'node', new URL('test-server.js', import.meta.url).pathname],
+      [
+        process.execPath,
+        ...CONDITIONS.flatMap((condition) => ['--conditions', condition]),
+        '--conditions',
+        'node',
+        new URL('test-server.js', import.meta.url).pathname,
+      ],
       {
         stderr: 'inherit',
         stdout: 'pipe',
@@ -190,11 +198,8 @@ describe('the Solid components', () => {
           heard.push(value)
         },
         parts: {
-          list: (part) => createComponent(Dynamic, mergeProps(splitProps(part, ['part'])[1], { component: 'ul' })),
-          option: (part) => {
-            const [own, rest] = splitProps(part, ['part'])
-            return createComponent(Dynamic, mergeProps(rest, { component: 'li', 'data-key': own.part.item }))
-          },
+          list: (part) => adapter.element('ul', omit(part, ['part'])),
+          option: (part) => adapter.element('li', omit(part, ['part']), { 'data-key': part.part.item }),
         },
         sources: { fruit: arraySource(FRUIT) },
       }),

@@ -8,7 +8,9 @@
         "@codemirror/autocomplete": "6.20.4",
         "@codemirror/state": "6.7.6",
         "@codemirror/view": "6.43.15",
+        "@pterror/interact-core": "workspace:*",
         "@pterror/interact-editor": "workspace:*",
+        "@pterror/interact-elements": "workspace:*",
         "@pterror/interact-keybinds": "workspace:*",
         "@pterror/interact-list": "workspace:*",
         "@types/bun": "^1.3.7",
@@ -142,8 +144,12 @@
       },
       "peerDependencies": {
         "@pterror/interact-core": "workspace:^",
-        "solid-js": "^1.8.0",
+        "@solidjs/web": "^2.0.0-rc.22",
+        "solid-js": "^1.8.0 || ^2.0.0-rc.22",
       },
+      "optionalPeers": [
+        "@solidjs/web",
+      ],
     },
     "packages/svelte": {
       "name": "@pterror/interact-svelte",
@@ -202,6 +208,15 @@
         "@pterror/interact-core": "workspace:*",
         "axe-core": "^4.14.0",
         "solid-js": "1.8.0",
+      },
+    },
+    "test/frameworks/solid-2.0.0-rc.22": {
+      "name": "@pterror/interact-test-solid-2.0.0-rc.22",
+      "devDependencies": {
+        "@pterror/interact-core": "workspace:*",
+        "@solidjs/web": "2.0.0-rc.22",
+        "axe-core": "^4.14.0",
+        "solid-js": "2.0.0-rc.22",
       },
     },
     "test/frameworks/svelte-4.0.0": {
@@ -404,6 +419,8 @@
 
     "@pterror/interact-test-solid-1.8.0": ["@pterror/interact-test-solid-1.8.0@workspace:test/frameworks/solid-1.8.0"],
 
+    "@pterror/interact-test-solid-2.0.0-rc.22": ["@pterror/interact-test-solid-2.0.0-rc.22@workspace:test/frameworks/solid-2.0.0-rc.22"],
+
     "@pterror/interact-test-svelte-4.0.0": ["@pterror/interact-test-svelte-4.0.0@workspace:test/frameworks/svelte-4.0.0"],
 
     "@pterror/interact-test-svelte-4.2.20": ["@pterror/interact-test-svelte-4.2.20@workspace:test/frameworks/svelte-4.2.20"],
@@ -415,6 +432,10 @@
     "@pterror/interact-test-vue-3.4.38": ["@pterror/interact-test-vue-3.4.38@workspace:test/frameworks/vue-3.4.38"],
 
     "@pterror/interact-vue": ["@pterror/interact-vue@workspace:packages/vue"],
+
+    "@solidjs/signals": ["@solidjs/signals@2.0.0-rc.22", "", {}, "sha512-A+yy1+g8V/YAz9TiRwO+zMZ4+SAUTkYUQBobXBUSk1nFQ9SymDcMghl/VcdZWchx+ITh2RkxL8ePpF6dCXgCSg=="],
+
+    "@solidjs/web": ["@solidjs/web@2.0.0-rc.22", "", { "dependencies": { "seroval": "1.7.0", "seroval-plugins": "1.7.0" }, "peerDependencies": { "solid-js": "^2.0.0-rc.22" } }, "sha512-m2HvRD0jqes659bGjuCtXVbz4TChP0aO4lRLmbRYgEbmCnh7UUPI564jgbq/b4mbcp0gVwHDmi7uoSGeLaUuZA=="],
 
     "@sveltejs/acorn-typescript": ["@sveltejs/acorn-typescript@1.0.13", "", { "peerDependencies": { "acorn": "^8.9.0" } }, "sha512-wgKggnhZVL9Bfx1OaKKTrYY9BFRk6C8UAkQNUcIv1+llzYrIqy+RZm5HPKzn0NpEBvTVhTqB4kQyllZywsRBRQ=="],
 
@@ -590,6 +611,8 @@
 
     "@pterror/interact-test-solid-1.8.0/solid-js": ["solid-js@1.8.0", "", { "dependencies": { "csstype": "^3.1.0", "seroval": "^0.10.4" } }, "sha512-SYVRIUPwCW8K56/add1Yf7xYMOipDUcxGHIxzieRNu9tieqJpaygqcGdJOGXtrMBHSHyVEC7cSp9jz1cNZTFLA=="],
 
+    "@pterror/interact-test-solid-2.0.0-rc.22/solid-js": ["solid-js@2.0.0-rc.22", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.22", "csstype": "^3.1.0", "seroval": "1.7.0", "seroval-plugins": "1.7.0" } }, "sha512-RGTA07/yyFoM0+ov1PlRPupSaCY6chQ/uFSDmlPwRewqN5TTkVsxIQqz/HJCG+UhtjsyxNoSoAQ9GLjGdlSpcQ=="],
+
     "@pterror/interact-test-svelte-4.0.0/svelte": ["svelte@4.0.0", "", { "dependencies": { "@ampproject/remapping": "^2.2.1", "@jridgewell/sourcemap-codec": "^1.4.15", "@jridgewell/trace-mapping": "^0.3.18", "acorn": "^8.8.2", "aria-query": "^5.2.1", "axobject-query": "^3.2.1", "code-red": "^1.0.3", "css-tree": "^2.3.1", "estree-walker": "^3.0.3", "is-reference": "^3.0.1", "locate-character": "^3.0.0", "magic-string": "^0.30.0", "periscopic": "^3.1.0" } }, "sha512-+yCYu3AEUu9n91dnQNGIbnVp8EmNQtuF/YImW4+FTXRHard7NMo+yTsWzggPAbj3fUEJ1FBJLkql/jkp6YB5pg=="],
 
     "@pterror/interact-test-svelte-4.2.20/svelte": ["svelte@4.2.20", "", { "dependencies": { "@ampproject/remapping": "^2.2.1", "@jridgewell/sourcemap-codec": "^1.4.15", "@jridgewell/trace-mapping": "^0.3.18", "@types/estree": "^1.0.1", "acorn": "^8.9.0", "aria-query": "^5.3.0", "axobject-query": "^4.0.0", "code-red": "^1.0.3", "css-tree": "^2.3.1", "estree-walker": "^3.0.3", "is-reference": "^3.0.1", "locate-character": "^3.0.0", "magic-string": "^0.30.4", "periscopic": "^3.1.0" } }, "sha512-eeEgGc2DtiUil5ANdtd8vPwt9AgaMdnuUFnPft9F5oMvU/FHu5IHFic+p1dR/UOB7XU2mX2yHW+NcTch4DCh5Q=="],
@@ -599,6 +622,12 @@
     "@pterror/interact-test-vue-3.3.0/vue": ["vue@3.3.0", "", { "dependencies": { "@vue/compiler-dom": "3.3.0", "@vue/compiler-sfc": "3.3.0", "@vue/runtime-dom": "3.3.0", "@vue/server-renderer": "3.3.0", "@vue/shared": "3.3.0" } }, "sha512-cyyuVeFKvQy5eGIwN7VQlNKFu09DQSyTtunzpURRjPJwl6B2T7zo41oE1Nr/nacCsZVpnkE6FlWN0YfbY2SB2w=="],
 
     "@pterror/interact-test-vue-3.4.38/vue": ["vue@3.4.38", "", { "dependencies": { "@vue/compiler-dom": "3.4.38", "@vue/compiler-sfc": "3.4.38", "@vue/runtime-dom": "3.4.38", "@vue/server-renderer": "3.4.38", "@vue/shared": "3.4.38" }, "peerDependencies": { "typescript": "*" }, "optionalPeers": ["typescript"] }, "sha512-f0ZgN+mZ5KFgVv9wz0f4OgVKukoXtS3nwET4c2vLBGQR50aI8G0cqbFtLlX9Yiyg3LFGBitruPHt2PxwTduJEw=="],
+
+    "@solidjs/web/seroval": ["seroval@1.7.0", "", {}, "sha512-FU+LUkmDzWNsJ6oubZFN3dGPKny53DRhPJG6nftEaXDL8MIn19+kEE1Gvc+63Go+qPOwVUlKIdKhsu2HN6tksw=="],
+
+    "@solidjs/web/seroval-plugins": ["seroval-plugins@1.7.0", "", { "peerDependencies": { "seroval": "^1.0" } }, "sha512-WM4rArfPtLZriTuxC5DBvNulEwAaRcjNe/dkMOEesOcuvXf5nEwKf5Bw3AT92WHohqcc45+57GdtsCuBTI0mjw=="],
+
+    "@solidjs/web/solid-js": ["solid-js@2.0.0-rc.22", "", { "dependencies": { "@solidjs/signals": "^2.0.0-rc.22", "csstype": "^3.1.0", "seroval": "1.7.0", "seroval-plugins": "1.7.0" } }, "sha512-RGTA07/yyFoM0+ov1PlRPupSaCY6chQ/uFSDmlPwRewqN5TTkVsxIQqz/HJCG+UhtjsyxNoSoAQ9GLjGdlSpcQ=="],
 
     "@types/node/undici-types": ["undici-types@8.9.0", "", {}, "sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg=="],
 
@@ -619,6 +648,10 @@
     "@pterror/interact-test-react-19.0.0/react-dom/scheduler": ["scheduler@0.25.0", "", {}, "sha512-xFVuu11jh+xcO7JOAGJNOXld8/TcEHK/4CituBUeUb5hqxJLj9YuemAEuvm9gQ/+pgXYfbQuqAkiYu+u7YEsNA=="],
 
     "@pterror/interact-test-solid-1.8.0/solid-js/seroval": ["seroval@0.10.4", "", {}, "sha512-TdaE9JkoATjKu+vjwllieX8zWyBTUVxbgWDnOsDJFfmKbM7vLSukuCXuD3pO3kkCtX4daywOW8ps2VCdPhS8/w=="],
+
+    "@pterror/interact-test-solid-2.0.0-rc.22/solid-js/seroval": ["seroval@1.7.0", "", {}, "sha512-FU+LUkmDzWNsJ6oubZFN3dGPKny53DRhPJG6nftEaXDL8MIn19+kEE1Gvc+63Go+qPOwVUlKIdKhsu2HN6tksw=="],
+
+    "@pterror/interact-test-solid-2.0.0-rc.22/solid-js/seroval-plugins": ["seroval-plugins@1.7.0", "", { "peerDependencies": { "seroval": "^1.0" } }, "sha512-WM4rArfPtLZriTuxC5DBvNulEwAaRcjNe/dkMOEesOcuvXf5nEwKf5Bw3AT92WHohqcc45+57GdtsCuBTI0mjw=="],
 
     "@pterror/interact-test-svelte-4.0.0/svelte/axobject-query": ["axobject-query@3.2.4", "", {}, "sha512-aPTElBrbifBU1krmZxGZOlBkslORe7Ll7+BDnI50Wy4LgOt69luMgevkDfTq1O/ZgprooPCtWpjCwKSZw/iZ4A=="],
 
