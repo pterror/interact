@@ -37,7 +37,9 @@
         "packages/vue/src/**/*.js",
         "packages/svelte/src/**/*.js",
         "packages/elements/src/**/*.js",
-        "packages/solid/src/component*.js"
+        "packages/solid/src/component*.js",
+        "test/page-components.js",
+        "test/components.test.js"
       ],
       "rules": { "unicorn/no-null": "off" }
     },
