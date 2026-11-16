@@ -206,6 +206,9 @@ function exprsOf(stmt) {
     case 'scan': {
       return [stmt.from, stmt.to, stmt.test]
     }
+    case 'splice': {
+      return [stmt.index, ...stmt.items]
+    }
     default: {
       throw new TypeError('Not a statement')
     }

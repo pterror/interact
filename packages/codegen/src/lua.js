@@ -1311,6 +1311,21 @@ function luaModule(planned, checker, imports, others) {
           `${indent}local ${localName(one.target)} = ${expr(one.to, pre, indent)} ~= ${expr(one.from, pre, indent)}`,
         ]
       }
+      case 'splice': {
+        if (one.items.some((item) => hasNull(item.type) || hasUndefined(item.type))) {
+          refuse(one.items[0] ?? one.index, 'putting a value that may be null into an array: a Lua table has no hole')
+        }
+        helpers.add('slice')
+        const list = localName(one.array)
+        const place = temp('at')
+        const index = expr(one.index, pre, indent)
+        const items = one.items.map((item) => expr(item, pre, indent))
+        return [
+          ...pre,
+          `${indent}local ${place} = slice_index(${index}, #${list})`,
+          ...items.map((item, offset) => `${indent}table.insert(${list}, ${place} + ${String(offset + 1)}, ${item})`),
+        ]
+      }
       default: {
         throw new Error('unreachable')
       }

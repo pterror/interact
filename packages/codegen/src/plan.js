@@ -1012,7 +1012,8 @@ function rewrite(fn, info, tools) {
       case 'set':
       case 'emit':
       case 'insert':
-      case 'scan': {
+      case 'scan':
+      case 'splice': {
         return [stmt]
       }
       default: {
@@ -2221,6 +2222,9 @@ function mapExprs(stmt, map) {
     }
     case 'scan': {
       return { ...stmt, from: map(stmt.from), test: map(stmt.test), to: map(stmt.to) }
+    }
+    case 'splice': {
+      return { ...stmt, index: map(stmt.index), items: stmt.items.map((item) => map(item)) }
     }
     default: {
       throw new TypeError('Not a statement')

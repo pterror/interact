@@ -65,14 +65,16 @@
  *   | Readonly<{ kind: 'set', object: Binding, name: string, value: Expr, at: ts.Node }>
  *   | Readonly<{ kind: 'emit', out: Binding, items: readonly Item[], at: ts.Node }>
  *   | Readonly<{ kind: 'insert', out: Binding, index: Expr, items: readonly Item[], at: ts.Node }>
- *   | Readonly<{ kind: 'scan', target: Binding, out: Binding, from: Expr, to: Expr, param: Binding, test: Expr, at: ts.Node }>} Stmt
+ *   | Readonly<{ kind: 'scan', target: Binding, out: Binding, from: Expr, to: Expr, param: Binding, test: Expr, at: ts.Node }>
+ *   | Readonly<{ kind: 'splice', array: Binding, index: Expr, items: readonly Expr[], at: ts.Node }>} Stmt
  */
 
 /*
  * The in-place forms, which only the planner makes: `set` assigns a field of a record the function owns; `emit`
  * appends effects to the step's effect buffer (`spread` items append each element of an array); `insert` puts effects
  * before ones already appended; `scan` sets `target` to whether `test` holds for any of `out[from]`, ...,
- * `out[to - 1]`, each bound to `param`.
+ * `out[to - 1]`, each bound to `param`. `splice` puts `items` into an array the function just made, before `index`
+ * as `slice` takes it: what `[...array.slice(0, index), ...items, ...array.slice(index)]` holds, in `array`.
  */
 
 /** @typedef {Readonly<{ tests: readonly Expr[], body: readonly Stmt[] }>} Case */

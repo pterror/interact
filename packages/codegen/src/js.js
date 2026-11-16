@@ -818,6 +818,10 @@ function makePrinter(nameOf, outer, effects) {
       case 'scan': {
         return [`${indent}const ${localName(one.target)} = ${printExpr(one.to)} !== ${printExpr(one.from)}`]
       }
+      case 'splice': {
+        const items = one.items.map((item) => printExpr(item))
+        return [`${indent}${localName(one.array)}.splice(${[printExpr(one.index), '0', ...items].join(', ')})`]
+      }
       default: {
         throw new TypeError('Not a statement')
       }

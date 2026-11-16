@@ -4,7 +4,7 @@
  * record used only for its fields becomes one local per field; a local that is a literal becomes a module constant.
  */
 
-import { blocksOf, eachExpr, eachInStmt, exprsOf, mapChildren } from './walk.js'
+import { blocksOf, children, completes, eachExpr, eachInStmt, exprsOf, mapChildren } from './walk.js'
 
 /** @import ts from 'typescript' */
 /** @import { Binding, Constant, Entry, Expr, Fn, Pattern, Stmt } from './ir.js' */
@@ -30,7 +30,7 @@ import { blocksOf, eachExpr, eachInStmt, exprsOf, mapChildren } from './walk.js'
  */
 function normalize(fn, context) {
   const returns = block(fn.body, context, fn)
-  const inlined = inlineArrays(sliceSearches(propagateAliases(returns)))
+  const inlined = arraysInPlace(inlineArrays(sliceSearches(propagateAliases(returns))))
   return literalsToConstants(scalarRecords(inlined, context), context, fn.module)
 }
 
@@ -228,7 +228,8 @@ function renameStmt(stmt, renamed, context) {
     case 'set':
     case 'emit':
     case 'insert':
-    case 'scan': {
+    case 'scan':
+    case 'splice': {
       throw new Error(`A ${stmt.kind} is not in a source function`)
     }
     default: {
@@ -412,6 +413,227 @@ function inlineArrays(stmts) {
       ),
     ]
   })
+}
+
+/** Array methods that read an array and keep nothing of it */
+const READING = new Set([
+  'at',
+  'every',
+  'find',
+  'findIndex',
+  'findLast',
+  'findLastIndex',
+  'includes',
+  'indexOf',
+  'join',
+  'lastIndexOf',
+  'slice',
+  'some',
+])
+
+/** Array methods that make a new array */
+const MAKING = new Set(['concat', 'filter', 'flatMap', 'map', 'slice', 'toReversed', 'toSorted', 'toSpliced'])
+
+/**
+ * Items put into an array the function just made, where the source makes a new one around them
+ * (`[...a.slice(0, i), x, ...a.slice(i)]`) and the old one is not read again: the array is changed in place
+ * @param {readonly Stmt[]} stmts - A block
+ * @returns {Stmt[]} The block
+ */
+function arraysInPlace(stmts) {
+  /** @type {Stmt[]} */
+  const result = stmts.map((stmt) => mapBlocks(stmt, arraysInPlace))
+  for (let at = 0; at < result.length; at += 1) {
+    const made = result[at]
+    if (made?.kind !== 'const' || made.pattern.kind !== 'bind' || !isMadeArray(made.value)) {
+      continue
+    }
+    const array = made.pattern.binding
+    const later = result.slice(at + 1)
+    const index = later.findIndex((stmt) => exprsOf(stmt).some((expr) => insertionIn(expr, array) !== null))
+    const target = later[index]
+    if (target === undefined || blocksOf(target).length > 0) {
+      continue
+    }
+    const between = later.slice(0, index)
+    const after = later.slice(index + 1)
+    const found = exprsOf(target)
+      .map((expr) => insertionIn(expr, array))
+      .find((one) => one !== null)
+    if (
+      found === undefined ||
+      !between.every((stmt) => onlyRead(stmt, array)) ||
+      after.some((stmt) => readsDeep(stmt, array)) ||
+      exprsOf(target).reduce((sum, expr) => sum + readCount(expr, array), 0) !== 2
+    ) {
+      continue
+    }
+    const { insertion, index: place, items } = found
+    /** @type {Stmt} */
+    const splice = { array, at: insertion.at, index: place, items, kind: 'splice' }
+    const replaced = mapStmtExprs(target, (expr) =>
+      deepMap(expr, (one) => (one === insertion ? { at: one.at, binding: array, kind: 'local', type: one.type } : one)),
+    )
+    result.splice(at + 1 + index, 1, splice, replaced)
+  }
+  return result
+}
+
+/**
+ * Whether an expression makes a new array
+ * @param {Expr} expr - The expression
+ * @returns {boolean} Whether it does
+ */
+function isMadeArray(expr) {
+  return expr.kind === 'array' || (expr.kind === 'method' && MAKING.has(expr.name))
+}
+
+/**
+ * The insertion into an array an expression has: `[...array.slice(0, i), ...items, ...array.slice(i)]`, `i` a local
+ * or a literal
+ * @param {Expr} expr - The expression
+ * @param {Binding} array - The array
+ * @returns {Readonly<{ insertion: Expr, index: Expr, items: readonly Expr[] }> | null} It
+ */
+function insertionIn(expr, array) {
+  /** @type {Readonly<{ insertion: Expr, index: Expr, items: readonly Expr[] }> | null} */
+  let found = null
+  eachExpr(expr, (one) => {
+    if (found !== null || one.kind !== 'array' || one.items.length < 3) {
+      return
+    }
+    const first = one.items[0]
+    const last = one.items.at(-1)
+    const middle = one.items.slice(1, -1)
+    const head = first?.spread === true ? sliceOfArray(first.value, array) : null
+    const tail = last?.spread === true ? sliceOfArray(last.value, array) : null
+    if (
+      head?.length !== 2 ||
+      tail?.length !== 1 ||
+      head[0]?.kind !== 'literal' ||
+      head[0].value !== 0 ||
+      head[1] === undefined ||
+      tail[0] === undefined ||
+      !sameIndex(head[1], tail[0]) ||
+      middle.some((item) => item.spread)
+    ) {
+      return
+    }
+    found = { index: tail[0], insertion: one, items: middle.map((item) => item.value) }
+  })
+  return found
+}
+
+/**
+ * The arguments of `array.slice(...)`
+ * @param {Expr} expr - The expression
+ * @param {Binding} array - The array
+ * @returns {readonly Expr[] | null} Them, if it is that
+ */
+function sliceOfArray(expr, array) {
+  return expr.kind === 'method' &&
+    expr.name === 'slice' &&
+    expr.object.kind === 'local' &&
+    expr.object.binding === array
+    ? expr.args
+    : null
+}
+
+/**
+ * Whether two indices are the same local or literal
+ * @param {Expr} a - One
+ * @param {Expr} b - The other
+ * @returns {boolean} Whether they are
+ */
+function sameIndex(a, b) {
+  if (a.kind === 'local' && b.kind === 'local') {
+    return a.binding === b.binding
+  }
+  return a.kind === 'literal' && b.kind === 'literal' && a.value === b.value
+}
+
+/**
+ * Whether a statement only reads an array: a method that keeps nothing of it, its length or an element, except in a
+ * block that returns, which never reaches what comes after
+ * @param {Stmt} stmt - The statement
+ * @param {Binding} array - The array
+ * @returns {boolean} Whether it does
+ */
+function onlyRead(stmt, array) {
+  const own = exprsOf(stmt).every((expr) => readsOnly(expr, array))
+  return own && blocksOf(stmt).every((inner) => !completes(inner) || inner.every((one) => onlyRead(one, array)))
+}
+
+/**
+ * Whether an expression only reads an array
+ * @param {Expr} expr - The expression
+ * @param {Binding} array - The array
+ * @returns {boolean} Whether it does
+ */
+function readsOnly(expr, array) {
+  const isArray = (/** @type {Expr} */ one) => one.kind === 'local' && one.binding === array
+  if (isArray(expr)) {
+    return false
+  }
+  if (expr.kind === 'lambda') {
+    return !expr.body.some((stmt) => readsDeep(stmt, array))
+  }
+  const reads =
+    (expr.kind === 'method' && READING.has(expr.name) && isArray(expr.object)) ||
+    (expr.kind === 'field' && expr.name === 'length' && isArray(expr.object)) ||
+    (expr.kind === 'index' && isArray(expr.object))
+  const rest = reads ? children(expr).filter((child) => !isArray(child)) : children(expr)
+  return rest.every((child) => readsOnly(child, array))
+}
+
+/**
+ * Whether a statement reads a local anywhere, lambdas included
+ * @param {Stmt} stmt - The statement
+ * @param {Binding} binding - The local
+ * @returns {boolean} Whether it does
+ */
+function readsDeep(stmt, binding) {
+  return (
+    exprsOf(stmt).some((expr) => readCount(expr, binding) > 0) ||
+    blocksOf(stmt).some((inner) => inner.some((one) => readsDeep(one, binding)))
+  )
+}
+
+/**
+ * How many times an expression reads a local, lambdas' bodies included
+ * @param {Expr} expr - The expression
+ * @param {Binding} binding - The local
+ * @returns {number} How many
+ */
+function readCount(expr, binding) {
+  if (expr.kind === 'local') {
+    return expr.binding === binding ? 1 : 0
+  }
+  const inLambda = expr.kind === 'lambda' ? (expr.body.some((stmt) => readsDeep(stmt, binding)) ? 1 : 0) : 0
+  return inLambda + children(expr).reduce((sum, child) => sum + readCount(child, binding), 0)
+}
+
+/**
+ * A statement with its nested blocks mapped
+ * @param {Stmt} stmt - The statement
+ * @param {(stmts: readonly Stmt[]) => Stmt[]} map - The mapping
+ * @returns {Stmt} It
+ */
+function mapBlocks(stmt, map) {
+  if (stmt.kind === 'if') {
+    return { ...stmt, whenFalse: map(stmt.whenFalse), whenTrue: map(stmt.whenTrue) }
+  }
+  if (stmt.kind === 'while') {
+    return { ...stmt, body: map(stmt.body) }
+  }
+  if (stmt.kind === 'switch') {
+    return {
+      ...stmt,
+      cases: stmt.cases.map((one) => ({ ...one, body: map(one.body) })),
+      fallback: stmt.fallback === null ? null : map(stmt.fallback),
+    }
+  }
+  return stmt
 }
 
 /**
