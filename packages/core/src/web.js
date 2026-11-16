@@ -51,7 +51,8 @@ function isTarget(value) {
 }
 
 /**
- * The attributes a part has in the DOM, `null` for one it doesn't have
+ * The attributes a part has in the DOM, `null` for one it doesn't have. Pure, so a server renders them as the client
+ * does
  * @param {Node} node - The part
  * @param {Naming} naming - The host's naming
  * @param {string | null} implicitRole - The role the element has without one (a `button`'s), left out
@@ -166,18 +167,78 @@ function effectType(out) {
 }
 
 /**
- * The part's name as the app names it to replace it: its owner's path and its name, joined by dots (`list.option`)
+ * The part's name as the app names it to replace or style it: its own name (`trigger`, `option`), and for a child's
+ * root, the child's name (`list`); the outermost root is `root`
  * @param {Target} target - The part
  * @returns {string} The name
  */
 function partName(target) {
-  return [...target.owner, target.part].join('.')
+  return target.part === 'root' ? (target.owner.at(-1) ?? 'root') : target.part
+}
+
+/**
+ * The role an element has without a `role` attribute, as far as parts go: a `button`'s
+ * @param {Element} element - The element
+ * @returns {string | null} The role
+ */
+function implicitRoleOf(element) {
+  return element.localName === 'button' ? 'button' : null
+}
+
+/**
+ * The element focus is in, inside any shadow roots
+ * @returns {Element | null} The element
+ */
+function focusedElement() {
+  let focused = document.activeElement
+  while (focused?.shadowRoot?.activeElement !== null && focused?.shadowRoot?.activeElement !== undefined) {
+    focused = focused.shadowRoot.activeElement
+  }
+  return focused
+}
+
+/**
+ * Whether a node is a shadow root (by its type: a class test fails across realms)
+ * @param {globalThis.Node | null} node - The node
+ * @returns {node is ShadowRoot} Whether it is
+ */
+function isShadowRoot(node) {
+  return node !== null && node.nodeType === node.DOCUMENT_FRAGMENT_NODE && 'host' in node
+}
+
+/**
+ * Whether a node is a document or a shadow root, which find elements by id
+ * @param {globalThis.Node} node - The node
+ * @returns {node is Document | ShadowRoot} Whether it is
+ */
+function findsById(node) {
+  return node.nodeType === node.DOCUMENT_NODE || isShadowRoot(node)
+}
+
+/**
+ * The element an element is in, out of a shadow root into its host
+ * @param {Element} element - The element
+ * @returns {Element | null} Its parent, or the host of the shadow root it is the top of
+ */
+function outerParent(element) {
+  const parent = element.parentNode
+  return isShadowRoot(parent) ? parent.host : element.parentElement
+}
+
+/**
+ * The elements beside an element, in its parent or the shadow root it is the top of
+ * @param {Element} element - The element
+ * @returns {readonly Element[]} Its siblings, itself among them
+ */
+function siblingsOf(element) {
+  const parent = element.parentNode
+  return isShadowRoot(parent) ? [...parent.children] : [...(element.parentElement?.children ?? [])]
 }
 
 /**
  * What the page needs from the app: what the host needs, and optionally how ids are made (by default a prefix of its
- * own and each key as text), the words announcements use over the English ones, and an item's name in them (by
- * default the key as text)
+ * own and each key as text), the words announcements use over the English ones, an item's name in them (by default
+ * the key as text)
  * @typedef {HostOptions & Readonly<{
  *   naming?: Naming,
  *   words?: Words,
@@ -197,13 +258,19 @@ function ownNaming() {
 }
 
 /**
- * A widget running in a page: `bind` gives an element a part's meaning and listeners (again on each change),
- * `unbind` lets go of a part no longer drawn; `live` is where announcements are said
+ * A widget running in a page: `bind` gives an element a part's meaning and listeners (again on each change);
+ * `listen` gives it only the listeners, and the modality, for a renderer that draws the attributes itself (from
+ * `attributesOf`, as a server does); `drawn` listens on every part of a tree such a renderer has drawn, each found by
+ * its id in the document or shadow root `within` is in (none while `within` is in neither), lets go of the parts it
+ * drew before and no longer does, and then focuses or reveals what the widget asked to since: a renderer calling it
+ * draws a change after the host tells it, so those wait for it (it calls `drawn` before the host begins); `unbind` lets go of a part no longer drawn. Making a page
+ * touches no DOM; once stopped, it listens on nothing more
  * @typedef {Readonly<{
  *   host: Host,
  *   naming: Naming,
- *   live: Element,
  *   bind: (key: string, element: Element, node: Node) => void,
+ *   listen: (key: string, element: Element, node: Node) => void,
+ *   drawn: (tree: Node, within: Element) => void,
  *   unbind: (key: string) => void,
  *   stop: () => void,
  * }>} Page
@@ -212,9 +279,11 @@ function ownNaming() {
 /**
  * Runs a widget in a page
  * @param {PageOptions} options - The widget and how the app takes part
+ * @param {() => Element | null} live - The live region announcements are said in, which the renderer draws (none
+ *   until it has)
  * @returns {Page} The running widget, for a renderer to draw
  */
-function page(options) {
+function page(options, live) {
   const naming = options.naming ?? ownNaming()
   const words = options.words ?? {}
   const nameOf = options.name ?? String
@@ -230,8 +299,26 @@ function page(options) {
   const handled = new WeakSet()
   /** @type {Map<string, Readonly<{ restore: Element | null, inert: readonly Element[] }>>} */
   const modals = new Map()
-  const live = document.createElement('div')
-  live.setAttribute('role', 'status')
+
+  /** Whether the renderer draws a change after the host has told it (it calls `drawn` once it has) */
+  let drawsLater = false
+  /** @type {Out[]} */
+  const parked = []
+
+  /**
+   * Focuses or reveals the part an effect names
+   * @param {Out} out - The effect
+   * @returns {void}
+   */
+  const onPart = (out) => {
+    const target = effectTarget(out)
+    const element = target === null ? undefined : elements.get(identity(target, naming))
+    if (element instanceof HTMLElement && effectType(out) === 'focus') {
+      element.focus()
+    } else if (element !== undefined) {
+      element.scrollIntoView({ block: 'nearest' })
+    }
+  }
 
   /**
    * Carries out the effects the DOM has a way to: focus, reveal, announce. The rest are the app's
@@ -245,17 +332,18 @@ function page(options) {
       return
     }
     if (type === 'focus' || type === 'reveal') {
-      const target = effectTarget(out)
-      const element = target === null ? undefined : elements.get(identity(target, naming))
-      if (element instanceof HTMLElement && type === 'focus') {
-        element.focus()
-      } else if (element !== undefined) {
-        element.scrollIntoView({ block: 'nearest' })
+      if (drawsLater) {
+        parked.push(out)
+      } else {
+        onPart(out)
       }
       return
     }
     if (type === 'announce') {
-      live.textContent = announcement(out, words, nameOf)
+      const region = live()
+      if (region !== null) {
+        region.textContent = announcement(out, words, nameOf)
+      }
       return
     }
     options.effect?.(out, running)
@@ -274,11 +362,9 @@ function page(options) {
     if (!(event instanceof PointerEvent) || event.type === 'pointerdown') {
       return node
     }
-    for (
-      let under = document.elementFromPoint(event.clientX, event.clientY);
-      under !== null;
-      under = under.parentElement
-    ) {
+    const root = event.currentTarget instanceof Element ? event.currentTarget.getRootNode() : document
+    const at = isShadowRoot(root) ? root : document
+    for (let under = at.elementFromPoint(event.clientX, event.clientY); under !== null; under = under.parentElement) {
       const found = nodes.get(under)
       if (found?.listens.includes(event.type) === true) {
         return found
@@ -321,21 +407,27 @@ function page(options) {
     if (shown && open === undefined) {
       /** @type {Element[]} */
       const inert = []
-      for (let at = element; at.parentElement !== null && at !== document.body; at = at.parentElement) {
-        for (const sibling of at.parentElement.children) {
-          if (sibling !== at && sibling !== live && !sibling.hasAttribute('inert')) {
+      const region = live()
+      for (let at = element; at !== document.body;) {
+        const parent = outerParent(at)
+        if (parent === null) {
+          break
+        }
+        for (const sibling of siblingsOf(at)) {
+          if (sibling !== at && sibling !== region && !sibling.hasAttribute('inert')) {
             sibling.setAttribute('inert', '')
             inert.push(sibling)
           }
         }
+        at = parent
       }
-      modals.set(key, { inert, restore: document.activeElement })
+      modals.set(key, { inert, restore: focusedElement() })
     } else if (!shown && open !== undefined) {
       modals.delete(key)
       for (const sibling of open.inert) {
         sibling.removeAttribute('inert')
       }
-      const focused = document.activeElement
+      const focused = focusedElement()
       const lost = focused === null || focused === document.body || element.contains(focused)
       if (open.restore instanceof HTMLElement && lost) {
         open.restore.focus()
@@ -343,11 +435,54 @@ function page(options) {
     }
   }
 
+  /**
+   * Gives an element a part's listeners, and carries out its modality
+   * @param {string} key - The part's identity
+   * @param {Element} element - Its element
+   * @param {Node} node - The part
+   * @returns {void}
+   */
+  const listen = (key, element, node) => {
+    if (stopped) {
+      return
+    }
+    elements.set(key, element)
+    nodes.set(element, node)
+    const heard = listening.get(element) ?? new Set()
+    for (const type of node.listens) {
+      if (!heard.has(type)) {
+        heard.add(type)
+        element.addEventListener(type, (event) => {
+          hear(element, event)
+        })
+      }
+    }
+    listening.set(element, heard)
+    if (node.aria['modal'] === true) {
+      modal(key, element, !node.hidden)
+    }
+  }
+
+  /**
+   * Lets go of a part
+   * @param {string} key - Its identity
+   * @returns {void}
+   */
+  const unbind = (key) => {
+    const element = elements.get(key)
+    if (element !== undefined && modals.has(key)) {
+      modal(key, element, false)
+    }
+    elements.delete(key)
+  }
+
+  /** @type {Set<string>} */
+  let listened = new Set()
+  let stopped = false
+
   return {
     bind: (key, element, node) => {
-      elements.set(key, element)
-      nodes.set(element, node)
-      const attributes = attributesOf(node, naming, elementFor(node.role).implicitRole)
+      const attributes = attributesOf(node, naming, implicitRoleOf(element))
       for (const name of applied.get(element) ?? []) {
         if (!attributes.has(name)) {
           element.removeAttribute(name)
@@ -361,24 +496,45 @@ function page(options) {
         }
       }
       applied.set(element, new Set(attributes.keys()))
-      const heard = listening.get(element) ?? new Set()
-      for (const type of node.listens) {
-        if (!heard.has(type)) {
-          heard.add(type)
-          element.addEventListener(type, (event) => {
-            hear(element, event)
-          })
+      listen(key, element, node)
+    },
+    drawn: (tree, within) => {
+      drawsLater = true
+      const root = within.getRootNode()
+      /** @type {Set<string>} */
+      const now = new Set()
+      /** @type {Node[]} */
+      const parts = [tree]
+      for (let node = parts.pop(); node !== undefined; node = parts.pop()) {
+        const key = identity(node.target, naming)
+        const id = idOf(node.target, naming)
+        // oxlint-disable-next-line unicorn/prefer-query-selector -- an id from a key need not be a CSS identifier
+        const element = findsById(root) ? root.getElementById(id) : null
+        if (element !== null) {
+          now.add(key)
+          listen(key, element, node)
+        }
+        for (const content of node.content) {
+          if ('target' in content) {
+            parts.push(content)
+          }
         }
       }
-      listening.set(element, heard)
-      if (node.aria['modal'] === true) {
-        modal(key, element, !node.hidden)
+      for (const key of listened) {
+        if (!now.has(key)) {
+          unbind(key)
+        }
+      }
+      listened = now
+      for (const out of parked.splice(0)) {
+        onPart(out)
       }
     },
     host,
-    live,
+    listen,
     naming,
     stop: () => {
+      stopped = true
       host.stop()
       for (const key of modals.keys()) {
         const element = elements.get(key)
@@ -387,14 +543,8 @@ function page(options) {
         }
       }
     },
-    unbind: (key) => {
-      const element = elements.get(key)
-      if (element !== undefined && modals.has(key)) {
-        modal(key, element, false)
-      }
-      elements.delete(key)
-    },
+    unbind,
   }
 }
 
-export { elementFor, identity, idOf, page, partName }
+export { attributesOf, elementFor, identity, idOf, page, partName }

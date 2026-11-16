@@ -116,7 +116,7 @@ describe('the terminal renderer', () => {
 
   test('draws a part the way the app says, still lit when active', async () => {
     const shown = terminal(select, SELECT, {
-      'list.option': (_node, look) => `${look.lit ? '>' : ' '} ${look.text.toUpperCase()}`,
+      option: (_node, look) => `${look.lit ? '>' : ' '} ${look.text.toUpperCase()}`,
     })
     await shown.feed(`${ESC}[B`)
     await shown.feed(`${ESC}[B`)

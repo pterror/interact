@@ -16,8 +16,18 @@
   "overrides": [
     {
       // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`; the
-      // code generator's intermediate form holds the same values.
-      "files": ["packages/core/**/*.js", "packages/solid/src/interact*.js", "packages/codegen/**/*.js"],
+      // code generator's intermediate form holds the same values, and the components the generator makes take them
+      // (React's refs start at `null` too).
+      "files": [
+        "packages/core/**/*.js",
+        "packages/solid/src/interact*.js",
+        "packages/codegen/**/*.js",
+        "packages/react/src/**/*.js",
+        "packages/vue/src/**/*.js",
+        "packages/svelte/src/**/*.js",
+        "packages/elements/src/**/*.js",
+        "packages/solid/src/components/**/*.js"
+      ],
       "rules": { "unicorn/no-null": "off" }
     },
     {
@@ -140,7 +150,9 @@
             "package": "@codemirror/view"
           },
           { "from": "package", "name": ["Completion", "CompletionContext"], "package": "@codemirror/autocomplete" },
-          { "from": "package", "name": ["MarkdownConfig", "MarkdownParser"], "package": "@lezer/markdown" }
+          { "from": "package", "name": ["MarkdownConfig", "MarkdownParser"], "package": "@lezer/markdown" },
+          // A component is a function the framework calls; its type declares the framework's optional fields on it.
+          { "from": "package", "name": ["FunctionComponent", "ReactNode", "ReactElement"], "package": "@types/react" }
         ]
       }
     ],

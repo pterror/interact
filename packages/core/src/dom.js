@@ -19,7 +19,7 @@ import { elementFor, identity, page, partName } from './web.js'
 
 /**
  * Where to draw, and what the page needs; optionally how the host draws an item (by default its key as text) and the
- * parts the app makes itself, by name (`list.option`)
+ * parts the app makes itself, by name (`option`)
  * @typedef {PageOptions & Readonly<{
  *   container: Element,
  *   item?: (key: Key) => string | globalThis.Node,
@@ -71,15 +71,20 @@ function renderDom(options) {
   const parts = options.parts ?? {}
   /** @type {Map<string, Made>} */
   const made = new Map()
-  const running = page({
-    ...options,
-    name:
-      options.name ??
-      ((key) => {
-        const drawn = item(key)
-        return typeof drawn === 'string' ? drawn : (drawn.textContent ?? '')
-      }),
-  })
+  const live = document.createElement('div')
+  live.setAttribute('role', 'status')
+  const running = page(
+    {
+      ...options,
+      name:
+        options.name ??
+        ((key) => {
+          const drawn = item(key)
+          return typeof drawn === 'string' ? drawn : (drawn.textContent ?? '')
+        }),
+    },
+    () => live,
+  )
   const { naming } = running
 
   /**
@@ -137,8 +142,8 @@ function renderDom(options) {
         running.unbind(key)
       }
     }
-    if (container.firstChild !== root || container.lastChild !== running.live) {
-      container.replaceChildren(root, running.live)
+    if (container.firstChild !== root || container.lastChild !== live) {
+      container.replaceChildren(root, live)
     }
   }
 

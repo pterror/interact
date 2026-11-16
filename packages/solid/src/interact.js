@@ -32,7 +32,7 @@ import { insert } from 'solid-js/web'
 
 /**
  * What the page needs, optionally how an item is drawn (by default its key as text) and the parts the app makes
- * itself, by name (`list.option`)
+ * itself, by name (`option`)
  * @typedef {PageOptions & Readonly<{
  *   item?: (key: Key) => JSX.Element,
  *   parts?: Readonly<{ [name: string]: (node: Accessor<Part>) => Made }>,
@@ -87,23 +87,28 @@ function Interact(props) {
    */
   const item = (key) => (props.item ?? String)(key)
   const { sources, translate } = props
-  const running = page({
-    effect: (out, host) => {
-      props.effect?.(out, host)
+  const live = document.createElement('div')
+  live.setAttribute('role', 'status')
+  const running = page(
+    {
+      effect: (out, host) => {
+        props.effect?.(out, host)
+      },
+      name:
+        props.name ??
+        ((key) => {
+          const drawn = item(key)
+          return typeof drawn === 'string' ? drawn : drawn instanceof Node ? (drawn.textContent ?? '') : String(key)
+        }),
+      naming: props.naming ?? { id: createUniqueId(), keyId: String },
+      props: untrack(() => props.props),
+      widget: props.widget,
+      words: props.words ?? {},
+      ...(sources === undefined ? {} : { sources }),
+      ...(translate === undefined ? {} : { translate }),
     },
-    name:
-      props.name ??
-      ((key) => {
-        const drawn = item(key)
-        return typeof drawn === 'string' ? drawn : drawn instanceof Node ? (drawn.textContent ?? '') : String(key)
-      }),
-    naming: props.naming ?? { id: createUniqueId(), keyId: String },
-    props: untrack(() => props.props),
-    widget: props.widget,
-    words: props.words ?? {},
-    ...(sources === undefined ? {} : { sources }),
-    ...(translate === undefined ? {} : { translate }),
-  })
+    () => live,
+  )
   const { naming } = running
   const [version, setVersion] = createSignal(0)
   const unwatch = running.host.watch(() => {
@@ -171,7 +176,7 @@ function Interact(props) {
   onMount(() => {
     running.host.begin()
   })
-  return [root, running.live]
+  return [root, live]
 }
 
 /**

@@ -36,7 +36,7 @@ import { announcement } from './words.js'
 
 /**
  * What the host needs, and the terminal; optionally an item's text (by default its key as text), the words
- * announcements use over the English ones, and parts the app draws itself, by name (`list.option`)
+ * announcements use over the English ones, and parts the app draws itself, by name (`option`)
  * @typedef {HostOptions & Readonly<{
  *   input: TerminalInput,
  *   write: (text: string) => void,

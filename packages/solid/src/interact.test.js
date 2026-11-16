@@ -73,7 +73,7 @@ describe('Interact', () => {
               }
             },
             parts: {
-              'list.option': (node) => {
+              option: (node) => {
                 made += 1
                 const element = document.createElement('div')
                 const mark = document.createElement('span')
