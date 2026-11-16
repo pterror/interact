@@ -31,6 +31,7 @@ import { bindingsOf, blocksOf, children, completes, eachExpr, eachInStmt, exprsO
  *   nullable: boolean,
  *   consumes: Set<number>,
  *   writes: Map<number, readonly string[]>,
+ *   prefix: number | null,
  *   returnsParam: boolean,
  *   returnsOwned: boolean,
  *   keepsOnNull: boolean,
@@ -52,6 +53,7 @@ import { bindingsOf, blocksOf, children, completes, eachExpr, eachInStmt, exprsO
  *   constants: readonly Constant[],
  *   planned: ReadonlyMap<Fn, Fn>,
  *   infos: ReadonlyMap<Fn, Info>,
+ *   handlerFields: ReadonlyMap<Fn, readonly string[]>,
  * }>} Plan
  */
 
@@ -144,6 +146,7 @@ function plan(widget, checker) {
     const info = {
       consumes: consumedParams(source, infos, checker),
       keepsOnNull: true,
+      prefix: resultKind(fn) === null ? null : prefixParam(source),
       nullable: resultKind(fn) === 'nullable',
       result: resultKind(fn) !== null,
       returnsOwned: true,
@@ -176,7 +179,27 @@ function plan(widget, checker) {
       }
     })
   }
-  return { constants: [...constants], fns: order.map((fn) => planned.get(fn) ?? fn), infos, planned, widget }
+  /** @type {Map<Fn, readonly string[]>} */
+  const handlerFields = new Map()
+  for (const handler of widget.composite?.handlers ?? []) {
+    const done = planned.get(handler.fn)
+    if (handler.phase !== 'on' || done === undefined) {
+      continue
+    }
+    const taken = takeFields(done, 1, fresh)
+    if (taken !== null) {
+      planned.set(handler.fn, taken.fn)
+      handlerFields.set(handler.fn, taken.fields)
+    }
+  }
+  return {
+    constants: [...constants],
+    fns: order.map((fn) => planned.get(fn) ?? fn),
+    handlerFields,
+    infos,
+    planned,
+    widget,
+  }
 }
 
 /**
@@ -1229,6 +1252,10 @@ function rewrite(fn, info, tools) {
         materialize(args, pre)
       }
       pre.push(...argPre)
+      if (callee?.prefix === index) {
+        pre.push({ at: arg.at, items: [{ spread: true, value }], kind: 'emit', out: outBinding() })
+        return
+      }
       if (callee?.consumes.has(index) === true) {
         const group = groupOf(value)
         const writes = new Set(callee.writes.get(index))
@@ -1731,12 +1758,16 @@ function rewrite(fn, info, tools) {
     }
   }
 
-  const body = block(fn.body, [], [], false)
+  const prefixBinding = info.prefix === null ? null : paramBinding(fn, info.prefix)
+  if (prefixBinding !== null) {
+    segments.set(prefixBinding, { direct: true, end: null, mark: null })
+  }
+  const body = block(fn.body, [], prefixBinding === null ? [] : [prefixBinding], false)
   if (stateGroup === null) {
     info.returnsParam = false
   }
   /** @type {Pattern[]} */
-  const finalParams = paramPatterns
+  const finalParams = paramPatterns.filter((_, index) => index !== info.prefix)
   return {
     ...fn,
     body,
@@ -1766,6 +1797,197 @@ function segmentPiece(binding) {
  */
 function itemPiece(item) {
   return { item, kind: 'item' }
+}
+
+/**
+ * The parameter, if any, holding effects that every `return` puts first (`close(state, effects)` returning
+ * `[..., [...effects, FOCUS]]`), and that is used nowhere else: its effects can be made by the caller, before the call
+ * @param {Fn} fn - The function, normalized
+ * @returns {number | null} Its index
+ */
+function prefixParam(fn) {
+  /** @type {Stmt[]} */
+  const returns = []
+  const collect = (/** @type {readonly Stmt[]} */ stmts) => {
+    for (const stmt of stmts) {
+      if (stmt.kind === 'return') {
+        returns.push(stmt)
+      }
+      for (const inner of blocksOf(stmt)) {
+        collect(inner)
+      }
+    }
+  }
+  collect(fn.body)
+  for (const [index, param] of fn.params.entries()) {
+    if (param.kind !== 'bind') {
+      continue
+    }
+    const { binding } = param
+    const first = returns.every((stmt) => {
+      if (stmt.kind !== 'return' || stmt.value.kind !== 'array') {
+        return false
+      }
+      const effects = stmt.value.items[1]?.value
+      const [lead] = effects?.kind === 'array' ? effects.items : []
+      return lead?.spread === true && lead.value.kind === 'local' && lead.value.binding === binding
+    })
+    const uses = countReads(fn.body, binding)
+    if (returns.length > 0 && first && uses === returns.length) {
+      return index
+    }
+  }
+  return null
+}
+
+/**
+ * A handler taking the fields of its effect it reads, in its effect's place, when it reads only fields of it: the
+ * host's method then calls it with them, and no effect record is made
+ * @param {Fn} fn - The handler, planned
+ * @param {number} index - Its effect parameter
+ * @param {(name: string, type: ts.Type) => Binding} fresh - Makes a local
+ * @returns {Readonly<{ fn: Fn, fields: readonly string[] }> | null} The handler and the fields, or `null`
+ */
+function takeFields(fn, index, fresh) {
+  const param = fn.params[index]
+  if (param?.kind !== 'bind') {
+    return null
+  }
+  /** @type {Map<string, Binding>} */
+  const fields = new Map()
+
+  /**
+   * An expression with the effect's field reads made reads of the new locals
+   * @param {Expr} expr - The expression
+   * @returns {Expr} It
+   */
+  const map = (expr) => {
+    if (
+      expr.kind === 'field' &&
+      !expr.optional &&
+      expr.object.kind === 'local' &&
+      expr.object.binding === param.binding
+    ) {
+      const binding = fields.get(expr.name) ?? fresh(expr.name, expr.type)
+      fields.set(expr.name, binding)
+      return { at: expr.at, binding, kind: 'local', type: expr.type }
+    }
+    if (expr.kind === 'lambda') {
+      return { ...expr, body: mapBlock(expr.body) }
+    }
+    return mapChildren(expr, map)
+  }
+  /**
+   * @param {readonly Stmt[]} stmts - A block
+   * @returns {Stmt[]} It, mapped
+   */
+  const mapBlock = (stmts) =>
+    stmts.map((stmt) => {
+      const mapped = mapExprs(stmt, map)
+      return mapNested(mapped, mapBlock)
+    })
+  const body = mapBlock(fn.body)
+  if (countReads(body, param.binding) > 0) {
+    return null
+  }
+  const params = [
+    ...fn.params.slice(0, index),
+    ...[...fields.values()].map((binding) => bindPattern(binding)),
+    ...fn.params.slice(index + 1),
+  ]
+  return { fields: [...fields.keys()], fn: { ...fn, body, params } }
+}
+
+/**
+ * How many times some statements read a local
+ * @param {readonly Stmt[]} stmts - The statements
+ * @param {Binding} binding - The local
+ * @returns {number} How many
+ */
+function countReads(stmts, binding) {
+  /** @type {Expr[]} */
+  const reads = []
+  const visit = (/** @type {Expr} */ expr) => {
+    if (expr.kind === 'local' && expr.binding === binding) {
+      reads.push(expr)
+    }
+  }
+  for (const stmt of stmts) {
+    eachInStmt(stmt, visit)
+  }
+  return reads.length
+}
+
+/**
+ * @param {Binding} binding - A local
+ * @returns {Pattern} The pattern binding it
+ */
+function bindPattern(binding) {
+  return { binding, kind: 'bind' }
+}
+
+/**
+ * A statement with its own expressions mapped
+ * @param {Stmt} stmt - The statement
+ * @param {(expr: Expr) => Expr} map - The mapping
+ * @returns {Stmt} The statement
+ */
+function mapExprs(stmt, map) {
+  switch (stmt.kind) {
+    case 'const':
+    case 'let':
+    case 'assign':
+    case 'return':
+    case 'set': {
+      return { ...stmt, value: map(stmt.value) }
+    }
+    case 'if':
+    case 'while': {
+      return { ...stmt, test: map(stmt.test) }
+    }
+    case 'switch': {
+      return {
+        ...stmt,
+        cases: stmt.cases.map((one) => ({ ...one, tests: one.tests.map((test) => map(test)) })),
+        subject: map(stmt.subject),
+      }
+    }
+    case 'emit': {
+      return { ...stmt, items: stmt.items.map((item) => ({ ...item, value: map(item.value) })) }
+    }
+    case 'insert': {
+      return { ...stmt, index: map(stmt.index), items: stmt.items.map((item) => ({ ...item, value: map(item.value) })) }
+    }
+    case 'scan': {
+      return { ...stmt, from: map(stmt.from), test: map(stmt.test), to: map(stmt.to) }
+    }
+    default: {
+      throw new TypeError('Not a statement')
+    }
+  }
+}
+
+/**
+ * A statement with its nested blocks mapped
+ * @param {Stmt} stmt - The statement
+ * @param {(stmts: readonly Stmt[]) => Stmt[]} map - The mapping
+ * @returns {Stmt} The statement
+ */
+function mapNested(stmt, map) {
+  if (stmt.kind === 'if') {
+    return { ...stmt, whenFalse: map(stmt.whenFalse), whenTrue: map(stmt.whenTrue) }
+  }
+  if (stmt.kind === 'while') {
+    return { ...stmt, body: map(stmt.body) }
+  }
+  if (stmt.kind === 'switch') {
+    return {
+      ...stmt,
+      cases: stmt.cases.map((one) => ({ ...one, body: map(one.body) })),
+      fallback: stmt.fallback === null ? null : map(stmt.fallback),
+    }
+  }
+  return stmt
 }
 
 /**

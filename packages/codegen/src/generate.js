@@ -3,6 +3,7 @@
  * JavaScript (with declarations typing it as its source is typed) and LuaJIT, or why the Lua can't be made exactly.
  */
 
+import { effectsOf, factoryKnown } from './effects.js'
 import { printJs } from './js.js'
 import { lower } from './lower.js'
 import { printLua } from './lua.js'
@@ -57,14 +58,16 @@ function generateFrom(source, options) {
   if (lowered.diagnostics.length > 0) {
     return { diagnostics: lowered.diagnostics, widgets: [] }
   }
-  const widgets = lowered.widgets.map((widget) => {
-    const planned = plan(widget, source.checker)
-    const { dts, js } = printJs(planned, options)
+  const plans = lowered.widgets.map((widget) => plan(widget, source.checker))
+  const effects = new Map(plans.map((planned) => [planned.widget.name, effectsOf(planned, factoryKnown(planned))]))
+  const widgets = plans.map((planned) => {
+    const { widget } = planned
+    const { dts, js } = printJs(planned, options, effects)
     const header = options.header
       .split('\n')
       .map((line) => line.replace(/^\/\/ ?/u, '-- '))
       .join('\n')
-    const lua = printLua(planned, source.checker, { header })
+    const lua = printLua(planned, source.checker, { header }, effects)
     return {
       dts,
       js,

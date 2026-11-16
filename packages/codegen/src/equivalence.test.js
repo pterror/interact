@@ -10,11 +10,11 @@ import { select } from '@pterror/interact-core/select'
 import { generate, generateFrom } from './generate.js'
 import { loadFiles } from './program.js'
 import { beyondSource, bitsRuns, searchRuns } from './test-beyond.js'
-import { canon, listRuns, logged, LUA_DRIVER, menuRuns, selectRuns, toLua } from './test-equivalence.js'
+import { canon, listRuns, LUA_DRIVER, menuRuns, selectRuns, toLua } from './test-equivalence.js'
 import { DIALOG_RUNS, LIST_RUNS, MENU_RUNS, REORDER_RUNS, SELECT_RUNS } from './test-recorded.js'
 
-/** @import { AnyLeaf, AnyWidget } from '@pterror/interact-core/compose' */
-/** @import { CompositeRun, LeafRun, OwnCall } from './test-equivalence.js' */
+/** @import { AnyGenerated, AnyLeaf, AnyWidget } from '@pterror/interact-core/compose' */
+/** @import { CompositeRun, LeafRun } from './test-equivalence.js' */
 /** @import { Generated } from './generate.js' */
 
 const ROOT = new URL('../../../', import.meta.url).pathname
@@ -84,7 +84,7 @@ function frozen(value) {
 }
 
 /**
- * Whether a value is a widget, as far as running its `init` and `step` goes
+ * Whether a value is a source widget, as far as running its `init` and `step` goes
  * @param {unknown} value - The value
  * @returns {value is AnyLeaf} Whether it has them
  */
@@ -93,12 +93,17 @@ function isLeaf(value) {
 }
 
 /**
- * Whether a value is a composite widget
+ * Whether a value is a generated widget
  * @param {unknown} value - The value
- * @returns {value is AnyWidget} Whether it is one
+ * @returns {value is AnyGenerated} Whether it is one
  */
-function isComposite(value) {
-  return isLeaf(value) && 'children' in value && 'on' in value && 'capture' in value && 'bubble' in value
+function isGenerated(value) {
+  return (
+    isRecord(value) &&
+    typeof value['init'] === 'function' &&
+    typeof value['deliver'] === 'function' &&
+    isRecord(value['effects'])
+  )
 }
 
 /**
@@ -128,90 +133,44 @@ async function sourceExport(name) {
 }
 
 /**
- * A result, serialized
- * @param {readonly [unknown, readonly unknown[]]} result - `[state, effects]`
- * @returns {string} The line
+ * A leaf's run as deliveries to it
+ * @param {LeafRun} run - The run
+ * @returns {CompositeRun} The same inputs, each to the widget itself
  */
-function resultLine([state, effects]) {
-  return `${canon(state)}\t${canon(effects)}`
+function asDeliveries(run) {
+  return { deliveries: run.inputs.map((input) => ({ input, path: [] })), props: run.props }
 }
 
 /**
- * A leaf's results over a run: its state and effects after `init` and after each step, serialized
- * @param {AnyLeaf} widget - The widget
- * @param {LeafRun} run - The run
+ * A widget's results through the runtime over a run: its state and the effects that reached the host, after it
+ * started and after each delivery, serialized
+ * @param {AnyWidget | AnyGenerated} widget - The widget
+ * @param {CompositeRun} run - The run
  * @param {boolean} freeze - Whether props and inputs are frozen, so changing one throws
  * @returns {string[]} One line per result
  */
-function leafLines(widget, run, freeze) {
-  const own = (/** @type {unknown} */ value) => (freeze ? frozen(structuredClone(value)) : value)
-  let result = widget.init(own(run.props))
-  const lines = [resultLine(result)]
-  for (const input of run.inputs) {
-    result = widget.step(result[0], own(input))
-    lines.push(resultLine(result))
-  }
-  return lines
-}
-
-/**
- * A composite's results through the runtime over a run, serialized
- * @param {AnyWidget} widget - The composite
- * @param {CompositeRun} run - The run
- * @returns {string[]} One line per result
- */
-function compositeLines(widget, run) {
-  let [state, outs] = start(widget, structuredClone(run.props))
-  const lines = [`${canon(state)}\t${canon(outs)}`]
+function lines(widget, run, freeze) {
+  const own = (/** @type {unknown} */ value) => (freeze ? frozen(structuredClone(value)) : structuredClone(value))
+  let [state, outs] = start(widget, own(run.props))
+  const made = [`${canon(state)}\t${canon(outs)}`]
   for (const { input, path } of run.deliveries) {
-    ;[state, outs] = deliver(widget, state, path, structuredClone(input))
-    lines.push(`${canon(state)}\t${canon(outs)}`)
+    ;[state, outs] = deliver(widget, state, path, own(input))
+    made.push(`${canon(state)}\t${canon(outs)}`)
   }
-  return lines
+  return made
 }
 
 /**
- * A composite's own functions run over logged calls, each on the state the one before gave
- * @param {AnyWidget} widget - The composite
- * @param {unknown} props - Its props
- * @param {readonly OwnCall[]} calls - The calls
- * @returns {string[]} One line per result
- */
-function ownLines(widget, props, calls) {
-  if (!('children' in widget)) {
-    throw new TypeError('Not a composite')
-  }
-  let result = widget.init(props)
-  const lines = [resultLine(result)]
-  for (const call of calls) {
-    const [phase, child = '', type = ''] = call.fn.split('/')
-    const handler =
-      phase === 'on' || phase === 'capture' || phase === 'bubble' ? widget[phase][child]?.[type] : undefined
-    if (phase === 'step') {
-      result = widget.step(result[0], call.value)
-    } else if (handler !== undefined && call.detail !== null) {
-      result = handler(result[0], call.value, call.detail)
-    } else {
-      throw new Error(`No handler ${call.fn}`)
-    }
-    lines.push(resultLine(result))
-  }
-  return lines
-}
-
-/**
- * Runs the generated Lua over runs, each a list of calls after `init`
+ * Runs the generated Lua over runs, through a host that turns its calls back into effects
  * @param {string} name - The widget
- * @param {readonly Readonly<{ props: unknown, calls: readonly OwnCall[] }>[]} runs - The runs
+ * @param {readonly CompositeRun[]} runs - The runs
  * @param {string | null} factory - The Lua arguments its factory takes, if it is made by one
  * @returns {Promise<string[]>} One line per result, `--` after each run
  */
 async function luaLines(name, runs, factory) {
   const data = runs.map((run) => {
-    const calls = run.calls.map(
-      (call) => `{ fn = ${toLua(call.fn)}, value = ${toLua(call.value)}, detail = ${toLua(call.detail)} }`,
-    )
-    return `runs[#runs + 1] = (function() return { props = ${toLua(run.props)}, calls = {${calls.join(',\n')}} } end)()`
+    const deliveries = run.deliveries.map((one) => `{ path = ${toLua(one.path)}, input = ${toLua(one.input)} }`)
+    return `runs[#runs + 1] = (function() return { props = ${toLua(run.props)}, deliveries = {${deliveries.join(',\n')}} } end)()`
   })
   const file = `${dir}/${name}.data.lua`
   await Bun.write(file, `local runs = {}\n${data.join('\n')}\nreturn runs\n`)
@@ -237,111 +196,75 @@ function difference(expected, actual, inputs) {
 }
 
 /**
- * Checks a leaf's generated JavaScript and Lua against it over runs
- * @param {string} name - The widget
- * @param {AnyLeaf} reference - The widget
- * @param {readonly LeafRun[]} runs - The runs
- * @returns {Promise<void>} When checked
- */
-async function checkLeaf(name, reference, runs) {
-  const made = await generatedExport(name)
-  if (!isLeaf(made)) {
-    throw new TypeError(`The generated module has no ${name}`)
-  }
-  /** @type {string[]} */
-  const expected = []
-  for (const run of runs) {
-    const lines = leafLines(reference, run, false)
-    expect(difference(lines, leafLines(made, run, true), run.inputs)).toBeNull()
-    expected.push(...lines, '--')
-  }
-  if (generated.get(name)?.lua !== null) {
-    const calls = runs.map((run) => ({
-      calls: run.inputs.map((value) => ({ detail: null, fn: 'step', value })),
-      props: run.props,
-    }))
-    const inputs = runs.flatMap((run) => [...run.inputs, 'the next run'])
-    expect(difference(expected, await luaLines(name, calls, null), inputs)).toBeNull()
-  }
-}
-
-/**
- * Checks a composite's generated JavaScript against it through the runtime, and its own functions' JavaScript and
- * Lua over the calls the runtime made of the reference's
+ * Checks a widget's generated JavaScript and Lua against it through the runtime, delivery for delivery
  * @param {string} name - The widget's module
- * @param {AnyWidget} reference - The widget
- * @param {AnyWidget} made - The generated widget
+ * @param {AnyWidget} reference - The source widget
+ * @param {unknown} made - The generated widget
  * @param {readonly CompositeRun[]} runs - The runs
  * @param {string | null} factory - The Lua arguments its factory takes
  * @returns {Promise<void>} When checked
  */
-async function checkComposite(name, reference, made, runs, factory) {
-  /** @type {{ props: unknown, calls: OwnCall[] }[]} */
-  const logs = []
+async function check(name, reference, made, runs, factory) {
+  if (!isGenerated(made)) {
+    throw new TypeError(`No generated ${name}`)
+  }
   /** @type {string[]} */
   const expected = []
   for (const run of runs) {
-    /** @type {OwnCall[]} */
-    const calls = []
-    const lines = compositeLines(logged(reference, calls), run)
-    expect(difference(lines, compositeLines(made, run), run.deliveries)).toBeNull()
-    const own = ownLines(reference, run.props, calls)
-    expect(difference(own, ownLines(made, run.props, calls), calls)).toBeNull()
-    expected.push(...own, '--')
-    logs.push({ calls, props: run.props })
+    const source = lines(reference, run, false)
+    expect(difference(source, lines(made, run, true), run.deliveries)).toBeNull()
+    expected.push(...source, '--')
   }
-  const inputs = logs.flatMap((log) => [...log.calls, 'the next run'])
-  expect(difference(expected, await luaLines(name, logs, factory), inputs)).toBeNull()
+  if (generated.get(name)?.lua !== null) {
+    const inputs = runs.flatMap((run) => [...run.deliveries, 'the next run'])
+    expect(difference(expected, await luaLines(name, runs, factory), inputs)).toBeNull()
+  }
 }
 
 describe('generated code does what its source does, step for step', () => {
   test('list: JavaScript and Lua, over the recorded runs and random ones', async () => {
-    await checkLeaf('list', list, [...LIST_RUNS, ...listRuns(list, false, 1, RUNS, LENGTH)])
+    const runs = [...LIST_RUNS, ...listRuns(list, false, 1, RUNS, LENGTH)].map((run) => asDeliveries(run))
+    await check('list', list, await generatedExport('list'), runs, null)
   })
 
   test('reorderable list: JavaScript and Lua, over the recorded runs and random ones', async () => {
-    await checkLeaf('reorderList', reorderList, [...REORDER_RUNS, ...listRuns(reorderList, true, 2, RUNS, LENGTH)])
+    const runs = [...REORDER_RUNS, ...listRuns(reorderList, true, 2, RUNS, LENGTH)].map((run) => asDeliveries(run))
+    await check('reorderList', reorderList, await generatedExport('reorderList'), runs, null)
   })
 
   test("menu: JavaScript; its Lua is refused, as typeahead's case folding is Unicode's", async () => {
     expect(generated.get('menu')?.refused).toEqual([
       "core/src/menu.js:108:34: the string method toLowerCase(): its JavaScript meaning (Unicode case, UTF-16 units) is not Lua's on bytes",
     ])
-    await checkLeaf('menu', menu, [...MENU_RUNS, ...menuRuns(menu, 3, RUNS, LENGTH)])
+    const runs = [...MENU_RUNS, ...menuRuns(menu, 3, RUNS, LENGTH)].map((run) => asDeliveries(run))
+    await check('menu', menu, await generatedExport('menu'), runs, null)
   })
 
   test('a binary search in a loop, a `let` changed in it and a shift: JavaScript and Lua', async () => {
-    const reference = await sourceExport('search')
-    await checkLeaf('search', reference, searchRuns(6, RUNS, LENGTH))
+    const runs = searchRuns(6, RUNS, LENGTH).map((run) => asDeliveries(run))
+    await check('search', await sourceExport('search'), await generatedExport('search'), runs, null)
   })
 
   test('bitwise operators on any number, as JavaScript converts them: JavaScript and Lua', async () => {
-    const reference = await sourceExport('bits')
-    await checkLeaf('bits', reference, bitsRuns(7, RUNS, LENGTH))
+    const runs = bitsRuns(7, RUNS, LENGTH).map((run) => asDeliveries(run))
+    await check('bits', await sourceExport('bits'), await generatedExport('bits'), runs, null)
   })
 
-  test('select: JavaScript through the runtime; its own functions in JavaScript and Lua', async () => {
-    const made = await generatedExport('select')
-    if (!isComposite(made)) {
-      throw new TypeError('No select')
-    }
+  test('select: JavaScript and Lua, through the runtime', async () => {
     const runs = [...SELECT_RUNS, ...selectRuns(select, [], false, 4, RUNS, LENGTH)]
-    await checkComposite('select', select, made, runs, null)
+    await check('select', select, await generatedExport('select'), runs, null)
   })
 
-  test('dialog around a select: JavaScript through the runtime; its own functions in JavaScript and Lua', async () => {
+  test('dialog around a select: JavaScript and Lua, through the runtime', async () => {
     const madeSelect = await generatedExport('select')
     const madeDialog = await generatedExport('dialog')
-    if (typeof madeDialog !== 'function' || !isComposite(madeSelect)) {
+    if (typeof madeDialog !== 'function') {
       throw new TypeError('No dialog')
     }
     const reference = dialog(select, ['content', 'trigger'])
     /** @type {unknown} */
     const made = Reflect.apply(madeDialog, null, [madeSelect, ['content', 'trigger']])
-    if (!isComposite(made)) {
-      throw new TypeError('The dialog factory made no widget')
-    }
     const runs = [...DIALOG_RUNS, ...selectRuns(reference, ['content'], true, 5, RUNS, LENGTH)]
-    await checkComposite('dialog', reference, made, runs, 'require("select").select, { "content", "trigger" }')
+    await check('dialog', reference, made, runs, 'require("select").select, { "content", "trigger" }')
   })
 })

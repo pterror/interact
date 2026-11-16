@@ -12,11 +12,12 @@
 
 import ts from 'typescript'
 
+import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
 import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
-import { bindingsOf } from './walk.js'
 
 /** @import { Binding, Constant, Expr, Fn, Pattern, Stmt } from './ir.js' */
+/** @import { Call, Effects } from './effects.js' */
 /** @import { Plan } from './plan.js' */
 
 const KEYWORDS = new Set([
@@ -172,11 +173,12 @@ function refuse(node, message) {
  * @param {Plan} planned - The plan
  * @param {ts.TypeChecker} checker - The checker
  * @param {Readonly<{ header: string }>} imports - The module's header (a child widget is the module generated beside it)
+ * @param {ReadonlyMap<string, Effects>} others - The effects of every widget generated, by name
  * @returns {Readonly<{ lua: string }> | Readonly<{ refused: readonly string[] }>} The module, or the reasons
  */
-function printLua(planned, checker, imports) {
+function printLua(planned, checker, imports, others) {
   try {
-    return { lua: luaModule(planned, checker, imports) }
+    return { lua: luaModule(planned, checker, imports, others) }
   } catch (error) {
     if (error instanceof RefusedError) {
       return { refused: [error.message] }
@@ -190,14 +192,43 @@ function printLua(planned, checker, imports) {
  * @param {Plan} planned - The plan
  * @param {ts.TypeChecker} checker - The checker
  * @param {Readonly<{ header: string }>} imports - The module's header
+ * @param {ReadonlyMap<string, Effects>} others - The effects of every widget generated, by name
  * @returns {string} The source
  */
-function luaModule(planned, checker, imports) {
+function luaModule(planned, checker, imports, others) {
   const { widget } = planned
+  const effects = effectsOf(planned, factoryKnown(planned))
   /** @type {Map<number, string>} */
   const names = new Map()
   /** @type {Set<string>} */
-  const taken = new Set(['M', 'bit', 'out', ...Object.keys(HELPERS), 'index_of', 'slice_index', widget.name])
+  const taken = new Set([
+    'M',
+    'bit',
+    'host',
+    ...Object.keys(HELPERS),
+    'index_of',
+    'slice_index',
+    'same',
+    'HERE',
+    'EFFECTS',
+    'counted',
+    'current',
+    'upward',
+    'stopped',
+    'prevented',
+    'own_host',
+    'deferred',
+    'defer_host',
+    'to_child',
+    'sync_props',
+    'deliver_in',
+    'deliver',
+    'start',
+    widget.name,
+    ...(widget.composite?.children ?? []).flatMap((child) =>
+      ['_host', '_from', '_paths', '_synced'].map((end) => `${snake(child.name)}${end}`),
+    ),
+  ])
   /** @type {Set<keyof typeof HELPERS>} */
   const helpers = new Set()
 
@@ -514,8 +545,11 @@ function luaModule(planned, checker, imports) {
       value.name === 'length' &&
       (checker.isArrayType(objectType) ||
         checker.isTupleType(objectType) ||
-        (value.object.kind === 'local' && localName(value.object.binding) === 'out'))
+        (value.object.kind === 'local' && localName(value.object.binding) === 'host'))
     ) {
+      if (value.object.kind === 'local' && localName(value.object.binding) === 'host') {
+        return 'counted'
+      }
       checkHoles(objectType, value.object)
       return `#${operand(value.object, pre, indent)}`
     }
@@ -1266,47 +1300,15 @@ function luaModule(planned, checker, imports) {
         return [`${indent}while ${test} do`, ...block(one.body, inner), `${indent}end`]
       }
       case 'emit': {
-        const out = localName(one.out)
-        const lines = [...pre]
-        for (const item of one.items) {
-          if (item.spread) {
-            lines.push(...spreadInto(out, item.value, indent))
-          } else {
-            const text = expr(item.value, lines, indent)
-            lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
-          }
-        }
-        return lines
+        return [...pre, ...callLines(localName(one.out), effects.calls(one.items), indent)]
       }
       case 'insert': {
-        const out = localName(one.out)
-        const at = expr(one.index, pre, indent)
-        return [
-          ...pre,
-          ...one.items.map((item, offset) => {
-            if (item.spread) {
-              refuse(one, 'inserting a spread of effects')
-            }
-            return `${indent}table.insert(${out}, ${at} + ${String(offset + 1)}, ${expr(item.value, pre, indent)})`
-          }),
-        ]
+        return refuse(one, 'effects put before ones already made: no host call order gives them')
       }
       case 'scan': {
-        const target = localName(one.target)
-        const index = temp('i')
-        /** @type {string[]} */
-        const testPre = []
-        const test = expr(one.test, testPre, `${inner}  `)
         return [
-          `${indent}local ${target} = false`,
-          `${indent}for ${index} = ${expr(one.from, pre, indent)} + 1, ${expr(one.to, pre, indent)} do`,
-          `${inner}local ${localName(one.param)} = ${localName(one.out)}[${index}]`,
-          ...testPre,
-          `${inner}if ${test} then`,
-          `${inner}  ${target} = true`,
-          `${inner}  break`,
-          `${inner}end`,
-          `${indent}end`,
+          ...pre,
+          `${indent}local ${localName(one.target)} = ${expr(one.to, pre, indent)} ~= ${expr(one.from, pre, indent)}`,
         ]
       }
       default: {
@@ -1316,34 +1318,24 @@ function luaModule(planned, checker, imports) {
   }
 
   /**
-   * Appends an array's items to the buffer
-   * @param {string} out - The buffer
-   * @param {Expr} value - The array
+   * Calls on the host for effects made, the ones a test over effects counts counted first
+   * @param {string} host - The host
+   * @param {readonly Call[]} calls - The calls
    * @param {string} indent - The indent
    * @returns {string[]} The lines
    */
-  const spreadInto = (out, value, indent) => {
-    const items = value.kind === 'constant' ? value.constant.value : value
-    /** @type {string[]} */
-    const lines = []
-    if (items.kind === 'array' && items.items.length === 0) {
-      return []
-    }
-    if (value.kind === 'array') {
-      for (const item of value.items) {
-        if (item.spread) {
-          lines.push(...spreadInto(out, item.value, indent))
-        } else {
-          const text = expr(item.value, lines, indent)
-          lines.push(`${indent}${out}[#${out} + 1] = ${text}`)
-        }
+  const callLines = (host, calls, indent) =>
+    calls.flatMap((call) => {
+      /** @type {string[]} */
+      const lines = []
+      if (call.kind === 'call') {
+        const given = ['HERE', ...ordered(call.args, lines, indent)].join(', ')
+        const count = effects.counted.has(call.method.type) ? [`${indent}counted = counted + 1`] : []
+        return [...lines, ...count, `${indent}${host}${member(call.method.method)}(${given})`]
       }
-      return lines
-    }
-    if (value.kind === 'conditional') {
-      const test = expr(value.test, lines, indent)
-      const whenTrue = spreadInto(out, value.whenTrue, `${indent}  `)
-      const whenFalse = spreadInto(out, value.whenFalse, `${indent}  `)
+      const test = expr(call.test, lines, indent)
+      const whenTrue = callLines(host, call.whenTrue, `${indent}  `)
+      const whenFalse = callLines(host, call.whenFalse, `${indent}  `)
       if (whenTrue.length === 0) {
         return whenFalse.length === 0
           ? lines
@@ -1351,14 +1343,7 @@ function luaModule(planned, checker, imports) {
       }
       const otherwise = whenFalse.length === 0 ? [] : [`${indent}else`, ...whenFalse]
       return [...lines, `${indent}if ${test} then`, ...whenTrue, ...otherwise, `${indent}end`]
-    }
-    if (items.kind === 'array' && items.items.every((inside) => !inside.spread)) {
-      const name = expr(value, lines, indent)
-      return [...lines, ...items.items.map((_, at) => `${indent}${out}[#${out} + 1] = ${name}[${String(at + 1)}]`)]
-    }
-    const name = held(value, 'effects', lines, indent)
-    return [...lines, `${indent}for i = 1, #${name} do ${out}[#${out} + 1] = ${name}[i] end`]
-  }
+    })
 
   /**
    * A block's lines
@@ -1386,8 +1371,8 @@ function luaModule(planned, checker, imports) {
       return { name: localName(param.binding), pattern: null }
     })
     if (one.out !== null) {
-      locals.set(one.out, 'out')
-      used.add('out')
+      locals.set(one.out, 'host')
+      used.add('host')
     }
     /** @type {string[]} */
     const unpack = params.flatMap(({ name, pattern }) =>
@@ -1396,7 +1381,7 @@ function luaModule(planned, checker, imports) {
     const body = block(one.body, `${indent}  `)
     const paramNames = params.map(({ name }) => name)
     if (one.out !== null) {
-      paramNames.push('out')
+      paramNames.push('host')
     }
     return [
       ...docLines(
@@ -1446,74 +1431,30 @@ function luaModule(planned, checker, imports) {
   }
 
   /**
-   * The widget table's source
-   * @param {string} indent - The indent inside it
-   * @returns {string[]} Its lines, then the buffers it uses before it
+   * The widget table's fields, and the lines it needs before it
+   * @returns {Readonly<{ lines: readonly string[], fields: readonly string[] }>} Them
    */
-  const widgetTable = (indent) => {
-    /** @type {string[]} */
-    const buffers = []
-    /**
-     * An entry: the planned function, its effects in the entry's own buffer
-     * @param {Fn} source - The source function
-     * @param {string} name - The entry's name
-     * @returns {string} The entry
-     */
-    const entry = (source, name) => {
-      const one = planned.planned.get(source) ?? source
-      if (one.out === null) {
-        return nameOf(one)
+  const widgetTable = () => {
+    const name = (/** @type {Fn} */ one) => nameOf(planned.planned.get(one) ?? one)
+    if (widget.composite === null) {
+      return {
+        fields: [
+          'effects = EFFECTS',
+          `init = ${name(widget.init)}`,
+          `step = ${name(widget.step)}`,
+          `deliver = function(state, path, at, input, host) return ${name(widget.step)}(state, input, host) end`,
+        ],
+        lines: [],
       }
-      const buffer = `${snake(name)}_out`
-      buffers.push(`${indent.slice(2)}local ${buffer} = {}`)
-      locals = new Map(factoryLocals)
-      used = new Set(factoryLocals.values())
-      const params = one.params.flatMap((param) => bindingsOf(param).map((binding) => localName(binding)))
-      return [
-        `function(${params.join(', ')})`,
-        `${indent}  for i = #${buffer}, 1, -1 do ${buffer}[i] = nil end`,
-        `${indent}  return ${nameOf(one)}(${[...params, buffer].join(', ')}), ${buffer}`,
-        `${indent}end`,
-      ].join('\n')
     }
-    /** @type {string[]} */
-    const fields = []
-    const { composite } = widget
-    if (composite !== null) {
-      for (const phase of ['bubble', 'capture', 'on']) {
-        const handlers = composite.handlers.filter((one) => one.phase === phase)
-        /** @type {Map<string, string[]>} */
-        const byChild = new Map()
-        for (const handler of handlers) {
-          const list = byChild.get(handler.child) ?? []
-          list.push(`${key(handler.type)} = ${entry(handler.fn, handler.fn.name)}`)
-          byChild.set(handler.child, list)
-        }
-        fields.push(
-          `${phase} = { ${[...byChild].map(([child, list]) => `${key(child)} = { ${list.join(', ')} }`).join(', ')} }`,
-        )
-      }
-      const children = composite.children.map((child) => {
-        const { widget: made } = child
-        const value =
-          made.kind === 'export'
-            ? `require(${quote(made.name)}).${made.name}`
-            : (factoryLocals.get(made.binding) ?? made.binding.name)
-        return `${key(child.name)} = ${value}`
-      })
-      const props = composite.props.map((one) => `${key(one.child)} = ${nameOf(planned.planned.get(one.fn) ?? one.fn)}`)
-      fields.push(`children = { ${children.join(', ')} }`, `props = { ${props.join(', ')} }`)
-    }
-    fields.push(`init = ${entry(widget.init, 'init')}`, `step = ${entry(widget.step, 'step')}`)
-    return [...buffers, `${indent.slice(2)}return {`, ...fields.map((one) => `${indent}${one},`), `${indent.slice(2)}}`]
+    return compositeLua(planned, name, others, factoryLocals)
   }
 
   /** @type {string[]} */
   const tail = []
   if (widget.factory === null) {
-    const table = widgetTable('    ')
-    const at = table.findIndex((line) => line.trimStart().startsWith('return {'))
-    tail.push(...table.slice(0, at), `M.${widget.name} = {`, ...table.slice(at + 1, -1), '}', '', 'return M')
+    const table = widgetTable()
+    tail.push(...table.lines, `M.${widget.name} = {`, ...table.fields.map((one) => `  ${one},`), '}', '', 'return M')
   } else {
     const { factory } = widget
     tail.push(
@@ -1538,7 +1479,16 @@ function luaModule(planned, checker, imports) {
         factoryLocals.set(binding, name)
       }
     }
-    tail.push(...widgetTable('    '), 'end', '', 'return M')
+    const table = widgetTable()
+    tail.push(
+      ...table.lines.map((line) => (line === '' ? '' : `  ${line}`)),
+      '  return {',
+      ...table.fields.map((one) => `    ${one.replaceAll('\n', '\n  ')},`),
+      '  }',
+      'end',
+      '',
+      'return M',
+    )
   }
   // In HELPERS' order: a helper comes before one that calls it
   const helperLines = Object.entries(HELPERS).flatMap(([name, lines]) =>
@@ -1546,7 +1496,289 @@ function luaModule(planned, checker, imports) {
   )
   const all = [...helperLines, ...body, ...tail].join('\n')
   const requires = all.includes('bit.') ? ['local bit = require("bit")', ''] : []
-  return `${[imports.header, '', ...requires, 'local M = {}', '', all].join('\n')}\n`
+  const head = [
+    '-- Where an effect the widget makes comes from: the widget itself',
+    'local HERE = {}',
+    '',
+    `local EFFECTS = ${luaEffects(effects, widget.composite !== null)}`,
+    '',
+    ...(effects.counted.size > 0
+      ? ['-- How many of the effects a test reads the widget has made', 'local counted = 0', '']
+      : []),
+    ...(widget.composite === null ? [] : [...SAME, '']),
+  ]
+  return `${[imports.header, '', ...requires, 'local M = {}', '', ...head, all].join('\n')}\n`
+}
+
+/** Deep equality of plain data, for a composite's props: two values of one type have the same fields */
+const SAME = [
+  '-- Whether two plain values are the same data: tables compared field by field',
+  'local function same(a, b)',
+  '  if a == b then return true end',
+  '  if type(a) ~= "table" or type(b) ~= "table" then return false end',
+  '  for k, v in pairs(a) do',
+  '    if not same(v, b[k]) then return false end',
+  '  end',
+  '  for k in pairs(b) do',
+  '    if a[k] == nil then return false end',
+  '  end',
+  '  return true',
+  'end',
+]
+
+/**
+ * The host methods a module gives, as a Lua table
+ * @param {Effects} effects - The effects
+ * @param {boolean} isComposite - Whether it is a composite, whose `send` and `stopPropagation` stay inside it
+ * @returns {string} The table's source
+ */
+function luaEffects(effects, isComposite) {
+  const methods = effects.methods.filter(
+    (one) => !isComposite || (one.type !== 'send' && one.type !== 'stopPropagation'),
+  )
+  const entries = methods.map(
+    (one) =>
+      `  ${key(one.method)} = { type = ${quote(one.type)}, fields = { ${one.fields.map((field) => quote(field)).join(', ')} } },`,
+  )
+  return entries.length === 0 ? '{}' : `{\n${entries.join('\n')}\n}`
+}
+
+/**
+ * A composite, compiled, as the JavaScript one is: its own step and handlers called directly, a host per child whose
+ * methods call the composite's `on` handler for that effect or go straight up; the composite's state and host are the
+ * module's while a delivery is under way
+ * @param {Plan} planned - The plan
+ * @param {(fn: Fn) => string} name - A function's name
+ * @param {ReadonlyMap<string, Effects>} others - Every widget's effects, by name
+ * @param {ReadonlyMap<Binding, string>} factoryLocals - Names of a factory's parameters
+ * @returns {Readonly<{ lines: readonly string[], fields: readonly string[] }>} Lines before the table, and its fields
+ */
+function compositeLua(planned, name, others, factoryLocals) {
+  const { widget } = planned
+  const { composite } = widget
+  if (composite === null) {
+    throw new Error('Not a composite')
+  }
+  const own = (others.get(widget.name)?.methods ?? []).filter(
+    (one) => one.type !== 'send' && one.type !== 'stopPropagation',
+  )
+  const children = composite.children.map((child) => ({
+    host: `${snake(child.name)}_host`,
+    key: child.name,
+    paths: `${snake(child.name)}_paths`,
+    props: composite.props.find((one) => one.child === child.name)?.fn ?? null,
+    ref:
+      child.widget.kind === 'export'
+        ? `require(${quote(child.widget.name)}).${child.widget.name}`
+        : (factoryLocals.get(child.widget.binding) ?? child.widget.binding.name),
+    refName: child.widget.kind === 'export' ? child.widget.name : null,
+    synced: `${snake(child.name)}_synced`,
+    via: `${snake(child.name)}_from`,
+    widget: `${snake(child.name)}_widget`,
+  }))
+  const propsOf = (/** @type {Fn | null} */ fn, /** @type {string} */ ownText) =>
+    fn === null ? 'nil' : `${name(fn)}(${ownText})`
+  /** @type {string[]} */
+  const lines = [
+    ...children.map((child) => `local ${child.widget} = ${child.ref}`),
+    'local current, upward, stopped, prevented = nil, nil, false, false',
+    ...children.map((child) => `local ${child.synced} = nil`),
+    'local to_child, sync_props',
+    '',
+    "-- What the composite's own functions call: a send goes to the child, the rest up, from the composite",
+    'local own_host = {}',
+    'own_host.send = function(from, input, to)',
+    '  sync_props()',
+    '  to_child(to, HERE, 0, input)',
+    'end',
+    'own_host.stopPropagation = function() stopped = true end',
+    ...own.flatMap((one) => [
+      `own_host${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+      ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
+      `  upward${member(one.method)}(${['from', ...one.fields].join(', ')})`,
+      'end',
+    ]),
+    '',
+    '-- The own effects init makes, kept until the children have started, as the runtime orders them',
+    'local deferred = {}',
+    'local defer_host = {}',
+    `for _, method in ipairs({ ${[...own.map((one) => quote(one.method)), '"send"', '"stopPropagation"'].join(', ')} }) do`,
+    '  defer_host[method] = function(from, ...) deferred[#deferred + 1] = { method, { ... }, select("#", ...) } end',
+    'end',
+    '',
+  ]
+  for (const child of children) {
+    const handled = composite.handlers.filter((one) => one.phase === 'on' && one.child === child.key)
+    lines.push(
+      `local ${child.paths} = {}`,
+      `-- Where an effect from ${child.key} came from, from the composite: made once per path`,
+      `local function ${child.via}(from)`,
+      `  local path = ${child.paths}[from]`,
+      '  if path == nil then',
+      `    path = { ${quote(child.key)} }`,
+      '    for i = 1, #from do path[i + 1] = from[i] end',
+      `    ${child.paths}[from] = path`,
+      '  end',
+      '  return path',
+      'end',
+      `local ${child.host} = {}`,
+    )
+    const known = child.refName === null ? undefined : others.get(child.refName)
+    for (const handler of handled) {
+      const fn = planned.planned.get(handler.fn) ?? handler.fn
+      const fields = planned.handlerFields.get(handler.fn) ?? null
+      if (known === undefined) {
+        throw new Error(`${widget.name}: an \`on\` handler of a child the generator doesn't know the effects of`)
+      }
+      for (const one of known.methods.filter((method) => method.type === handler.type)) {
+        const record = `{ ${[`type = ${quote(one.type)}`, ...one.fields.map((field) => `${key(field)} = ${field}`)].join(', ')} }`
+        const args = ['current.own', ...(fields ?? [record]), ...(fn.params.length > 2 ? ['from'] : []), 'own_host']
+        lines.push(
+          `${child.host}${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+          ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
+          '  local was = stopped',
+          '  stopped = false',
+          `  current.own = ${name(handler.fn)}(${args.join(', ')})`,
+          '  local stop = stopped',
+          '  stopped = was',
+          `  if not stop then upward${member(one.method)}(${[`${child.via}(from)`, ...one.fields].join(', ')}) end`,
+          'end',
+        )
+      }
+    }
+    const handledTypes = new Set(handled.map((one) => one.type))
+    if (known === undefined) {
+      lines.push(
+        `for method in pairs(${child.widget}.effects) do`,
+        `  ${child.host}[method] = ${child.host}[method] or function(from, ...) upward[method](${child.via}(from), ...) end`,
+        'end',
+        `${child.host}.preventDefault = function(from)`,
+        '  prevented = true',
+        `  upward.preventDefault(${child.via}(from))`,
+        'end',
+      )
+    } else {
+      for (const one of known.methods.filter((method) => !handledTypes.has(method.type))) {
+        lines.push(
+          `${child.host}${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+          ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
+          `  upward${member(one.method)}(${[`${child.via}(from)`, ...one.fields].join(', ')})`,
+          'end',
+        )
+      }
+    }
+    lines.push('')
+  }
+  const handlerCall = (/** @type {Readonly<{ fn: Fn }>} */ handler, /** @type {string} */ was) => {
+    const fn = planned.planned.get(handler.fn) ?? handler.fn
+    return `${name(handler.fn)}(${[...['current.own', 'input', was].slice(0, fn.params.length), 'own_host'].join(', ')})`
+  }
+  lines.push(
+    '-- Delivers an input to a child, or below it',
+    'to_child = function(child, path, at, input)',
+    ...children.flatMap((child, at) => [
+      `  ${at === 0 ? 'if' : 'elseif'} child == ${quote(child.key)} then`,
+      `    current.children${member(child.key)} = ${child.widget}.deliver(current.children${member(child.key)}, path, at, input, ${child.host})`,
+    ]),
+    '  end',
+    'end',
+    '',
+    '-- Gives each child whose props changed its new props, until none do',
+    'sync_props = function()',
+    '  for _ = 1, 16 do',
+    ...children.map((child) => `    local ${snake(child.key)}_now = ${propsOf(child.props, 'current.own')}`),
+    ...children.map(
+      (child) => `    local ${snake(child.key)}_changed = not same(${child.synced}, ${snake(child.key)}_now)`,
+    ),
+    `    if ${children.map((child) => `not ${snake(child.key)}_changed`).join(' and ')} then return end`,
+    ...children.map((child) => `    ${child.synced} = ${snake(child.key)}_now`),
+    ...children.map(
+      (child) =>
+        `    if ${snake(child.key)}_changed then to_child(${quote(child.key)}, HERE, 0, { props = ${snake(child.key)}_now, type = "props" }) end`,
+    ),
+    '  end',
+    '  error("Props between a composite and its children never settle")',
+    'end',
+    '',
+    '-- Delivers an input inside the composite: to its own step, or through capture, the child and bubble',
+    'local function deliver_in(path, at, input)',
+    '  if at == #path then',
+    `    current.own = ${name(widget.step)}(current.own, input, own_host)`,
+    '    return',
+    '  end',
+    '  local child = path[at + 1]',
+    ...children.flatMap((child) => {
+      const captures = composite.handlers.filter((one) => one.phase === 'capture' && one.child === child.key)
+      const bubbles = composite.handlers.filter((one) => one.phase === 'bubble' && one.child === child.key)
+      return [
+        `  if child == ${quote(child.key)} then`,
+        ...captures.flatMap((handler) => [
+          `    if input.type == ${quote(handler.type)} then`,
+          '      local was = stopped',
+          '      stopped = false',
+          `      current.own = ${handlerCall(handler, 'false')}`,
+          '      local stop = stopped',
+          '      stopped = was',
+          '      if stop then return end',
+          '    end',
+        ]),
+        '    sync_props()',
+        '    prevented = false',
+        '    to_child(child, path, at + 1, input)',
+        ...bubbles.flatMap((handler) => [
+          `    if input.type == ${quote(handler.type)} then`,
+          `      current.own = ${handlerCall(handler, 'prevented')}`,
+          '    end',
+        ]),
+        '  end',
+      ]
+    }),
+    'end',
+    '',
+    "-- Delivers an input to the widget at `path` from `at`, the composite's own effects and its children's to `host`",
+    'local function deliver(state, path, at, input, host)',
+    `  local was, was_host, was_prevented${children.map((child) => `, was_${child.synced}`).join('')} = current, upward, prevented${children.map((child) => `, ${child.synced}`).join('')}`,
+    '  current, upward = state, host',
+    ...children.map((child) => `  ${child.synced} = ${propsOf(child.props, 'state.own')}`),
+    '  deliver_in(path, at, input)',
+    '  sync_props()',
+    `  current, upward, prevented${children.map((child) => `, ${child.synced}`).join('')} = was, was_host, was_prevented${children.map((child) => `, was_${child.synced}`).join('')}`,
+    '  return state',
+    'end',
+    '',
+    '-- Starts the composite: its own state, then its children, then its own first effects, as the runtime orders them',
+    'local function start(props, host)',
+    '  deferred = {}',
+    `  local own = ${name(widget.init)}(props, defer_host)`,
+    '  local kept = deferred',
+    '  local state = { children = {}, own = own }',
+    `  local was, was_host${children.map((child) => `, was_${child.synced}`).join('')} = current, upward${children.map((child) => `, ${child.synced}`).join('')}`,
+    '  current, upward = state, host',
+    ...children.flatMap((child) => [
+      `  ${child.synced} = ${propsOf(child.props, 'own')}`,
+      `  state.children${member(child.key)} = ${child.widget}.init(${child.synced}, ${child.host})`,
+    ]),
+    '  for i = 1, #kept do',
+    '    local call = kept[i]',
+    '    own_host[call[1]](HERE, unpack(call[2], 1, call[3]))',
+    '  end',
+    '  sync_props()',
+    `  current, upward${children.map((child) => `, ${child.synced}`).join('')} = was, was_host${children.map((child) => `, was_${child.synced}`).join('')}`,
+    '  return state',
+    'end',
+    '',
+  )
+  const childEffects = children.map((child) => `${child.widget}.effects`)
+  return {
+    fields: [
+      `children = { ${children.map((child) => `${key(child.key)} = ${child.widget}`).join(', ')} }`,
+      `props = { ${composite.props.map((one) => `${key(one.child)} = ${name(one.fn)}`).join(', ')} }`,
+      `effects = (function()\n  local all = {}\n  for _, t in ipairs({ EFFECTS, ${childEffects.join(', ')} }) do\n    for k, v in pairs(t) do all[k] = v end\n  end\n  return all\nend)()`,
+      'init = start',
+      'deliver = deliver',
+    ],
+    lines,
+  }
 }
 
 /**

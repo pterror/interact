@@ -5,13 +5,39 @@
  * (V8 allocates a small array faster than it empties a kept one).
  */
 
+import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
-import { bindingsOf, blocksOf, eachInStmt } from './walk.js'
+import { blocksOf, eachInStmt } from './walk.js'
 
 /** @import { Binding, Constant, Expr, Fn, Item, Pattern, Stmt } from './ir.js' */
+/** @import { Call, Effects } from './effects.js' */
 /** @import { Plan } from './plan.js' */
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u
+
+/** Names the module's own code uses, which no function or constant of the widget's may take */
+const TEMPLATE_NAMES = [
+  'EFFECTS',
+  'HERE',
+  'counted',
+  'current',
+  'deferHost',
+  'deferred',
+  'deliver',
+  'deliverIn',
+  'includesIn',
+  'ownHost',
+  'prevented',
+  'reference',
+  'same',
+  'sliceIndex',
+  'start',
+  'stopped',
+  'syncProps',
+  'toChild',
+  'upward',
+  'view',
+]
 
 /** Functions a module defines when it uses them: JavaScript's operations without the arrays they would make */
 const HELPERS = {
@@ -96,35 +122,58 @@ const RESERVED = new Set([
  * Prints a planned widget
  * @param {Plan} planned - The plan
  * @param {Imports} imports - Where its imports come from, and its header
+ * @param {ReadonlyMap<string, Effects>} others - The effects of the other widgets generated, by name, for a child's
  * @returns {Readonly<{ js: string, dts: string }>} The module and its declarations
  */
-function printJs(planned, imports) {
+function printJs(planned, imports, others) {
   const { widget } = planned
   const nameOf = moduleNames(planned)
   const factoryAt = widget.factory?.at ?? null
+  const known = factoryKnown(planned)
+  const effects = effectsOf(planned, known)
   /** @type {Map<Binding, string>} */
   const factoryNames = new Map((widget.factory?.params ?? []).map((binding) => [binding, binding.name]))
-  const printer = makePrinter(nameOf, factoryNames)
-  const reference = `import { ${widget.name} as reference } from '${imports.source(widget.module)}'`
-  const children = (widget.composite?.children ?? []).flatMap((child) =>
+  for (const binding of known.keys()) {
+    factoryNames.set(binding, binding.name)
+  }
+  const printer = makePrinter(nameOf, factoryNames, effects)
+  const { composite, factory } = widget
+  const childImports = (composite?.children ?? []).flatMap((child) =>
     child.widget.kind === 'export' ? [`import { ${child.widget.name} } from './${child.widget.name}.js'`] : [],
   )
+  const top = [
+    imports.header,
+    ...(composite === null ? [] : [`import { same } from '${imports.source('packages/core/src/compose.js')}'`]),
+    `import { ${widget.name} as reference } from '${imports.source(widget.module)}'`,
+    ...childImports,
+    '',
+    '/** Where an effect the widget makes comes from: the widget itself */',
+    'const HERE = []',
+    '',
+    `const EFFECTS = ${effectsText(effects, composite !== null)}`,
+    '',
+    ...(effects.counted.size > 0
+      ? ['/** How many of the effects a test reads the widget has made */', 'let counted = 0', '']
+      : []),
+  ]
   /** @type {string[]} */
-  const lines = [imports.header, reference, ...children, '']
+  const body = []
   for (const constant of planned.constants.filter((one) => !isInside(one.at, factoryAt))) {
-    lines.push(`const ${nameOf(constant)} = ${printer.expr(constant.value)}`, '')
+    body.push(`const ${nameOf(constant)} = ${printer.expr(constant.value)}`, '')
   }
-  for (const fn of planned.fns.filter((one) => !isInside(one.at, factoryAt))) {
-    lines.push(...printer.fn(fn, ''), '')
+  const outside = planned.fns.filter((one) => !isInside(one.at, factoryAt))
+  for (const fn of outside) {
+    body.push(...printer.fn(fn, ''), '')
   }
-  const { factory } = widget
+  const view = factory === null ? 'reference.view' : 'view'
+  const made = composite === null ? leafParts(planned, nameOf) : compositeParts(planned, nameOf, others)
+  const object = `{\n${made.fields.map((field) => `  ${field},`).join('\n')}\n  view: ${view},\n}`
   if (factory === null) {
-    const { kept, object } = widgetObject(planned, nameOf, '  ', 'reference.view')
-    lines.push(...kept, '', `export const ${widget.name} = ${object}`)
+    body.push(...made.lines, '', `export const ${widget.name} = ${object}`)
   } else {
-    const { kept, object } = widgetObject(planned, nameOf, '    ', 'view')
     const params = factory.params.map((param) => param.name).join(', ')
-    lines.push(
+    const inner = planned.fns.filter((one) => isInside(one.at, factoryAt))
+    body.push(
       ...docLines(
         factory.doc,
         factory.params.map((param, at) => [param.name, factory.paramDocs[at] ?? '']),
@@ -135,19 +184,412 @@ function printJs(planned, imports) {
       ...planned.constants
         .filter((one) => isInside(one.at, factoryAt))
         .map((constant) => `  const ${nameOf(constant)} = ${printer.expr(constant.value)}`),
-      ...planned.fns.filter((one) => isInside(one.at, factoryAt)).flatMap((fn) => printer.fn(fn, '  ')),
+      ...inner.flatMap((fn) => printer.fn(fn, '  ')),
       `  const { view } = reference(${params})`,
-      ...kept.map((line) => `  ${line}`),
-      `  return ${object}`,
+      ...made.lines.map((line) => (line === '' ? '' : `  ${line}`)),
+      `  return ${object.replaceAll('\n', '\n  ')}`,
       '}',
     )
   }
-  const top = [imports.header, reference, ...children, '']
-  lines.splice(0, top.length, ...top, ...printer.helpers())
   return {
-    dts: `${imports.header}\nexport declare const ${widget.name}: typeof import('${imports.source(widget.module)}').${widget.name}\n`,
-    js: `${lines.join('\n')}\n`,
+    dts: declarations(planned, effects, imports),
+    js: `${[...top, ...printer.helpers(), ...body].join('\n')}\n`,
   }
+}
+
+/**
+ * The host methods a widget's module gives, as data: each method's effect type and fields, for a host that turns calls
+ * back into effects. A composite's own `send` and `stopPropagation` stay inside it
+ * @param {Effects} effects - The widget's effects
+ * @param {boolean} isComposite - Whether it is a composite
+ * @returns {string} The object's source
+ */
+function effectsText(effects, isComposite) {
+  const methods = effects.methods.filter(
+    (one) => !isComposite || (one.type !== 'send' && one.type !== 'stopPropagation'),
+  )
+  const entries = methods.map(
+    (one) =>
+      `  ${one.method}: { fields: [${one.fields.map((field) => quote(field)).join(', ')}], type: ${quote(one.type)} },`,
+  )
+  return entries.length === 0 ? '{}' : `{\n${entries.join('\n')}\n}`
+}
+
+/**
+ * A leaf's object fields: `deliver` (for a composite holding it, or the runtime), `effects`, `init` and `step`
+ * @param {Plan} planned - The plan
+ * @param {(owner: Fn | Constant) => string} nameOf - Module-level names
+ * @returns {Readonly<{ lines: readonly string[], fields: readonly string[] }>} Lines before the object, and its fields
+ */
+function leafParts(planned, nameOf) {
+  const init = nameOf(planned.planned.get(planned.widget.init) ?? planned.widget.init)
+  const step = nameOf(planned.planned.get(planned.widget.step) ?? planned.widget.step)
+  return {
+    fields: [
+      `deliver: (state, path, at, input, host) => ${step}(state, input, host)`,
+      'effects: EFFECTS',
+      `init: ${init}`,
+      `step: ${step}`,
+    ],
+    lines: [],
+  }
+}
+
+/**
+ * A composite, compiled: its own step and handlers called directly, each child given a host whose methods call the
+ * composite's \`on\` handler for that effect (and go on up unless it stops them) or go straight up. While a delivery is
+ * under way the composite's state and its host are the module's (saved and restored around it), so the children's
+ * hosts are made once. A child's effects reach the host above with where they came from, each path made once
+ * @param {Plan} planned - The plan
+ * @param {(owner: Fn | Constant) => string} nameOf - Module-level names
+ * @param {ReadonlyMap<string, Effects>} others - The effects of the widgets a child may be
+ * @returns {Readonly<{ lines: readonly string[], fields: readonly string[] }>} Lines before the object, and its fields
+ */
+function compositeParts(planned, nameOf, others) {
+  const { widget } = planned
+  const { composite } = widget
+  if (composite === null) {
+    throw new Error('Not a composite')
+  }
+  const fnName = (/** @type {Fn} */ fn) => nameOf(planned.planned.get(fn) ?? fn)
+  const ownMethods = (others.get(widget.name)?.methods ?? []).filter(
+    (one) => one.type !== 'send' && one.type !== 'stopPropagation',
+  )
+  const planOf = (/** @type {Fn} */ fn) => planned.planned.get(fn) ?? fn
+  const children = composite.children.map((child) => ({
+    host: `${child.name}Host`,
+    name: child.name,
+    prefixes: `${child.name}Paths`,
+    props: `${child.name}Synced`,
+    propsFn: composite.props.find((one) => one.child === child.name)?.fn ?? null,
+    ref: child.widget.kind === 'export' ? child.widget.name : child.widget.binding.name,
+  }))
+  /** @type {string[]} */
+  const lines = [
+    'let current = null',
+    'let upward = null',
+    'let stopped = false',
+    'let prevented = false',
+    ...children.map((child) => `let ${child.props} = null`),
+    '',
+    "/** What the composite's own functions call: a send goes to the child, the rest up, from the composite */",
+    'const ownHost = {',
+    '  send: (from, input, to) => {',
+    '    syncProps()',
+    '    toChild(to, HERE, 0, input)',
+    '  },',
+    '  stopPropagation: () => {',
+    '    stopped = true',
+    '  },',
+    '}',
+    ...ownMethods.flatMap((one) => [
+      `ownHost.${one.method} = (${['from', ...one.fields].join(', ')}) => {`,
+      ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
+      `  upward.${one.method}(${['from', ...one.fields].join(', ')})`,
+      '}',
+    ]),
+    '',
+    '/** The own effects init makes, kept until the children have started, as the runtime orders them */',
+    'let deferred = []',
+    'const deferHost = {}',
+    `for (const method of [...Object.keys(EFFECTS), 'send', 'stopPropagation']) {`,
+    `  deferHost[method] = (from, ...args) => deferred.push([method, args])`,
+    '}',
+    '',
+  ]
+  for (const child of children) {
+    const handled = composite.handlers.filter((one) => one.phase === 'on' && one.child === child.name)
+    lines.push(
+      `const ${child.prefixes} = new Map()`,
+      '',
+      `/** Where an effect from ${child.name} came from, from the composite: made once per path */`,
+      `function ${child.name}From(from) {`,
+      `  let path = ${child.prefixes}.get(from)`,
+      '  if (path === undefined) {',
+      `    path = [${quote(child.name)}, ...from]`,
+      `    ${child.prefixes}.set(from, path)`,
+      '  }',
+      '  return path',
+      '}',
+      '',
+      `const ${child.host} = {`,
+    )
+    for (const handler of handled) {
+      const fn = planOf(handler.fn)
+      const childEffects = others.get(child.ref)
+      if (childEffects === undefined) {
+        throw new Error(`${widget.name}: an \`on\` handler of a child the generator doesn't know the effects of`)
+      }
+      for (const one of childEffects.methods.filter((method) => method.type === handler.type)) {
+        const fields = planned.handlerFields.get(handler.fn) ?? null
+        const args = [
+          'current.own',
+          ...(fields ?? [`{ ${[`type: ${quote(one.type)}`, ...one.fields].join(', ')} }`]),
+          ...(fn.params.length > 2 ? ['from'] : []),
+          'ownHost',
+        ]
+        const params = ['from', ...one.fields].join(', ')
+        lines.push(
+          `  ${one.method}: (${params}) => {`,
+          ...(one.type === 'preventDefault' ? ['    prevented = true'] : []),
+          '    const was = stopped',
+          '    stopped = false',
+          `    current.own = ${fnName(handler.fn)}(${args.join(', ')})`,
+          '    const stop = stopped',
+          '    stopped = was',
+          '    if (!stop) {',
+          `      upward.${one.method}(${[`${child.name}From(from)`, ...one.fields].join(', ')})`,
+          '    }',
+          '  },',
+        )
+      }
+    }
+    const known = others.get(child.ref)
+    const handledTypes = new Set(handled.map((one) => one.type))
+    const forwarded =
+      known === undefined
+        ? [
+            `for (const method of Object.keys(${child.ref}.effects)) {`,
+            `  ${child.host}[method] ??= (from, ...args) => upward[method](${child.name}From(from), ...args)`,
+            '}',
+            `${child.host}.preventDefault = (from) => {`,
+            '  prevented = true',
+            `  upward.preventDefault(${child.name}From(from))`,
+            '}',
+          ]
+        : known.methods.flatMap((one) =>
+            handledTypes.has(one.type)
+              ? []
+              : [
+                  `${child.host}.${one.method} = (${['from', ...one.fields].join(', ')}) => {`,
+                  ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
+                  `  upward.${one.method}(${[`${child.name}From(from)`, ...one.fields].join(', ')})`,
+                  '}',
+                ],
+          )
+    lines.push('}', ...forwarded, '')
+  }
+  lines.push(
+    '/** Delivers an input to a child, or below it */',
+    'function toChild(name, path, at, input) {',
+    ...children.flatMap((child) => [
+      `  if (name === ${quote(child.name)}) {`,
+      `    current.children.${child.name} = ${child.ref}.deliver(current.children.${child.name}, path, at, input, ${child.host})`,
+      '  }',
+    ]),
+    '}',
+    '',
+    '/** Gives each child whose props changed its new props, until none do */',
+    'function syncProps() {',
+    '  for (let round = 0; round < 16; round += 1) {',
+    ...children.map(
+      (child) => `    const ${child.name}Now = ${child.propsFn === null ? 'null' : fnName(child.propsFn)}(current.own)`,
+    ),
+    ...children.map((child) => `    const ${child.name}Changed = !same(${child.props}, ${child.name}Now)`),
+    `    if (${children.map((child) => `!${child.name}Changed`).join(' && ')}) {`,
+    '      return',
+    '    }',
+    ...children.map((child) => `    ${child.props} = ${child.name}Now`),
+    ...children.flatMap((child) => [
+      `    if (${child.name}Changed) {`,
+      `      toChild(${quote(child.name)}, HERE, 0, { props: ${child.name}Now, type: 'props' })`,
+      '    }',
+    ]),
+    '  }',
+    "  throw new Error('Props between a composite and its children never settle')",
+    '}',
+    '',
+  )
+  const handlerCall = (/** @type {Readonly<{ fn: Fn }>} */ handler, /** @type {string} */ prevented) => {
+    const fn = planOf(handler.fn)
+    const args = ['current.own', 'input', prevented].slice(0, fn.params.length)
+    return `${fnName(handler.fn)}(${[...args, 'ownHost'].join(', ')})`
+  }
+  lines.push(
+    '/** Delivers an input inside the composite: to its own step, or through capture, the child and bubble */',
+    'function deliverIn(path, at, input) {',
+    '  if (at === path.length) {',
+    `    current.own = ${fnName(widget.step)}(current.own, input, ownHost)`,
+    '    return',
+    '  }',
+    '  const name = path[at]',
+    ...children.flatMap((child) => {
+      const captures = composite.handlers.filter((one) => one.phase === 'capture' && one.child === child.name)
+      const bubbles = composite.handlers.filter((one) => one.phase === 'bubble' && one.child === child.name)
+      return [
+        `  if (name === ${quote(child.name)}) {`,
+        ...captures.flatMap((handler) => [
+          `    if (input.type === ${quote(handler.type)}) {`,
+          '      const was = stopped',
+          '      stopped = false',
+          `      current.own = ${handlerCall(handler, 'false')}`,
+          '      const stop = stopped',
+          '      stopped = was',
+          '      if (stop) {',
+          '        return',
+          '      }',
+          '    }',
+        ]),
+        '    syncProps()',
+        '    prevented = false',
+        `    toChild(name, path, at + 1, input)`,
+        ...bubbles.flatMap((handler) => [
+          `    if (input.type === ${quote(handler.type)}) {`,
+          `      current.own = ${handlerCall(handler, 'prevented')}`,
+          '    }',
+        ]),
+        '  }',
+      ]
+    }),
+    '}',
+    '',
+    "/** Delivers an input to the widget at `path` from `at`, the composite's own effects and its children's to `host` */",
+    'function deliver(state, path, at, input, host) {',
+    `  const was = current`,
+    `  const wasHost = upward`,
+    '  const wasPrevented = prevented',
+    ...children.map((child) => `  const was${capital(child.props)} = ${child.props}`),
+    '  current = state',
+    '  upward = host',
+    ...children.map(
+      (child) => `  ${child.props} = ${child.propsFn === null ? 'null' : fnName(child.propsFn)}(state.own)`,
+    ),
+    '  deliverIn(path, at, input)',
+    '  syncProps()',
+    '  current = was',
+    '  upward = wasHost',
+    '  prevented = wasPrevented',
+    ...children.map((child) => `  ${child.props} = was${capital(child.props)}`),
+    '  return state',
+    '}',
+    '',
+    '/** Starts the composite: its own state, then its children, then its own first effects, as the runtime orders them */',
+    'function start(props, host) {',
+    '  deferred = []',
+    `  const own = ${fnName(widget.init)}(props, deferHost)`,
+    '  const kept = deferred',
+    '  const state = { children: {}, own }',
+    '  const was = current',
+    '  const wasHost = upward',
+    ...children.map((child) => `  const was${capital(child.props)} = ${child.props}`),
+    '  current = state',
+    '  upward = host',
+    ...children.flatMap((child) => [
+      `  ${child.props} = ${child.propsFn === null ? 'null' : fnName(child.propsFn)}(own)`,
+      `  state.children.${child.name} = ${child.ref}.init(${child.props}, ${child.host})`,
+    ]),
+    '  for (const [method, args] of kept) {',
+    '    ownHost[method](HERE, ...args)',
+    '  }',
+    '  syncProps()',
+    '  current = was',
+    '  upward = wasHost',
+    ...children.map((child) => `  ${child.props} = was${capital(child.props)}`),
+    '  return state',
+    '}',
+    '',
+  )
+  return {
+    fields: [
+      `bubble: ${handlersText(composite.handlers, 'bubble', fnName)}`,
+      `capture: ${handlersText(composite.handlers, 'capture', fnName)}`,
+      `children: { ${children.map((child) => (child.ref === child.name ? child.name : `${child.name}: ${child.ref}`)).join(', ')} }`,
+      'deliver',
+      `effects: { ...EFFECTS, ${children.map((child) => `...${child.ref}.effects`).join(', ')} }`,
+      'init: start',
+      `on: ${handlersText(composite.handlers, 'on', fnName)}`,
+      `props: { ${composite.props.map((one) => `${one.child}: ${fnName(one.fn)}`).join(', ')} }`,
+    ],
+    lines,
+  }
+}
+
+/**
+ * A composite's handlers of one phase by child and type, for what renderers read of them (which inputs a child's
+ * parts are heard for)
+ * @param {readonly Readonly<{ phase: string, child: string, type: string, fn: Fn }>[]} handlers - The handlers
+ * @param {string} phase - The phase
+ * @param {(fn: Fn) => string} nameOf - A handler's name
+ * @returns {string} The object's source
+ */
+function handlersText(handlers, phase, nameOf) {
+  /** @type {Map<string, string[]>} */
+  const byChild = new Map()
+  for (const handler of handlers.filter((one) => one.phase === phase)) {
+    const list = byChild.get(handler.child) ?? []
+    list.push(`${handler.type}: ${nameOf(handler.fn)}`)
+    byChild.set(handler.child, list)
+  }
+  if (byChild.size === 0) {
+    return '{}'
+  }
+  return `{ ${[...byChild].map(([child, list]) => `${child}: { ${list.join(', ')} }`).join(', ')} }`
+}
+
+/**
+ * The declarations: the host the widget calls, typed from its source's effects, and the widget
+ * @param {Plan} planned - The plan
+ * @param {Effects} effects - Its effects
+ * @param {Imports} imports - Where the source is
+ * @returns {string} The .d.ts source
+ */
+function declarations(planned, effects, imports) {
+  const { widget } = planned
+  const hostName = `${capital(widget.name)}Host`
+  const source = `import('${imports.source(widget.module)}').${widget.name}`
+  const isComposite = widget.composite !== null
+  const sourceType = widget.factory === null ? `typeof ${source}` : `ReturnType<typeof ${source}>`
+  const methods = effects.methods
+    .filter((one) => !isComposite || (one.type !== 'send' && one.type !== 'stopPropagation'))
+    .map((one) => {
+      const params = one.fields.map((field) => `${field}: ${capital(one.method)}[${quote(field)}]`)
+      return `  ${one.method}(${['from: Path', ...params].join(', ')}): void`
+    })
+  const effectTypes = effects.methods
+    .filter((one) => !isComposite || (one.type !== 'send' && one.type !== 'stopPropagation'))
+    .map((one) => {
+      const shape = `{ type: ${quote(one.type)}${one.fields.map((field) => `; ${field}: unknown`).join('')} }`
+      return `type ${capital(one.method)} = Extract<Effect, ${shape}>`
+    })
+  const childModules = (widget.composite?.children ?? []).flatMap((child) =>
+    child.widget.kind === 'export' ? [child.widget.name] : [],
+  )
+  const childHosts = childModules.map((name) => `${capital(name)}Host`)
+  const host = [
+    `/** What ${widget.name} calls for each effect it makes, with where the effect came from */`,
+    `export interface ${hostName}${childHosts.length > 0 ? ` extends ${childHosts.join(', ')}` : ''} {`,
+    ...methods,
+    '}',
+  ]
+  const generated = [
+    `type Generated<H> = {`,
+    "  init(props: Parameters<Source['init']>[0], host: H): State",
+    `  ${isComposite ? '' : "step(state: State, input: Parameters<Source['step']>[1], host: H): State\n  "}deliver(state: State, path: Path, at: number, input: unknown, host: H): State`,
+    '  effects: Readonly<Record<string, Readonly<{ type: string, fields: readonly string[] }>>>',
+    "  view: Source['view']",
+    '}',
+  ]
+  const exported =
+    widget.factory === null
+      ? [`export declare const ${widget.name}: Generated<${hostName}>`]
+      : [`export declare function ${widget.name}<H>(...args: Parameters<typeof ${source}>): Generated<${hostName} & H>`]
+  return [
+    imports.header,
+    `import type { Path } from '${imports.source('packages/core/src/contract.js')}'`,
+    ...childModules.map((name) => `import type { ${capital(name)}Host } from './${name}.js'`),
+    '',
+    `type Source = ${sourceType}`,
+    `type State = ${isComposite ? "Readonly<{ own: ReturnType<Source['init']>[0], children: unknown }>" : "ReturnType<Source['init']>[0]"}`,
+    `type Effect = ReturnType<Source['step']>[1][number]`,
+    ...effectTypes,
+    '',
+    ...host,
+    '',
+    ...generated,
+    '',
+    ...exported,
+    '',
+  ].join('\n')
 }
 
 /**
@@ -161,11 +603,12 @@ function moduleNames(planned) {
   /** @type {Map<number, string>} */
   const names = new Map()
   const taken = new Set([
-    'out',
-    'reference',
-    'view',
+    ...TEMPLATE_NAMES,
     widget.name,
     ...(widget.factory?.params ?? []).map((one) => one.name),
+    ...(widget.composite?.children ?? []).flatMap((child) =>
+      ['Host', 'From', 'Paths', 'Synced', 'Now', 'Changed'].map((end) => `${child.name}${end}`),
+    ),
   ])
   /**
    * @param {Fn | Constant} owner - What is named
@@ -193,96 +636,6 @@ function moduleNames(planned) {
     nameOf(constant)
   }
   return nameOf
-}
-
-/**
- * The widget object: the contract's functions over the planned ones
- * @param {Plan} planned - The plan
- * @param {(owner: Fn | Constant) => string} nameOf - Module-level names
- * @param {string} indent - The indent inside the object
- * @param {string} view - The view's source
- * @returns {Readonly<{ kept: readonly string[], object: string }>} The arrays its entries keep, declared, and the
- *   object's source
- */
-function widgetObject(planned, nameOf, indent, view) {
-  const { widget } = planned
-  /** @type {string[]} */
-  const kept = []
-  /**
-   * An entry: a planned function, giving `[state, effects]`. `init` makes its arrays; any other entry keeps its
-   * result and effects arrays between calls, making a new effects array only after one that had effects in it
-   * @param {Fn} source - The source function
-   * @returns {string} The entry
-   */
-  const entry = (source) => {
-    const fn = planned.planned.get(source) ?? source
-    if (fn.out === null) {
-      return nameOf(fn)
-    }
-    const params = fn.params.map((param) => patternText(param, (binding) => binding.name)).join(', ')
-    const names = fn.params.flatMap((param) => bindingsOf(param).map((binding) => binding.name))
-    if (source === widget.init) {
-      const args = [...names, 'out'].join(', ')
-      return `(${params}) => {\n${indent}  const out = []\n${indent}  return [${nameOf(fn)}(${args}), out]\n${indent}}`
-    }
-    const out = `${nameOf(fn)}Out`
-    const result = `${nameOf(fn)}Result`
-    kept.push(`let ${out} = []`, `const ${result} = [null, ${out}]`)
-    return [
-      `(${params}) => {`,
-      `${indent}  if (${out}.length > 0) {`,
-      `${indent}    ${out} = []`,
-      `${indent}  }`,
-      `${indent}  ${result}[0] = ${nameOf(fn)}(${[...names, out].join(', ')})`,
-      `${indent}  ${result}[1] = ${out}`,
-      `${indent}  return ${result}`,
-      `${indent}}`,
-    ].join('\n')
-  }
-  /** @type {string[]} */
-  const fields = []
-  const { composite } = widget
-  if (composite === null) {
-    fields.push(`init: ${entry(widget.init)}`)
-  } else {
-    const children = composite.children.map((child) => {
-      const name = child.widget.kind === 'export' ? child.widget.name : child.widget.binding.name
-      return name === child.name ? name : `${child.name}: ${name}`
-    })
-    const props = composite.props.map((one) => `${one.child}: ${nameOf(planned.planned.get(one.fn) ?? one.fn)}`)
-    fields.push(
-      `bubble: ${handlersText(composite.handlers, 'bubble', entry, indent)}`,
-      `capture: ${handlersText(composite.handlers, 'capture', entry, indent)}`,
-      `children: { ${children.join(', ')} }`,
-      `init: ${entry(widget.init)}`,
-      `on: ${handlersText(composite.handlers, 'on', entry, indent)}`,
-      `props: { ${props.join(', ')} }`,
-    )
-  }
-  fields.push(`step: ${entry(widget.step)}`, view === 'view' ? 'view' : `view: ${view}`)
-  return { kept, object: `{\n${fields.map((field) => `${indent}${field},`).join('\n')}\n${indent.slice(2)}}` }
-}
-
-/**
- * A composite's handlers of one phase, as an object by child and type
- * @param {readonly Readonly<{ phase: string, child: string, type: string, fn: Fn }>[]} handlers - The handlers
- * @param {string} phase - The phase
- * @param {(fn: Fn) => string} entry - An entry's source
- * @param {string} indent - The indent
- * @returns {string} The object's source
- */
-function handlersText(handlers, phase, entry, indent) {
-  /** @type {Map<string, string[]>} */
-  const byChild = new Map()
-  for (const handler of handlers.filter((one) => one.phase === phase)) {
-    const list = byChild.get(handler.child) ?? []
-    list.push(`${handler.type}: ${entry(handler.fn)}`)
-    byChild.set(handler.child, list)
-  }
-  if (byChild.size === 0) {
-    return '{}'
-  }
-  return `{ ${[...byChild].map(([child, list]) => `${child}: { ${list.join(`,\n${indent}  `)} }`).join(', ')} }`
 }
 
 /**
@@ -329,6 +682,7 @@ function docLines(doc, params, indent) {
  * The printer of functions, statements and expressions
  * @param {(owner: Fn | Constant) => string} nameOf - Module-level names
  * @param {ReadonlyMap<Binding, string>} outer - Names of a factory's parameters
+ * @param {Effects} effects - The widget's effects, as host methods
  * @returns {Readonly<{
  *   fn: (fn: Fn, indent: string) => string[],
  *   stmt: (stmt: Stmt, indent: string) => string[],
@@ -336,7 +690,7 @@ function docLines(doc, params, indent) {
  *   helpers: () => string[],
  * }>} The printer
  */
-function makePrinter(nameOf, outer) {
+function makePrinter(nameOf, outer, effects) {
   /** @type {Map<Binding, string>} */
   let locals = new Map(outer)
   /** @type {Set<string>} */
@@ -374,17 +728,17 @@ function makePrinter(nameOf, outer) {
    */
   const printFn = (one, indent) => {
     locals = new Map(outer)
-    used = new Set([...outer.values(), 'out'])
+    used = new Set([...outer.values(), 'host'])
     read = readBindings(one.body)
     const params = one.params.map((param) => patternText(param, localName))
     if (one.out !== null) {
-      locals.set(one.out, 'out')
+      locals.set(one.out, 'host')
     }
     /** @type {(readonly [string, string])[]} */
     const docParams = params.map((param, at) => [param, one.paramDocs[at] ?? ''])
     return [
       ...docLines(one.doc, docParams, indent),
-      `${indent}function ${nameOf(one)}(${[...params, ...(one.out === null ? [] : ['out'])].join(', ')}) {`,
+      `${indent}function ${nameOf(one)}(${[...params, ...(one.out === null ? [] : ['host'])].join(', ')}) {`,
       ...block(one.body, `${indent}  `),
       `${indent}}`,
     ]
@@ -456,23 +810,13 @@ function makePrinter(nameOf, outer) {
         return [`${indent}while (${printExpr(one.test)}) {`, ...block(one.body, inner), `${indent}}`]
       }
       case 'emit': {
-        return pushLines(localName(one.out), one.items, indent)
+        return callLines(localName(one.out), effects.calls(one.items), indent)
       }
       case 'insert': {
-        const items = one.items.map((item) => itemText(item)).join(', ')
-        return [`${indent}${localName(one.out)}.splice(${printExpr(one.index)}, 0, ${items})`]
+        throw new Error('effects put before ones already made: no host call order gives them')
       }
       case 'scan': {
-        const target = localName(one.target)
-        const index = localName({ id: -one.target.id, mutable: true, name: 'index', type: one.target.type })
-        const to = printExpr(one.to)
-        return [
-          `${indent}let ${target} = false`,
-          `${indent}for (let ${index} = ${printExpr(one.from)}; ${index} < ${to} && !${target}; ${index} += 1) {`,
-          `${inner}const ${localName(one.param)} = ${localName(one.out)}[${index}]`,
-          `${inner}${target} = ${printExpr(one.test)}`,
-          `${indent}}`,
-        ]
+        return [`${indent}const ${localName(one.target)} = ${printExpr(one.to)} !== ${printExpr(one.from)}`]
       }
       default: {
         throw new TypeError('Not a statement')
@@ -481,49 +825,27 @@ function makePrinter(nameOf, outer) {
   }
 
   /**
-   * Appends items to the effect buffer: an array written out is appended item by item, and one chosen by a condition
-   * is appended in an `if`, so neither array is made
-   * @param {string} out - The buffer
-   * @param {readonly Item[]} items - The items
+   * Calls on the host for effects appended, the ones a test over effects counts counted first
+   * @param {string} host - The host
+   * @param {readonly Call[]} calls - The calls
    * @param {string} indent - The indent
    * @returns {string[]} The lines
    */
-  const pushLines = (out, items, indent) => {
-    /** @type {string[]} */
-    const lines = []
-    /** @type {string[]} */
-    let pushed = []
-    const flush = () => {
-      if (pushed.length > 0) {
-        lines.push(`${indent}${out}.push(${pushed.join(', ')})`)
-        pushed = []
+  const callLines = (host, calls, indent) =>
+    calls.flatMap((call) => {
+      if (call.kind === 'call') {
+        const args = ['HERE', ...call.args.map((arg) => printExpr(arg))].join(', ')
+        const count = effects.counted.has(call.method.type) ? [`${indent}counted += 1`] : []
+        return [...count, `${indent}${host}${member(call.method.method, false)}(${args})`]
       }
-    }
-    for (const item of items) {
-      const { value } = item
-      if (!item.spread) {
-        pushed.push(printExpr(value))
-      } else if (isEmpty(item)) {
-        continue
-      } else if (value.kind === 'array') {
-        pushed.push(...value.items.map((inner) => itemText(inner)))
-      } else if (value.kind === 'conditional') {
-        flush()
-        const whenTrue = pushLines(out, [{ spread: true, value: value.whenTrue }], `${indent}  `)
-        const whenFalse = pushLines(out, [{ spread: true, value: value.whenFalse }], `${indent}  `)
-        if (whenTrue.length === 0 && whenFalse.length > 0) {
-          lines.push(`${indent}if (!${operand(value.test)}) {`, ...whenFalse, `${indent}}`)
-        } else if (whenTrue.length > 0) {
-          const otherwise = whenFalse.length > 0 ? [`${indent}} else {`, ...whenFalse] : []
-          lines.push(`${indent}if (${printExpr(value.test)}) {`, ...whenTrue, ...otherwise, `${indent}}`)
-        }
-      } else {
-        pushed.push(itemText(item))
+      const whenTrue = callLines(host, call.whenTrue, `${indent}  `)
+      const whenFalse = callLines(host, call.whenFalse, `${indent}  `)
+      if (whenTrue.length === 0) {
+        return whenFalse.length === 0 ? [] : [`${indent}if (!${operand(call.test)}) {`, ...whenFalse, `${indent}}`]
       }
-    }
-    flush()
-    return lines
-  }
+      const otherwise = whenFalse.length > 0 ? [`${indent}} else {`, ...whenFalse] : []
+      return [`${indent}if (${printExpr(call.test)}) {`, ...whenTrue, ...otherwise, `${indent}}`]
+    })
 
   /**
    * An array item
@@ -593,6 +915,9 @@ function makePrinter(nameOf, outer) {
         return nameOf(value.fn)
       }
       case 'field': {
+        if (value.name === 'length' && value.object.kind === 'local' && locals.get(value.object.binding) === 'host') {
+          return 'counted'
+        }
         return `${operand(value.object)}${member(value.name, value.optional)}`
       }
       case 'index': {
@@ -714,17 +1039,6 @@ function patternText(pattern, name) {
     return inner === field.name ? inner : `${field.name}: ${inner}`
   })
   return `{ ${fields.join(', ')} }`
-}
-
-/**
- * Whether an array item adds nothing: a spread of an empty array
- * @param {Item} item - The item
- * @returns {boolean} Whether it is empty
- */
-function isEmpty(item) {
-  const { value } = item
-  const array = value.kind === 'constant' ? value.constant.value : value
-  return item.spread && array.kind === 'array' && array.items.length === 0
 }
 
 /**

@@ -214,17 +214,27 @@ local dir, module, name, data = arg[1], arg[2], arg[3], arg[4]
 package.path = dir .. "/?.lua;" .. package.path
 local widget = require(module)[name]
 if arg[5] ~= nil then widget = widget(load("return " .. arg[5])()) end
+-- A host turning the widget's calls back into effects, as its source gives them
+local outs
+local host = {}
+for method, shape in pairs(widget.effects) do
+  host[method] = function(from, ...)
+    local effect = { type = shape.type }
+    for i = 1, #shape.fields do effect[shape.fields[i]] = select(i, ...) end
+    outs[#outs + 1] = { effect = effect, from = from }
+  end
+end
 local runs = dofile(data)
 for r = 1, #runs do
   local run = runs[r]
-  local state, effects = widget.init(run.props)
-  io.write(canon(state), "\t", canon(effects), "\n")
-  for i = 1, #run.calls do
-    local call = run.calls[i]
-    local fn = widget
-    for part in call.fn:gmatch("[^/]+") do fn = fn[part] end
-    state, effects = fn(state, call.value, call.detail)
-    io.write(canon(state), "\t", canon(effects), "\n")
+  outs = {}
+  local state = widget.init(run.props, host)
+  io.write(canon(state), "\t", canon(outs), "\n")
+  for i = 1, #run.deliveries do
+    local delivery = run.deliveries[i]
+    outs = {}
+    state = widget.deliver(state, delivery.path, 0, delivery.input, host)
+    io.write(canon(state), "\t", canon(outs), "\n")
   end
   io.write("--\n")
 end
@@ -765,46 +775,4 @@ function selectRuns(widget, at, isDialog, seed, runs, length) {
   return Array.from({ length: runs }, () => selectRun(widget, at, isDialog, pick, length))
 }
 
-/**
- * A composite whose own functions log each call
- * @param {AnyWidget} widget - The composite
- * @param {OwnCall[]} log - Where calls go
- * @returns {AnyWidget} The same composite, logging
- */
-function logged(widget, log) {
-  if (!('children' in widget)) {
-    throw new TypeError('Only a composite logs its own calls')
-  }
-  /**
-   * @param {'on' | 'capture' | 'bubble'} phase - The phase
-   * @returns {Readonly<Record<string, Readonly<Record<string, (own: unknown, value: unknown, detail: Path | boolean) => readonly [unknown, readonly unknown[]]>>>>}
-   *   Its handlers, logging
-   */
-  const handlers = (phase) =>
-    Object.fromEntries(
-      Object.entries(widget[phase]).map(([child, byType]) => [
-        child,
-        Object.fromEntries(
-          Object.entries(byType).map(([type, handler]) => [
-            type,
-            (/** @type {unknown} */ own, /** @type {unknown} */ value, /** @type {Path | boolean} */ detail) => {
-              log.push({ detail, fn: `${phase}/${child}/${type}`, value })
-              return handler(own, value, detail)
-            },
-          ]),
-        ),
-      ]),
-    )
-  return {
-    ...widget,
-    bubble: handlers('bubble'),
-    capture: handlers('capture'),
-    on: handlers('on'),
-    step: (own, input) => {
-      log.push({ detail: null, fn: 'step', value: input })
-      return widget.step(own, input)
-    },
-  }
-}
-
-export { answerFor, canon, click, keydown, listRuns, logged, LUA_DRIVER, menuRuns, pointer, selectRuns, toLua }
+export { answerFor, canon, click, keydown, listRuns, LUA_DRIVER, menuRuns, pointer, selectRuns, toLua }
