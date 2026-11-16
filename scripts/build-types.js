@@ -1,6 +1,7 @@
 /**
- * Builds the type declarations of every package whose manifest names `types`, from its JSDoc, into its `dist`. Tests
- * and test helpers get none. With `--check`, builds them aside and fails if any `dist` differs from what it builds.
+ * Builds the type declarations of every package whose manifest names `types`, from its JSDoc, into its `dist`, with
+ * the declarations its sources hold that no module has (global ones, other packages' augmented). Tests and test
+ * helpers get none. With `--check`, builds them aside and fails if any `dist` differs from what it builds.
  */
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -71,6 +72,11 @@ async function build(dir, out) {
   const files = await filesIn(out)
   const tests = files.filter((file) => TEST_ONLY.test(file))
   await Promise.all(tests.map(async (file) => Bun.file(`${out}/${file}`).delete()))
+  const sources = await filesIn(`${ROOT}${dir}src`)
+  const declared = sources.filter(
+    (file) => file.endsWith('.d.ts') && !TEST_ONLY.test(file) && !sources.includes(file.replace(/\.d\.ts$/u, '.js')),
+  )
+  await Promise.all(declared.map(async (file) => Bun.write(`${out}/${file}`, Bun.file(`${ROOT}${dir}src/${file}`))))
 }
 
 /**

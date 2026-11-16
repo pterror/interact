@@ -23,7 +23,7 @@ import {
   widgetProps,
 } from '@pterror/interact-core'
 
-/** @import { Description, Host, Key, Naming, Node as Part, Out, Source } from '@pterror/interact-core' */
+/** @import { Description, Host, Item, Key, Naming, Node as Part, Out, Source, Words } from '@pterror/interact-core' */
 
 /**
  * What a prop holds, as an attribute can give it
@@ -39,6 +39,28 @@ import {
  *   params: readonly string[],
  *   kinds: Readonly<{ [prop: string]: Kind }>,
  * }>} Info
+ */
+
+/**
+ * An element of a widget whose props are `P`, its bound value `V` of type `T`, and its props in `S` naming a
+ * collection: each prop a property, the items of each collection a property in its prop's place (`items`), its form
+ * field's name for a value that is a key, and the properties every element takes
+ * @template P
+ * @template {string} V
+ * @template T
+ * @template {string} S
+ * @typedef {InteractElement & { -readonly [K in Exclude<keyof P, V | S>]: P[K] } & { [K in V]: T } & {
+ *   [K in S & keyof P]: P[K]
+ * } & ([T] extends [boolean] ? unknown : { name: string }) & {
+ *   [K in S as K extends 'source' ? 'items' : `${K}Items`]: readonly Item[] | undefined
+ * } & Readonly<{ item?: (key: Key) => string | globalThis.Node }> & {
+ *   itemName?: (key: Key) => string,
+ *   naming?: Naming,
+ *   outside?: Readonly<{ [name: string]: string | Element }>,
+ *   sources?: Readonly<{ [name: string]: Source }>,
+ *   translate?: (input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null,
+ *   words?: Words,
+ * }} ElementOf
  */
 
 /** The properties every element takes beside its widget's props */
@@ -532,6 +554,19 @@ function define(info) {
       set(value) {
         if (this instanceof InteractElement) {
           this.write(name, value)
+        }
+      },
+    })
+  }
+  if (info.description !== null && inForm(info.description)) {
+    Object.defineProperty(element.prototype, 'name', {
+      configurable: true,
+      get() {
+        return this instanceof HTMLElement ? (this.getAttribute('name') ?? '') : ''
+      },
+      set(value) {
+        if (this instanceof HTMLElement) {
+          this.setAttribute('name', String(value))
         }
       },
     })

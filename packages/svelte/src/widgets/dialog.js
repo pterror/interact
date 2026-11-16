@@ -2,6 +2,8 @@
 import { dialog as widget } from '@pterror/interact-core/generated/dialog'
 
 /** @import { dialog as source } from '@pterror/interact-core/dialog' */
+/** @import { Described, Own, OwnOf } from '../run.js' */
+/** @import { PropsOf } from '@pterror/interact-core' */
 
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
@@ -12,9 +14,10 @@ import { dialog as widget } from '@pterror/interact-core/generated/dialog'
  * outside closes it once it is released there, so what is under the overlay never takes the click. Opening
  * focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what
  * `aria-modal` asks of the host.
- * @param {import('@pterror/interact-core').Description} content - The widget inside
+ * @template {Described<unknown, string>} Content
+ * @param {Content} content - The widget inside
  * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
- * @returns {import('@pterror/interact-core').Description} The description
+ * @returns {Described<Own<PropsOf<ReturnType<typeof source>>, 'open', PropsOf<ReturnType<typeof source>>['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, 'close' | 'dialog' | 'root' | 'title' | Exclude<NonNullable<Content['types']>['parts'], 'root'> | 'content'>} The description
  */
 function dialog(content, initialFocus) {
   return {

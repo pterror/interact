@@ -326,7 +326,7 @@ import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { ${inside.length === 0 ? '' : 'AnyComponent, '}Emits, Given, Own${inside.length === 0 ? '' : ', OwnOf, PartsInside'}, Slots } from '../interact.js' */
 /** @import { Description, ${coreTypes} } from '@pterror/interact-core' */
-/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
+/** @import { ${inside.length === 0 ? '' : 'DefineSetupFnComponent, '}SetupContext, SlotsType, VNodeChild } from 'vue' */
 ${imported.types}`
   if (widget.factory === null) {
     return `${header}
@@ -363,11 +363,13 @@ ${imports}
 ${docLines(widget.doc)}
 ${generics}
 ${params}
- * @returns The component
+ * @returns The component, its slots each part's
  */
 function ${widget.name}(${factory.map((param) => param.name).join(', ')}) {
 ${made('  ', `widget(${args})`)}
-  return Object.assign(defineComponent(setup, optionsOf(description, '${name}')), { description, types: types() })
+  /** @type {DefineSetupFnComponent<${own} & Given, Emits<${bound}, ${typing}>, SlotsType<Slots<${parts}>>> & Readonly<{ description: Description, types: ReturnType<typeof types> }>} */
+  const typed = /** @type {never} */ (Object.assign(defineComponent(setup, optionsOf(description, '${name}')), { description, types: types() }))
+  return typed
 }
 
 export { ${widget.name} }
@@ -408,14 +410,20 @@ function svelte(widgets, header) {
     const bound = widget.value?.prop ?? null
     const inside = insideParams(widget)
     const factory = widget.factory ?? []
+    const svelteOwn = (/** @type {string} */ insideTypes) =>
+      `Own<PropsOf<${widget.factory === null ? 'typeof source' : 'ReturnType<typeof source>'}>, ${bound === null ? 'never' : `'${bound}'`}, ${valueType(widget).replaceAll('WidgetProps', `PropsOf<${widget.factory === null ? 'typeof source' : 'ReturnType<typeof source>'}>`)}, ${eventType(widget).replace('EffectOf<Widget>', 'EffectOf<typeof source>')}, ${insideTypes}, ${sourceUnion(widget)}>`
     const descriptionModule =
       widget.factory === null
         ? `${header}
 ${widgetImports(widget).code}
 
+${widgetImports(widget).types}
+/** @import { Described, Own } from '../run.js' */
+/** @import { ${widget.events.length > 0 ? 'EffectOf, ' : ''}PropsOf } from '@pterror/interact-core' */
+
 /**
 ${docLines(widget.doc)}
- * @type {import('@pterror/interact-core').Description}
+ * @type {Described<${svelteOwn('unknown')}, ${partUnion(widget)}>}
  */
 const ${widget.name} = ${descriptionLiteral(widget, 'widget', '{}')}
 
@@ -425,17 +433,20 @@ export { ${widget.name} }
 ${widgetImports(widget).code}
 
 ${widgetImports(widget).types}
+/** @import { Described, Own, OwnOf } from '../run.js' */
+/** @import { ${widget.events.length > 0 ? 'EffectOf, ' : ''}PropsOf } from '@pterror/interact-core' */
 
 /**
 ${docLines(widget.doc)}
+${inside.map((param) => ` * @template {Described<unknown, string>} ${capital(param.name)}`).join('\n')}
 ${factory
   .map((param) =>
     param.inside === null
       ? ` * @param {Parameters<typeof source>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
-      : ` * @param {import('@pterror/interact-core').Description} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
+      : ` * @param {${capital(param.name)}} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
   )
   .join('\n')}
- * @returns {import('@pterror/interact-core').Description} The description
+ * @returns {Described<${svelteOwn(`Readonly<{ ${inside.map((param) => `${param.inside}: OwnOf<${capital(param.name)}>`).join(', ')} }>`)}, ${[partUnion(widget), ...inside.map((param) => `Exclude<NonNullable<${capital(param.name)}['types']>['parts'], 'root'> | '${param.inside}'`)].join(' | ')}>} The description
  */
 function ${widget.name}(${factory.map((param) => param.name).join(', ')}) {
   return ${descriptionLiteral(
@@ -469,38 +480,56 @@ export { ${widget.name} }
 `,
     )
     const typing = `${valueType(widget)}, ${eventType(widget)}`
-    const own = `Own<WidgetProps, ${bound === null ? 'never' : `'${bound}'`}, ${typing}, ${inside.length === 0 ? 'unknown' : `{ ${inside.map((param) => `${param.inside}: Record<string, unknown>`).join(', ')} }`}, ${sourceUnion(widget)}>`
-    const typeImports = `import type { Description, ${widget.events.length > 0 ? 'EffectOf, ' : ''}Key, PropsOf } from '@pterror/interact-core'
+    const generics = inside.map((param) => `${capital(param.name)} extends Described<unknown, string>`).join(', ')
+    const insideOwn =
+      inside.length === 0
+        ? 'unknown'
+        : `{ ${inside.map((param) => `${param.inside}: OwnOf<${capital(param.name)}>`).join('; ')} }`
+    const own = `Own<WidgetProps, ${bound === null ? 'never' : `'${bound}'`}, ${typing}, ${insideOwn}, ${sourceUnion(widget)}>`
+    const partNames = [
+      partUnion(widget),
+      ...inside.map(
+        (param) => `Exclude<NonNullable<${capital(param.name)}['types']>['parts'], 'root'> | '${param.inside}'`,
+      ),
+    ].join(' | ')
+    const ofType = `Readonly<{ ${factory.map((param) => `${param.name}: ${param.inside === null ? `Parameters<typeof widget>[${String(factory.indexOf(param))}]` : capital(param.name)}`).join('; ')} }>`
+    const typeImports = `import type { ${widget.events.length > 0 ? 'EffectOf, ' : ''}Key, PropsOf } from '@pterror/interact-core'
 import type { ${widget.name} as widget } from '${coreModule(widget)}'`
     const typeAliases = `type Widget = ${widget.factory === null ? 'typeof widget' : 'ReturnType<typeof widget>'}
 type WidgetProps = PropsOf<Widget>
 `
+    const props = `${own} &
+    HostProps & {
+      children?: Snippet<[Key]>
+      parts?: Readonly<Partial<Record<${partNames}, Snippet<[Record<string, unknown>, Readonly<{ name: string; item: Key | null }>, Snippet]>>>>${
+        widget.factory === null ? '' : `\n      of: ${ofType}`
+      }
+    }`
     files.set(
       `widgets/${file}.svelte.d.ts`,
       `${header}
 ${typeImports}
-import type { Component, Snippet } from 'svelte'
+import type { ${widget.factory === null ? 'Component' : 'ComponentInternals'}, Snippet } from 'svelte'
 
-import type { HostProps, Own } from '../run.js'
+import type { ${widget.factory === null ? '' : 'Described, '}HostProps, Own${widget.factory === null ? '' : ', OwnOf'} } from '../run.js'
 
 ${typeAliases}
 /**
 ${docLines(widget.doc)}
  */
-declare const ${name}: Component<
-  ${own} &
-    HostProps & {
-      children?: Snippet<[Key]>
-      parts?: Readonly<Record<${partUnion(widget)}${inside.length === 0 ? '' : ' | string'}, Snippet<[Record<string, unknown>, Readonly<{ name: string; item: Key | null }>, Snippet]>>>${
-        widget.factory === null
-          ? ''
-          : `
-      of: Readonly<{ ${factory.map((param) => `${param.name}: ${param.inside === null ? `Parameters<typeof widget>[${String(factory.indexOf(param))}]` : 'Description'}`).join('; ')} }>`
-      }
-    },
+${
+  widget.factory === null
+    ? `declare const ${name}: Component<
+  ${props},
   Record<string, never>,
   ${bound === null ? 'never' : `'${bound}'`}
->
+>`
+    : `declare const ${name}: (<${generics}>(
+  this: void,
+  internals: ComponentInternals,
+  props: ${props},
+) => Record<string, never>) & { element?: typeof HTMLElement; z_$$bindings?: ${bound === null ? 'never' : `'${bound}'`} }`
+}
 export default ${name}
 `,
     )
@@ -510,20 +539,20 @@ export default ${name}
 ${typeImports}
 import type { SvelteComponent } from 'svelte'
 
-import type { HostProps } from '../../run.js'
+import type { ${widget.factory === null ? '' : 'Described, '}HostProps${widget.factory === null ? '' : ', OwnOf'} } from '../../run.js'
 
 ${typeAliases}
 /**
 ${docLines(widget.doc)}
  */
-declare class ${name} extends SvelteComponent<
+declare class ${name}${widget.factory === null ? '' : `<${generics}>`} extends SvelteComponent<
   Omit<WidgetProps, ${
     [bound, ...inside.map((param) => param.inside)]
       .filter((one) => one !== null)
       .map((one) => `'${one}'`)
       .join(' | ') || 'never'
   }> &
-    HostProps & {${bound === null ? '' : ` ${bound}?: ${valueType(widget)};`}${inside.map((param) => ` ${param.inside}: Record<string, unknown>;`).join('')} item?: unknown; parts?: Readonly<Record<string, unknown>>${widget.factory === null ? '' : `; of: Readonly<Record<string, unknown>>`} },
+    HostProps & {${bound === null ? '' : ` ${bound}?: ${valueType(widget)};`}${inside.map((param) => ` ${param.inside}: OwnOf<${capital(param.name)}>;`).join('')} item?: unknown; parts?: Readonly<Record<string, unknown>>${widget.factory === null ? '' : `; of: ${ofType}`} },
   { change: CustomEvent<{ value: ${valueType(widget)}; change: { refuse: () => void } }>${widget.events.map((event) => `; ${event}: CustomEvent<Extract<${widget.events.length > 0 ? 'EffectOf<Widget>' : 'never'}, { type: '${event}' }>>`).join('')} }
 > {}
 export default ${name}
@@ -666,9 +695,149 @@ export { register }
 export { define, InteractElement } from './element.js'
 export { register } from './register.js'
 ${widgets.map((widget) => `export { ${capital(widget.name)}Element } from './widgets/${fileName(widget.name)}.js'`).join('\n')}
+
+/** @import * as Tags from './tags.js' */
+
+/**
+ * Each element's tag (with them, \`HTMLElementTagNameMap\` and \`document.createElement\` type every element)
+ * @typedef {Tags.Tag} Tag
+ */
 `,
   )
+  files.set('tags.d.ts', tagDeclarations(widgets, header))
+  for (const [framework, declared] of jsxDeclarations(widgets, header)) {
+    files.set(`jsx/${framework}.d.ts`, declared)
+  }
   return files
+}
+
+/**
+ * The type of each widget's element, by its tag, as \`HTMLElementTagNameMap\` holds it
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @returns {string} The declarations
+ */
+function tagDeclarations(widgets, header) {
+  const types = widgets.map((widget) => {
+    const props =
+      widget.factory === null
+        ? `PropsOf<typeof ${widget.name}>`
+        : `Omit<PropsOf<ReturnType<typeof ${widget.name}>>, ${insideParams(widget)
+            .map((param) => `'${param.inside}'`)
+            .join(' | ')}>`
+    const value = widget.value
+    const bound =
+      value === null
+        ? 'never'
+        : value.wrapped
+          ? `NonNullable<${props}['${value.prop}']>['value']`
+          : `${props}['${value.prop}']`
+    return `/** The element of ${widget.name} */
+export type Interact${capital(widget.name)}Element = ElementOf<${props}, ${value === null ? 'never' : `'${value.prop}'`}, ${bound}, ${sourceUnion(widget)}>`
+  })
+  return `${header}
+import type { PropsOf } from '@pterror/interact-core'
+${widgets.map((widget) => `import type { ${widget.name} } from '${coreModule(widget)}'`).join('\n')}
+
+import type { ElementOf } from './element.js'
+
+${types.join('\n\n')}
+
+/** Each element, by its tag */
+export interface Tags {
+${widgets.map((widget) => `  '${tagOf(widget)}': Interact${capital(widget.name)}Element`).join('\n')}
+}
+
+/** Each element's tag */
+export type Tag = keyof Tags
+
+declare global {
+  interface HTMLElementTagNameMap extends Tags {}
+}
+`
+}
+
+/**
+ * An element's properties a framework sets: each one the element takes, but those of every element
+ * @param {string} type - The element's type
+ * @returns {string} The type of its properties
+ */
+function settable(type) {
+  return `Partial<Omit<${type}, keyof HTMLElement>>`
+}
+
+/**
+ * The elements as each framework's JSX (or template) types them: their properties, and the attributes of the element
+ * they are
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @returns {readonly (readonly [string, string])[]} Each framework's declarations
+ */
+function jsxDeclarations(widgets, header) {
+  const tags = widgets.map((widget) => [tagOf(widget), `Interact${capital(widget.name)}Element`])
+  const imports = `import type { ${tags.map(([, type]) => type).join(', ')} } from '../tags.js'`
+  return [
+    [
+      'react',
+      `${header}
+import type { DetailedHTMLProps, HTMLAttributes } from 'react'
+
+${imports}
+
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
+${tags.map(([tag, type]) => `      '${tag}': DetailedHTMLProps<HTMLAttributes<${type}>, ${type}> & ${settable(type ?? '')}`).join('\n')}
+    }
+  }
+}
+`,
+    ],
+    [
+      'solid',
+      `${header}
+import 'solid-js'
+
+${imports}
+
+declare module 'solid-js' {
+  namespace JSX {
+    interface IntrinsicElements {
+${tags.map(([tag, type]) => `      '${tag}': HTMLAttributes<${type}> & ${settable(type ?? '')}`).join('\n')}
+    }
+  }
+}
+`,
+    ],
+    [
+      'svelte',
+      `${header}
+import type { HTMLAttributes } from 'svelte/elements'
+
+${imports}
+
+declare module 'svelte/elements' {
+  interface SvelteHTMLElements {
+${tags.map(([tag, type]) => `    '${tag}': HTMLAttributes<${type}> & ${settable(type ?? '')}`).join('\n')}
+  }
+}
+`,
+    ],
+    [
+      'vue',
+      `${header}
+import type { DefineComponent } from 'vue'
+
+${imports}
+
+declare module 'vue' {
+  interface GlobalComponents {
+${tags.map(([tag, type]) => `    '${tag}': DefineComponent<${settable(type ?? '')}>`).join('\n')}
+  }
+}
+`,
+    ],
+  ]
 }
 
 /**

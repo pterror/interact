@@ -6,7 +6,7 @@ import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { AnyComponent, Emits, Given, Own, OwnOf, PartsInside, Slots } from '../interact.js' */
 /** @import { Description, PropsOf } from '@pterror/interact-core' */
-/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
+/** @import { DefineSetupFnComponent, SetupContext, SlotsType, VNodeChild } from 'vue' */
 /** @import { dialog as source } from '@pterror/interact-core/dialog' */
 
 /** @typedef {ReturnType<typeof source>} Widget */
@@ -24,7 +24,7 @@ import { optionsOf, run, typesOf } from '../interact.js'
  * @template {AnyComponent} Content
  * @param {Content} content - The widget inside
  * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
- * @returns The component
+ * @returns The component, its slots each part's
  */
 function dialog(content, initialFocus) {
   /** @type {Description} */
@@ -45,7 +45,11 @@ function dialog(content, initialFocus) {
   const setup = (props, context) => run(description, props, context)
   /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
   const types = typesOf
-  return Object.assign(defineComponent(setup, optionsOf(description, 'Dialog')), { description, types: types() })
+  /** @type {DefineSetupFnComponent<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never> & Given, Emits<'open', WidgetProps['open'], never>, SlotsType<Slots<'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>>> & Readonly<{ description: Description, types: ReturnType<typeof types> }>} */
+  const typed = /** @type {never} */ (
+    Object.assign(defineComponent(setup, optionsOf(description, 'Dialog')), { description, types: types() })
+  )
+  return typed
 }
 
 export { dialog }

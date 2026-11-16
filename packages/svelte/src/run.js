@@ -60,6 +60,20 @@ import {
  */
 
 /**
+ * A widget described for a component, typed by the component's own props and part names, for a component made around
+ * it (a dialog's content) to type its props by
+ * @template O
+ * @template {string} Parts
+ * @typedef {Description & Readonly<{ types?: Readonly<{ own: O, parts: Parts }> }>} Described
+ */
+
+/**
+ * The own props of the component a description is of
+ * @template {Described<unknown, string>} D
+ * @typedef {NonNullable<D['types']>['own']} OwnOf
+ */
+
+/**
  * What a running component tells its Svelte component: its bound value changed (set it), or an event or change for a
  * callback (`inside` the props of the component it is for, from the outermost)
  * @typedef {Readonly<{

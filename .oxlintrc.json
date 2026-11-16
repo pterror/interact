@@ -20,7 +20,9 @@
     "packages/core/src/generated/**",
     // What the code generator writes (scripts/components.js), which tsgo checks
     "packages/*/src/widgets/**",
-    "packages/*/src/legacy/widgets/**"
+    "packages/*/src/legacy/widgets/**",
+    "packages/elements/src/tags.d.ts",
+    "packages/elements/src/jsx/**"
   ],
   "overrides": [
     {

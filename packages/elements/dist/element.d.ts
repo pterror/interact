@@ -8,7 +8,7 @@
  * other own effects are events of their type. An element made by a factory (the dialog) takes the element inside it as
  * the widget it is around, and that element's props and value as the inner widget's.
  */
-import type { Description } from '@pterror/interact-core';
+import type { Description, Item, Key, Naming, Source, Words } from '@pterror/interact-core';
 export type Kind = 'string' | 'number' | 'boolean' | 'other';
 export type Info = Readonly<{
     description: Description | null;
@@ -18,6 +18,34 @@ export type Info = Readonly<{
         [prop: string]: Kind;
     }>;
 }>;
+export type ElementOf<P, V extends string, T, S extends string> = InteractElement & {
+    -readonly [K in Exclude<keyof P, V | S>]: P[K];
+} & {
+    [K in V]: T;
+} & {
+    [K in S & keyof P]: P[K];
+} & ([T] extends [boolean] ? unknown : {
+    name: string;
+}) & {
+    [K in S as K extends 'source' ? 'items' : `${K}Items`]: readonly Item[] | undefined;
+} & Readonly<{
+    item?: (key: Key) => string | globalThis.Node;
+}> & {
+    itemName?: (key: Key) => string;
+    naming?: Naming;
+    outside?: Readonly<{
+        [name: string]: string | Element;
+    }>;
+    sources?: Readonly<{
+        [name: string]: Source;
+    }>;
+    translate?: (input: Readonly<{
+        [field: string]: unknown;
+    }>) => Readonly<{
+        [field: string]: unknown;
+    }> | null;
+    words?: Words;
+};
 /**
  * An element running one of interact's widgets
  */
