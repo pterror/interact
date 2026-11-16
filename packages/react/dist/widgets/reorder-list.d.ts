@@ -1,0 +1,31 @@
+import { reorderList as widget } from '@pterror/interact-core/reorder';
+import type { Component, Own } from '../interact.js';
+import type { EffectOf, PropsOf } from '@pterror/interact-core';
+export type Widget = typeof widget;
+export type WidgetProps = PropsOf<Widget>;
+export type ReorderListParts = 'option' | 'root';
+export type ReorderListProps = Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
+    type: 'active';
+}>>, unknown>;
+/** @import { Component, Own } from '../interact.js' */
+/** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
+/** @typedef {typeof widget} Widget */
+/** @typedef {PropsOf<Widget>} WidgetProps */
+/** @typedef {'option' | 'root'} ReorderListParts */
+/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>} ReorderListProps */
+/**
+ * A listbox whose options can be reordered, by dragging with a pointer or by Alt+ArrowUp and Alt+ArrowDown on
+ * the active option, as in the WAI-ARIA listbox with rearrangeable options
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-rearrangeable/). It is the list with its
+ * step and view wrapped: what it handles first is the drag and the move keys, and everything else is the list's.
+ * The order is the collection's, by the contract's rule: a move shows at once, is emitted as `move` with an id,
+ * and stays pending, applied over the keys the host answers with, until the host has it (`confirmed`, then the
+ * next answer holds it) or refuses it (`refused`, which undoes it). Every move is made against the order shown,
+ * pending moves included. ARIA has no word for a dragged item or a drop place (`aria-grabbed` and
+ * `aria-dropeffect` are deprecated), so they are `data` states, and a move is announced. A drag starts once the
+ * pointer has moved `dragDistance` (in the target's units) from where it was pressed, and lands by which option
+ * the pointer is over: after it when that option is later than the dragged one, before it when earlier.
+ * @type {Component<ReorderListProps, ReorderListParts>}
+ */
+declare const ReorderList: Component<ReorderListProps, ReorderListParts>;
+export { ReorderList };

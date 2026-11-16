@@ -1,0 +1,29 @@
+{
+  "name": "@pterror/interact-vue",
+  "version": "0.0.0",
+  "private": true,
+  "description": "interact's widgets as Vue components, generated from each widget's view, props and effects",
+  "license": "ISC",
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
+  },
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "vue": "3.5.45"
+  },
+  "peerDependencies": {
+    "@pterror/interact-core": "workspace:^",
+    "vue": "^3.3.0"
+  }
+}

@@ -12,7 +12,14 @@
   // typeCheck stays off: tsgo already type-checks every package in `bun run check`.
   "options": { "typeAware": true, "denyWarnings": true, "reportUnusedDisableDirectives": "error" },
   "env": { "browser": true, "es2024": true },
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "**/docs/.vitepress/**", "packages/codegen/out/**"],
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/docs/.vitepress/**",
+    "packages/codegen/out/**",
+    // What the code generator writes (scripts/components.js), which tsgo checks
+    "packages/*/src/widgets/**"
+  ],
   "overrides": [
     {
       // The core's source rules (packages/core/src/contract.js) are plain data with `null`, never `undefined`; the
@@ -152,7 +159,12 @@
           { "from": "package", "name": ["Completion", "CompletionContext"], "package": "@codemirror/autocomplete" },
           { "from": "package", "name": ["MarkdownConfig", "MarkdownParser"], "package": "@lezer/markdown" },
           // A component is a function the framework calls; its type declares the framework's optional fields on it.
-          { "from": "package", "name": ["FunctionComponent", "ReactNode", "ReactElement"], "package": "@types/react" }
+          { "from": "package", "name": ["FunctionComponent", "ReactNode", "ReactElement"], "package": "@types/react" },
+          {
+            "from": "package",
+            "name": ["Component", "ConcreteComponent", "VNode", "FunctionalComponent", "ComponentOptions"],
+            "package": "@vue/runtime-core"
+          }
         ]
       }
     ],

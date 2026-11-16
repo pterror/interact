@@ -1,0 +1,32 @@
+{
+  "name": "@pterror/interact-react",
+  "version": "0.0.0",
+  "private": true,
+  "description": "interact's widgets as React components, generated from each widget's view, props and effects",
+  "license": "ISC",
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
+  },
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "peerDependencies": {
+    "@pterror/interact-core": "workspace:^",
+    "react": "^18.0.0 || ^19.0.0"
+  }
+}

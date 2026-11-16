@@ -263,7 +263,7 @@ function ownNaming() {
  * `attributesOf`, as a server does); `drawn` listens on every part of a tree such a renderer has drawn, each found by
  * its id in the document or shadow root `within` is in (none while `within` is in neither), lets go of the parts it
  * drew before and no longer does, and then focuses or reveals what the widget asked to since: a renderer calling it
- * draws a change after the host tells it, so those wait for it (it calls `drawn` before the host begins); `unbind` lets go of a part no longer drawn. Making a page
+ * draws a change after the host tells it, so those made with a change wait for it to be drawn; `unbind` lets go of a part no longer drawn. Making a page
  * touches no DOM; once stopped, it listens on nothing more
  * @typedef {Readonly<{
  *   host: Host,
@@ -302,6 +302,8 @@ function page(options, live) {
 
   /** Whether the renderer draws a change after the host has told it (it calls `drawn` once it has) */
   let drawsLater = false
+  /** Whether the widget has changed since such a renderer last drew it */
+  let changed = false
   /** @type {Out[]} */
   const parked = []
 
@@ -332,7 +334,7 @@ function page(options, live) {
       return
     }
     if (type === 'focus' || type === 'reveal') {
-      if (drawsLater) {
+      if (drawsLater && changed) {
         parked.push(out)
       } else {
         onPart(out)
@@ -350,6 +352,9 @@ function page(options, live) {
   }
 
   const host = run({ ...options, effect })
+  host.watch(() => {
+    changed = true
+  })
 
   /**
    * The part an event is for: the part listening, or for a pointer event after the press, the innermost part under
@@ -500,6 +505,7 @@ function page(options, live) {
     },
     drawn: (tree, within) => {
       drawsLater = true
+      changed = false
       const root = within.getRootNode()
       /** @type {Set<string>} */
       const now = new Set()

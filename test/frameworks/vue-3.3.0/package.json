@@ -1,0 +1,11 @@
+{
+  "name": "@pterror/interact-test-vue-3.3.0",
+  "private": true,
+  "description": "The framework version vue-3.3.0 the components are tested against",
+  "type": "module",
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "axe-core": "^4.14.0",
+    "vue": "3.3.0"
+  }
+}
