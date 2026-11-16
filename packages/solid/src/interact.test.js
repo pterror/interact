@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource, select } from '@pterror/interact-core'
 import axe from 'axe-core'
-import { createComponent, createRenderEffect, createRoot, createSignal } from 'solid-js'
-import { insert } from 'solid-js/web'
+import { createComponent, createRoot, createSignal, mergeProps, splitProps } from 'solid-js'
+import { Dynamic, insert } from 'solid-js/web'
 
 import { Interact } from './interact.js'
 
@@ -73,16 +73,18 @@ describe('Interact', () => {
               }
             },
             parts: {
-              option: (node) => {
+              option: (part) => {
                 made += 1
-                const element = document.createElement('div')
-                const mark = document.createElement('span')
-                const slot = document.createElement('span')
-                createRenderEffect(() => {
-                  mark.textContent = node().aria['selected'] === true ? '✓ ' : ''
-                })
-                element.append(mark, slot)
-                return { element, slot }
+                const [own, rest] = splitProps(part, ['children', 'part'])
+                return createComponent(
+                  Dynamic,
+                  mergeProps(rest, {
+                    get children() {
+                      return [rest['aria-selected'] === 'true' ? '✓ ' : '', own.children]
+                    },
+                    component: 'div',
+                  }),
+                )
               },
             },
             get props() {

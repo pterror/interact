@@ -122,22 +122,24 @@ function fileName(name) {
  * `Component<Own, Parts>`: React's, Vue's and Solid's
  * @param {Described} widget - The widget
  * @param {string} header - The generated files' header
+ * @param {string} glue - The module of the glue, from the widget's module
+ * @param {boolean} named - Whether the glue takes the component's name
  * @returns {string} The module
  */
-function componentModule(widget, header) {
+function componentModule(widget, header, glue, named) {
   const name = capital(widget.name)
   const factory = widget.factory !== null
   const glueTypes = factory ? 'AnyComponent, Component, Own, OwnOf, PartsInside' : 'Component, Own'
   const coreTypes = widget.events.length > 0 ? 'EffectOf, PropsOf' : 'PropsOf'
   const types = [
-    `/** @import { ${glueTypes} } from '../interact.js' */`,
+    `/** @import { ${glueTypes} } from '${glue}' */`,
     `/** @import { ${coreTypes} } from '@pterror/interact-core' */`,
   ].join('\n')
   if (widget.factory === null) {
     return `${header}
 import { ${widget.name} as widget } from '${coreModule(widget)}'
 
-import { component } from '../interact.js'
+import { component } from '${glue}'
 
 ${types}
 
@@ -151,7 +153,7 @@ ${types}
 ${docLines(widget.doc)}
  * @type {Component<${name}Props, ${name}Parts>}
  */
-const ${name} = component(${descriptionLiteral(widget, 'widget', '{}')}, '${name}')
+const ${name} = component(${descriptionLiteral(widget, 'widget', '{}')}${named ? `, '${name}'` : ''})
 
 export { ${name} }
 `
@@ -178,7 +180,7 @@ export { ${name} }
   return `${header}
 import { ${widget.name} as widget } from '${coreModule(widget)}'
 
-import { component } from '../interact.js'
+import { component } from '${glue}'
 
 ${types}
 
@@ -193,7 +195,7 @@ ${params}
  *   The component
  */
 function ${widget.name}(${factoryParams.map((param) => param.name).join(', ')}) {
-  return component(${descriptionLiteral(widget, `widget(${args})`, insideLiteral)}, '${name}')
+  return component(${descriptionLiteral(widget, `widget(${args})`, insideLiteral)}${named ? `, '${name}'` : ''})
 }
 
 export { ${widget.name} }
@@ -228,7 +230,7 @@ function react(widgets, header) {
   /** @type {Map<string, string>} */
   const files = new Map()
   for (const widget of widgets) {
-    files.set(`widgets/${fileName(widget.name)}.js`, componentModule(widget, header))
+    files.set(`widgets/${fileName(widget.name)}.js`, componentModule(widget, header, '../interact.js', true))
   }
   files.set(
     'index.js',
@@ -338,6 +340,22 @@ export { ${widget.name} }
 }
 
 /**
+ * Solid's components, beside the package's own modules
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @returns {Files} The files
+ */
+function solid(widgets, header) {
+  /** @type {Map<string, string>} */
+  const files = new Map()
+  for (const widget of widgets) {
+    files.set(`widgets/${fileName(widget.name)}.js`, componentModule(widget, header, '../component.js', false))
+  }
+  files.set('widgets/index.js', componentIndex(widgets, header, '').replaceAll("'./widgets/", "'./"))
+  return files
+}
+
+/**
  * Vue's components
  * @param {readonly Described[]} widgets - The widgets
  * @param {string} header - The generated files' header
@@ -361,6 +379,7 @@ function vue(widgets, header) {
 }
 
 export {
+  solid,
   vue,
   capital,
   componentIndex,

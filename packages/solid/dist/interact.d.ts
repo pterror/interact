@@ -1,22 +1,28 @@
 /**
  * Draws any interact core widget's view with Solid, generically: `Interact` is a component over a widget and its
- * props (reactive, delivered as `props` inputs). Each part is drawn once, by identity, and updated in place: a part's
- * attributes and listeners rerun only when that part's own meaning changed, and its contents are a keyed list, so a
- * widget's step reruns only what it changed. The meaning, listeners and modality are the core's `page`, as in its DOM
- * renderer. Ids are Solid's own (`createUniqueId`), so they match between server and client, unless the app names
- * them.
+ * props (reactive, delivered as `props` inputs). Each part is drawn once, by identity, with `Dynamic` (so a server
+ * renders it and the client hydrates it), its attributes the core's (`attributesOf`) and updated in place when that
+ * part's own meaning changes; its contents are a keyed list, so a widget's step reruns only what it changed. The
+ * listeners and modality are the core's `page`, which finds each part by its id once it is drawn. Ids are Solid's own
+ * (`createUniqueId`), so they match between server and client, unless the app names them.
  */
 import type { Key, Node as Part, PageOptions } from '@pterror/interact-core';
-import type { Accessor, JSX } from 'solid-js';
-export type Made = Readonly<{
-    element: Element;
-    slot: Element;
+import type { Component, JSX } from 'solid-js';
+export type PartOf = Readonly<{
+    name: string;
+    item: Key | null;
+}>;
+export type PartProps = Readonly<{
+    [attribute: string]: unknown;
+}> & Readonly<{
+    children?: JSX.Element;
+    part: PartOf;
 }>;
 export type InteractProps = PageOptions & Readonly<{
-    item?: (key: Key) => JSX.Element;
+    item?: ((key: Key) => JSX.Element) | undefined;
     parts?: Readonly<{
-        [name: string]: (node: Accessor<Part>) => Made;
-    }>;
+        [name: string]: Component<PartProps> | undefined;
+    }> | undefined;
 }>;
 export type Flat = Readonly<{
     node: Part;

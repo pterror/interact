@@ -33,7 +33,7 @@
         "packages/vue/src/**/*.js",
         "packages/svelte/src/**/*.js",
         "packages/elements/src/**/*.js",
-        "packages/solid/src/components/**/*.js"
+        "packages/solid/src/component*.js"
       ],
       "rules": { "unicorn/no-null": "off" }
     },
@@ -164,7 +164,8 @@
             "from": "package",
             "name": ["Component", "ConcreteComponent", "VNode", "FunctionalComponent", "ComponentOptions"],
             "package": "@vue/runtime-core"
-          }
+          },
+          { "from": "package", "name": ["JSX", "Element", "ArrayElement"], "package": "solid-js" }
         ]
       }
     ],
