@@ -269,7 +269,7 @@ describe(`the Svelte ${String(MAJOR)} components`, () => {
     expect(container.querySelector('[role=combobox]')).toBe(trigger)
     expect(container.querySelectorAll('[role=combobox]').length).toBe(1)
     expect(document.activeElement).toBe(trigger)
-    expect(MAJOR >= 5 ? trigger?.id : id).toBe(id)
+    expect(trigger?.id).toBe(id)
     press(trigger, 'ArrowDown')
     await settled()
     expect(trigger?.getAttribute('aria-activedescendant')).toBe(

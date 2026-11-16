@@ -1,10 +1,29 @@
 <!--
   A widget described for a component, drawn by Svelte 4: its bound value the bindable `bound` (a generated component
   binds its own name for it to this), each change and event dispatched (`on:change`, given the value and how to refuse
-  it), an item drawn by the component `item` (given its `key`), and a part the app replaces by its component in `parts`
+  it), an item drawn by the component `item` (given its `key`), a part the app replaces by its component in `parts`,
+  and ids the same on a server and in the hydration of what it drew
 -->
 <script context="module">
-  let counted = 0
+  /**
+   * The ids components running now hold: each takes the least one free, so a server's render (whose components are
+   * all let go of when it ends) and the hydration of what it drew, the first components a page makes, count alike
+   * @type {Set<number>}
+   */
+  const held = new Set()
+
+  /**
+   * Takes the least id no running component holds
+   * @returns {number} The id
+   */
+  function claim() {
+    let id = 1
+    while (held.has(id)) {
+      id += 1
+    }
+    held.add(id)
+    return id
+  }
 </script>
 
 <script>
@@ -27,7 +46,8 @@
   /** @type {Element | null} */
   let live = null
   let version = 0
-  const running = start(description, $$restProps, bound, `s${String((counted += 1))}`, () => live, {
+  const claimed = claim()
+  const running = start(description, $$restProps, bound, `s${String(claimed)}`, () => live, {
     bind: (value) => {
       bound = value
     },
@@ -68,6 +88,7 @@
     running.drawn(live)
   })
   onDestroy(() => {
+    held.delete(claimed)
     form?.removeEventListener('reset', running.reset)
     unwatch()
     running.stop()
