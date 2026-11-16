@@ -16,7 +16,7 @@ import { list } from './list.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
 
-/** @import { Blur, Change, Click, i32, Key, KeyDown, Pointer, PreventDefault, PropsInput, Refused, Result, SourceName } from './contract.js' */
+/** @import { Blur, Change, Click, i32, Key, KeyDown, Pointer, PreventDefault, PropsInput, Refused, Result, SourceName, View } from './contract.js' */
 /** @import { Send, StopPropagation } from './compose.js' */
 /** @import { Pending } from './pending.js' */
 
@@ -175,7 +175,38 @@ function init(props) {
   ]
 }
 
-const select = compose({
+/**
+ * The select's parts
+ * @param {SelectOwn} own - The select
+ * @returns {View} Its parts
+ */
+function view(own) {
+  const value = shown(own.value)
+  return {
+    popover: part({
+      content: [{ child: 'list' }],
+      hidden: !own.open,
+      popup: { anchor: ref(['trigger'], null) },
+    }),
+    root: part({ content: [{ part: 'trigger' }, { part: 'popover' }] }),
+    trigger: part({
+      aria: {
+        activedescendant: own.active === null ? null : ref(['list', 'option'], own.active),
+        controls: ref(['list', 'root'], null),
+        expanded: own.open,
+        haspopup: 'listbox',
+        label: own.label,
+        labelledby: { outside: 'label' },
+      },
+      content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
+      listens: ['click', 'keydown', 'blur', 'pointerdown', 'pointermove', 'pointerup'],
+      role: 'combobox',
+      tabindex: 0,
+    }),
+  }
+}
+
+const select = /* @__PURE__ */ compose({
   bubble: {
     list: {
       click: (own, input) => (own.open && input.item !== null ? [{ ...own, open: false }, NONE] : [own, NONE]),
@@ -213,31 +244,7 @@ const select = compose({
     }),
   },
   step,
-  view: (own) => {
-    const value = shown(own.value)
-    return {
-      popover: part({
-        content: [{ child: 'list' }],
-        hidden: !own.open,
-        popup: { anchor: ref(['trigger'], null) },
-      }),
-      root: part({ content: [{ part: 'trigger' }, { part: 'popover' }] }),
-      trigger: part({
-        aria: {
-          activedescendant: own.active === null ? null : ref(['list', 'option'], own.active),
-          controls: ref(['list', 'root'], null),
-          expanded: own.open,
-          haspopup: 'listbox',
-          label: own.label,
-          labelledby: { outside: 'label' },
-        },
-        content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
-        listens: ['click', 'keydown', 'blur', 'pointerdown', 'pointermove', 'pointerup'],
-        role: 'combobox',
-        tabindex: 0,
-      }),
-    }
-  },
+  view,
 })
 
-export { select }
+export { select, view as selectView }

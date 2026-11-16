@@ -144,7 +144,9 @@ function printJs(planned, imports, others) {
   const top = [
     imports.header,
     ...(composite === null ? [] : [`import { same } from '${imports.source('packages/core/src/compose.js')}'`]),
-    `import { ${widget.name} as reference } from '${imports.source(widget.module)}'`,
+    widget.view === null
+      ? `import { ${widget.name} as reference } from '${imports.source(widget.module)}'`
+      : `import { ${widget.view} as view } from '${imports.source(widget.module)}'`,
     ...childImports,
     '',
     '/** Where an effect the widget makes comes from: the widget itself */',
@@ -165,7 +167,7 @@ function printJs(planned, imports, others) {
   for (const fn of outside) {
     body.push(...printer.fn(fn, ''), '')
   }
-  const view = factory === null ? 'reference.view' : 'view'
+  const view = factory === null && widget.view === null ? 'reference.view' : 'view'
   const made = composite === null ? leafParts(planned, nameOf) : compositeParts(planned, nameOf, others)
   const object = `{\n${made.fields.map((field) => `  ${field},`).join('\n')}\n  view: ${view},\n}`
   if (factory === null) {
@@ -185,7 +187,7 @@ function printJs(planned, imports, others) {
         .filter((one) => isInside(one.at, factoryAt))
         .map((constant) => `  const ${nameOf(constant)} = ${printer.expr(constant.value)}`),
       ...inner.flatMap((fn) => printer.fn(fn, '  ')),
-      `  const { view } = reference(${params})`,
+      ...(widget.view === null ? [`  const { view } = reference(${params})`] : []),
       ...made.lines.map((line) => (line === '' ? '' : `  ${line}`)),
       `  return ${object.replaceAll('\n', '\n  ')}`,
       '}',

@@ -1154,6 +1154,10 @@ function lower(source, index, root) {
       report(spec, `\`${name}\` has no \`init\` or \`step\` the generator can read`)
       return null
     }
+    const viewName = `${name}View`
+    const moduleSymbol = checker.getSymbolAtLocation(node.getSourceFile())
+    const viewExported =
+      moduleSymbol !== undefined && checker.getExportsOfModule(moduleSymbol).some((one) => one.name === viewName)
     return {
       composite: isComposite ? composite(spec) : null,
       factory,
@@ -1161,6 +1165,7 @@ function lower(source, index, root) {
       module: moduleOf(node),
       name,
       step,
+      view: viewExported ? viewName : null,
     }
   }
 

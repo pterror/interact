@@ -12,7 +12,7 @@ import { compose } from './compose.js'
 import { part, ref } from './contract.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 
-/** @import { Change, Click, Focus, KeyDown, MouseDown, PreventDefault, PropsInput, Ref, Refused, Result } from './contract.js' */
+/** @import { Change, Click, Focus, KeyDown, MouseDown, PreventDefault, PropsInput, Ref, Refused, Result, View } from './contract.js' */
 /** @import { AnyWidget, PropsOf } from './compose.js' */
 /** @import { Pending } from './pending.js' */
 
@@ -52,6 +52,32 @@ function close(own) {
   }
   const [open, id] = change(own.open, false)
   return [{ ...own, open, outside: false }, [{ type: 'preventDefault' }, { id, type: 'change', value: false }]]
+}
+
+/**
+ * The dialog's parts
+ * @param {DialogOwn<unknown>} own - The dialog
+ * @returns {View} Its parts
+ */
+function view(own) {
+  return {
+    close: part({ content: [{ text: own.closeLabel }], listens: ['click', 'keydown'], role: 'button', tabindex: 0 }),
+    dialog: part({
+      aria: { labelledby: ref(['title'], null), modal: true },
+      content: [{ part: 'title' }, { child: 'content' }, { part: 'close' }],
+      hidden: !shown(own.open),
+      listens: ['keydown', 'mousedown'],
+      role: 'dialog',
+      tabindex: -1,
+    }),
+    root: part({
+      content: [{ part: 'dialog' }],
+      hidden: !shown(own.open),
+      listens: ['mousedown', 'click'],
+      popup: { anchor: null },
+    }),
+    title: part({ aria: { level: 2 }, content: [{ text: own.title }], role: 'heading' }),
+  }
 }
 
 /**
@@ -129,26 +155,9 @@ function dialog(content, initialFocus) {
         }
       }
     },
-    view: (own) => ({
-      close: part({ content: [{ text: own.closeLabel }], listens: ['click', 'keydown'], role: 'button', tabindex: 0 }),
-      dialog: part({
-        aria: { labelledby: ref(['title'], null), modal: true },
-        content: [{ part: 'title' }, { child: 'content' }, { part: 'close' }],
-        hidden: !shown(own.open),
-        listens: ['keydown', 'mousedown'],
-        role: 'dialog',
-        tabindex: -1,
-      }),
-      root: part({
-        content: [{ part: 'dialog' }],
-        hidden: !shown(own.open),
-        listens: ['mousedown', 'click'],
-        popup: { anchor: null },
-      }),
-      title: part({ aria: { level: 2 }, content: [{ text: own.title }], role: 'heading' }),
-    }),
+    view,
   }
-  return compose(spec)
+  return /* @__PURE__ */ compose(spec)
 }
 
-export { dialog }
+export { dialog, view as dialogView }

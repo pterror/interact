@@ -563,4 +563,4 @@ const list = {
   view,
 }
 
-export { drawnKeys, list, rankOf, tellActive, topFor, withActive }
+export { drawnKeys, list, view as listView, rankOf, tellActive, topFor, withActive }

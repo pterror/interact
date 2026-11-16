@@ -15,7 +15,7 @@
  * earlier.
  */
 
-import { list, rankOf, tellActive, topFor, withActive } from './list.js'
+import { list, listView, rankOf, tellActive, topFor, withActive } from './list.js'
 
 /** @import { Announce, Confirmed, i53, Key, KeyDown, Part, Pointer, PropsInput, Result, View, Widget } from './contract.js' */
 /** @import { ListEffect, ListInput, ListProps, ListState } from './list.js' */
@@ -315,11 +315,10 @@ function step(state, input) {
 /**
  * The list's view, with the drag shown and the pointer heard
  * @param {ReorderState} state - The list
- * @param {ReorderProps} props - Its props
  * @returns {View} Its parts
  */
-function view(state, props) {
-  const base = list.view(state, props)
+function view(state) {
+  const base = listView(state)
   const { drag } = state
   const root = base['root']
   const option = base['option']
@@ -373,4 +372,4 @@ const reorderList = {
   view,
 }
 
-export { reorderList }
+export { reorderList, view as reorderListView }

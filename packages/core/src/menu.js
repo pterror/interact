@@ -322,4 +322,4 @@ const menu = {
   view,
 }
 
-export { menu }
+export { menu, view as menuView }

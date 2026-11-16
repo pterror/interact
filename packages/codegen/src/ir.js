@@ -109,7 +109,9 @@
 
 /**
  * How a widget is built: a leaf (`init`, `step`), or a composite (its own `init` and `step`, its children, the props
- * it gives each child, and its handlers). A factory's parameters and constants are in scope in all of them
+ * it gives each child, and its handlers). A factory's parameters and constants are in scope in all of them. `view` is
+ * the export of its module that is its view on its own (`selectView`), which generated code draws by without the
+ * source widget, or `null`
  * @typedef {Readonly<{
  *   name: string,
  *   module: string,
@@ -117,6 +119,7 @@
  *   step: Fn,
  *   composite: Composite | null,
  *   factory: Factory | null,
+ *   view: string | null,
  * }>} Widget
  */
 
