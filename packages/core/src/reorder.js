@@ -17,7 +17,7 @@
 
 import { list, rankOf, tellActive, topFor, withActive } from './list.js'
 
-/** @import { Announce, Confirmed, i32, Key, KeyDown, Part, Pointer, PropsInput, Result, View, Widget } from './contract.js' */
+/** @import { Announce, Confirmed, i53, Key, KeyDown, Part, Pointer, PropsInput, Result, View, Widget } from './contract.js' */
 /** @import { ListEffect, ListInput, ListProps, ListState } from './list.js' */
 
 /**
@@ -35,7 +35,7 @@ import { list, rankOf, tellActive, topFor, withActive } from './list.js'
 /**
  * A move not yet in the keys the host answers with. `through` is the first ask whose answer holds it, once the host
  * confirmed it
- * @typedef {Readonly<{ id: i32, item: Key, target: Key, after: boolean, confirmed: boolean, through: i32 | null }>} Move
+ * @typedef {Readonly<{ id: i53, item: Key, target: Key, after: boolean, confirmed: boolean, through: i53 | null }>} Move
  */
 
 /**
@@ -54,7 +54,7 @@ import { list, rankOf, tellActive, topFor, withActive } from './list.js'
 /** @typedef {Exclude<ListInput, PropsInput<ListProps>> | PropsInput<ReorderProps> | Pointer | Confirmed} ReorderInput */
 /**
  * @typedef {ListEffect | Announce
- *   | Readonly<{ type: 'move', id: i32, source: string, item: Key, target: Key, after: boolean }>} ReorderEffect
+ *   | Readonly<{ type: 'move', id: i53, source: string, item: Key, target: Key, after: boolean }>} ReorderEffect
  */
 
 /** @type {readonly ReorderEffect[]} */
@@ -107,7 +107,7 @@ function moved(state, item, target, after) {
     drag: IDLE,
     follow: 'key',
     moves: [...state.moves, move],
-    selection: { ...state.selection, next: (id + 1) | 0 },
+    selection: { ...state.selection, next: id + 1 },
   })
   const rank = rankOf(next, item) ?? 0
   return [

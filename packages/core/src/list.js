@@ -30,8 +30,8 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
 /**
  * What the latest ask asked for: a window from a rank, or a window holding a key (whose rank isn't known yet), of the
  * collection as it was at `revision` (how many `changed` the list has heard)
- * @typedef {Readonly<{ top: i32, rows: i32, revision: i32 }>
- *   | Readonly<{ locate: Key, rows: i32, revision: i32 }>} Asked
+ * @typedef {Readonly<{ top: i32, rows: i32, revision: i53 }>
+ *   | Readonly<{ locate: Key, rows: i32, revision: i53 }>} Asked
  */
 
 /**
@@ -45,12 +45,12 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   shown: boolean,
  *   focusable: boolean,
  *   selection: Pending<Key | null>,
- *   revision: i32,
+ *   revision: i53,
  *   count: i32 | null,
  *   top: i32,
  *   from: i32,
  *   keys: readonly Key[],
- *   asked: i32,
+ *   asked: i53,
  *   askedFor: Asked | null,
  *   active: Key | null,
  *   activeRank: i32 | null,
@@ -126,7 +126,7 @@ function ensure(state) {
     return [state, NONE]
   }
   const selected = shown(state.selection)
-  const id = (state.asked + 1) | 0
+  const id = state.asked + 1
   if (state.count === null && state.active === null && selected !== null) {
     return [
       { ...state, active: selected, asked: id, askedFor: { locate: selected, revision, rows }, follow: 'key' },
@@ -345,7 +345,7 @@ function stepOwn(state, input) {
       return answered(state, input)
     }
     case 'changed': {
-      return ensure({ ...state, revision: (state.revision + 1) | 0 })
+      return ensure({ ...state, revision: state.revision + 1 })
     }
     case 'refused': {
       return [{ ...state, selection: refuse(state.selection, input.id) }, NONE]

@@ -158,12 +158,12 @@
 
 /**
  * The app took a change the widget emitted (`id`): the collection now has it
- * @typedef {Readonly<{ type: 'confirmed', id: i32 }>} Confirmed
+ * @typedef {Readonly<{ type: 'confirmed', id: i53 }>} Confirmed
  */
 
 /**
  * The app refused a change the widget emitted (`id`): the widget undoes it
- * @typedef {Readonly<{ type: 'refused', id: i32 }>} Refused
+ * @typedef {Readonly<{ type: 'refused', id: i53 }>} Refused
  */
 
 /**
@@ -180,15 +180,15 @@
 /**
  * The answer to an `ask` for keys: `keys` are the keys at ranks `from`, `from + 1`, ...; `count` is how many items there
  * are. `id` is the ask's
- * @typedef {Readonly<{ type: 'answer', id: i32, from: i32, keys: readonly Key[], count: i32 }>} Answer
+ * @typedef {Readonly<{ type: 'answer', id: i53, from: i32, keys: readonly Key[], count: i32 }>} Answer
  */
 
 /**
  * A question for the host about a collection, named by `source`: the keys at ranks `[from, to)`, or (`locate`) a
  * window of `rows` keys that holds a key. The answer comes back to the widget that asked, as `answer` with the same
  * `id`
- * @typedef {Readonly<{ type: 'ask', id: i32, source: string, ranks: readonly [i32, i32] }>
- *   | Readonly<{ type: 'ask', id: i32, source: string, locate: Key, rows: i32 }>} Ask
+ * @typedef {Readonly<{ type: 'ask', id: i53, source: string, ranks: readonly [i32, i32] }>
+ *   | Readonly<{ type: 'ask', id: i53, source: string, locate: Key, rows: i32 }>} Ask
  */
 
 /**
@@ -204,7 +204,7 @@
 /**
  * Tells the app a value changed. `id` names the change, for `refused`
  * @template T
- * @typedef {Readonly<{ type: 'change', value: T, id: i32 }>} Change
+ * @typedef {Readonly<{ type: 'change', value: T, id: i53 }>} Change
  */
 
 /**
