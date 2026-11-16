@@ -1,7 +1,7 @@
-import { reorderList as widget } from '@pterror/interact-core/reorder';
 import type { Own } from '../interact.js';
 import type { EffectOf, PropsOf } from '@pterror/interact-core';
-export type Widget = typeof widget;
+import type { reorderList as source } from '@pterror/interact-core/reorder';
+export type Widget = typeof source;
 export type WidgetProps = PropsOf<Widget>;
 /**
  * A listbox whose options can be reordered, by dragging with a pointer or by Alt+ArrowUp and Alt+ArrowDown on
@@ -98,7 +98,7 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     [x: `on${Capitalize<string>}`]: ((...args: any[]) => any) | undefined;
 }, import("vue").PublicProps> & {
     description: Readonly<{
-        widget: import("@pterror/interact-core/compose").AnyWidget;
+        widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];

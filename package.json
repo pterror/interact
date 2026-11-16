@@ -10,7 +10,7 @@
     "build:types": "bun scripts/build-types.js",
     "release": "bun scripts/release.js",
     "test": "bun test --conditions browser --conditions development",
-    "check": "oxfmt --check && oxlint && for p in tsconfig.json packages/*/tsconfig.json; do tsgo --noEmit -p \"$p\" || exit 1; done && bun scripts/build-types.js --check && bun scripts/components.js --check",
+    "check": "oxfmt --check && oxlint && for p in tsconfig.json packages/*/tsconfig.json; do tsgo --noEmit -p \"$p\" || exit 1; done && bun scripts/build-types.js --check && bun scripts/codegen.js --check && bun scripts/components.js --check",
     "components": "bun scripts/components.js"
   },
   "devDependencies": {

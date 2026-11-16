@@ -1,7 +1,7 @@
-import { list as widget } from '@pterror/interact-core/list';
 import type { Component, Own } from '../component.js';
 import type { EffectOf, PropsOf } from '@pterror/interact-core';
-export type Widget = typeof widget;
+import type { list as source } from '@pterror/interact-core/list';
+export type Widget = typeof source;
 export type WidgetProps = PropsOf<Widget>;
 export type ListParts = 'option' | 'root';
 export type ListProps = Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
@@ -9,7 +9,8 @@ export type ListProps = Own<WidgetProps, 'selected', NonNullable<WidgetProps['se
 }>>, unknown>;
 /** @import { Component, Own } from '../component.js' */
 /** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
-/** @typedef {typeof widget} Widget */
+/** @import { list as source } from '@pterror/interact-core/list' */
+/** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /** @typedef {'option' | 'root'} ListParts */
 /** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>} ListProps */

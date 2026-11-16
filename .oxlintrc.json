@@ -17,6 +17,7 @@
     "**/dist/**",
     "**/docs/.vitepress/**",
     "packages/codegen/out/**",
+    "packages/core/src/generated/**",
     // What the code generator writes (scripts/components.js), which tsgo checks
     "packages/*/src/widgets/**",
     "packages/*/src/legacy/widgets/**"

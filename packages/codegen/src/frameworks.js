@@ -31,6 +31,27 @@ function coreModule(widget) {
 }
 
 /**
+ * The module a widget's generated in-place code is imported from, which components run
+ * @param {Described} widget - The widget
+ * @returns {string} The specifier
+ */
+function generatedModule(widget) {
+  return `@pterror/interact-core/generated/${widget.name}`
+}
+
+/**
+ * The imports of a widget's generated code as `widget`, and its source's types as `source`
+ * @param {Described} widget - The widget
+ * @returns {Readonly<{ code: string, types: string }>} The import, and the type import
+ */
+function widgetImports(widget) {
+  return {
+    code: `import { ${widget.name} as widget } from '${generatedModule(widget)}'`,
+    types: `/** @import { ${widget.name} as source } from '${coreModule(widget)}' */`,
+  }
+}
+
+/**
  * The description of a widget as a literal, its widget named `widget`
  * @param {Described} widget - The widget
  * @param {string} widgetExpression - The widget, as written
@@ -131,19 +152,21 @@ function componentModule(widget, header, glue, named) {
   const factory = widget.factory !== null
   const glueTypes = factory ? 'AnyComponent, Component, Own, OwnOf, PartsInside' : 'Component, Own'
   const coreTypes = widget.events.length > 0 ? 'EffectOf, PropsOf' : 'PropsOf'
+  const imported = widgetImports(widget)
   const types = [
     `/** @import { ${glueTypes} } from '${glue}' */`,
     `/** @import { ${coreTypes} } from '@pterror/interact-core' */`,
+    imported.types,
   ].join('\n')
   if (widget.factory === null) {
     return `${header}
-import { ${widget.name} as widget } from '${coreModule(widget)}'
+${imported.code}
 
 import { component } from '${glue}'
 
 ${types}
 
-/** @typedef {typeof widget} Widget */
+/** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @typedef {${partUnion(widget)}} ${name}Parts */
@@ -164,7 +187,7 @@ export { ${name} }
   const params = factoryParams
     .map((param) =>
       param.inside === null
-        ? ` * @param {Parameters<typeof widget>[${String(factoryParams.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
+        ? ` * @param {Parameters<typeof source>[${String(factoryParams.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
         : ` * @param {${capital(param.name)}} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
     )
     .join('\n')
@@ -178,13 +201,13 @@ export { ${name} }
     .join(', ')
   const insideLiteral = `{ ${inside.map((param) => `${param.inside}: ${param.name}.description`).join(', ')} }`
   return `${header}
-import { ${widget.name} as widget } from '${coreModule(widget)}'
+${imported.code}
 
 import { component } from '${glue}'
 
 ${types}
 
-/** @typedef {ReturnType<typeof widget>} Widget */
+/** @typedef {ReturnType<typeof source>} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /**
@@ -286,19 +309,21 @@ function vueModule(widget, header) {
     ]
       .map((line) => `${indent}${line}`)
       .join('\n')
-  const imports = `import { ${widget.name} as widget } from '${coreModule(widget)}'
+  const imported = widgetImports(widget)
+  const imports = `${imported.code}
 import { defineComponent } from 'vue'
 
 import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { ${inside.length === 0 ? '' : 'AnyComponent, '}Emits, Given, Own${inside.length === 0 ? '' : ', OwnOf, PartsInside'}, Slots } from '../interact.js' */
 /** @import { Description, ${coreTypes} } from '@pterror/interact-core' */
-/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */`
+/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
+${imported.types}`
   if (widget.factory === null) {
     return `${header}
 ${imports}
 
-/** @typedef {typeof widget} Widget */
+/** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 ${made('', 'widget')}
@@ -315,14 +340,14 @@ export { ${name} }
   const params = factory
     .map((param) =>
       param.inside === null
-        ? ` * @param {Parameters<typeof widget>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
+        ? ` * @param {Parameters<typeof source>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
         : ` * @param {${capital(param.name)}} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
     )
     .join('\n')
   return `${header}
 ${imports}
 
-/** @typedef {ReturnType<typeof widget>} Widget */
+/** @typedef {ReturnType<typeof source>} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /**
@@ -377,7 +402,7 @@ function svelte(widgets, header) {
     const descriptionModule =
       widget.factory === null
         ? `${header}
-import { ${widget.name} as widget } from '${coreModule(widget)}'
+${widgetImports(widget).code}
 
 /**
 ${docLines(widget.doc)}
@@ -388,14 +413,16 @@ const ${widget.name} = ${descriptionLiteral(widget, 'widget', '{}')}
 export { ${widget.name} }
 `
         : `${header}
-import { ${widget.name} as widget } from '${coreModule(widget)}'
+${widgetImports(widget).code}
+
+${widgetImports(widget).types}
 
 /**
 ${docLines(widget.doc)}
 ${factory
   .map((param) =>
     param.inside === null
-      ? ` * @param {Parameters<typeof widget>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
+      ? ` * @param {Parameters<typeof source>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
       : ` * @param {import('@pterror/interact-core').Description} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
   )
   .join('\n')}
@@ -568,7 +595,7 @@ function elements(widgets, header) {
   description: null,
   /**
 ${inside.map((param) => `   * @param {import('@pterror/interact-core').Description} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`).join('\n')}
-${plain.map((param) => `   * @param {Parameters<typeof widget>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`).join('\n')}
+${plain.map((param) => `   * @param {Parameters<typeof source>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`).join('\n')}
    * @returns {import('@pterror/interact-core').Description} The widget, described
    */
   factory: (${inside.map((param) => param.name).join(', ')}, ${plain.map((param) => param.name).join(', ')}) => (${descriptionLiteral(
@@ -582,10 +609,10 @@ ${plain.map((param) => `   * @param {Parameters<typeof widget>[${String(factory.
     files.set(
       `widgets/${fileName(widget.name)}.js`,
       `${header}
-import { ${widget.name} as widget } from '${coreModule(widget)}'
+${widgetImports(widget).code}
 
 import { define } from '../element.js'
-
+${widget.factory === null ? '' : `\n${widgetImports(widget).types}\n`}
 /**
 ${docLines(widget.doc)}
  */

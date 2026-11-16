@@ -1,13 +1,14 @@
-import { select as widget } from '@pterror/interact-core/select';
 import type { Component, Own } from '../component.js';
 import type { PropsOf } from '@pterror/interact-core';
-export type Widget = typeof widget;
+import type { select as source } from '@pterror/interact-core/select';
+export type Widget = typeof source;
 export type WidgetProps = PropsOf<Widget>;
 export type SelectParts = 'root' | 'trigger' | 'option' | 'list';
 export type SelectProps = Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown>;
 /** @import { Component, Own } from '../component.js' */
 /** @import { PropsOf } from '@pterror/interact-core' */
-/** @typedef {typeof widget} Widget */
+/** @import { select as source } from '@pterror/interact-core/select' */
+/** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /** @typedef {'root' | 'trigger' | 'option' | 'list'} SelectParts */
 /** @typedef {Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown>} SelectProps */

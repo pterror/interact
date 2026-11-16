@@ -11,7 +11,7 @@
 
 import { deliver, isRecord, resolve, start, typeOf } from './compose.js'
 
-/** @import { AnyWidget, Node, Out } from './compose.js' */
+/** @import { AnyGenerated, AnyWidget, Node, Out } from './compose.js' */
 /** @import { Key, Path } from './contract.js' */
 
 /**
@@ -47,7 +47,7 @@ import { deliver, isRecord, resolve, start, typeOf } from './compose.js'
  * What runs a widget: the widget and its props; optionally the app's effects, its collections by source name, and its
  * key bindings
  * @typedef {Readonly<{
- *   widget: AnyWidget,
+ *   widget: AnyWidget | AnyGenerated,
  *   props: unknown,
  *   effect?: (out: Out, host: Host) => void,
  *   sources?: Readonly<{ [name: string]: Source }>,

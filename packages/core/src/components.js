@@ -8,7 +8,7 @@
 
 import { isRecord } from './compose.js'
 
-/** @import { AnyWidget, Out } from './compose.js' */
+/** @import { AnyGenerated, Out } from './compose.js' */
 /** @import { Data, Path } from './contract.js' */
 
 /**
@@ -19,10 +19,10 @@ import { isRecord } from './compose.js'
  */
 
 /**
- * A widget as a component runs it: its props passed through, its bound value, the types of its own effects that are
+ * A widget as a component runs it (its generated in-place code): its props passed through, its bound value, the types of its own effects that are
  * the app's, and the widget props that take another component's props (by that component's description)
  * @typedef {Readonly<{
- *   widget: AnyWidget,
+ *   widget: AnyGenerated,
  *   props: readonly string[],
  *   value: Bound | null,
  *   events: readonly string[],

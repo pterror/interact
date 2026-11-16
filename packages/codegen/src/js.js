@@ -582,7 +582,7 @@ function declarations(planned, effects, imports) {
   const childHosts = childModules.map((name) => `${capital(name)}Host`)
   const host = [
     `/** What ${widget.name} calls for each effect it makes, with where the effect came from */`,
-    `export interface ${hostName}${childHosts.length > 0 ? ` extends ${childHosts.join(', ')}` : ''} {`,
+    `export type ${hostName} = ${childHosts.map((one) => `${one} & `).join('')}{`,
     ...methods,
     '}',
   ]
@@ -597,7 +597,11 @@ function declarations(planned, effects, imports) {
   const exported =
     widget.factory === null
       ? [`export declare const ${widget.name}: Generated<${hostName}>`]
-      : [`export declare function ${widget.name}<H>(...args: Parameters<typeof ${source}>): Generated<${hostName} & H>`]
+      : [
+          `/** A factory's arguments, each widget it takes as the generated widget it composes */`,
+          `type Generating<A> = { [K in keyof A]: A[K] extends import('${imports.source('packages/core/src/compose.js')}').AnyWidget ? import('${imports.source('packages/core/src/compose.js')}').AnyGenerated : A[K] }`,
+          `export declare function ${widget.name}<H>(...args: Generating<Parameters<typeof ${source}>>): Generated<${hostName} & H>`,
+        ]
   return [
     imports.header,
     `import type { Path } from '${imports.source('packages/core/src/contract.js')}'`,

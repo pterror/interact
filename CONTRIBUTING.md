@@ -5,9 +5,11 @@
 Work in the dev shell (`nix develop`, or direnv), which has bun, node and the browsers the tests use.
 
 ```bash
-bun run check   # format, lint, types, and that every package's dist/*.d.ts is what its source builds
+bun run check   # format, lint, types, and that every generated file is what its source makes
 bun run test    # unit and browser tests
 bun run build:types   # rebuilds dist/*.d.ts after a change to a typed package's JSDoc
+bun scripts/codegen.js   # regenerates the core's in-place widgets (src/generated) after a change to a widget
+bun run components   # regenerates every framework's components after a change to a widget or the generator
 ```
 
 ## Recording a change

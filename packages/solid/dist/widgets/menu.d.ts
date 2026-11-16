@@ -1,7 +1,7 @@
-import { menu as widget } from '@pterror/interact-core/menu';
 import type { Component, Own } from '../component.js';
 import type { EffectOf, PropsOf } from '@pterror/interact-core';
-export type Widget = typeof widget;
+import type { menu as source } from '@pterror/interact-core/menu';
+export type Widget = typeof source;
 export type WidgetProps = PropsOf<Widget>;
 export type MenuParts = 'button' | 'item' | 'menu' | 'root';
 export type MenuProps = Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{
@@ -9,7 +9,8 @@ export type MenuProps = Own<WidgetProps, never, never, Extract<EffectOf<Widget>,
 }>>, unknown>;
 /** @import { Component, Own } from '../component.js' */
 /** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
-/** @typedef {typeof widget} Widget */
+/** @import { menu as source } from '@pterror/interact-core/menu' */
+/** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /** @typedef {'button' | 'item' | 'menu' | 'root'} MenuParts */
 /** @typedef {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown>} MenuProps */

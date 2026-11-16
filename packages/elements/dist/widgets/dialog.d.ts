@@ -1,3 +1,4 @@
+/** @import { dialog as source } from '@pterror/interact-core/dialog' */
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
  * (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). `open` is always the app's, by the contract's rule:

@@ -1,11 +1,12 @@
-import { dialog as widget } from '@pterror/interact-core/dialog';
 import type { AnyComponent, Component, Own, OwnOf, PartsInside } from '../component.js';
 import type { PropsOf } from '@pterror/interact-core';
-export type Widget = ReturnType<typeof widget>;
+import type { dialog as source } from '@pterror/interact-core/dialog';
+export type Widget = ReturnType<typeof source>;
 export type WidgetProps = PropsOf<Widget>;
 /** @import { AnyComponent, Component, Own, OwnOf, PartsInside } from '../component.js' */
 /** @import { PropsOf } from '@pterror/interact-core' */
-/** @typedef {ReturnType<typeof widget>} Widget */
+/** @import { dialog as source } from '@pterror/interact-core/dialog' */
+/** @typedef {ReturnType<typeof source>} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
@@ -16,11 +17,11 @@ export type WidgetProps = PropsOf<Widget>;
  * `aria-modal` asks of the host.
  * @template {AnyComponent} Content
  * @param {Content} content - The widget inside
- * @param {Parameters<typeof widget>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
+ * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
  * @returns {Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, 'close' | 'root' | 'title' | PartsInside<Content, 'content'>>}
  *   The component
  */
-declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof widget>[1]): Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{
+declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof source>[1]): Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{
     content: OwnOf<Content>;
 }>>, 'close' | 'root' | 'title' | PartsInside<Content, 'content'>>;
 export { dialog };

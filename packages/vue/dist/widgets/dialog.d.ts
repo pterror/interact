@@ -1,12 +1,13 @@
-import { dialog as widget } from '@pterror/interact-core/dialog';
 import type { AnyComponent, Own, OwnOf, PartsInside } from '../interact.js';
 import type { PropsOf } from '@pterror/interact-core';
-export type Widget = ReturnType<typeof widget>;
+import type { dialog as source } from '@pterror/interact-core/dialog';
+export type Widget = ReturnType<typeof source>;
 export type WidgetProps = PropsOf<Widget>;
 /** @import { AnyComponent, Emits, Given, Own, OwnOf, PartsInside, Slots } from '../interact.js' */
 /** @import { Description, PropsOf } from '@pterror/interact-core' */
 /** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
-/** @typedef {ReturnType<typeof widget>} Widget */
+/** @import { dialog as source } from '@pterror/interact-core/dialog' */
+/** @typedef {ReturnType<typeof source>} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
@@ -17,10 +18,10 @@ export type WidgetProps = PropsOf<Widget>;
  * `aria-modal` asks of the host.
  * @template {AnyComponent} Content
  * @param {Content} content - The widget inside
- * @param {Parameters<typeof widget>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
+ * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
  * @returns The component
  */
-declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof widget>[1]): import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof source>[1]): import("vue").DefineSetupFnComponent<Omit<Readonly<{
     title: string;
     closeLabel: string;
     open: boolean;
@@ -82,7 +83,7 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
     [x: `on${Capitalize<string>}`]: ((...args: any[]) => any) | undefined;
 }, import("vue").PublicProps> & {
     description: Readonly<{
-        widget: import("@pterror/interact-core/compose").AnyWidget;
+        widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];

@@ -65,7 +65,8 @@
 
 /**
  * What a generated widget calls for each effect: a method per kind of effect, given where it came from and its fields
- * @typedef {Readonly<{ [method: string]: (from: Path, ...fields: readonly unknown[]) => void }>} AnyHost
+ * (typed `never`: each method takes its own fields, which only the generated declarations know)
+ * @typedef {Readonly<{ [method: string]: (from: Path, ...fields: readonly never[]) => void }>} AnyHost
  */
 
 /**

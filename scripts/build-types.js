@@ -103,19 +103,20 @@ async function differences(one, other) {
 }
 
 /**
- * Builds one package's declarations into its `dist`, or aside to compare with it
+ * Builds one package's declarations aside, then compares them with its `dist` or puts them there. Built aside either
+ * way: the packages build at once, each against the others' `dist`, which must stay whole meanwhile
  * @param {string} dir - The package, from the repo root
  * @param {boolean} checking - Whether to compare rather than write
  * @returns {Promise<string[]>} The files in `dist` that are out of date, when comparing
  */
 async function buildOrCheck(dir, checking) {
   const dist = `${ROOT}${dir}dist`
-  if (!checking) {
-    await build(dir, dist)
-    return []
-  }
   const aside = `${ROOT}${dir}.dist-check`
   await build(dir, aside)
+  if (!checking) {
+    builtAside.push([aside, dist])
+    return []
+  }
   const stale = await differences(dist, aside)
   await Bun.$`rm -rf ${aside}`
   return stale.map((path) => `${dir}dist/${path}`)
@@ -123,7 +124,13 @@ async function buildOrCheck(dir, checking) {
 
 const checking = Bun.argv.includes('--check')
 const packages = await typedPackages()
+/** @type {[string, string][]} */
+const builtAside = []
 const results = await Promise.all(packages.map(async (dir) => buildOrCheck(dir, checking)))
+for (const [aside, dist] of builtAside) {
+  // oxlint-disable-next-line no-await-in-loop -- each dist is replaced once every package has built
+  await Bun.$`rm -rf ${dist} && mv ${aside} ${dist}`
+}
 const stale = results.flat()
 if (stale.length > 0) {
   console.error(`Out of date (run bun run build:types):\n${stale.join('\n')}`)
