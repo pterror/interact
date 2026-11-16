@@ -15,7 +15,16 @@
 import ts from 'typescript'
 
 import { declarationOf, placeOf, symbolOf } from './program.js'
-import { hasUndefined, isBoolean, isCallable, isPrimitive, isString, membersOf, typeArguments } from './types.js'
+import {
+  hasUndefined,
+  isBoolean,
+  isCallable,
+  isNumber,
+  isPrimitive,
+  isString,
+  membersOf,
+  typeArguments,
+} from './types.js'
 
 /** @import { Binding, BinaryOp, Composite, Constant, Entry, Expr, Factory, Fn, Item, Pattern, Stmt, Widget } from './ir.js' */
 /** @import { Source } from './program.js' */
@@ -700,6 +709,9 @@ function lower(source, index, root) {
       }
       if (node.operator === ts.SyntaxKind.MinusToken) {
         return { at, kind: 'unary', op: '-', operand: expr(node.operand), type }
+      }
+      if (node.operator === ts.SyntaxKind.PlusToken && isNumber(checker.getTypeAtLocation(node.operand))) {
+        return { at, kind: 'unary', op: '+', operand: expr(node.operand), type }
       }
       report(node, `\`${node.getText()}\`: this operator is not in the subset`)
       return { at, kind: 'literal', type, value: null }

@@ -9,6 +9,7 @@ import { lower } from './lower.js'
 import { printLua } from './lua.js'
 import { plan } from './plan.js'
 import { load } from './program.js'
+import { checkWidths } from './widths.js'
 
 /** @import { Source } from './program.js' */
 
@@ -34,7 +35,9 @@ import { load } from './program.js'
  * @returns {readonly string[]} Every rule broken, as `file:line:column: message`
  */
 function check(options) {
-  return lower(load(options.tsconfig), options.index, options.root).diagnostics
+  const source = load(options.tsconfig)
+  const lowered = lower(source, options.index, options.root)
+  return [...lowered.diagnostics, ...checkWidths(lowered.widgets, source.checker, options.root).diagnostics]
 }
 
 /**
@@ -55,8 +58,9 @@ function generate(options) {
  */
 function generateFrom(source, options) {
   const lowered = lower(source, options.index, options.root)
-  if (lowered.diagnostics.length > 0) {
-    return { diagnostics: lowered.diagnostics, widgets: [] }
+  const widths = checkWidths(lowered.widgets, source.checker, options.root)
+  if (lowered.diagnostics.length > 0 || widths.diagnostics.length > 0) {
+    return { diagnostics: [...lowered.diagnostics, ...widths.diagnostics], widgets: [] }
   }
   const plans = lowered.widgets.map((widget) => plan(widget, source.checker))
   const effects = new Map(plans.map((planned) => [planned.widget.name, effectsOf(planned, factoryKnown(planned))]))
@@ -67,7 +71,7 @@ function generateFrom(source, options) {
       .split('\n')
       .map((line) => line.replace(/^\/\/ ?/u, '-- '))
       .join('\n')
-    const lua = printLua(planned, source.checker, { header }, effects)
+    const lua = printLua(planned, source.checker, { header, ranges: widths.ranges }, effects)
     return {
       dts,
       js,

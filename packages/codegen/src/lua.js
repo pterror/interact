@@ -15,10 +15,12 @@ import ts from 'typescript'
 import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
 import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
+import { within } from './widths.js'
 
 /** @import { Binding, Constant, Expr, Fn, Pattern, Stmt } from './ir.js' */
 /** @import { Call, Effects } from './effects.js' */
 /** @import { Plan } from './plan.js' */
+/** @import { Range } from './widths.js' */
 
 const KEYWORDS = new Set([
   'and',
@@ -168,11 +170,25 @@ function refuse(node, message) {
   throw new RefusedError(`${where}: ${message}`)
 }
 
+/** int32's range */
+const INT32 = { hi: 2 ** 31 - 1, int: true, lo: -(2 ** 31) }
+
+/** Integers LuaJIT's bit operations take as JavaScript's ToInt32 does: modulo 2^32 */
+const EXACT_BITS = { hi: 2 ** 51, int: true, lo: -(2 ** 51) }
+
+/**
+ * @param {Expr} value - An expression
+ * @returns {boolean} Whether it is the literal 0
+ */
+function isZero(value) {
+  return value.kind === 'literal' && value.value === 0
+}
+
 /**
  * Prints a planned widget as Lua, or gives why it can't
  * @param {Plan} planned - The plan
  * @param {ts.TypeChecker} checker - The checker
- * @param {Readonly<{ header: string }>} imports - The module's header (a child widget is the module generated beside it)
+ * @param {Readonly<{ header: string, ranges: ReadonlyMap<ts.Node, Range> }>} imports - The module's header (a child widget is the module generated beside it)
  * @param {ReadonlyMap<string, Effects>} others - The effects of every widget generated, by name
  * @returns {Readonly<{ lua: string }> | Readonly<{ refused: readonly string[] }>} The module, or the reasons
  */
@@ -191,7 +207,7 @@ function printLua(planned, checker, imports, others) {
  * The module's source
  * @param {Plan} planned - The plan
  * @param {ts.TypeChecker} checker - The checker
- * @param {Readonly<{ header: string }>} imports - The module's header
+ * @param {Readonly<{ header: string, ranges: ReadonlyMap<ts.Node, Range> }>} imports - The module's header
  * @param {ReadonlyMap<string, Effects>} others - The effects of every widget generated, by name
  * @returns {string} The source
  */
@@ -402,6 +418,10 @@ function luaModule(planned, checker, imports, others) {
           refuse(value, 'an index that is not a number')
         }
         const index = isPure(value.index) ? operand(value.index, pre, indent) : held(value.index, 'index', pre, indent)
+        const indexRange = imports.ranges.get(value.index.at)
+        if (indexRange !== undefined && indexRange.int && indexRange.lo >= 0) {
+          return `${object}[${index} + 1]`
+        }
         if (!falsy(checker.getNonNullableType(value.type))) {
           return `(${index} >= 0 and ${object}[${index} + 1] or nil)`
         }
@@ -431,6 +451,9 @@ function luaModule(planned, checker, imports, others) {
       case 'unary': {
         if (value.op === '!') {
           return `not ${operand(value.operand, pre, indent)}`
+        }
+        if (value.op === '+') {
+          return operand(value.operand, pre, indent)
         }
         return `-${operand(value.operand, pre, indent)}`
       }
@@ -775,6 +798,10 @@ function luaModule(planned, checker, imports, others) {
       case '&':
       case '|':
       case '^': {
+        const leftRange = imports.ranges.get(value.left.at)
+        if (value.op === '|' && isZero(value.right) && leftRange?.int === true && within(leftRange, EXACT_BITS)) {
+          return within(leftRange, INT32) ? left : `bit.tobit(${left})`
+        }
         const name = { '&': 'band', '^': 'bxor', '|': 'bor' }[value.op]
         return `bit.${name}(${int32Of(value.left, left)}, ${int32Of(value.right, right)})`
       }
@@ -787,6 +814,14 @@ function luaModule(planned, checker, imports, others) {
           by.kind === 'literal' && typeof by.value === 'number' && Number.isInteger(by.value)
             ? String(((by.value % 32) + 32) % 32)
             : `bit.band(${int32Of(by, right)}, 31)`
+        const leftRange = imports.ranges.get(value.left.at)
+        if (value.op === '>>>' && isZero(by) && leftRange?.int === true) {
+          return within(leftRange, { hi: 2 ** 32 - 1, int: true, lo: 0 })
+            ? left
+            : within(leftRange, EXACT_BITS)
+              ? `(${left} % 4294967296)`
+              : `(bit.tobit(${int32Of(value.left, left)}) % 4294967296)`
+        }
         const shifted = `bit.${name}(${int32Of(value.left, left)}, ${count})`
         return value.op === '>>>' ? `(${shifted} % 4294967296)` : shifted
       }
@@ -812,6 +847,10 @@ function luaModule(planned, checker, imports, others) {
       return text
     }
     if (value.kind === 'binary' && ['&', '|', '^', '<<', '>>'].includes(value.op)) {
+      return text
+    }
+    const range = imports.ranges.get(value.at)
+    if (range !== undefined && range.int && within(range, EXACT_BITS)) {
       return text
     }
     helpers.add('int32')

@@ -21,6 +21,12 @@
       "rules": { "unicorn/no-null": "off" }
     },
     {
+      // The core writes `(x) | 0` where an integer may leave i32 (packages/core/src/contract.js): a wrap the code
+      // generator checks and keeps, which Math.trunc is not.
+      "files": ["packages/core/**/*.js", "packages/codegen/src/test-beyond.js"],
+      "rules": { "unicorn/prefer-math-trunc": "off" }
+    },
+    {
       // The generator reads the TypeScript compiler's nodes, types and symbols, which are mutable classes all the way
       // down, and builds its plan of a function by updating that plan's own records as it walks it.
       "files": ["packages/codegen/**/*.js"],

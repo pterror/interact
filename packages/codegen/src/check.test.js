@@ -3,6 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { check } from './generate.js'
 import { lower } from './lower.js'
 import { loadFiles } from './program.js'
+import { checkWidths } from './widths.js'
 
 const ROOT = new URL('../../../', import.meta.url).pathname
 
@@ -37,6 +38,63 @@ export const widget = {
   const source = loadFiles({ '/v/index.js': "export { widget } from './widget.js'\n", '/v/widget.js': widget })
   return lower(source, '/v/index.js', '/v/').diagnostics
 }
+
+/**
+ * What the width checker says about a step storing values in an i32 field
+ * @param {string} value - What the step stores in \`n\`: \`state\` and \`input\` are in scope
+ * @returns {readonly string[]} The diagnostics
+ */
+function widths(value) {
+  const widget = `
+/** @typedef {number} i32 */
+/** @typedef {number} u32 */
+/** @typedef {Readonly<{ n: i32, list: readonly i32[] }>} S */
+/** @typedef {Readonly<{ type: 'go', by: i32, at: number }>} I */
+/**
+ * The step
+ * @param {S} state - The state
+ * @param {I} input - The input
+ * @returns {readonly [S, readonly never[]]} The result
+ */
+function step(state, input) {
+  return [{ ...state, n: ${value} }, []]
+}
+
+export const widget = {
+  init: (/** @type {i32} */ n) => [{ list: [], n }, []],
+  step,
+  view: () => ({}),
+}
+`
+  const source = loadFiles({ '/v/index.js': "export { widget } from './widget.js'\n", '/v/widget.js': widget })
+  const lowered = lower(source, '/v/index.js', '/v/')
+  return checkWidths(lowered.widgets, source.checker, '/v/').diagnostics.map((one) => one.split(':').slice(3).join(':'))
+}
+
+describe('the integer width checker', () => {
+  test('takes integers shown to fit, and the wraps and clamps the source writes', () => {
+    for (const value of [
+      'input.by',
+      '(state.n + input.by) | 0',
+      'Math.max(0, Math.min(state.n - 1, state.list.length - 1))',
+      'Math.floor(input.at) | 0',
+      'Math.min(state.list.indexOf(input.by), state.n)',
+      '(state.list[0] ?? 0) >> 1',
+      'state.n & 255',
+    ]) {
+      expect([value, widths(value)]).toEqual([value, []])
+    }
+  })
+
+  test('reports a value that may leave the width or not be an integer', () => {
+    expect(widths('state.n + 1')[0]).toStartWith(' `state.n + 1` may be integers [-2147483647, 2147483648], not an i32')
+    expect(widths('input.at')[0]).toStartWith(' `input.at` may be any number, not an i32')
+    expect(widths('state.n / 2')[0]).toStartWith(' `state.n / 2` may be numbers')
+    expect(widths('Math.floor(input.at)')[0]).toStartWith(' `Math.floor(input.at)` may be any number')
+    expect(widths('state.list.length')[0]).toStartWith(' `state.list.length` may be integers [0, 4294967295]')
+    expect(widths('+input.by')[0]).toStartWith(' `+input.by` may be')
+  })
+})
 
 describe('the subset checker', () => {
   test("finds nothing in the core's widgets", () => {

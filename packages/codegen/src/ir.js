@@ -40,7 +40,7 @@
  *   | Typed & Readonly<{ kind: 'call', fn: Fn, args: readonly Expr[] }>
  *   | Typed & Readonly<{ kind: 'method', object: Expr, name: string, args: readonly Expr[] }>
  *   | Typed & Readonly<{ kind: 'builtin', name: string, args: readonly Expr[] }>
- *   | Typed & Readonly<{ kind: 'unary', op: '!' | '-', operand: Expr }>
+ *   | Typed & Readonly<{ kind: 'unary', op: '!' | '-' | '+', operand: Expr }>
  *   | Typed & Readonly<{ kind: 'binary', op: BinaryOp, left: Expr, right: Expr }>
  *   | Typed & Readonly<{ kind: 'logical', op: '&&' | '||' | '??', left: Expr, right: Expr }>
  *   | Typed & Readonly<{ kind: 'conditional', test: Expr, whenTrue: Expr, whenFalse: Expr }>

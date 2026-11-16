@@ -12,9 +12,9 @@
  */
 function beyondSource(contract) {
   return `
-/** @import { Result } from '${contract}' */
+/** @import { i32, Result } from '${contract}' */
 
-/** @typedef {Readonly<{ tops: readonly number[], count: number, dragged: number, target: number, after: boolean }>} SearchState */
+/** @typedef {Readonly<{ tops: readonly i32[], count: i32, dragged: i32, target: i32, after: boolean }>} SearchState */
 /** @typedef {Readonly<{ type: 'move', y: number }>} SearchInput */
 /** @typedef {Readonly<{ type: 'show', target: number, after: boolean }>} Show */
 
@@ -30,17 +30,20 @@ const NO_SHOW = []
 function searchStep(state, input) {
   const { tops } = state
   const { y } = input
+  /** @type {i32} */
   let target = -1
   let after = false
   if (y >= 0 && y < (tops[state.count] ?? 0)) {
+    /** @type {i32} */
     let low = 0
-    let high = state.count - 1
+    /** @type {i32} */
+    let high = (state.count - 1) | 0
     while (low < high) {
       const middle = (low + high + 1) >> 1
       if ((tops[middle] ?? 0) <= y) {
         low = middle
       } else {
-        high = middle - 1
+        high = (middle - 1) | 0
       }
     }
     if (low !== state.dragged) {
@@ -53,8 +56,8 @@ function searchStep(state, input) {
 }
 
 export const search = {
-  init: (/** @type {Readonly<{ tops: readonly number[], dragged: number }>} */ props) => [
-    { after: false, count: props.tops.length - 1, dragged: props.dragged, target: -1, tops: props.tops },
+  init: (/** @type {Readonly<{ tops: readonly i32[], dragged: i32 }>} */ props) => [
+    { after: false, count: (props.tops.length - 1) | 0, dragged: props.dragged, target: -1, tops: props.tops },
     NO_SHOW,
   ],
   step: searchStep,
