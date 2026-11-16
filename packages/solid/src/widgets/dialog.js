@@ -22,7 +22,7 @@ import { component } from '../component.js'
  * @template {AnyComponent} Content
  * @param {Content} content - The widget inside
  * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
- * @returns {Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>}
+ * @returns {Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>}
  *   The component
  */
 function dialog(content, initialFocus) {
@@ -30,6 +30,7 @@ function dialog(content, initialFocus) {
     events: [],
     inside: { content: content.description },
     props: ['closeLabel', 'ignoreOutside', 'title'],
+    sources: [],
     value: { empty: false, kind: 'boolean', prop: 'open', wrapped: false },
     widget: widget(content.description.widget, initialFocus),
   })

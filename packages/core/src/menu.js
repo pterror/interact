@@ -9,9 +9,9 @@
 import { part, ref } from './contract.js'
 import { isTyped, typed, typing } from './typeahead.js'
 
-/** @import { Answer, Ask, Changed, Click, Focus, Found, i32, i53, Key, KeyDown, PreventDefault, PropsInput, Result, Time, View, Wake, Widget } from './contract.js' */
+/** @import { Answer, Ask, Changed, Click, Focus, Found, i32, i53, Key, KeyDown, PreventDefault, PropsInput, Result, SourceName, Time, View, Wake, Widget } from './contract.js' */
 
-/** @typedef {Readonly<{ label: string, source: string, disabled: readonly Key[] }>} MenuProps */
+/** @typedef {Readonly<{ label: string, source: SourceName, disabled: readonly Key[] }>} MenuProps */
 
 /**
  * `keys` are the items, from the first; `count` how many there are, once answered; `asked` the latest ask's id.

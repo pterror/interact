@@ -9,7 +9,19 @@
  * the widget it is around, and that element's props and value as the inner widget's.
  */
 
-import { describedAt, isRecord, outsideElement, renderDom, route, statesOf, widgetProps } from '@pterror/interact-core'
+import {
+  describedAt,
+  formValue,
+  inForm,
+  isRecord,
+  itemSources,
+  itemsProp,
+  outsideElement,
+  renderDom,
+  route,
+  statesOf,
+  widgetProps,
+} from '@pterror/interact-core'
 
 /** @import { Description, Host, Key, Naming, Node as Part, Out, Source } from '@pterror/interact-core' */
 
@@ -30,7 +42,7 @@ import { describedAt, isRecord, outsideElement, renderDom, route, statesOf, widg
  */
 
 /** The properties every element takes beside its widget's props */
-const HOST = ['item', 'name', 'naming', 'outside', 'sources', 'translate', 'words']
+const HOST = ['item', 'itemName', 'naming', 'outside', 'sources', 'translate', 'words']
 
 let count = 0
 
@@ -101,6 +113,9 @@ class InteractElement extends HTMLElement {
   /** @type {InteractElement | null} */
   #owner = null
 
+  /** @readonly */
+  #items = itemSources()
+
   /**
    * The attributes it hears: its widget's props an attribute can hold, its factory's parameters
    * @returns {string[]} Their names
@@ -166,6 +181,13 @@ class InteractElement extends HTMLElement {
     for (const name of described.props) {
       given[name] = this.read(name)
     }
+    for (const name of described.sources) {
+      const items = this.#props[itemsProp(name)]
+      if (Array.isArray(items) && !(name in this.#props) && !this.hasAttribute(attributeOf(name))) {
+        delete given[name]
+        given[itemsProp(name)] = items
+      }
+    }
     if (described.value !== null) {
       given[described.value.prop] = this.read(described.value.prop)
     }
@@ -196,7 +218,45 @@ class InteractElement extends HTMLElement {
     }
     const described = this.#described
     if (described !== null && this.#running !== null) {
-      this.#running.host.setProps(widgetProps(described, this.given()))
+      const { props } = this.#items.read(described, this.given())
+      this.#items.apply()
+      this.#running.host.setProps(widgetProps(described, props))
+      this.#form()
+    }
+  }
+
+  /**
+   * Gives its form its value: the bound value, when it is a key
+   * @returns {void}
+   */
+  #form() {
+    const described = this.#described
+    if (described !== null && inForm(described)) {
+      this.#internals?.setFormValue(formValue(described, this.given()))
+    }
+  }
+
+  /**
+   * Its form was reset: its value is the one its attribute gives, or none
+   * @returns {void}
+   */
+  formResetCallback() {
+    const bound = this.#described?.value
+    if (bound !== null && bound !== undefined) {
+      delete this.#props[bound.prop]
+      this.refresh()
+    }
+  }
+
+  /**
+   * The browser restored its form's state: its value
+   * @param {unknown} state - The value it gave its form
+   * @returns {void}
+   */
+  formStateRestoreCallback(state) {
+    const bound = this.#described?.value
+    if (bound !== null && bound !== undefined && typeof state === 'string') {
+      this.write(bound.prop, state)
     }
   }
 
@@ -255,8 +315,11 @@ class InteractElement extends HTMLElement {
     const naming = this.read('naming')
     const sources = this.read('sources')
     const item = this.read('item')
-    const nameOf = this.read('name')
+    const nameOf = this.read('itemName')
     const words = this.read('words')
+    const made = this.#items.read(described, this.given())
+    const all = isSources(sources) ? { ...sources, ...made.sources } : made.sources
+    const [first] = Object.values(made.sources)
     const running = renderDom({
       container: root,
       effect: (out) => {
@@ -266,15 +329,16 @@ class InteractElement extends HTMLElement {
       slotText: true,
       naming: isNaming(naming) ? naming : { id: `${this.localName}-${String(count)}`, keyId: String },
       outside: (name) => this.#outside(name),
-      props: widgetProps(described, this.given()),
+      props: widgetProps(described, made.props),
+      sources: all,
       widget: described.widget,
-      ...(isSources(sources) ? { sources } : {}),
       ...(isItem(item) ? { item } : {}),
-      ...(isNameOf(nameOf) ? { name: nameOf } : {}),
+      ...(isNameOf(nameOf) ? { name: nameOf } : first === undefined ? {} : { name: first.text }),
       ...(isWords(words) ? { words } : {}),
     })
     this.#running = running
     this.#states(running.host.tree())
+    this.#form()
     running.host.watch(() => {
       this.#states(running.host.tree())
     })
@@ -453,6 +517,7 @@ function define(info) {
   }
   const names = [
     ...new Set([
+      ...(info.description?.sources ?? []).map((prop) => itemsProp(prop)),
       ...Object.keys(info.kinds),
       ...(info.description?.value === null || info.description === null ? [] : [info.description.value.prop]),
       ...HOST,

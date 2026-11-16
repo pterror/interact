@@ -23,13 +23,13 @@ export type WidgetProps = PropsOf<Widget>;
  * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
  * @returns The component
  */
-declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof source>[1]): import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof source>[1]): import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
     title: string;
     closeLabel: string;
     open: boolean;
     ignoreOutside: boolean;
     content: unknown;
-}>, "content" | "open"> & {
+}>, "content" | "open">, never> & {} & {} & {
     readonly open?: boolean;
 } & {
     readonly defaultOpen?: boolean;
@@ -40,7 +40,8 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
 } & {} & Readonly<{
     content: OwnOf<Content>;
 }> & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -56,13 +57,13 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
     }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
-}>, string[], {}, Omit<Readonly<{
+}>, string[], {}, Omit<Omit<Readonly<{
     title: string;
     closeLabel: string;
     open: boolean;
     ignoreOutside: boolean;
     content: unknown;
-}>, "content" | "open"> & {
+}>, "content" | "open">, never> & {} & {} & {
     readonly open?: boolean;
 } & {
     readonly defaultOpen?: boolean;
@@ -73,7 +74,8 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
 } & {} & Readonly<{
     content: OwnOf<Content>;
 }> & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -95,6 +97,7 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
     description: Readonly<{
         widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
+        sources: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];
         inside: Readonly<{
@@ -104,7 +107,7 @@ declare function dialog<Content extends AnyComponent>(content: Content, initialF
     types: Readonly<{
         own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{
             content: OwnOf<Content>;
-        }>>;
+        }>, never>;
         parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>;
     }> | undefined;
 };

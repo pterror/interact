@@ -59,7 +59,7 @@ function widgetImports(widget) {
  * @returns {string} The literal
  */
 function descriptionLiteral(widget, widgetExpression, inside) {
-  return `{ events: ${JSON.stringify(widget.events)}, inside: ${inside}, props: ${JSON.stringify(widget.props)}, value: ${
+  return `{ events: ${JSON.stringify(widget.events)}, inside: ${inside}, props: ${JSON.stringify(widget.props)}, sources: ${JSON.stringify(widget.sources)}, value: ${
     widget.value === null ? 'null' : JSON.stringify(widget.value)
   }, ${widgetExpression === 'widget' ? 'widget' : `widget: ${widgetExpression}`} }`
 }
@@ -71,6 +71,15 @@ function descriptionLiteral(widget, widgetExpression, inside) {
  */
 function partUnion(widget) {
   return widget.parts.map((part) => `'${part.name}'`).join(' | ') || 'never'
+}
+
+/**
+ * The union of a widget's props that name a collection, as a type
+ * @param {Described} widget - The widget
+ * @returns {string} The union
+ */
+function sourceUnion(widget) {
+  return widget.sources.map((prop) => `'${prop}'`).join(' | ') || 'never'
 }
 
 /**
@@ -170,7 +179,7 @@ ${types}
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @typedef {${partUnion(widget)}} ${name}Parts */
-/** @typedef {Own<WidgetProps, ${widget.value === null ? 'never' : `'${widget.value.prop}'`}, ${valueType(widget)}, ${eventType(widget)}, unknown>} ${name}Props */
+/** @typedef {Own<WidgetProps, ${widget.value === null ? 'never' : `'${widget.value.prop}'`}, ${valueType(widget)}, ${eventType(widget)}, unknown, ${sourceUnion(widget)}>} ${name}Props */
 
 /**
 ${docLines(widget.doc)}
@@ -214,7 +223,7 @@ ${types}
 ${docLines(widget.doc)}
 ${generics}
 ${params}
- * @returns {Component<Own<WidgetProps, ${widget.value === null ? 'never' : `'${widget.value.prop}'`}, ${valueType(widget)}, ${eventType(widget)}, ${insideProps}>, ${parts}>}
+ * @returns {Component<Own<WidgetProps, ${widget.value === null ? 'never' : `'${widget.value.prop}'`}, ${valueType(widget)}, ${eventType(widget)}, ${insideProps}, ${sourceUnion(widget)}>, ${parts}>}
  *   The component
  */
 function ${widget.name}(${factoryParams.map((param) => param.name).join(', ')}) {
@@ -284,7 +293,7 @@ function vueModule(widget, header) {
     inside.length === 0
       ? 'unknown'
       : `Readonly<{ ${inside.map((param) => `${param.inside}: OwnOf<${capital(param.name)}>`).join(', ')} }>`
-  }>`
+  }, ${sourceUnion(widget)}>`
   const parts = [
     partUnion(widget),
     ...inside.map((param) => `PartsInside<${capital(param.name)}, '${param.inside}'>`),
@@ -460,7 +469,7 @@ export { ${widget.name} }
 `,
     )
     const typing = `${valueType(widget)}, ${eventType(widget)}`
-    const own = `Own<WidgetProps, ${bound === null ? 'never' : `'${bound}'`}, ${typing}, ${inside.length === 0 ? 'unknown' : `{ ${inside.map((param) => `${param.inside}: Record<string, unknown>`).join(', ')} }`}>`
+    const own = `Own<WidgetProps, ${bound === null ? 'never' : `'${bound}'`}, ${typing}, ${inside.length === 0 ? 'unknown' : `{ ${inside.map((param) => `${param.inside}: Record<string, unknown>`).join(', ')} }`}, ${sourceUnion(widget)}>`
     const typeImports = `import type { Description, ${widget.events.length > 0 ? 'EffectOf, ' : ''}Key, PropsOf } from '@pterror/interact-core'
 import type { ${widget.name} as widget } from '${coreModule(widget)}'`
     const typeAliases = `type Widget = ${widget.factory === null ? 'typeof widget' : 'ReturnType<typeof widget>'}

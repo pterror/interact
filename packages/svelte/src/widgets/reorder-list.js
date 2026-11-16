@@ -18,7 +18,8 @@ import { reorderList as widget } from '@pterror/interact-core/generated/reorderL
 const reorderList = {
   events: ['active'],
   inside: {},
-  props: ['dragDistance', 'focusable', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+  props: ['dragDistance', 'focusable', 'hover', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+  sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
   widget,
 }

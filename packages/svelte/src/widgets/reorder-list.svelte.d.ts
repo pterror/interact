@@ -27,7 +27,8 @@ declare const ReorderList: Component<
     'selected',
     NonNullable<WidgetProps['selected']>['value'],
     Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>,
-    unknown
+    unknown,
+    'source'
   > &
     HostProps & {
       children?: Snippet<[Key]>

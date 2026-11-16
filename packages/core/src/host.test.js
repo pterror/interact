@@ -11,6 +11,7 @@ import { keydown } from './test-inputs.js'
 const ORDER = {
   dragDistance: 4,
   focusable: true,
+  hover: false,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,

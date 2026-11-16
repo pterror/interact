@@ -32,17 +32,18 @@ function dialog(content, initialFocus) {
     events: [],
     inside: { content: content.description },
     props: ['closeLabel', 'ignoreOutside', 'title'],
+    sources: [],
     value: { empty: false, kind: 'boolean', prop: 'open', wrapped: false },
     widget: widget(content.description.widget, initialFocus),
   }
   /**
    * The setup
-   * @param {Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>> & Given} props - The props
+   * @param {Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never> & Given} props - The props
    * @param {SetupContext<Emits<'open', WidgetProps['open'], never>, SlotsType<Slots<string>>>} context - The slots and emit
    * @returns {() => VNodeChild} The render function
    */
   const setup = (props, context) => run(description, props, context)
-  /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
+  /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
   const types = typesOf
   return Object.assign(defineComponent(setup, optionsOf(description, 'Dialog')), { description, types: types() })
 }

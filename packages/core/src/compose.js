@@ -146,13 +146,19 @@
  */
 
 /**
+ * The host event of a type, of the events whose `type` is one of several (a pointer event's)
+ * @template {string} T
+ * @typedef {HostEvent extends infer E ? E extends Readonly<{ type: infer U }> ? T extends U ? E : never : never : never} EventOf
+ */
+
+/**
  * `capture` or `bubble` handlers per child, per host event type: told (`bubble`) whether the target prevented the
  * default
  * @template O, E, C, Extra
  * @typedef {{ readonly [K in keyof C]?: {
  *   readonly [T in TypeOf<HostEvent>]?: (
  *     own: NoInfer<O>,
- *     input: Extract<HostEvent, Readonly<{ type: T }>>,
+ *     input: EventOf<T>,
  *     defaultPrevented: boolean,
  *   ) => Result<NoInfer<O>, E | Send<keyof C & string> | Extra>
  * } }} InputHandlers

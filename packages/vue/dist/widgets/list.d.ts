@@ -11,22 +11,27 @@ export type WidgetProps = PropsOf<Widget>;
  * `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the
  * list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with
  * `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or
- * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it.
- * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at
- * once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the
- * active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's
- * state.
+ * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it. With
+ * `hover`, the option under the pointer becomes active. Selection is the value, by the contract's rule: with
+ * `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the
+ * app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it
+ * (`aria-activedescendant`) without reading the list's state.
  */
-declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare const List: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
     label: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     shown: boolean;
     focusable: boolean;
+    hover: boolean;
     selected: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
-}>, "selected"> & {
+}>, "selected">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly selected?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultSelected?: import("@pterror/interact-core/contract").Key | null;
@@ -40,7 +45,8 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         item: import("@pterror/interact-core/contract").Key | null;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -56,16 +62,21 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
-}>, string[], {}, Omit<Readonly<{
+}>, string[], {}, Omit<Omit<Readonly<{
     label: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     shown: boolean;
     focusable: boolean;
+    hover: boolean;
     selected: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
-}>, "selected"> & {
+}>, "selected">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly selected?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultSelected?: import("@pterror/interact-core/contract").Key | null;
@@ -79,7 +90,8 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         item: import("@pterror/interact-core/contract").Key | null;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -101,6 +113,7 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     description: Readonly<{
         widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
+        sources: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];
         inside: Readonly<{
@@ -110,7 +123,7 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     types: Readonly<{
         own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
             type: 'active';
-        }>>, unknown>;
+        }>>, unknown, 'source'>;
         parts: 'option' | 'root';
     }> | undefined;
 };

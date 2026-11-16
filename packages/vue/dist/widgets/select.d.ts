@@ -12,17 +12,23 @@ export type WidgetProps = PropsOf<Widget>;
  * `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.
  * A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed
  * (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click
- * on it focuses the trigger.
+ * on it focuses the trigger. A mouse press on the trigger opens (or closes) it at once, and its release over an
+ * option chooses that option, as a native select does; the click the press ends in is then not a toggle
+ * (`pressed`). The option under the pointer is active.
  */
-declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare const Select: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
     label: string;
     placeholder: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     value: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
-}>, "value"> & {
+}>, "value">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly modelValue?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultValue?: import("@pterror/interact-core/contract").Key | null;
@@ -31,7 +37,8 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         refuse: () => void;
     }>) => void;
 } & {} & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -47,15 +54,19 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
-}>, string[], {}, Omit<Readonly<{
+}>, string[], {}, Omit<Omit<Readonly<{
     label: string;
     placeholder: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     value: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
-}>, "value"> & {
+}>, "value">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly modelValue?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultValue?: import("@pterror/interact-core/contract").Key | null;
@@ -64,7 +75,8 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         refuse: () => void;
     }>) => void;
 } & {} & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -86,6 +98,7 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     description: Readonly<{
         widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
+        sources: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];
         inside: Readonly<{
@@ -93,7 +106,7 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         }>;
     }>;
     types: Readonly<{
-        own: Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown>;
+        own: Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown, 'source'>;
         parts: 'popover' | 'root' | 'trigger' | 'option' | 'list';
     }> | undefined;
 };

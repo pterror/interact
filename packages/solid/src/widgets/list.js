@@ -11,7 +11,7 @@ import { component } from '../component.js'
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @typedef {'option' | 'root'} ListParts */
-/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>} ListProps */
+/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'>} ListProps */
 
 /**
  * A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox
@@ -21,17 +21,18 @@ import { component } from '../component.js'
  * `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the
  * list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with
  * `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or
- * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it.
- * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at
- * once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the
- * active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's
- * state.
+ * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it. With
+ * `hover`, the option under the pointer becomes active. Selection is the value, by the contract's rule: with
+ * `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the
+ * app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it
+ * (`aria-activedescendant`) without reading the list's state.
  * @type {Component<ListProps, ListParts>}
  */
 const List = component({
   events: ['active'],
   inside: {},
-  props: ['focusable', 'label', 'rows', 'shown', 'source'],
+  props: ['focusable', 'hover', 'label', 'rows', 'shown', 'source'],
+  sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
   widget,
 })

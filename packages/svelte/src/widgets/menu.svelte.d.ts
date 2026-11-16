@@ -17,7 +17,7 @@ type WidgetProps = PropsOf<Widget>
  * disabled items are moved to but not chosen.
  */
 declare const Menu: Component<
-  Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown> &
+  Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown, 'source'> &
     HostProps & {
       children?: Snippet<[Key]>
       parts?: Readonly<

@@ -316,7 +316,7 @@ function click(part, item = null) {
  * @returns {Input} The input
  */
 function pointer(type, part, item, x, y) {
-  return { button: 0, clientX: x, clientY: y, item, part, pointerId: 1, timeStamp: 0, type }
+  return { button: 0, clientX: x, clientY: y, item, part, pointerId: 1, pointerType: 'mouse', timeStamp: 0, type }
 }
 
 /**
@@ -424,6 +424,7 @@ function listEnvironment(pick, reorder) {
   let keys = collection(pick)
   let props = {
     focusable: pick.chance(80),
+    hover: pick.chance(40),
     label: 'List',
     rows: 2 + pick.int(6),
     selected: pick.chance(40) ? { value: keys.length > 0 && pick.chance(50) ? pick.pick(keys) : null } : null,
@@ -578,6 +579,9 @@ function listEnvironment(pick, reorder) {
     }
     if (reorder && roll < 92 && keys.length > 0) {
       return drag()
+    }
+    if (!reorder && roll < 85 && keys.length > 0) {
+      return pointer('pointermove', pick.chance(90) ? 'option' : 'root', pick.pick(keys), 0, 0)
     }
     const move = moves.shift()
     return reorder && move !== undefined ? settle(move) : { type: 'changed' }
@@ -802,7 +806,21 @@ function selectRun(widget, at, isDialog, pick, length) {
       return { input: keydown('trigger', key, { altKey: pick.chance(10), timeStamp: now }), path: at }
     }
     if (roll < 65) {
-      return { input: click('trigger'), path: at }
+      const which = pick.int(4)
+      if (which === 0) {
+        const press = pointer('pointerdown', 'trigger', null, 0, 0)
+        return {
+          input: { ...press, button: pick.chance(90) ? 0 : 2, pointerType: pick.chance(80) ? 'mouse' : 'touch' },
+          path: at,
+        }
+      }
+      if (which === 1 && keys.length > 0) {
+        const type = pick.chance(50) ? 'pointermove' : 'pointerup'
+        return { input: pointer(type, 'option', pick.pick(keys), 0, 0), path: [...at, 'list'] }
+      }
+      return which === 2
+        ? { input: pointer('pointerup', 'trigger', null, 0, 0), path: at }
+        : { input: click('trigger'), path: at }
     }
     if (roll < 68) {
       return { input: { item: null, part: 'trigger', timeStamp: 0, type: 'blur' }, path: at }

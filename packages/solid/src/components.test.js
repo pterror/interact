@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource } from '@pterror/interact-core'
-import { drawsAsTheDomRenderer, FRUIT, settled, violations } from '@pterror/interact-core/test-components'
+import {
+  collectionOf,
+  drawsAsTheDomRenderer,
+  FRUIT,
+  settled,
+  takesItemsInAForm,
+  violations,
+} from '@pterror/interact-core/test-components'
 import { createComponent, createRoot, createSignal, mergeProps, splitProps } from 'solid-js'
 import { Dynamic, hydrate, insert } from 'solid-js/web'
 
@@ -63,8 +70,9 @@ function app(mounting) {
   const [value, setValue] = createSignal(mounting.value)
   const [open, setOpen] = createSignal(mounting.open)
   const { mode, naming, sources } = mounting
+  const { source: _source, ...unsourced } = SELECT
   const select = mergeProps(
-    SELECT,
+    mounting.items === undefined ? SELECT : unsourced,
     mode === 'app'
       ? {
           get value() {
@@ -80,7 +88,7 @@ function app(mounting) {
     },
   )
   if (mounting.kind === 'select') {
-    return createComponent(Select, mergeProps(select, { naming, sources }))
+    return createComponent(Select, mergeProps(select, { naming, ...collectionOf(mounting) }))
   }
   return createComponent(
     PickDialog,
@@ -121,6 +129,10 @@ describe('the Solid components', () => {
       })
     }
   }
+
+  test('the select takes its items in place of a source, and is a field of its form', async () => {
+    await takesItemsInAForm(solid, true)
+  })
 
   test('hydrate what a server rendered, with ids from createUniqueId, to the same DOM, which then runs', async () => {
     const server = Bun.spawn(

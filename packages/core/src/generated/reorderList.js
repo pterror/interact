@@ -120,6 +120,7 @@ function listInit(props, host) {
       count: null,
       focusable: props.focusable,
       follow: 'key',
+      hover: props.hover,
       from: 0,
       keys: [],
       label: props.label,
@@ -415,6 +416,7 @@ function listPropsChanged(state, props, host) {
   const controlled = props.selected !== null
   const stateShown = state.shown
   state.focusable = props.focusable
+  state.hover = props.hover
   state.label = props.label
   state.rows = props.rows
   state.selection = pendingFromApp(
@@ -685,6 +687,13 @@ function listStepOwn(state, input, host) {
         return state
       }
     }
+    case 'pointermove': {
+      if (state.hover && input.part === 'option' && input.item !== null && input.item !== state.active) {
+        return listMoveToKey(state, input.item, host)
+      } else {
+        return state
+      }
+    }
     case 'keydown': {
       return listKeydown(state, input, host)
     }
@@ -709,6 +718,11 @@ function listStepOwn(state, input, host) {
       state.activeRank = rank
       state.follow = 'key'
       return listChoose(state, input.item, host)
+    }
+    case 'pointerdown':
+    case 'pointerup':
+    case 'pointercancel': {
+      return state
     }
     default: {
       return state

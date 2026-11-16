@@ -709,7 +709,7 @@ function renderTerminal(options) {
       return
     }
     const at = partAt(event.x, event.y)
-    const point = { button: 0, clientX: event.x - 1, clientY: event.y - 1, pointerId: 1 }
+    const point = { button: 0, clientX: event.x - 1, clientY: event.y - 1, pointerId: 1, pointerType: 'mouse' }
     if (event.release) {
       press(at, { ...point, type: 'pointerup' })
       const from = pressed

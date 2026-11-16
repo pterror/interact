@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { deliver, resolve, start } from './compose.js'
 import { shown } from './pending.js'
 import { select } from './select.js'
-import { answer, click, keydown } from './test-inputs.js'
+import { answer, click, keydown, pointer } from './test-inputs.js'
 
 /** @import { Out, StateOf } from './compose.js' */
 /** @import { SelectProps } from './select.js' */
@@ -155,6 +155,27 @@ describe('select', () => {
     ])
     const [chosen] = send(spaced, [], keydown('trigger', ' ', { timeStamp: 900 }))
     expect([chosen.own.open, shown(chosen.own.value)]).toEqual([false, 'cherry'])
+  })
+
+  test('a mouse press opens it, the option under the pointer is active, and a release over one chooses it', () => {
+    let [state] = send(started()[0], [], pointer('pointerdown', 'trigger', null, [0, 0]))
+    expect(state.own.open).toBe(true)
+    ;[state] = send(state, ['list'], answer(1, ALL, [0, 5]))
+    ;[state] = send(state, ['list'], pointer('pointermove', 'option', 'cherry', [0, 40]))
+    expect(state.own.active).toBe('cherry')
+    const [chosen, effects] = send(state, ['list'], pointer('pointerup', 'option', 'cherry', [0, 40]))
+    expect([chosen.own.open, effects]).toEqual([false, [{ id: 1, type: 'change', value: 'cherry' }]])
+    const [clicked] = send(chosen, [], click('trigger'))
+    expect(clicked.own.open).toBe(false)
+    const [touched] = send(clicked, [], { ...pointer('pointerdown', 'trigger', null, [0, 0]), pointerType: 'touch' })
+    expect(touched.own.open).toBe(false)
+    expect(send(touched, [], click('trigger'))[0].own.open).toBe(true)
+  })
+
+  test('a mouse press and release on the trigger opens it and leaves it open', () => {
+    const [pressed] = send(started()[0], [], pointer('pointerdown', 'trigger', null, [0, 0]))
+    const [released] = send(pressed, [], pointer('pointerup', 'trigger', null, [0, 0]))
+    expect(send(released, [], click('trigger'))[0].own.open).toBe(true)
   })
 
   test('opens on End, handing the key to the list, which moves once it knows the count', () => {

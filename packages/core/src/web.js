@@ -128,7 +128,14 @@ function inputOf(event, target) {
     return { ...base, ...modifiers(event), key: event.key }
   }
   if (event instanceof PointerEvent) {
-    return { ...base, button: event.button, clientX: event.clientX, clientY: event.clientY, pointerId: event.pointerId }
+    return {
+      ...base,
+      button: event.button,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+    }
   }
   if (event instanceof MouseEvent) {
     return { ...base, ...modifiers(event), button: event.button }

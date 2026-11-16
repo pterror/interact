@@ -21,6 +21,7 @@ function dialog(content, initialFocus) {
     events: [],
     inside: { content: content },
     props: ['closeLabel', 'ignoreOutside', 'title'],
+    sources: [],
     value: { empty: false, kind: 'boolean', prop: 'open', wrapped: false },
     widget: widget(content.widget, initialFocus),
   }

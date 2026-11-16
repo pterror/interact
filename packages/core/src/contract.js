@@ -37,6 +37,12 @@
  */
 
 /**
+ * The name of a collection the host holds, which a widget asks about (`ask`) by it: a prop of this type names one, so
+ * a component can take the collection's items in its place
+ * @typedef {string} SourceName
+ */
+
+/**
  * Where a widget sits among its ancestors: the child names from the outermost widget down; `[]` is the outermost
  * @typedef {readonly string[]} Path
  */
@@ -127,10 +133,12 @@
 
 /**
  * A pointer event, with the UI Events fields a widget reads. `clientX`/`clientY` are in the target's own units (CSS
- * pixels in a browser, cells in a terminal); a widget's thresholds are props, in the same units
+ * pixels in a browser, cells in a terminal); a widget's thresholds are props, in the same units. `pointerType` is
+ * Pointer Events' (`mouse`, `pen`, `touch`)
  * @typedef {On & Readonly<{
  *   type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
  *   pointerId: number,
+ *   pointerType: string,
  *   button: number,
  *   clientX: number,
  *   clientY: number,

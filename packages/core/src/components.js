@@ -7,6 +7,7 @@
  */
 
 import { isRecord } from './compose.js'
+import { arraySource } from './host.js'
 
 /** @import { AnyGenerated, Out } from './compose.js' */
 /** @import { Data, Key, Path } from './contract.js' */
@@ -23,10 +24,12 @@ import { isRecord } from './compose.js'
 
 /**
  * A widget as a component runs it (its generated in-place code): its props passed through, its bound value, the types of its own effects that are
- * the app's, and the widget props that take another component's props (by that component's description)
+ * the app's, the widget props that take another component's props (by that component's description), and the props
+ * that name a collection, which the component can be given the items of instead (`items` for `source`)
  * @typedef {Readonly<{
  *   widget: AnyGenerated,
  *   props: readonly string[],
+ *   sources: readonly string[],
  *   value: Bound | null,
  *   events: readonly string[],
  *   inside: Readonly<{ [prop: string]: Description }>,
@@ -104,11 +107,11 @@ function outsideElement(given, name) {
 }
 
 /**
- * What a component takes beside its widget's props, in every framework: how an item is named in announcements, how
- * ids are made, the sources the widget asks about, the words announcements use, key rebinding, and the elements
- * outside it the widget refers to, by the names it gives them
+ * What a component takes beside its widget's props, in every framework: how an item is named in announcements (by
+ * default its text, for items given), how ids are made, the sources the widget asks about, the words announcements
+ * use, key rebinding, and the elements outside it the widget refers to, by the names it gives them
  * @typedef {Readonly<{
- *   name?: ((key: Key) => string) | undefined,
+ *   itemName?: ((key: Key) => string) | undefined,
  *   naming?: Naming | undefined,
  *   sources?: Readonly<{ [name: string]: Source }> | undefined,
  *   translate?: ((input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null) | undefined,
@@ -119,17 +122,21 @@ function outsideElement(given, name) {
 
 /**
  * The page's options from a component's host props: its naming (the app's, or the framework's) with the ids of the
- * elements outside given by id, the elements outside given otherwise as they are when the page looks, and the rest as
- * given
+ * elements outside given by id, the elements outside given otherwise as they are when the page looks, the app's
+ * sources and those made from items given, and the rest as given
  * @param {HostGiven} props - The component's props
  * @param {Naming} framework - The naming the framework makes, from its ids
  * @param {() => HostGiven} latest - The component's props as they are now
+ * @param {Readonly<{ [name: string]: Source }>} made - The sources made from items given
  * @returns {Omit<PageOptions, 'widget' | 'props' | 'effect'> & Readonly<{ naming: Naming }>} The options
  */
-function hostOptions(props, framework, latest) {
-  const { name, sources, translate, words } = props
+function hostOptions(props, framework, latest, made = {}) {
+  const { translate, words } = props
   const naming = props.naming ?? framework
   const ids = outsideIds(props.outside)
+  const [first] = Object.values(made)
+  const name = props.itemName ?? first?.text
+  const sources = Object.keys(made).length === 0 ? props.sources : { ...props.sources, ...made }
   return {
     naming: ids === undefined ? naming : { ...naming, outside: { ...naming.outside, ...ids } },
     outside: (named) => outsideElement(latest().outside, named),
@@ -138,6 +145,152 @@ function hostOptions(props, framework, latest) {
     ...(translate === undefined ? {} : { translate }),
     ...(words === undefined ? {} : { words }),
   }
+}
+
+/**
+ * An item given to a component in place of a source: its key, its key and text, or text that is its key
+ * @typedef {Key | Readonly<{ key: Key, text: string }>} Item
+ */
+
+/**
+ * A component's props `P` with each prop in `S` naming a collection made optional, and a prop taking the collection's
+ * items in its place (`items` for `source`)
+ * @template P
+ * @template {string} S
+ * @typedef {Omit<P, S> & { readonly [K in S & keyof P]?: P[K] } & {
+ *   readonly [K in S as K extends 'source' ? 'items' : `${K}Items`]?: readonly Item[]
+ * }} Sourced
+ */
+
+/**
+ * The prop a component takes the items of a collection by, for the widget prop naming it
+ * @param {string} prop - The widget's prop (`source`)
+ * @returns {string} The component's prop (`items`)
+ */
+function itemsProp(prop) {
+  return prop === 'source' ? 'items' : `${prop}Items`
+}
+
+/**
+ * Each item's key and text
+ * @param {readonly unknown[]} items - The items
+ * @returns {Readonly<{ keys: Key[], texts: Map<Key, string> }>} The keys in order, and the texts
+ */
+function parseItems(items) {
+  /** @type {Key[]} */
+  const keys = []
+  /** @type {Map<Key, string>} */
+  const texts = new Map()
+  for (const item of items) {
+    const key = isRecord(item) ? item['key'] : item
+    if (typeof key === 'string' || typeof key === 'number') {
+      keys.push(key)
+      texts.set(key, isRecord(item) && typeof item['text'] === 'string' ? item['text'] : String(key))
+    }
+  }
+  return { keys, texts }
+}
+
+/**
+ * The sources a component makes from the items it is given in place of a collection's name, one per prop for its life:
+ * `read` gives its props with each such prop naming the source made for it, and those sources; the items given since
+ * are put in each source by `apply`, which tells what asked about it, so a framework calls it once it has drawn
+ * @returns {Readonly<{
+ *   read: (description: Description, props: Props) => Readonly<{ props: Props, sources: Readonly<{ [name: string]: ReturnType<typeof arraySource> }> }>,
+ *   apply: () => void,
+ * }>} The sources
+ */
+function itemSources() {
+  /** @type {Map<string, { source: ReturnType<typeof arraySource>, items: readonly unknown[], texts: Map<Key, string> }>} */
+  const made = new Map()
+  /** @type {Map<string, readonly unknown[]>} */
+  const waiting = new Map()
+  /**
+   * Makes the source for a prop, holding the items it is given first
+   * @param {string} name - The source's name
+   * @param {readonly unknown[]} items - The items
+   * @returns {{ source: ReturnType<typeof arraySource>, items: readonly unknown[], texts: Map<Key, string> }} It
+   */
+  const make = (name, items) => {
+    const { keys, texts } = parseItems(items)
+    /** @type {{ source: ReturnType<typeof arraySource>, items: readonly unknown[], texts: Map<Key, string> }} */
+    const held = { items, source: arraySource(keys, (key) => held.texts.get(key) ?? String(key)), texts }
+    made.set(name, held)
+    return held
+  }
+
+  /**
+   * A component's props with its sources made, and those inside it
+   * @param {Description} description - Its widget
+   * @param {Props} props - Its props
+   * @param {readonly string[]} inside - Where it is, by the props it is inside
+   * @returns {Readonly<{ props: Props, sources: Readonly<{ [name: string]: ReturnType<typeof arraySource> }> }>} Its
+   *   props, and the sources made for it and those inside it
+   */
+  const visit = (description, props, inside) => {
+    /** @type {{ [prop: string]: unknown }} */
+    const given = { ...props }
+    /** @type {{ [name: string]: ReturnType<typeof arraySource> }} */
+    const sources = {}
+    for (const prop of description.sources) {
+      const items = props[itemsProp(prop)]
+      if (Array.isArray(items) && props[prop] === undefined) {
+        const name = `items:${[...inside, prop].join('/')}`
+        const held = made.get(name) ?? make(name, items)
+        if (held.items !== items) {
+          waiting.set(name, items)
+        }
+        given[prop] = name
+        sources[name] = held.source
+      }
+    }
+    for (const [name, inner] of Object.entries(description.inside)) {
+      const visited = visit(inner, propsIn(props, name), [...inside, name])
+      given[name] = visited.props
+      Object.assign(sources, visited.sources)
+    }
+    return { props: given, sources }
+  }
+  return {
+    apply: () => {
+      for (const [name, items] of waiting) {
+        const held = made.get(name)
+        if (held !== undefined) {
+          const { keys, texts } = parseItems(items)
+          held.items = items
+          held.texts = texts
+          held.source.set(keys)
+        }
+      }
+      waiting.clear()
+    },
+    read: (description, props) => visit(description, props, []),
+  }
+}
+
+/**
+ * What a component's form field holds: its bound value as text, when it is a key (`null` for none chosen)
+ * @param {Description} description - The component's widget
+ * @param {Given} given - Its props, in the widget's names
+ * @returns {string | null} The value, or `null` for a widget whose value is no key, or none
+ */
+function formValue(description, given) {
+  const { value } = description
+  if (value === null || (value.kind !== 'string' && value.kind !== 'number')) {
+    return null
+  }
+  const now = given[value.prop]
+  return typeof now === 'string' || typeof now === 'number' ? String(now) : null
+}
+
+/**
+ * Whether a component takes part in a form: its bound value is a key
+ * @param {Description} description - The component's widget
+ * @returns {boolean} Whether it does
+ */
+function inForm(description) {
+  const { value } = description
+  return value !== null && (value.kind === 'string' || value.kind === 'number')
 }
 
 /**
@@ -318,11 +471,15 @@ function describedAt(description, inside) {
 
 export {
   describedAt,
+  formValue,
   givenFrom,
   heldAt,
   heldFrom,
   holding,
   hostOptions,
+  inForm,
+  itemSources,
+  itemsProp,
   outsideElement,
   outsideIds,
   ownValue,

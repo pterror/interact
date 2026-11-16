@@ -17,17 +17,18 @@ const description = {
   events: [],
   inside: {},
   props: ['label', 'placeholder', 'rows', 'source'],
+  sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
   widget,
 }
 /**
  * The setup
- * @param {Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown> & Given} props - The props
+ * @param {Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown, 'source'> & Given} props - The props
  * @param {SetupContext<Emits<'value', NonNullable<WidgetProps['value']>['value'], never>, SlotsType<Slots<'popover' | 'root' | 'trigger' | 'option' | 'list'>>>} context - The slots and emit
  * @returns {() => VNodeChild} The render function
  */
 const setup = (props, context) => run(description, props, context)
-/** @type {() => Readonly<{ own: Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown>, parts: 'popover' | 'root' | 'trigger' | 'option' | 'list' }> | undefined} */
+/** @type {() => Readonly<{ own: Own<WidgetProps, 'value', NonNullable<WidgetProps['value']>['value'], never, unknown, 'source'>, parts: 'popover' | 'root' | 'trigger' | 'option' | 'list' }> | undefined} */
 const types = typesOf
 
 /**
@@ -39,7 +40,9 @@ const types = typesOf
  * `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.
  * A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed
  * (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click
- * on it focuses the trigger.
+ * on it focuses the trigger. A mouse press on the trigger opens (or closes) it at once, and its release over an
+ * option chooses that option, as a native select does; the click the press ends in is then not a toggle
+ * (`pressed`). The option under the pointer is active.
  */
 const Select = Object.assign(defineComponent(setup, optionsOf(description, 'Select')), { description, types: types() })
 

@@ -10,8 +10,10 @@ import {
   givenFrom,
   heldAt,
   heldFrom,
+  formValue,
   holding,
   hostOptions,
+  itemSources,
   ownValue,
   page,
   propsAt,
@@ -20,7 +22,7 @@ import {
   widgetProps,
 } from '@pterror/interact-core'
 
-/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words, Sourced } from '@pterror/interact-core' */
 
 /**
  * What a change's callback is given beside the value: `refuse` undoes the change, now or later
@@ -28,11 +30,13 @@ import {
  */
 
 /**
- * What every component takes beside its widget's props and its bound value: how an item is named in announcements, the
- * sources the widget asks about, the words announcements use, how ids are made, key rebinding, and the elements
+ * What every component takes beside its widget's props and its bound value: how an item is named in announcements
+ * (`itemName`), the name of its form field (for a value that is a key, held in a hidden input), the sources the widget
+ * asks about, the words announcements use, how ids are made, key rebinding, and the elements
  * outside it the widget refers to (its visible `label`), each by id, as an element, or by a function giving it
  * @typedef {Readonly<{
- *   name?: ((key: Key) => string) | undefined,
+ *   itemName?: ((key: Key) => string) | undefined,
+ *   name?: string | undefined,
  *   sources?: Readonly<{ [name: string]: Source }> | undefined,
  *   words?: Words | undefined,
  *   naming?: Naming | undefined,
@@ -48,7 +52,8 @@ import {
  * @template P
  * @template {string} V
  * @template T, E, I
- * @typedef {Omit<P, V | keyof I> & { [K in V]?: T } & { onchange?: (value: T, change: Change) => void } & {
+ * @template {string} [S=never]
+ * @typedef {Sourced<Omit<P, V | keyof I>, S> & { [K in V]?: T } & { onchange?: (value: T, change: Change) => void } & {
  *   readonly [K in E extends Readonly<{ type: infer N extends string }> ? N : never as `on${K}`]?:
  *     (effect: Extract<E, Readonly<{ type: K }>>) => void
  * } & I} Own
@@ -64,10 +69,15 @@ import {
  */
 
 /**
- * A component's widget, running
+ * A component's widget, running: its sources (the app's, and those made from items it is given), and its form field's
+ * value (`null` for a widget whose value is no key); `reset` gives its value back what it started as, as a form reset
+ * does
  * @typedef {Readonly<{
  *   page: Page,
  *   tree: () => Part,
+ *   sources: Readonly<{ [name: string]: Source }> | undefined,
+ *   form: () => string | null,
+ *   reset: () => void,
  *   update: (props: Props, bound: unknown) => void,
  *   drawn: (within: Element | null) => void,
  *   stop: () => void,
@@ -109,6 +119,8 @@ function withBound(description, props, bound) {
  * @returns {Running} The running widget
  */
 function start(description, props, bound, id, live, told) {
+  const items = itemSources()
+  const first = bound
   let held = heldFrom(description, props, NAMES)
   let raw = props
   let boundNow = bound
@@ -156,16 +168,14 @@ function start(description, props, bound, id, live, told) {
     ])
   }
 
-  const made = page(
-    {
-      ...hostOptions(props, { id, keyId: String }, () => raw),
-      effect,
-      props: widgetProps(description, givenFrom(description, latest, held, NAMES)),
-      widget: description.widget,
-    },
-    live,
-  )
-  let synced = widgetProps(description, givenFrom(description, latest, held, NAMES))
+  /**
+   * Its props in the widget's names
+   * @returns {import('@pterror/interact-core').Given} The props
+   */
+  const given = () => givenFrom(description, items.read(description, latest).props, held, NAMES)
+  const options = hostOptions(props, { id, keyId: String }, () => raw, items.read(description, latest).sources)
+  const made = page({ ...options, effect, props: widgetProps(description, given()), widget: description.widget }, live)
+  let synced = widgetProps(description, given())
 
   /** @type {Running} */
   const running = {
@@ -174,7 +184,12 @@ function start(description, props, bound, id, live, told) {
         made.drawn(made.host.tree(), within)
       }
     },
+    form: () => formValue(description, given()),
     page: made,
+    reset: () => {
+      told.bind(first)
+    },
+    sources: options.sources,
     stop: () => {
       made.stop()
     },
@@ -183,7 +198,8 @@ function start(description, props, bound, id, live, told) {
       raw = next
       boundNow = value
       latest = withBound(description, next, value)
-      const now = widgetProps(description, givenFrom(description, latest, held, NAMES))
+      items.apply()
+      const now = widgetProps(description, given())
       if (!same(now, synced)) {
         synced = now
         made.host.setProps(now)

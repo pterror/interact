@@ -12,13 +12,16 @@ import { define } from '../element.js'
  * `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.
  * A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed
  * (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click
- * on it focuses the trigger.
+ * on it focuses the trigger. A mouse press on the trigger opens (or closes) it at once, and its release over an
+ * option chooses that option, as a native select does; the click the press ends in is then not a toggle
+ * (`pressed`). The option under the pointer is active.
  */
 const SelectElement = define({
   description: {
     events: [],
     inside: {},
     props: ['label', 'placeholder', 'rows', 'source'],
+    sources: ['source'],
     value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
     widget,
   },

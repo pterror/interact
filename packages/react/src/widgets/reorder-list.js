@@ -11,7 +11,7 @@ import { component } from '../interact.js'
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @typedef {'option' | 'root'} ReorderListParts */
-/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>} ReorderListProps */
+/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'>} ReorderListProps */
 
 /**
  * A listbox whose options can be reordered, by dragging with a pointer or by Alt+ArrowUp and Alt+ArrowDown on
@@ -31,7 +31,8 @@ const ReorderList = component(
   {
     events: ['active'],
     inside: {},
-    props: ['dragDistance', 'focusable', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+    props: ['dragDistance', 'focusable', 'hover', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+    sources: ['source'],
     value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
     widget,
   },

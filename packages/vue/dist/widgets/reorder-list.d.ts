@@ -16,19 +16,24 @@ export type WidgetProps = PropsOf<Widget>;
  * pointer has moved `dragDistance` (in the target's units) from where it was pressed, and lands by which option
  * the pointer is over: after it when that option is later than the dragged one, before it when earlier.
  */
-declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
     label: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     shown: boolean;
     focusable: boolean;
+    hover: boolean;
     selected: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
 }> & Readonly<{
     keyshortcuts: string;
     dragDistance: number;
-}>, "selected"> & {
+}>, "selected">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly selected?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultSelected?: import("@pterror/interact-core/contract").Key | null;
@@ -42,7 +47,8 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         item: import("@pterror/interact-core/contract").Key | null;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -58,19 +64,24 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
-}>, string[], {}, Omit<Readonly<{
+}>, string[], {}, Omit<Omit<Readonly<{
     label: string;
     rows: import("@pterror/interact-core/contract").i32;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     shown: boolean;
     focusable: boolean;
+    hover: boolean;
     selected: Readonly<{
         value: import("@pterror/interact-core/contract").Key | null;
     }> | null;
 }> & Readonly<{
     keyshortcuts: string;
     dragDistance: number;
-}>, "selected"> & {
+}>, "selected">, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly selected?: import("@pterror/interact-core/contract").Key | null;
 } & {
     readonly defaultSelected?: import("@pterror/interact-core/contract").Key | null;
@@ -84,7 +95,8 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
         item: import("@pterror/interact-core/contract").Key | null;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -106,6 +118,7 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     description: Readonly<{
         widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
+        sources: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];
         inside: Readonly<{
@@ -115,7 +128,7 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     types: Readonly<{
         own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
             type: 'active';
-        }>>, unknown>;
+        }>>, unknown, 'source'>;
         parts: 'option' | 'root';
     }> | undefined;
 };

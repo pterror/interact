@@ -8,6 +8,7 @@
 </script>
 
 <script>
+  import { inForm } from '@pterror/interact-core'
   import { afterUpdate, createEventDispatcher, onDestroy, onMount } from 'svelte'
 
   import { start } from '../run.js'
@@ -51,21 +52,34 @@
   // Before the tree, which a change of props redraws in the same pass
   $: running.update($$restProps, bound)
   $: tree = (version, running.tree())
+  $: field = (version, bound, running.form() ?? '')
+  /** @type {HTMLInputElement | null} */
+  let input = null
+  /** @type {HTMLFormElement | null} */
+  let form = null
 
   onMount(() => {
     running.drawn(live)
     running.page.host.begin()
+    form = input?.form ?? null
+    form?.addEventListener('reset', running.reset)
   })
   afterUpdate(() => {
     running.drawn(live)
   })
   onDestroy(() => {
+    form?.removeEventListener('reset', running.reset)
     unwatch()
     running.stop()
   })
 </script>
 
-<Part {item} naming={running.page.naming} node={tree} {parts} sources={$$restProps['sources']} /><div
+<Part {item} naming={running.page.naming} node={tree} {parts} sources={running.sources} /><div
   bind:this={live}
   role="status"
-></div>
+></div>{#if typeof $$restProps['name'] === 'string' && inForm(description)}<input
+    bind:this={input}
+    name={$$restProps['name']}
+    type="hidden"
+    value={field}
+  />{/if}

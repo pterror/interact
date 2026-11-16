@@ -2,7 +2,8 @@
  * What a framework's component is made from, read from each widget a package exports: its props, the value it binds
  * (the prop the `change` effects of the widget's own step are about), the widget's other own effects that reach the
  * app (its events), its parts by the names the app replaces and styles them by, the states its parts show, the parts
- * whose content is the widget's text, and, for a factory, the widgets it takes and the props each is given by.
+ * whose content is the widget's text, the props that name a collection (typed `SourceName`), the names it gives the
+ * elements outside it it refers to, and, for a factory, the widgets it takes and the props each is given by.
  */
 
 import { ARIA_STATES } from '@pterror/interact-core'
@@ -51,6 +52,8 @@ const CARRIED = new Set([
  *   events: readonly string[],
  *   parts: readonly PartInfo[],
  *   states: readonly string[],
+ *   sources: readonly string[],
+ *   outside: readonly string[],
  *   factory: readonly Readonly<{ name: string, doc: string, inside: string | null }>[] | null,
  * }>} Described
  */
@@ -145,6 +148,7 @@ function readWidget(checker, name, declaration, root) {
   if ('error' in parts) {
     return parts
   }
+  const sources = [...props.keys()].filter((prop) => namesSource(widgetType, prop, checker)).toSorted()
   /** @type {Described['factory']} */
   let factory = null
   if (ts.isFunctionDeclaration(declaration)) {
@@ -172,11 +176,34 @@ function readWidget(checker, name, declaration, root) {
     factory,
     module,
     name,
+    outside: parts.outside,
     parts: parts.parts,
     props: [...props.keys()].filter((prop) => prop !== bound && !inside.has(prop)).toSorted(),
+    sources,
     states: parts.states,
     value,
   }
+}
+
+/**
+ * Whether a widget's prop names a collection: its declared type is `SourceName`
+ * @param {ts.Type} widget - The widget's type
+ * @param {string} prop - The prop
+ * @param {ts.TypeChecker} checker - The checker
+ * @returns {boolean} Whether it does
+ */
+function namesSource(widget, prop, checker) {
+  const init = widget.getProperty('init')
+  const [signature] = init === undefined ? [] : checker.getTypeOfSymbol(init).getCallSignatures()
+  const [param] = signature?.getParameters() ?? []
+  const field = param === undefined ? undefined : checker.getTypeOfSymbol(param).getProperty(prop)
+  return (field?.declarations ?? []).some(
+    (declaration) =>
+      ts.isPropertySignature(declaration) &&
+      declaration.type !== undefined &&
+      ts.isTypeReferenceNode(declaration.type) &&
+      declaration.type.typeName.getText() === 'SourceName',
+  )
 }
 
 /**
@@ -489,8 +516,8 @@ function emptyOf(type) {
  * @param {ts.TypeChecker} checker - The checker
  * @param {ts.ObjectLiteralExpression} spec - The widget's object or spec
  * @param {readonly ts.ObjectLiteralExpression[]} seen - The specs already being read, outermost first
- * @returns {Readonly<{ parts: PartInfo[], states: string[], children: string[] }> | Readonly<{ error: string }>}
- *   What it draws
+ * @returns {Readonly<{ parts: PartInfo[], states: string[], children: string[], outside: string[] }> | Readonly<{ error: string }>}
+ *   What it draws, and the names of the elements outside it its view refers to
  */
 function partsOf(checker, spec, seen) {
   const view = propertyOf(spec, 'view')
@@ -504,6 +531,8 @@ function partsOf(checker, spec, seen) {
   const parts = []
   /** @type {Set<string>} */
   const states = new Set()
+  /** @type {Set<string>} */
+  const outside = new Set(outsideNames(object))
   for (const property of object.properties) {
     const name = property.name?.getText()
     if (name === undefined) {
@@ -554,8 +583,33 @@ function partsOf(checker, spec, seen) {
     for (const state of inner.states) {
       states.add(state)
     }
+    for (const named of inner.outside) {
+      outside.add(named)
+    }
   }
-  return { children, parts, states: [...states].toSorted() }
+  return { children, outside: [...outside].toSorted(), parts, states: [...states].toSorted() }
+}
+
+/**
+ * The names a view gives the elements outside it, where it writes them out (`{ outside: 'label' }`)
+ * @param {ts.Node} node - The view, or a part of it
+ * @returns {string[]} The names
+ */
+function outsideNames(node) {
+  /** @type {string[]} */
+  const found = []
+  /**
+   * @param {ts.Node} at - A node
+   * @returns {void}
+   */
+  const visit = (at) => {
+    if (ts.isPropertyAssignment(at) && at.name.getText() === 'outside' && ts.isStringLiteral(at.initializer)) {
+      found.push(at.initializer.text)
+    }
+    ts.forEachChild(at, visit)
+  }
+  visit(node)
+  return found
 }
 
 /**

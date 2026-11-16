@@ -137,6 +137,7 @@ const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source:
 const ORDER = {
   dragDistance: 4,
   focusable: true,
+  hover: false,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,

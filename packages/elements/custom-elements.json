@@ -113,7 +113,7 @@
               }
             },
             {
-              "description": "How an item is drawn: by default, its key as text",
+              "description": "How an item is drawn: by default, its text in its source",
               "kind": "field",
               "name": "item",
               "type": {
@@ -121,9 +121,9 @@
               }
             },
             {
-              "description": "An item's name in announcements: by default, its key as text",
+              "description": "An item's name in announcements: by default, its text in the items given, or its key",
               "kind": "field",
-              "name": "name",
+              "name": "itemName",
               "type": {
                 "text": "(key: Key) => string"
               }
@@ -134,6 +134,14 @@
               "name": "naming",
               "type": {
                 "text": "Naming"
+              }
+            },
+            {
+              "description": "The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)",
+              "kind": "field",
+              "name": "outside",
+              "type": {
+                "text": "{ [name: string]: string | Element }"
               }
             },
             {
@@ -205,6 +213,14 @@
               }
             },
             {
+              "description": "The widget's `hover`",
+              "fieldName": "hover",
+              "name": "hover",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
               "description": "The widget's `label`",
               "fieldName": "label",
               "name": "label",
@@ -243,6 +259,13 @@
               "type": {
                 "text": "string"
               }
+            },
+            {
+              "description": "The name of its field in its form, whose value is the bound value",
+              "name": "name",
+              "type": {
+                "text": "string"
+              }
             }
           ],
           "cssParts": [
@@ -266,7 +289,7 @@
             }
           ],
           "customElement": true,
-          "description": "A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or focused so, the first option is active. Given a visible label outside it (`label`), it is named by it. Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.",
+          "description": "A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or focused so, the first option is active. Given a visible label outside it (`label`), it is named by it. With `hover`, the option under the pointer becomes active. Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
@@ -289,6 +312,14 @@
               "description": "The widget's `focusable`",
               "kind": "field",
               "name": "focusable",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `hover`",
+              "kind": "field",
+              "name": "hover",
               "type": {
                 "text": "boolean"
               }
@@ -334,7 +365,15 @@
               }
             },
             {
-              "description": "How an item is drawn: by default, its key as text",
+              "description": "The items of the collection `source` names, in its place: keys, or keys with their text",
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "readonly (Key | { key: Key, text: string })[]"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its text in its source",
               "kind": "field",
               "name": "item",
               "type": {
@@ -342,9 +381,9 @@
               }
             },
             {
-              "description": "An item's name in announcements: by default, its key as text",
+              "description": "An item's name in announcements: by default, its text in the items given, or its key",
               "kind": "field",
-              "name": "name",
+              "name": "itemName",
               "type": {
                 "text": "(key: Key) => string"
               }
@@ -355,6 +394,14 @@
               "name": "naming",
               "type": {
                 "text": "Naming"
+              }
+            },
+            {
+              "description": "The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)",
+              "kind": "field",
+              "name": "outside",
+              "type": {
+                "text": "{ [name: string]: string | Element }"
               }
             },
             {
@@ -491,7 +538,15 @@
               }
             },
             {
-              "description": "How an item is drawn: by default, its key as text",
+              "description": "The items of the collection `source` names, in its place: keys, or keys with their text",
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "readonly (Key | { key: Key, text: string })[]"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its text in its source",
               "kind": "field",
               "name": "item",
               "type": {
@@ -499,9 +554,9 @@
               }
             },
             {
-              "description": "An item's name in announcements: by default, its key as text",
+              "description": "An item's name in announcements: by default, its text in the items given, or its key",
               "kind": "field",
-              "name": "name",
+              "name": "itemName",
               "type": {
                 "text": "(key: Key) => string"
               }
@@ -512,6 +567,14 @@
               "name": "naming",
               "type": {
                 "text": "Naming"
+              }
+            },
+            {
+              "description": "The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)",
+              "kind": "field",
+              "name": "outside",
+              "type": {
+                "text": "{ [name: string]: string | Element }"
               }
             },
             {
@@ -587,6 +650,14 @@
               }
             },
             {
+              "description": "The widget's `hover`",
+              "fieldName": "hover",
+              "name": "hover",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
               "description": "The widget's `keyshortcuts`",
               "fieldName": "keyshortcuts",
               "name": "keyshortcuts",
@@ -630,6 +701,13 @@
               "description": "The bound value: where it starts, and (for a flag) where it is",
               "fieldName": "selected",
               "name": "selected",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The name of its field in its form, whose value is the bound value",
+              "name": "name",
               "type": {
                 "text": "string"
               }
@@ -683,6 +761,14 @@
               }
             },
             {
+              "description": "The widget's `hover`",
+              "kind": "field",
+              "name": "hover",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
               "description": "The widget's `keyshortcuts`",
               "kind": "field",
               "name": "keyshortcuts",
@@ -731,7 +817,15 @@
               }
             },
             {
-              "description": "How an item is drawn: by default, its key as text",
+              "description": "The items of the collection `source` names, in its place: keys, or keys with their text",
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "readonly (Key | { key: Key, text: string })[]"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its text in its source",
               "kind": "field",
               "name": "item",
               "type": {
@@ -739,9 +833,9 @@
               }
             },
             {
-              "description": "An item's name in announcements: by default, its key as text",
+              "description": "An item's name in announcements: by default, its text in the items given, or its key",
               "kind": "field",
-              "name": "name",
+              "name": "itemName",
               "type": {
                 "text": "(key: Key) => string"
               }
@@ -752,6 +846,14 @@
               "name": "naming",
               "type": {
                 "text": "Naming"
+              }
+            },
+            {
+              "description": "The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)",
+              "kind": "field",
+              "name": "outside",
+              "type": {
+                "text": "{ [name: string]: string | Element }"
               }
             },
             {
@@ -844,6 +946,13 @@
               "type": {
                 "text": "string"
               }
+            },
+            {
+              "description": "The name of its field in its form, whose value is the bound value",
+              "name": "name",
+              "type": {
+                "text": "string"
+              }
             }
           ],
           "cssParts": [
@@ -883,7 +992,7 @@
             }
           ],
           "customElement": true,
-          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list, the list in a popup against the trigger. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click on it focuses the trigger.",
+          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list, the list in a popup against the trigger. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click on it focuses the trigger. A mouse press on the trigger opens (or closes) it at once, and its release over an option chooses that option, as a native select does; the click the press ends in is then not a toggle (`pressed`). The option under the pointer is active.",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
@@ -936,7 +1045,15 @@
               }
             },
             {
-              "description": "How an item is drawn: by default, its key as text",
+              "description": "The items of the collection `source` names, in its place: keys, or keys with their text",
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "readonly (Key | { key: Key, text: string })[]"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its text in its source",
               "kind": "field",
               "name": "item",
               "type": {
@@ -944,9 +1061,9 @@
               }
             },
             {
-              "description": "An item's name in announcements: by default, its key as text",
+              "description": "An item's name in announcements: by default, its text in the items given, or its key",
               "kind": "field",
-              "name": "name",
+              "name": "itemName",
               "type": {
                 "text": "(key: Key) => string"
               }
@@ -957,6 +1074,14 @@
               "name": "naming",
               "type": {
                 "text": "Naming"
+              }
+            },
+            {
+              "description": "The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)",
+              "kind": "field",
+              "name": "outside",
+              "type": {
+                "text": "{ [name: string]: string | Element }"
               }
             },
             {

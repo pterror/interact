@@ -6,11 +6,15 @@
 
 export {
   describedAt,
+  formValue,
   givenFrom,
   heldAt,
   heldFrom,
   holding,
   hostOptions,
+  inForm,
+  itemSources,
+  itemsProp,
   outsideElement,
   outsideIds,
   ownValue,
@@ -37,6 +41,8 @@ export { announcement, english, say } from './words.js'
 /** @typedef {import('./components.js').Given} Given */
 /** @typedef {import('./components.js').Held} Held */
 /** @typedef {import('./components.js').HostGiven} HostGiven */
+/** @typedef {import('./components.js').Item} Item */
+/** @template P @template {string} S @typedef {import('./components.js').Sourced<P, S>} Sourced */
 /** @typedef {import('./components.js').Names} Names */
 /** @typedef {import('./components.js').OutsideGiven} OutsideGiven */
 /** @typedef {import('./components.js').Props} Props */

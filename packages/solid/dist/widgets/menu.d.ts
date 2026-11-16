@@ -6,14 +6,14 @@ export type WidgetProps = PropsOf<Widget>;
 export type MenuParts = 'button' | 'item' | 'menu' | 'root';
 export type MenuProps = Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{
     type: 'activate';
-}>>, unknown>;
+}>>, unknown, 'source'>;
 /** @import { Component, Own } from '../component.js' */
 /** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
 /** @import { menu as source } from '@pterror/interact-core/menu' */
 /** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /** @typedef {'button' | 'item' | 'menu' | 'root'} MenuParts */
-/** @typedef {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown>} MenuProps */
+/** @typedef {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown, 'source'>} MenuProps */
 /**
  * A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/),
  * the menu a popup against the button, focus moved to each item in turn. Items are the keys of a collection the

@@ -39,6 +39,7 @@ function init(props, host) {
     open: false,
     placeholder: props.placeholder,
     rows: props.rows,
+    pressed: false,
     source: props.source,
     until: 0,
     value: pendingPending(props.value !== null, props.value === null ? null : props.value.value),
@@ -212,18 +213,40 @@ function step(own, input, host) {
       return own
     }
     case 'click': {
-      own.open = !own.open
-      return own
+      if (own.pressed) {
+        own.pressed = false
+        return own
+      } else {
+        own.open = !own.open
+        return own
+      }
+    }
+    case 'pointerdown': {
+      if (input.pointerType === 'mouse' && input.button === 0) {
+        own.open = !own.open
+        own.pressed = true
+        return own
+      } else {
+        return own
+      }
     }
     case 'keydown': {
+      own.pressed = false
       return keydown(own, input, host)
     }
     case 'blur': {
       if (own.open) {
+        own.pressed = false
         return choose(own, own.active, host)
       } else {
+        own.pressed = false
         return own
       }
+    }
+    case 'pointermove':
+    case 'pointerup':
+    case 'pointercancel': {
+      return own
     }
     default: {
       return own
@@ -257,9 +280,18 @@ function bubbleListClick(own, input, host) {
   }
 }
 
+function bubbleListPointerup(own, input, host) {
+  if (own.pressed && own.open && input.part === 'option' && input.item !== null) {
+    return choose(own, input.item, host)
+  } else {
+    return own
+  }
+}
+
 function listProps(own) {
   return {
     focusable: false,
+    hover: true,
     label: own.label,
     rows: own.rows,
     selected: { value: pendingShown(own.value) },
@@ -397,6 +429,9 @@ function deliverIn(path, at, input) {
     if (input.type === 'click') {
       current.own = bubbleListClick(current.own, input, ownHost)
     }
+    if (input.type === 'pointerup') {
+      current.own = bubbleListPointerup(current.own, input, ownHost)
+    }
   }
 }
 
@@ -442,7 +477,7 @@ function start(props, host) {
 }
 
 export const select = {
-  bubble: { list: { click: bubbleListClick } },
+  bubble: { list: { click: bubbleListClick, pointerup: bubbleListPointerup } },
   capture: { list: { mousedown: captureListMousedown } },
   children: { list },
   deliver,

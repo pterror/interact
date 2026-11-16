@@ -4,6 +4,7 @@
   in `parts`, and ids from `$props.id()`
 -->
 <script>
+  import { inForm } from '@pterror/interact-core'
   import { onMount } from 'svelte'
 
   import Part from './part.svelte'
@@ -31,6 +32,13 @@
     void version
     return running.tree()
   })
+  const field = $derived.by(() => {
+    void version
+    void bound
+    return running.form() ?? ''
+  })
+  /** @type {HTMLInputElement | null} */
+  let input = $state(null)
 
   $effect.pre(() => {
     running.update(rest, bound)
@@ -42,14 +50,22 @@
   onMount(() => {
     running.drawn(live)
     running.page.host.begin()
+    const form = input?.form ?? null
+    form?.addEventListener('reset', running.reset)
     return () => {
+      form?.removeEventListener('reset', running.reset)
       unwatch()
       running.stop()
     }
   })
 </script>
 
-<Part item={children} naming={running.page.naming} node={tree} {parts} sources={rest.sources} /><div
+<Part item={children} naming={running.page.naming} node={tree} {parts} sources={running.sources} /><div
   bind:this={live}
   role="status"
-></div>
+></div>{#if typeof rest['name'] === 'string' && inForm(description)}<input
+    bind:this={input}
+    name={rest['name']}
+    type="hidden"
+    value={field}
+  />{/if}

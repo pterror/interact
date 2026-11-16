@@ -7,7 +7,7 @@
  * item is drawn by the default slot and a part the app replaces by the slot named after it. Ids come from `useId`
  * (Vue 3.5), or a count kept per app, which a server and its client keep alike.
  */
-import type { Description, Key, Naming, OutsideGiven, Props, Source, Words } from '@pterror/interact-core';
+import type { Description, Key, Naming, OutsideGiven, Props, Source, Words, Sourced } from '@pterror/interact-core';
 import type { Component as VueComponent, VNodeChild } from 'vue';
 export type Change = Readonly<{
     refuse: () => void;
@@ -23,7 +23,8 @@ export type PartSlot = Readonly<{
     content: VueComponent;
 }>;
 export type HostProps = Readonly<{
-    name?: ((key: Key) => string) | undefined;
+    itemName?: ((key: Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: Source;
     }> | undefined;
@@ -46,7 +47,7 @@ export type Bound<V extends string, T> = {
 } & {
     readonly [K in `onUpdate:${ModelName<V>}`]?: (value: T, change: Change) => void;
 };
-export type Own<P, V extends string, T, E, I> = Omit<P, V | keyof I> & ([V] extends [never] ? unknown : Bound<V, T>) & {
+export type Own<P, V extends string, T, E, I, S extends string = never> = Sourced<Omit<P, V | keyof I>, S> & ([V] extends [never] ? unknown : Bound<V, T>) & {
     readonly [K in E extends Readonly<{
         type: infer N extends string;
     }> ? N : never as `on${Capitalize<K>}`]?: (effect: Extract<E, Readonly<{

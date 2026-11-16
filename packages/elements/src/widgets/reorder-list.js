@@ -20,7 +20,8 @@ const ReorderListElement = define({
   description: {
     events: ['active'],
     inside: {},
-    props: ['dragDistance', 'focusable', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+    props: ['dragDistance', 'focusable', 'hover', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+    sources: ['source'],
     value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
     widget,
   },
@@ -28,6 +29,7 @@ const ReorderListElement = define({
   kinds: {
     dragDistance: 'number',
     focusable: 'boolean',
+    hover: 'boolean',
     keyshortcuts: 'string',
     label: 'string',
     rows: 'number',

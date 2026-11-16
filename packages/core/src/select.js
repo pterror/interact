@@ -5,7 +5,9 @@
  * reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once
  * and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's
  * typeahead; Space is typed too while a prefix is being typed (`until`). Given a visible label outside it (`label`),
- * the trigger and the list are named by it, and a click on it focuses the trigger.
+ * the trigger and the list are named by it, and a click on it focuses the trigger. A mouse press on the trigger opens
+ * (or closes) it at once, and its release over an option chooses that option, as a native select does; the click the
+ * press ends in is then not a toggle (`pressed`). The option under the pointer is active.
  */
 
 import { compose } from './compose.js'
@@ -14,7 +16,7 @@ import { list } from './list.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
 
-/** @import { Blur, Change, Click, i32, Key, KeyDown, PreventDefault, PropsInput, Refused, Result } from './contract.js' */
+/** @import { Blur, Change, Click, i32, Key, KeyDown, Pointer, PreventDefault, PropsInput, Refused, Result, SourceName } from './contract.js' */
 /** @import { Send, StopPropagation } from './compose.js' */
 /** @import { Pending } from './pending.js' */
 
@@ -23,7 +25,7 @@ import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
  *   label: string,
  *   placeholder: string,
  *   rows: i32,
- *   source: string,
+ *   source: SourceName,
  *   value: Readonly<{ value: Key | null }> | null,
  * }>} SelectProps
  */
@@ -38,10 +40,11 @@ import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
  *   rows: i32,
  *   source: string,
  *   until: number,
+ *   pressed: boolean,
  * }>} SelectOwn
  */
 
-/** @typedef {KeyDown | Click | Blur | PropsInput<SelectProps> | Refused} SelectInput */
+/** @typedef {KeyDown | Click | Blur | Pointer | PropsInput<SelectProps> | Refused} SelectInput */
 /** @typedef {Change<Key | null> | PreventDefault | Send<'list'> | StopPropagation} SelectEffect */
 
 /** @type {readonly SelectEffect[]} */
@@ -126,13 +129,23 @@ function step(own, input) {
       return [{ ...own, value: refuse(own.value, input.id) }, NONE]
     }
     case 'click': {
-      return [{ ...own, open: !own.open }, NONE]
+      return own.pressed ? [{ ...own, pressed: false }, NONE] : [{ ...own, open: !own.open }, NONE]
+    }
+    case 'pointerdown': {
+      return input.pointerType === 'mouse' && input.button === 0
+        ? [{ ...own, open: !own.open, pressed: true }, NONE]
+        : [own, NONE]
     }
     case 'keydown': {
-      return keydown(own, input)
+      return keydown({ ...own, pressed: false }, input)
     }
     case 'blur': {
-      return own.open ? choose(own, own.active) : [own, NONE]
+      return own.open ? choose({ ...own, pressed: false }, own.active) : [{ ...own, pressed: false }, NONE]
+    }
+    case 'pointermove':
+    case 'pointerup':
+    case 'pointercancel': {
+      return [own, NONE]
     }
     default: {
       return [own, NONE]
@@ -153,6 +166,7 @@ function init(props) {
       open: false,
       placeholder: props.placeholder,
       rows: props.rows,
+      pressed: false,
       source: props.source,
       until: 0,
       value: pending(props.value !== null, props.value === null ? null : props.value.value),
@@ -165,6 +179,10 @@ const select = compose({
   bubble: {
     list: {
       click: (own, input) => (own.open && input.item !== null ? [{ ...own, open: false }, NONE] : [own, NONE]),
+      pointerup: (own, input) =>
+        own.pressed && own.open && input.part === 'option' && input.item !== null
+          ? choose(own, input.item)
+          : [own, NONE],
     },
   },
   capture: {
@@ -186,6 +204,7 @@ const select = compose({
   props: {
     list: (own) => ({
       focusable: false,
+      hover: true,
       label: own.label,
       rows: own.rows,
       selected: { value: shown(own.value) },
@@ -213,7 +232,7 @@ const select = compose({
           labelledby: { outside: 'label' },
         },
         content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
-        listens: ['click', 'keydown', 'blur'],
+        listens: ['click', 'keydown', 'blur', 'pointerdown', 'pointermove', 'pointerup'],
         role: 'combobox',
         tabindex: 0,
       }),

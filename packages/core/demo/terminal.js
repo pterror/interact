@@ -77,6 +77,7 @@ const app = compose({
     order: () => ({
       dragDistance: 1,
       focusable: true,
+      hover: false,
       keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
       label: 'Fruit, in order',
       rows: 6,

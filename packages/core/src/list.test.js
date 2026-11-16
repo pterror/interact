@@ -9,7 +9,7 @@ import { answer, click, keydown } from './test-inputs.js'
 const ALL = Array.from({ length: 100 }, (_, index) => `k${String(index)}`)
 
 /** @type {ListProps} */
-const PROPS = { focusable: true, label: 'Fruit', rows: 5, selected: null, shown: true, source: 'fruit' }
+const PROPS = { focusable: true, hover: false, label: 'Fruit', rows: 5, selected: null, shown: true, source: 'fruit' }
 
 /**
  * A list started with props, its first ask answered from `ALL`

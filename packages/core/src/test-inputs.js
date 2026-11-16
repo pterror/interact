@@ -36,7 +36,7 @@ function click(part, item = null) {
  * @returns {Pointer} The input
  */
 function pointer(type, part, item, [clientX, clientY]) {
-  return { button: 0, clientX, clientY, item, part, pointerId: 1, timeStamp: 0, type }
+  return { button: 0, clientX, clientY, item, part, pointerId: 1, pointerType: 'mouse', timeStamp: 0, type }
 }
 
 /**

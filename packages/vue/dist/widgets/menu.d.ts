@@ -11,17 +11,22 @@ export type WidgetProps = PropsOf<Widget>;
  * Characters typed are typeahead, which the host finds (`ask` with `find`). Choosing an item emits `activate`;
  * disabled items are moved to but not chosen.
  */
-declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
+declare const Menu: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
     label: string;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     disabled: readonly import("@pterror/interact-core/contract").Key[];
-}>, never> & {
+}>, never>, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly onActivate?: (effect: Readonly<{
         type: 'activate';
         item: import("@pterror/interact-core/contract").Key;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -37,17 +42,22 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
-}>, string[], {}, Omit<Readonly<{
+}>, string[], {}, Omit<Omit<Readonly<{
     label: string;
-    source: string;
+    source: import("@pterror/interact-core/contract").SourceName;
     disabled: readonly import("@pterror/interact-core/contract").Key[];
-}>, never> & {
+}>, never>, "source"> & {
+    readonly source?: string;
+} & {
+    readonly items?: readonly import("@pterror/interact-core/components").Item[];
+} & {
     readonly onActivate?: (effect: Readonly<{
         type: 'activate';
         item: import("@pterror/interact-core/contract").Key;
     }>) => void;
 } & Readonly<{
-    name?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    itemName?: ((key: import("@pterror/interact-core").Key) => string) | undefined;
+    name?: string | undefined;
     sources?: Readonly<{
         [name: string]: import("@pterror/interact-core").Source;
     }> | undefined;
@@ -69,6 +79,7 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     description: Readonly<{
         widget: import("@pterror/interact-core/compose").AnyGenerated;
         props: readonly string[];
+        sources: readonly string[];
         value: import("@pterror/interact-core/components").Bound | null;
         events: readonly string[];
         inside: Readonly<{
@@ -78,7 +89,7 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     types: Readonly<{
         own: Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{
             type: 'activate';
-        }>>, unknown>;
+        }>>, unknown, 'source'>;
         parts: 'button' | 'item' | 'menu' | 'root';
     }> | undefined;
 };

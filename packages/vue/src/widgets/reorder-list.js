@@ -16,18 +16,19 @@ import { optionsOf, run, typesOf } from '../interact.js'
 const description = {
   events: ['active'],
   inside: {},
-  props: ['dragDistance', 'focusable', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+  props: ['dragDistance', 'focusable', 'hover', 'keyshortcuts', 'label', 'rows', 'shown', 'source'],
+  sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
   widget,
 }
 /**
  * The setup
- * @param {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown> & Given} props - The props
+ * @param {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'> & Given} props - The props
  * @param {SetupContext<Emits<'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>>, SlotsType<Slots<'option' | 'root'>>>} context - The slots and emit
  * @returns {() => VNodeChild} The render function
  */
 const setup = (props, context) => run(description, props, context)
-/** @type {() => Readonly<{ own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>, parts: 'option' | 'root' }> | undefined} */
+/** @type {() => Readonly<{ own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'>, parts: 'option' | 'root' }> | undefined} */
 const types = typesOf
 
 /**

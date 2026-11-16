@@ -11,7 +11,7 @@ import { component } from '../component.js'
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @typedef {'button' | 'item' | 'menu' | 'root'} MenuParts */
-/** @typedef {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown>} MenuProps */
+/** @typedef {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown, 'source'>} MenuProps */
 
 /**
  * A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/),
@@ -26,6 +26,7 @@ const Menu = component({
   events: ['activate'],
   inside: {},
   props: ['disabled', 'label', 'source'],
+  sources: ['source'],
   value: null,
   widget,
 })

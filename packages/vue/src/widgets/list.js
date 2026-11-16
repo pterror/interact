@@ -16,18 +16,19 @@ import { optionsOf, run, typesOf } from '../interact.js'
 const description = {
   events: ['active'],
   inside: {},
-  props: ['focusable', 'label', 'rows', 'shown', 'source'],
+  props: ['focusable', 'hover', 'label', 'rows', 'shown', 'source'],
+  sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
   widget,
 }
 /**
  * The setup
- * @param {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown> & Given} props - The props
+ * @param {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'> & Given} props - The props
  * @param {SetupContext<Emits<'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>>, SlotsType<Slots<'option' | 'root'>>>} context - The slots and emit
  * @returns {() => VNodeChild} The render function
  */
 const setup = (props, context) => run(description, props, context)
-/** @type {() => Readonly<{ own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>, parts: 'option' | 'root' }> | undefined} */
+/** @type {() => Readonly<{ own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'>, parts: 'option' | 'root' }> | undefined} */
 const types = typesOf
 
 /**
@@ -38,11 +39,11 @@ const types = typesOf
  * `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the
  * list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with
  * `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or
- * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it.
- * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at
- * once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the
- * active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's
- * state.
+ * focused so, the first option is active. Given a visible label outside it (`label`), it is named by it. With
+ * `hover`, the option under the pointer becomes active. Selection is the value, by the contract's rule: with
+ * `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the
+ * app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it
+ * (`aria-activedescendant`) without reading the list's state.
  */
 const List = Object.assign(defineComponent(setup, optionsOf(description, 'List')), { description, types: types() })
 

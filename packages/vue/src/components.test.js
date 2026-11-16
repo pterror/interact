@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource } from '@pterror/interact-core'
-import { drawsAsTheDomRenderer, FRUIT, settled, violations } from '@pterror/interact-core/test-components'
+import {
+  collectionOf,
+  drawsAsTheDomRenderer,
+  FRUIT,
+  settled,
+  takesItemsInAForm,
+  violations,
+} from '@pterror/interact-core/test-components'
 import { createApp, createSSRApp, h, ref } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 
@@ -61,7 +68,7 @@ function appFor(mounting) {
           },
         }
         if (mounting.kind === 'select') {
-          return h(Select, { ...select, naming, sources })
+          return h(Select, { ...select, naming, ...collectionOf(mounting) })
         }
         return h(PickDialog, {
           closeLabel: 'Close',
@@ -100,6 +107,10 @@ describe('the Vue components', () => {
       })
     }
   }
+
+  test('the select takes its items in place of a source, and is a field of its form', async () => {
+    await takesItemsInAForm(framework, true)
+  })
 
   test('render on a server, and hydrate to the same DOM, which then runs', async () => {
     const sources = { fruit: arraySource(FRUIT) }

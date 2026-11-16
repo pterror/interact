@@ -19,7 +19,7 @@ type WidgetProps = PropsOf<Widget>
  * `aria-modal` asks of the host.
  */
 declare const Dialog: Component<
-  Own<WidgetProps, 'open', WidgetProps['open'], never, { content: Record<string, unknown> }> &
+  Own<WidgetProps, 'open', WidgetProps['open'], never, { content: Record<string, unknown> }, never> &
     HostProps & {
       children?: Snippet<[Key]>
       parts?: Readonly<

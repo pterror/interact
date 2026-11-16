@@ -192,6 +192,7 @@ const KEYS = ['a', 'b', 'c', 'd', 'e', 'f']
 const REORDER = {
   dragDistance: 4,
   focusable: true,
+  hover: false,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,

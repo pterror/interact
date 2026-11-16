@@ -12,7 +12,14 @@ import { define } from '../element.js'
  * disabled items are moved to but not chosen.
  */
 const MenuElement = define({
-  description: { events: ['activate'], inside: {}, props: ['disabled', 'label', 'source'], value: null, widget },
+  description: {
+    events: ['activate'],
+    inside: {},
+    props: ['disabled', 'label', 'source'],
+    sources: ['source'],
+    value: null,
+    widget,
+  },
   factory: null,
   kinds: { disabled: 'other', label: 'string', source: 'string' },
   params: [],

@@ -19,6 +19,7 @@ import { select } from './select.js'
 /** @import { AnyWidget, Out } from './compose.js' */
 /** @import { Key } from './contract.js' */
 /** @import { Source } from './host.js' */
+/** @import { Item } from './components.js' */
 
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 const NAMING = { id: 'w', keyId: String }
@@ -43,8 +44,22 @@ const DIALOG = { closeLabel: 'Close', ignoreOutside: false, title: 'Pick a fruit
  *   naming: Readonly<{ id: string, keyId: (key: Key) => string }>,
  *   container: HTMLElement,
  *   changed: (component: 'select' | 'dialog', value: unknown) => void,
+ *   items?: readonly Item[],
+ *   name?: string,
  * }>} Mounting
  */
+
+/**
+ * The select's props that give its collection: its items and its form field's name when the mounting gives items, or
+ * the sources
+ * @param {Mounting} mounting - What is mounted
+ * @returns {Readonly<{ [prop: string]: unknown }>} The props
+ */
+function collectionOf(mounting) {
+  return mounting.items === undefined
+    ? { sources: mounting.sources }
+    : { items: mounting.items, name: mounting.name, source: undefined }
+}
 
 /**
  * A framework, as these checks drive it: mounting a component, waiting until it has drawn what it was told, taking it
@@ -324,6 +339,66 @@ async function drawsAsTheDomRenderer(framework, kind, mode) {
 }
 
 /**
+ * Checks that a framework's select takes its items in place of a source, draws them by their text, and is a field of
+ * the form it is in, which a reset gives back its first value
+ * @param {Framework} framework - The framework
+ * @param {boolean} submits - Whether its field is an input in the form here (a custom element's is itself, its value
+ *   given the form, and reset by it, by its internals, which need a browser)
+ * @returns {Promise<void>} When it has
+ */
+async function takesItemsInAForm(framework, submits) {
+  const form = document.createElement('form')
+  const container = document.createElement('div')
+  form.append(container)
+  document.body.append(form)
+  const stop = await framework.mount({
+    changed: () => {
+      // The value is read from the form
+    },
+    container,
+    items: FRUIT.map((text) => ({ key: text.toLowerCase(), text })),
+    kind: 'select',
+    mode: 'own',
+    name: 'fruit',
+    naming: NAMING,
+    open: false,
+    sources: { fruit: arraySource([]) },
+    value: null,
+  })
+  await framework.settle()
+  await settled()
+  const root = framework.within?.(container) ?? container
+  const step = async (/** @type {Step} */ taken) => {
+    carry(root, taken)
+    await Promise.all([framework.settle(), settled()])
+  }
+  await step({ key: 'ArrowDown', press: TRIGGER })
+  expect([...root.querySelectorAll('[role=option]')].map((option) => option.textContent)).toEqual(FRUIT.slice(0, 4))
+  await step({ key: 'ArrowDown', press: TRIGGER })
+  await step({ key: 'Enter', press: TRIGGER })
+  expect(partIn(root, TRIGGER).textContent).toBe('Banana')
+  /**
+   * The value of the form's field
+   * @returns {string | undefined} It
+   */
+  const field = () => {
+    const input = form.elements.namedItem('fruit')
+    return input instanceof HTMLInputElement ? input.value : undefined
+  }
+  if (submits) {
+    expect(field()).toBe('banana')
+  }
+  if (submits) {
+    form.reset()
+    await Promise.all([framework.settle(), settled()])
+    expect([partIn(root, TRIGGER).textContent, field()]).toEqual(['Choose a fruit', ''])
+  }
+  stop()
+  await framework.settle()
+  form.remove()
+}
+
+/**
  * The accessibility violations axe finds in an element
  * @param {Element} element - The element
  * @returns {Promise<string[]>} Each violation's id and the elements it is on
@@ -333,4 +408,4 @@ async function violations(element) {
   return result.violations.map((one) => `${one.id}: ${one.nodes.map((node) => node.html).join(', ')}`)
 }
 
-export { drawsAsTheDomRenderer, FRUIT, NAMING, partIn, serialize, settled, violations }
+export { collectionOf, drawsAsTheDomRenderer, FRUIT, NAMING, partIn, serialize, settled, takesItemsInAForm, violations }

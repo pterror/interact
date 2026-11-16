@@ -15,9 +15,13 @@ import {
   givenFrom,
   heldAt,
   heldFrom,
+  formValue,
   holding,
   hostOptions,
   identity,
+  inForm,
+  itemSources,
+  itemsProp,
   itemText,
   ownValue,
   page,
@@ -30,7 +34,7 @@ import {
 // oxlint-disable-next-line import/no-namespace -- useId is Vue 3.5's; a named import of it fails to link on 3.3 and 3.4
 import * as vue from 'vue'
 
-/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words, Sourced } from '@pterror/interact-core' */
 /** @import { Component as VueComponent, VNode, VNodeChild } from 'vue' */
 
 const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef, watch } = vue
@@ -51,11 +55,12 @@ const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef
  */
 
 /**
- * What every component takes beside its widget's props: how an item is named in announcements, the sources the widget
- * asks about, the words announcements use, how ids are made, key rebinding, and the elements outside it the widget
+ * What every component takes beside its widget's props: how an item is named in announcements (`itemName`), the name
+ * of its form field (for a value that is a key, held in a hidden input), the sources the widget asks about, the words announcements use, how ids are made, key rebinding, and the elements outside it the widget
  * refers to (its visible `label`), each by id, as an element, or by a ref
  * @typedef {Readonly<{
- *   name?: ((key: Key) => string) | undefined,
+ *   itemName?: ((key: Key) => string) | undefined,
+ *   name?: string | undefined,
  *   sources?: Readonly<{ [name: string]: Source }> | undefined,
  *   words?: Words | undefined,
  *   naming?: Naming | undefined,
@@ -86,7 +91,8 @@ const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef
  * @template P
  * @template {string} V
  * @template T, E, I
- * @typedef {Omit<P, V | keyof I> & ([V] extends [never] ? unknown : Bound<V, T>) & {
+ * @template {string} [S=never]
+ * @typedef {Sourced<Omit<P, V | keyof I>, S> & ([V] extends [never] ? unknown : Bound<V, T>) & {
  *   readonly [K in E extends Readonly<{ type: infer N extends string }> ? N : never as `on${Capitalize<K>}`]?:
  *     (effect: Extract<E, Readonly<{ type: K }>>) => void
  * } & I} Own
@@ -166,7 +172,7 @@ function modelName(prop) {
 /** @type {Names} */
 const NAMES = { initial: (prop) => `default${capital(prop)}`, value: modelName }
 
-const HOST_PROPS = ['name', 'naming', 'outside', 'sources', 'translate', 'words']
+const HOST_PROPS = ['itemName', 'name', 'naming', 'outside', 'sources', 'translate', 'words']
 
 /** @type {WeakMap<object, number>} */
 const counted = new WeakMap()
@@ -190,6 +196,14 @@ function useIdPrefix() {
  * @returns {Element | null} None
  */
 function noElement() {
+  return null
+}
+
+/**
+ * The form field before Vue draws it
+ * @returns {HTMLInputElement | null} None
+ */
+function noInput() {
   return null
 }
 
@@ -263,6 +277,7 @@ function declared(description) {
     ...description.props,
     ...(value === null ? [] : [modelName(value.prop), NAMES.initial(value.prop)]),
     ...Object.keys(description.inside),
+    ...description.sources.map((prop) => itemsProp(prop)),
     ...HOST_PROPS,
   ]
 }
@@ -342,16 +357,30 @@ function run(description, props, context) {
     }
   }
 
-  const options = hostOptions(props, { id: prefix, keyId: String }, () => props)
+  const items = itemSources()
+  const options = hostOptions(props, { id: prefix, keyId: String }, () => props, items.read(description, props).sources)
   const { naming } = options
-  const current = () => widgetProps(description, givenFrom(description, props, held.value, NAMES))
+  const given = () => givenFrom(description, items.read(description, props).props, held.value, NAMES)
+  const current = () => widgetProps(description, given())
   /** @type {Page} */
   const running = page({ ...options, effect, props: current(), widget: description.widget }, () => live.value)
   const unwatch = running.host.watch(() => {
     version.value += 1
   })
+  const field = shallowRef(noInput())
+  const initial = held.value
+  /**
+   * Gives a value of its own back what it started as, when its form is reset
+   * @returns {void}
+   */
+  const reset = () => {
+    if (ownValue(description, props, NAMES)) {
+      held.value = initial
+    }
+  }
   let synced = current()
   watch(current, (now) => {
+    items.apply()
     if (!same(now, synced)) {
       synced = now
       running.host.setProps(now)
@@ -362,6 +391,7 @@ function run(description, props, context) {
       running.drawn(running.host.tree(), live.value)
     }
     running.host.begin()
+    field.value?.form?.addEventListener('reset', reset)
   })
   onUpdated(() => {
     if (live.value !== null) {
@@ -369,19 +399,33 @@ function run(description, props, context) {
     }
   })
   onBeforeUnmount(() => {
+    field.value?.form?.removeEventListener('reset', reset)
     unwatch()
     running.stop()
   })
   return () => {
     void version.value
+    const { name } = props
     return [
-      drawPart(running.host.tree(), naming, context.slots, props.sources),
+      drawPart(running.host.tree(), naming, context.slots, options.sources),
       h('div', {
         ref: (/** @type {unknown} */ element) => {
           live.value = element instanceof Element ? element : null
         },
         role: 'status',
       }),
+      ...(typeof name === 'string' && inForm(description)
+        ? [
+            h('input', {
+              name,
+              ref: (/** @type {unknown} */ element) => {
+                field.value = element instanceof HTMLInputElement ? element : null
+              },
+              type: 'hidden',
+              value: formValue(description, given()) ?? '',
+            }),
+          ]
+        : []),
     ]
   }
 }

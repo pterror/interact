@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource } from '@pterror/interact-core'
-import { drawsAsTheDomRenderer, FRUIT, settled, violations } from '@pterror/interact-core/test-components'
+import {
+  collectionOf,
+  drawsAsTheDomRenderer,
+  FRUIT,
+  settled,
+  takesItemsInAForm,
+  violations,
+} from '@pterror/interact-core/test-components'
 import Ajv from 'ajv'
 
 import { DialogElement, register, SelectElement } from './index.js'
@@ -42,11 +49,16 @@ function selectFor(mounting) {
   select.setAttribute('label', 'Fruit')
   select.setAttribute('placeholder', 'Choose a fruit')
   select.setAttribute('rows', '4')
-  select.setAttribute('source', 'fruit')
+  if (mounting.items === undefined) {
+    select.setAttribute('source', 'fruit')
+  } else {
+    select.setAttribute('name', mounting.name ?? '')
+  }
   if (mounting.value !== null) {
     select.setAttribute('value', String(mounting.value))
   }
-  Object.assign(select, { naming: mounting.naming, sources: mounting.sources })
+  const { source: _source, ...collection } = collectionOf(mounting)
+  Object.assign(select, { naming: mounting.naming, ...collection })
   select.addEventListener('change', (event) => {
     if (event instanceof CustomEvent && event.target === select) {
       mounting.changed('select', valueOf(event))
@@ -99,6 +111,10 @@ describe('the custom elements', () => {
       })
     }
   }
+
+  test('the select takes its items in place of a source, and is a field of its form', async () => {
+    await takesItemsInAForm(framework, false)
+  })
 
   test('are classes of their tags, name their parts and states, and slot their text', async () => {
     expect([customElements.get('interact-select'), customElements.get('interact-dialog')]).toEqual([

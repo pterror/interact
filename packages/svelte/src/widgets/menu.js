@@ -10,6 +10,13 @@ import { menu as widget } from '@pterror/interact-core/generated/menu'
  * disabled items are moved to but not chosen.
  * @type {import('@pterror/interact-core').Description}
  */
-const menu = { events: ['activate'], inside: {}, props: ['disabled', 'label', 'source'], value: null, widget }
+const menu = {
+  events: ['activate'],
+  inside: {},
+  props: ['disabled', 'label', 'source'],
+  sources: ['source'],
+  value: null,
+  widget,
+}
 
 export { menu }

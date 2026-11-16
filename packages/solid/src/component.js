@@ -10,19 +10,32 @@ import {
   givenFrom,
   heldAt,
   heldFrom,
+  formValue,
   holding,
   hostOptions,
+  inForm,
+  itemSources,
   ownValue,
   propsAt,
   route,
   same,
   widgetProps,
 } from '@pterror/interact-core'
-import { createComponent, createMemo, createSignal, createUniqueId, untrack } from 'solid-js'
+import {
+  createComponent,
+  createEffect,
+  createMemo,
+  createSignal,
+  createUniqueId,
+  onCleanup,
+  onMount,
+  untrack,
+} from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 
 import { Interact } from './interact.js'
 
-/** @import { Description, Host, Key, Names, Naming, Out, OutsideGiven, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Host, Key, Names, Naming, Out, OutsideGiven, Props, Source, Words, Sourced } from '@pterror/interact-core' */
 /** @import { Component as SolidComponent, JSX } from 'solid-js' */
 /** @import { PartProps } from './interact.js' */
 
@@ -33,13 +46,15 @@ import { Interact } from './interact.js'
 
 /**
  * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and
- * named in announcements, the parts the app draws itself, the sources the widget asks about, the words announcements
+ * named in announcements (`itemName`), the name of its form field (for a value that is a key, held in a hidden input),
+ * the parts the app draws itself, the sources the widget asks about, the words announcements
  * use, how ids are made (by default from `createUniqueId`), key rebinding, and the elements outside it the widget
  * refers to (its visible `label`), each by id, as an element, or by a function giving it
  * @template {string} Parts
  * @typedef {Readonly<{
  *   item?: (key: Key) => JSX.Element,
- *   name?: (key: Key) => string,
+ *   itemName?: (key: Key) => string,
+ *   name?: string,
  *   parts?: Readonly<{ [P in Parts]?: SolidComponent<PartProps> }>,
  *   sources?: Readonly<{ [name: string]: Source }>,
  *   words?: Words,
@@ -61,11 +76,12 @@ import { Interact } from './interact.js'
 /**
  * A component's own props: the widget's props `P` but its bound value `V` (of type `T`) and the props `I` takes, the
  * bound value's props, an `on` prop for each effect in `E` (given the effect), and `I`, the props of the components
- * inside
+ * inside; each prop in `S` names a collection, which the component can take the items of instead
  * @template P
  * @template {string} V
  * @template T, E, I
- * @typedef {Omit<P, V | keyof I> & ([V] extends [never] ? unknown : Bound<V, T>) & {
+ * @template {string} [S=never]
+ * @typedef {Sourced<Omit<P, V | keyof I>, S> & ([V] extends [never] ? unknown : Bound<V, T>) & {
  *   readonly [K in E extends Readonly<{ type: infer N extends string }> ? N : never as `on${Capitalize<K>}`]?:
  *     (effect: Extract<E, Readonly<{ type: K }>>) => void
  * } & I} Own
@@ -141,9 +157,14 @@ function component(description) {
    */
   const Generated = (props) => {
     const [held, setHeld] = createSignal(untrack(() => heldFrom(description, props, NAMES)))
-    const widget = createMemo(() => widgetProps(description, givenFrom(description, props, held(), NAMES)), undefined, {
-      equals: same,
+    const items = itemSources()
+    const given = () => givenFrom(description, items.read(description, props).props, held(), NAMES)
+    const widget = createMemo(() => widgetProps(description, given()), undefined, { equals: same })
+    createEffect(() => {
+      items.read(description, props)
+      items.apply()
     })
+    const initial = untrack(held)
 
     /**
      * Hears an effect the widget gives the app
@@ -188,8 +209,13 @@ function component(description) {
       }
     }
 
-    const options = hostOptions(props, { id: createUniqueId(), keyId: String }, () => props)
-    return createComponent(Interact, {
+    const options = hostOptions(
+      props,
+      { id: createUniqueId(), keyId: String },
+      () => props,
+      untrack(() => items.read(description, props).sources),
+    )
+    const drawn = createComponent(Interact, {
       ...options,
       effect,
       get item() {
@@ -203,6 +229,38 @@ function component(description) {
       },
       widget: description.widget,
     })
+    if (!inForm(description) || typeof untrack(() => props.name) !== 'string') {
+      return drawn
+    }
+    /**
+     * Gives a value of its own back what it started as, when its form is reset
+     * @returns {void}
+     */
+    const reset = () => {
+      if (ownValue(description, props, NAMES)) {
+        setHeld(initial)
+      }
+    }
+    const field = createComponent(Dynamic, {
+      component: 'input',
+      get name() {
+        return props.name
+      },
+      ref: (/** @type {HTMLInputElement} */ input) => {
+        onMount(() => {
+          const { form } = input
+          form?.addEventListener('reset', reset)
+          onCleanup(() => {
+            form?.removeEventListener('reset', reset)
+          })
+        })
+      },
+      type: 'hidden',
+      get value() {
+        return formValue(description, given()) ?? ''
+      },
+    })
+    return [drawn, field]
   }
   return Object.assign(Generated, { description })
 }

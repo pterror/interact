@@ -63,6 +63,17 @@ declare class InteractElement extends HTMLElement {
      */
     refresh(): void;
     /**
+     * Its form was reset: its value is the one its attribute gives, or none
+     * @returns {void}
+     */
+    formResetCallback(): void;
+    /**
+     * The browser restored its form's state: its value
+     * @param {unknown} state - The value it gave its form
+     * @returns {void}
+     */
+    formStateRestoreCallback(state: unknown): void;
+    /**
      * @param {string} name - The attribute
      * @returns {void}
      */

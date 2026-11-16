@@ -22,7 +22,7 @@ function answer(id, keys, from, to) {
   return answerFor(keys, { id, ranks: [from, to] })
 }
 
-const LIST = { focusable: true, label: 'Fruit', rows: 5, selected: null, shown: true, source: 'fruit' }
+const LIST = { focusable: true, hover: false, label: 'Fruit', rows: 5, selected: null, shown: true, source: 'fruit' }
 
 /** @type {readonly LeafRun[]} */
 const LIST_RUNS = [
@@ -154,6 +154,11 @@ const SELECT_RUNS = [
       { input: { id: 1, key: 'cherry', type: 'found' }, path: ['list'] },
       { input: keydown('trigger', 'h', { timeStamp: 3100 }), path: [] },
       { input: { now: 3700, type: 'time' }, path: ['list'] },
+      { input: keydown('trigger', 'Escape'), path: [] },
+      { input: pointer('pointerdown', 'trigger', null, 0, 0), path: [] },
+      { input: pointer('pointermove', 'option', 'banana', 0, 30), path: ['list'] },
+      { input: pointer('pointerup', 'option', 'banana', 0, 30), path: ['list'] },
+      { input: click('trigger'), path: [] },
       { input: { item: null, part: 'trigger', timeStamp: 0, type: 'blur' }, path: [] },
     ],
     props: SELECT,

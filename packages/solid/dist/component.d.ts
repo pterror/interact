@@ -4,7 +4,7 @@
  * name, `open`, `defaultOpen`, `onOpenChange`), each of the widget's own effects is an `on` prop, and ids come from
  * `createUniqueId`.
  */
-import type { Description, Key, Naming, OutsideGiven, Props, Source, Words } from '@pterror/interact-core';
+import type { Description, Key, Naming, OutsideGiven, Props, Source, Words, Sourced } from '@pterror/interact-core';
 import type { Component as SolidComponent, JSX } from 'solid-js';
 import type { PartProps } from './interact.js';
 export type Change = Readonly<{
@@ -12,7 +12,8 @@ export type Change = Readonly<{
 }>;
 export type HostProps<Parts extends string> = Readonly<{
     item?: (key: Key) => JSX.Element;
-    name?: (key: Key) => string;
+    itemName?: (key: Key) => string;
+    name?: string;
     parts?: Readonly<{ [P in Parts]?: SolidComponent<PartProps>; }>;
     sources?: Readonly<{
         [name: string]: Source;
@@ -35,7 +36,7 @@ export type Bound<V extends string, T> = {
 } & {
     readonly [K in V extends 'value' ? 'onChange' : `on${Capitalize<V>}Change`]?: (value: T, change: Change) => void;
 };
-export type Own<P, V extends string, T, E, I> = Omit<P, V | keyof I> & ([V] extends [never] ? unknown : Bound<V, T>) & {
+export type Own<P, V extends string, T, E, I, S extends string = never> = Sourced<Omit<P, V | keyof I>, S> & ([V] extends [never] ? unknown : Bound<V, T>) & {
     readonly [K in E extends Readonly<{
         type: infer N extends string;
     }> ? N : never as `on${Capitalize<K>}`]?: (effect: Extract<E, Readonly<{

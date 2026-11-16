@@ -10,12 +10,15 @@ import {
   attributesOf,
   describedAt,
   elementFor,
+  formValue,
   givenFrom,
   heldAt,
   heldFrom,
   holding,
   hostOptions,
   identity,
+  inForm,
+  itemSources,
   itemText,
   ownValue,
   page,
@@ -27,7 +30,7 @@ import {
 } from '@pterror/interact-core'
 import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useReducer, useRef, useState } from 'react'
 
-/** @import { Description, Held, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Held, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words, Sourced } from '@pterror/interact-core' */
 /** @import { FunctionComponent, ReactElement, ReactNode } from 'react' */
 
 /**
@@ -47,14 +50,16 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
  */
 
 /**
- * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and named in
- * announcements, the parts the app draws itself, the sources the widget asks about, the words announcements use, how
- * ids are made (by default from `useId`), key rebinding, and the elements outside it the widget refers to (its visible
- * `label`), each by id, as an element, or by a ref
+ * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and
+ * named in announcements (`itemName`), the name of its form field (for a value that is a key, held in a hidden input),
+ * the parts the app draws itself, the sources the widget asks about, the words announcements use, how ids are made (by
+ * default from `useId`), key rebinding, and the elements outside it the widget refers to (its visible `label`), each by
+ * id, as an element, or by a ref
  * @template {string} Parts
  * @typedef {Readonly<{
  *   item?: (key: Key) => ReactNode,
- *   name?: (key: Key) => string,
+ *   itemName?: (key: Key) => string,
+ *   name?: string,
  *   parts?: Readonly<{ [P in Parts]?: FunctionComponent<PartProps> }>,
  *   sources?: Readonly<{ [name: string]: Source }>,
  *   words?: Words,
@@ -76,11 +81,12 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
 /**
  * A component's own props: the widget's props `P` but its bound value `V` (of type `T`) and the props `I` takes, the
  * bound value's props, an `on` prop for each effect in `E` (given the effect), and `I`, the props of the components
- * inside
+ * inside; each prop in `S` names a collection, which the component can take the items of instead
  * @template P
  * @template {string} V
  * @template T, E, I
- * @typedef {Omit<P, V | keyof I> & ([V] extends [never] ? unknown : Bound<V, T>) & {
+ * @template {string} [S=never]
+ * @typedef {Sourced<Omit<P, V | keyof I>, S> & ([V] extends [never] ? unknown : Bound<V, T>) & {
  *   readonly [K in E extends Readonly<{ type: infer N extends string }> ? N : never as `on${Capitalize<K>}`]?:
  *     (effect: Extract<E, Readonly<{ type: K }>>) => void
  * } & I} Own
@@ -153,6 +159,22 @@ const useCommitted = typeof document === 'undefined' ? useEffect : useLayoutEffe
  * @returns {Page | null} None
  */
 function noPage() {
+  return null
+}
+
+/**
+ * The sources a component makes from items, before it makes them
+ * @returns {ReturnType<typeof itemSources> | null} None
+ */
+function noItems() {
+  return null
+}
+
+/**
+ * The form field before React draws it
+ * @returns {HTMLInputElement | null} None
+ */
+function noInput() {
   return null
 }
 
@@ -249,12 +271,13 @@ const PartElement = memo(DrawPart, (before, after) => before.drawing === after.d
  * @param {Naming} naming - How ids are made
  * @param {(out: Out) => void} effect - What hears the app's effects
  * @param {() => Element | null} live - Its live region
+ * @param {Readonly<{ [name: string]: Source }>} made - The sources made from items it is given
  * @returns {Page} The running widget
  */
-function start(description, props, latest, held, naming, effect, live) {
+function start(description, props, latest, held, naming, effect, live, made) {
   return page(
     {
-      ...hostOptions(props, naming, latest),
+      ...hostOptions(props, naming, latest, made),
       effect,
       props: widgetProps(description, givenFrom(description, props, held, NAMES)),
       widget: description.widget,
@@ -267,10 +290,11 @@ function start(description, props, latest, held, naming, effect, live) {
  * How parts are drawn, the same object while what it is made of is the same
  * @param {Naming} naming - How ids are made
  * @param {Given} props - The component's props
+ * @param {Drawing['sources']} sources - The sources items are drawn from
  * @returns {Drawing} How parts are drawn
  */
-function useDrawing(naming, props) {
-  const { item, sources } = props
+function useDrawing(naming, props, sources) {
+  const { item } = props
   const parts = props.parts ?? NO_PARTS
   const last = useRef(noDrawing())
   const kept = last.current
@@ -313,7 +337,14 @@ function component(description, displayName) {
     const root = useRef(noPage())
     const [, redraw] = useReducer((count) => count + 1, 0)
     const framework = { id, keyId: String }
-    const { naming } = hostOptions(props, framework, () => latest.current)
+    const items = useRef(noItems())
+    items.current ??= itemSources()
+    const read = items.current.read(description, props)
+    const reading = read.props
+    const options = hostOptions(props, framework, () => latest.current, read.sources)
+    const { naming } = options
+    const field = useRef(noInput())
+    const initial = useRef(held)
 
     /**
      * Hears an effect the widget gives the app
@@ -355,27 +386,31 @@ function component(description, displayName) {
 
     root.current ??= start(
       description,
-      props,
+      reading,
       () => latest.current,
       held,
       framework,
       effect,
       () => live.current,
+      read.sources,
     )
     const tree = root.current.host.tree()
-    const synced = useRef(widgetProps(description, givenFrom(description, props, held, NAMES)))
+    const synced = useRef(widgetProps(description, givenFrom(description, reading, held, NAMES)))
+    const formed = useRef(reading)
+    formed.current = reading
 
     useEffect(() => {
       const made =
         root.current ??
         start(
           description,
-          latest.current,
+          formed.current,
           () => latest.current,
           heldNow.current,
           framework,
           effect,
           () => live.current,
+          read.sources,
         )
       root.current = made
       const unwatch = made.host.watch(redraw)
@@ -383,7 +418,15 @@ function component(description, displayName) {
         made.drawn(made.host.tree(), live.current)
       }
       made.host.begin()
+      const form = field.current?.form ?? null
+      const reset = () => {
+        if (ownValue(description, latest.current, NAMES)) {
+          setHeld(initial.current)
+        }
+      }
+      form?.addEventListener('reset', reset)
       return () => {
+        form?.removeEventListener('reset', reset)
         unwatch()
         made.stop()
         root.current = null
@@ -395,7 +438,8 @@ function component(description, displayName) {
       if (made === null) {
         return
       }
-      const now = widgetProps(description, givenFrom(description, props, held, NAMES))
+      items.current?.apply()
+      const now = widgetProps(description, givenFrom(description, reading, held, NAMES))
       if (!same(now, synced.current)) {
         synced.current = now
         made.host.setProps(now)
@@ -405,12 +449,21 @@ function component(description, displayName) {
       }
     })
 
-    const drawing = useDrawing(naming, props)
+    const drawing = useDrawing(naming, props, options.sources)
+    const { name } = props
     return createElement(
       Fragment,
       null,
       createElement(PartElement, { drawing, node: tree }),
       createElement('div', { ref: live, role: 'status' }),
+      typeof name === 'string' && inForm(description)
+        ? createElement('input', {
+            name,
+            ref: field,
+            type: 'hidden',
+            value: formValue(description, givenFrom(description, reading, held, NAMES)) ?? '',
+          })
+        : null,
     )
   }
   Generated.displayName = displayName

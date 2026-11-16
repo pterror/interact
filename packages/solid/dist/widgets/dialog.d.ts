@@ -20,10 +20,10 @@ export type WidgetProps = PropsOf<Widget>;
  * @template {AnyComponent} Content
  * @param {Content} content - The widget inside
  * @param {Parameters<typeof source>[1]} initialFocus - The part focused when it opens, from the dialog (`['content', ...]` is inside the content)
- * @returns {Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>}
+ * @returns {Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>}
  *   The component
  */
 declare function dialog<Content extends AnyComponent>(content: Content, initialFocus: Parameters<typeof source>[1]): Component<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{
     content: OwnOf<Content>;
-}>>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>;
+}>, never>, 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>;
 export { dialog };

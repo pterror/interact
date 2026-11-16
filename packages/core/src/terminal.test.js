@@ -85,6 +85,7 @@ const SELECT = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit'
 const ORDER = {
   dragDistance: 1,
   focusable: true,
+  hover: false,
   keyshortcuts: 'Alt+ArrowUp Alt+ArrowDown',
   label: 'Order',
   rows: 4,

@@ -13,15 +13,22 @@ import { optionsOf, run, typesOf } from '../interact.js'
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
 /** @type {Description} */
-const description = { events: ['activate'], inside: {}, props: ['disabled', 'label', 'source'], value: null, widget }
+const description = {
+  events: ['activate'],
+  inside: {},
+  props: ['disabled', 'label', 'source'],
+  sources: ['source'],
+  value: null,
+  widget,
+}
 /**
  * The setup
- * @param {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown> & Given} props - The props
+ * @param {Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown, 'source'> & Given} props - The props
  * @param {SetupContext<Emits<never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>>, SlotsType<Slots<'button' | 'item' | 'menu' | 'root'>>>} context - The slots and emit
  * @returns {() => VNodeChild} The render function
  */
 const setup = (props, context) => run(description, props, context)
-/** @type {() => Readonly<{ own: Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown>, parts: 'button' | 'item' | 'menu' | 'root' }> | undefined} */
+/** @type {() => Readonly<{ own: Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{ type: 'activate' }>>, unknown, 'source'>, parts: 'button' | 'item' | 'menu' | 'root' }> | undefined} */
 const types = typesOf
 
 /**

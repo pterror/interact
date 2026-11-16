@@ -6,7 +6,8 @@
  * The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset.
  * Characters typed are typeahead: the host finds the option they start (`ask` with `find`), and only the answer to the
  * latest find is used. Shown with nothing selected and nothing active, or focused so, the first option is active.
- * Given a visible label outside it (`label`), it is named by it.
+ * Given a visible label outside it (`label`), it is named by it. With `hover`, the option under the pointer becomes
+ * active.
  *
  * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending
  * until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws
@@ -17,16 +18,18 @@ import { part, ref } from './contract.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
 import { isTyped, typed, typing } from './typeahead.js'
 
-/** @import { Answer, Ask, Change, Changed, Click, Focused, Found, i32, i53, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, Time, View, Wake, Widget } from './contract.js' */
+/** @import { Answer, Ask, Change, Changed, Click, Focused, Found, i32, i53, Key, KeyDown, Measured, Part, Pointer, PreventDefault, PropsInput, Refused, Result, Scroll, SourceName, Time, View, Wake, Widget } from './contract.js' */
 /** @import { Pending } from './pending.js' */
 
 /**
+ * `hover`: the option under the pointer becomes active
  * @typedef {Readonly<{
  *   label: string,
  *   rows: i32,
- *   source: string,
+ *   source: SourceName,
  *   shown: boolean,
  *   focusable: boolean,
+ *   hover: boolean,
  *   selected: Readonly<{ value: Key | null }> | null,
  * }>} ListProps
  */
@@ -49,6 +52,7 @@ import { isTyped, typed, typing } from './typeahead.js'
  *   source: string,
  *   shown: boolean,
  *   focusable: boolean,
+ *   hover: boolean,
  *   selection: Pending<Key | null>,
  *   revision: i53,
  *   count: i32 | null,
@@ -68,7 +72,7 @@ import { isTyped, typed, typing } from './typeahead.js'
  */
 
 /** @typedef {Readonly<{ type: 'active', item: Key | null }>} Active */
-/** @typedef {KeyDown | Click | Focused | Scroll | Measured | PropsInput<ListProps> | Answer | Found | Changed | Refused | Time} ListInput */
+/** @typedef {KeyDown | Click | Focused | Pointer | Scroll | Measured | PropsInput<ListProps> | Answer | Found | Changed | Refused | Time} ListInput */
 /** @typedef {Ask | Change<Key | null> | PreventDefault | Wake | Active} ListEffect */
 
 /** @type {readonly ListEffect[]} */
@@ -376,6 +380,7 @@ function propsChanged(state, props) {
   const next = {
     ...state,
     focusable: props.focusable,
+    hover: props.hover,
     label: props.label,
     rows: props.rows,
     selection: fromApp(
@@ -423,6 +428,11 @@ function stepOwn(state, input) {
     case 'focus': {
       return input.part === 'root' && state.shown ? startFirst(state) : [state, NONE]
     }
+    case 'pointermove': {
+      return state.hover && input.part === 'option' && input.item !== null && input.item !== state.active
+        ? moveToKey(state, input.item)
+        : [state, NONE]
+    }
     case 'keydown': {
       return keydown(state, input)
     }
@@ -442,6 +452,11 @@ function stepOwn(state, input) {
       }
       const rank = rankOf(state, input.item)
       return choose({ ...state, active: input.item, activeRank: rank, follow: 'key' }, input.item)
+    }
+    case 'pointerdown':
+    case 'pointerup':
+    case 'pointercancel': {
+      return [state, NONE]
     }
     default: {
       return [state, NONE]
@@ -513,7 +528,7 @@ function optionPart(state, key) {
     },
     content: [{ item: key, source: state.source }],
     data: { active: key === state.active },
-    listens: ['click', 'measured'],
+    listens: state.hover ? ['click', 'measured', 'pointermove'] : ['click', 'measured'],
     role: 'option',
   })
 }
@@ -529,6 +544,7 @@ const list = {
       count: null,
       focusable: props.focusable,
       follow: 'key',
+      hover: props.hover,
       from: 0,
       keys: [],
       label: props.label,

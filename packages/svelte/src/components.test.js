@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource } from '@pterror/interact-core'
-import { drawsAsTheDomRenderer, FRUIT, settled, violations } from '@pterror/interact-core/test-components'
+import {
+  collectionOf,
+  drawsAsTheDomRenderer,
+  FRUIT,
+  settled,
+  takesItemsInAForm,
+  violations,
+} from '@pterror/interact-core/test-components'
 
 import { compiled, load, MAJOR } from './test-svelte.js'
 
@@ -181,7 +188,12 @@ const framework = {
       }
     }
     if (mounting.kind === 'select') {
-      const props = reactive({ ...select, naming, sources, ...(MAJOR >= 5 ? { onchange: selectChanged } : {}) })
+      const props = reactive({
+        ...select,
+        naming,
+        ...collectionOf(mounting),
+        ...(MAJOR >= 5 ? { onchange: selectChanged } : {}),
+      })
       const made = mount(client['Select'], mounting.container, props)
       made.on('change', (detail) => {
         selectChanged(changeOf(detail).value)
@@ -223,6 +235,10 @@ describe(`the Svelte ${String(MAJOR)} components`, () => {
       })
     }
   }
+
+  test('the select takes its items in place of a source, and is a field of its form', async () => {
+    await takesItemsInAForm(framework, true)
+  })
 
   test('render on a server, and hydrate to the same DOM, which then runs', async () => {
     const props = {

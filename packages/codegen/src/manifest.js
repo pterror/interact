@@ -10,9 +10,18 @@ import { capital, elementKinds, fileName, insideParams, tagOf } from './framewor
 
 /** The properties every element takes beside its widget's props, and what each is */
 const HOST = [
-  ['item', '(key: Key) => string | Node', 'How an item is drawn: by default, its key as text'],
-  ['name', '(key: Key) => string', "An item's name in announcements: by default, its key as text"],
+  ['item', '(key: Key) => string | Node', 'How an item is drawn: by default, its text in its source'],
+  [
+    'itemName',
+    '(key: Key) => string',
+    "An item's name in announcements: by default, its text in the items given, or its key",
+  ],
   ['naming', 'Naming', 'How ids are made: by default, a prefix of its own and each key as text'],
+  [
+    'outside',
+    '{ [name: string]: string | Element }',
+    'The elements outside it its widget refers to, by the names it gives them, each by id or as the element (its `label` is by default its first `<label>`)',
+  ],
   ['sources', '{ [name: string]: Source }', 'The collections the widget asks about, by the names its props give them'],
   ['translate', '(input) => input | null', 'Rebinds a key: the standard key the widget hears for one pressed'],
   ['words', 'Words', 'The words announcements use, over the English ones'],
@@ -57,6 +66,15 @@ function manifest(widgets) {
         name: attributeName(param.name),
         type: { text: 'string' },
       })),
+      ...(widget.value !== null && (widget.value.kind === 'string' || widget.value.kind === 'number')
+        ? [
+            {
+              description: 'The name of its field in its form, whose value is the bound value',
+              name: 'name',
+              type: { text: 'string' },
+            },
+          ]
+        : []),
     ]
     const members = [
       ...Object.entries(kinds).map(([prop, kind]) => ({
@@ -64,6 +82,12 @@ function manifest(widgets) {
         kind: 'field',
         name: prop,
         type: { text: kind === 'other' ? 'unknown' : kind },
+      })),
+      ...widget.sources.map((prop) => ({
+        description: `The items of the collection \`${prop}\` names, in its place: keys, or keys with their text`,
+        kind: 'field',
+        name: prop === 'source' ? 'items' : `${prop}Items`,
+        type: { text: 'readonly (Key | { key: Key, text: string })[]' },
       })),
       ...HOST.map(([field, text, description]) => ({ description, kind: 'field', name: field, type: { text } })),
     ]

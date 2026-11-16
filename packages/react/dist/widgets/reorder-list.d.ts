@@ -6,14 +6,14 @@ export type WidgetProps = PropsOf<Widget>;
 export type ReorderListParts = 'option' | 'root';
 export type ReorderListProps = Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
     type: 'active';
-}>>, unknown>;
+}>>, unknown, 'source'>;
 /** @import { Component, Own } from '../interact.js' */
 /** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
 /** @import { reorderList as source } from '@pterror/interact-core/reorder' */
 /** @typedef {typeof source} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 /** @typedef {'option' | 'root'} ReorderListParts */
-/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown>} ReorderListProps */
+/** @typedef {Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{ type: 'active' }>>, unknown, 'source'>} ReorderListProps */
 /**
  * A listbox whose options can be reordered, by dragging with a pointer or by Alt+ArrowUp and Alt+ArrowDown on
  * the active option, as in the WAI-ARIA listbox with rearrangeable options

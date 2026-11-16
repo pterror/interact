@@ -1,7 +1,14 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { arraySource } from '@pterror/interact-core'
-import { drawsAsTheDomRenderer, FRUIT, settled, violations } from '@pterror/interact-core/test-components'
+import {
+  collectionOf,
+  drawsAsTheDomRenderer,
+  FRUIT,
+  settled,
+  takesItemsInAForm,
+  violations,
+} from '@pterror/interact-core/test-components'
 import { createElement, StrictMode, useState } from 'react'
 import { createRoot, hydrateRoot } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
@@ -39,7 +46,7 @@ function App({ mounting }) {
     },
   }
   if (mounting.kind === 'select') {
-    return createElement(Select, { ...select, naming, sources })
+    return createElement(Select, { ...select, naming, ...collectionOf(mounting) })
   }
   return createElement(PickDialog, {
     closeLabel: 'Close',
@@ -95,6 +102,10 @@ describe('the React components', () => {
       })
     }
   }
+
+  test('the select takes its items in place of a source, and is a field of its form', async () => {
+    await takesItemsInAForm(react, true)
+  })
 
   test('render on a server with ids from useId, and hydrate to the same DOM, which then runs', async () => {
     const sources = { fruit: arraySource(FRUIT) }
