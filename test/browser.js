@@ -109,7 +109,7 @@ async function importMap() {
       imports[manifest.name] = `/${file.replace(/package\.json$/u, '')}${entry.replace(/^\.\//u, '')}`
     }
   }
-  const modules = await Array.fromAsync(new Bun.Glob('packages/*/src/*.js').scan({ cwd: ROOT }))
+  const modules = await Array.fromAsync(new Bun.Glob('packages/*/src/**/*.js').scan({ cwd: ROOT }))
   for await (const file of new Bun.Glob('packages/*/package.json').scan({ cwd: ROOT })) {
     /** @type {unknown} */
     const manifest = await Bun.file(`${ROOT}${file}`).json()

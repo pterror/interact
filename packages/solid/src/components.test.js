@@ -87,6 +87,7 @@ function app(mounting) {
     mergeProps(
       {
         closeLabel: 'Close',
+        ignoreOutside: false,
         content: select,
         naming,
         onOpenChange: (/** @type {boolean} */ next) => {
@@ -142,6 +143,7 @@ describe('the Solid components', () => {
       () =>
         createComponent(PickDialog, {
           closeLabel: 'Close',
+          ignoreOutside: false,
           content: { ...SELECT, defaultValue: 'Banana' },
           defaultOpen: true,
           sources: { fruit: arraySource(FRUIT) },

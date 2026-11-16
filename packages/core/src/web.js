@@ -4,7 +4,11 @@
  * becomes `data-*`, and `tabindex` and `hidden` are HTML's. Events pass through by name and value: an event goes to
  * the innermost part listening for it, and a pointer event to the part under the pointer, the pressed element
  * capturing the pointer so its release is never missed. `aria-modal` is carried out here: while a modal part is shown,
- * everything outside it is inert, and focus goes back where it was when it closes.
+ * everything outside it is inert, the document doesn't scroll, and focus goes back where it was when it closes. A
+ * popup is a manual popover, in the top layer while it is shown (the widget closes it, never the browser), placed
+ * against its anchor by CSS anchor positioning: below it, starting where it starts, flipped to the other side across,
+ * along or both when it doesn't fit, the popup's margin the gap on the side it grows towards. A press outside the popup
+ * shown last (on the page around it, inert or not) is heard by it, if it listens for it.
  */
 
 import { host as run } from './host.js'
@@ -65,6 +69,7 @@ function attributesOf(node, naming, implicitRole) {
     ['role', node.role === implicitRole ? null : node.role],
     ['tabindex', node.tabindex === null ? null : String(node.tabindex)],
     ['hidden', node.hidden ? '' : null],
+    ['popover', node.popup === null ? null : 'manual'],
   ])
   for (const [name, value] of Object.entries(node.aria)) {
     attributes.set(`aria-${name}`, ariaText(value, naming))
@@ -277,6 +282,102 @@ function siblingsOf(element) {
  * }>} PageOptions
  */
 
+/**
+ * The document's scrolling as it was before the first modal part shown locked it, and how many lock it now
+ * @type {{ count: number, overflow: string, paddingRight: string }}
+ */
+const scrolling = { count: 0, overflow: '', paddingRight: '' }
+
+/**
+ * Keeps the document from scrolling while a modal part is shown, its scrollbar's width kept as padding so nothing
+ * moves; the last one shown that closes gives scrolling back
+ * @param {boolean} locked - Whether a modal part is shown now, or one closed
+ * @returns {void}
+ */
+function lockScroll(locked) {
+  const { style } = document.documentElement
+  if (locked) {
+    if (scrolling.count === 0) {
+      const scrollbar = window.innerWidth - document.documentElement.clientWidth
+      scrolling.overflow = style.overflow
+      scrolling.paddingRight = style.paddingRight
+      style.overflow = 'hidden'
+      if (scrollbar > 0) {
+        style.paddingRight = `${String(scrollbar)}px`
+      }
+    }
+    scrolling.count += 1
+    return
+  }
+  scrolling.count -= 1
+  if (scrolling.count === 0) {
+    style.overflow = scrolling.overflow
+    style.paddingRight = scrolling.paddingRight
+  }
+}
+
+/**
+ * The anchor name a part is placed against by, from its id: a dashed ident
+ * @param {string} id - The anchor's id
+ * @returns {string} The name
+ */
+function anchorName(id) {
+  return `--${typeof CSS === 'undefined' ? id.replaceAll(/[^\w-]/gu, '_') : CSS.escape(id)}`
+}
+
+/**
+ * Whether an element is a popover shown now (none is where the browser has no popovers)
+ * @param {Element} element - The element
+ * @returns {boolean} Whether it is
+ */
+function isOpenPopover(element) {
+  return hasPopovers(element) && element.matches(':popover-open')
+}
+
+/**
+ * Whether an element can be a popover (it can't where the browser has no popovers)
+ * @param {Element} element - The element
+ * @returns {element is HTMLElement} Whether it can
+ */
+function hasPopovers(element) {
+  return (
+    element instanceof HTMLElement &&
+    typeof (/** @type {{ showPopover?: unknown }} */ (element).showPopover) === 'function'
+  )
+}
+
+/**
+ * Shows or hides a popup's element as a popover, placed against its anchor's element
+ * @param {Element} element - The popup's element
+ * @param {Node} node - The popup
+ * @param {Element | null} anchor - Its anchor's element, if it has one drawn
+ * @returns {void}
+ */
+function placePopup(element, node, anchor) {
+  if (!hasPopovers(element) || !element.isConnected) {
+    return
+  }
+  const open = isOpenPopover(element)
+  if (node.hidden) {
+    if (open) {
+      element.hidePopover()
+    }
+    return
+  }
+  if (anchor instanceof HTMLElement) {
+    const name = anchorName(anchor.id)
+    anchor.style.setProperty('anchor-name', name)
+    element.style.setProperty('position-anchor', name)
+    element.style.setProperty('inset', 'auto')
+    element.style.setProperty('inset-block-start', 'anchor(end)')
+    element.style.setProperty('inset-inline-start', 'anchor(start)')
+    element.style.setProperty('position-try-fallbacks', 'flip-block, flip-inline, flip-block flip-inline')
+  }
+  if (!open) {
+    element.showPopover()
+  }
+}
+
 let made = 0
 
 /**
@@ -330,6 +431,15 @@ function page(options, live) {
   const handled = new WeakSet()
   /** @type {Map<string, Readonly<{ restore: Element | null, inert: readonly Element[] }>>} */
   const modals = new Map()
+  /** @type {Set<string>} */
+  const popups = new Set()
+  /**
+   * The popups shown, by identity, the last shown last
+   * @type {string[]}
+   */
+  const shownPopups = []
+  /** @type {Set<string>} */
+  const outsideTypes = new Set()
 
   /** Whether the renderer draws a change after the host has told it (it calls `drawn` once it has) */
   let drawsLater = false
@@ -432,6 +542,45 @@ function page(options, live) {
   }
 
   /**
+   * Hears an event in the document that no part took: a press outside the popup shown last is that popup's
+   * @param {Event} event - The event
+   * @returns {void}
+   */
+  const outside = (event) => {
+    const key = shownPopups.at(-1)
+    const element = key === undefined ? undefined : elements.get(key)
+    if (stopped || element === undefined || handled.has(event) || event.composedPath().includes(element)) {
+      return
+    }
+    hear(element, event)
+  }
+
+  /**
+   * Notes a popup shown or hidden, and listens in the document for presses outside it
+   * @param {string} key - The popup's identity
+   * @param {Node} node - The popup
+   * @returns {void}
+   */
+  const showing = (key, node) => {
+    const at = shownPopups.indexOf(key)
+    if (node.hidden) {
+      if (at !== -1) {
+        shownPopups.splice(at, 1)
+      }
+      return
+    }
+    if (at === -1) {
+      shownPopups.push(key)
+    }
+    for (const type of node.listens) {
+      if (!outsideTypes.has(type)) {
+        outsideTypes.add(type)
+        document.addEventListener(type, outside)
+      }
+    }
+  }
+
+  /**
    * Makes everything outside a shown modal part inert, and puts back the rest and focus once it is hidden
    * @param {string} key - The part's identity
    * @param {Element} element - Its element
@@ -458,8 +607,10 @@ function page(options, live) {
         at = parent
       }
       modals.set(key, { inert, restore: focusedElement() })
+      lockScroll(true)
     } else if (!shown && open !== undefined) {
       modals.delete(key)
+      lockScroll(false)
       for (const sibling of open.inert) {
         sibling.removeAttribute('inert')
       }
@@ -497,6 +648,35 @@ function page(options, live) {
     if (node.aria['modal'] === true) {
       modal(key, element, !node.hidden)
     }
+    if (node.popup !== null) {
+      popups.add(key)
+      showing(key, node)
+      popup(key, element, node)
+    }
+  }
+
+  /**
+   * Shows or hides a popup, once its element is in the document (a renderer may bind it before it puts it there)
+   * @param {string} key - The popup's identity
+   * @param {Element} element - Its element
+   * @param {Node} node - The popup
+   * @returns {void}
+   */
+  const popup = (key, element, node) => {
+    const { anchor } = node.popup ?? { anchor: null }
+    const place = () => {
+      if (elements.get(key) === element) {
+        const root = element.getRootNode()
+        const id = anchor === null ? null : idOf(anchor, naming)
+        // oxlint-disable-next-line unicorn/prefer-query-selector -- an id from a key need not be a CSS identifier
+        placePopup(element, node, id !== null && findsById(root) ? root.getElementById(id) : null)
+      }
+    }
+    if (element.isConnected) {
+      place()
+    } else {
+      queueMicrotask(place)
+    }
   }
 
   /**
@@ -508,6 +688,13 @@ function page(options, live) {
     const element = elements.get(key)
     if (element !== undefined && modals.has(key)) {
       modal(key, element, false)
+    }
+    if (popups.delete(key) && element instanceof HTMLElement && isOpenPopover(element)) {
+      element.hidePopover()
+    }
+    const at = shownPopups.indexOf(key)
+    if (at !== -1) {
+      shownPopups.splice(at, 1)
     }
     elements.delete(key)
   }
@@ -573,6 +760,9 @@ function page(options, live) {
     stop: () => {
       stopped = true
       host.stop()
+      for (const type of outsideTypes) {
+        document.removeEventListener(type, outside)
+      }
       for (const key of modals.keys()) {
         const element = elements.get(key)
         if (element !== undefined) {

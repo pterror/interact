@@ -65,6 +65,7 @@ function appFor(mounting) {
         }
         return h(PickDialog, {
           closeLabel: 'Close',
+          ignoreOutside: false,
           content: select,
           naming,
           'onUpdate:open': (/** @type {boolean} */ next) => {
@@ -106,6 +107,7 @@ describe('the Vue components', () => {
       render: () =>
         h(PickDialog, {
           closeLabel: 'Close',
+          ignoreOutside: false,
           content: { ...SELECT, defaultValue: 'Banana' },
           defaultOpen: true,
           sources,

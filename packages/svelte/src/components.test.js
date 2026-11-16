@@ -190,6 +190,7 @@ const framework = {
     }
     const props = reactive({
       closeLabel: 'Close',
+      ignoreOutside: false,
       content: { ...select, onchange: selectChanged },
       naming,
       of: OF,
@@ -226,6 +227,7 @@ describe(`the Svelte ${String(MAJOR)} components`, () => {
   test('render on a server, and hydrate to the same DOM, which then runs', async () => {
     const props = {
       closeLabel: 'Close',
+      ignoreOutside: false,
       content: { ...SELECT, defaultValue: 'Banana' },
       of: OF,
       open: true,

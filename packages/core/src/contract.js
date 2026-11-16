@@ -67,16 +67,25 @@
  */
 
 /**
+ * A part shown over everything else while it is shown, as a popup: placed against the part `anchor` names (below it,
+ * or wherever else it fits), or, with no anchor, in the middle of the view. A press outside the popup shown last, of
+ * a type it listens for, is heard by it as a press on it
+ * @typedef {Readonly<{ anchor: Ref | null }>} Popup
+ */
+
+/**
  * A part and what it means. `role` and `aria` are WAI-ARIA's, word for word. `listens` names the inputs the part takes.
  * Beyond ARIA: `tabindex` and `hidden` are HTML's attributes of those names (focusability and whether it is shown,
- * which ARIA has no word for), and `data` holds states ARIA has no word for (an active option under
- * `aria-activedescendant`, a dragged item), which the DOM shows as `data-*`
+ * which ARIA has no word for), `popup` says the part is shown over everything else (`null`: in its place), and `data`
+ * holds states ARIA has no word for (an active option under `aria-activedescendant`, a dragged item), which the DOM
+ * shows as `data-*`
  * @typedef {Readonly<{
  *   role: string | null,
  *   aria: Readonly<{ [name: string]: AriaValue }>,
  *   data: Readonly<{ [name: string]: string | boolean | null }>,
  *   tabindex: number | null,
  *   hidden: boolean,
+ *   popup: Popup | null,
  *   listens: readonly string[],
  *   content: readonly Content[],
  * }>} Part
@@ -253,12 +262,23 @@
  */
 
 /**
- * A part, with nothing it doesn't name: no role, no ARIA, no states, not focusable, shown, listening to nothing, empty
+ * A part, with nothing it doesn't name: no role, no ARIA, no states, not focusable, shown in its place, listening to
+ * nothing, empty
  * @param {Partial<Part>} given - What the part has
  * @returns {Part} The part
  */
 function part(given) {
-  return { aria: {}, content: [], data: {}, hidden: false, listens: [], role: null, tabindex: null, ...given }
+  return {
+    aria: {},
+    content: [],
+    data: {},
+    hidden: false,
+    listens: [],
+    popup: null,
+    role: null,
+    tabindex: null,
+    ...given,
+  }
 }
 
 /**

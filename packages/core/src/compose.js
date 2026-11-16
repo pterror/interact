@@ -625,7 +625,7 @@ function start(widget, props) {
 
 /**
  * A part as drawn: the part, the widget that owns it, and its contents resolved down to text and the host's items.
- * `listens` adds the types its ancestors capture or hear bubble from it
+ * `listens` adds the types its ancestors capture or hear bubble from it; a popup's anchor is resolved to its target
  * @typedef {Readonly<{
  *   target: Target,
  *   role: string | null,
@@ -633,6 +633,7 @@ function start(widget, props) {
  *   data: Readonly<{ [name: string]: string | boolean | null }>,
  *   tabindex: number | null,
  *   hidden: boolean,
+ *   popup: Readonly<{ anchor: Target | null }> | null,
  *   listens: readonly string[],
  *   content: readonly Drawn[],
  * }>} Node
@@ -746,6 +747,10 @@ function resolveAt(widget, state, props, owner, heard) {
       data: given.data,
       hidden: given.hidden,
       listens: [...new Set([...given.listens, ...heard])],
+      popup:
+        given.popup === null
+          ? null
+          : { anchor: given.popup.anchor === null ? null : targetOf(owner, given.popup.anchor) },
       role: given.role,
       tabindex: given.tabindex,
       target: { item, owner, part: name },

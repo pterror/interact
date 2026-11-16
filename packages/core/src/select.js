@@ -1,6 +1,6 @@
 /**
  * A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/),
- * a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known
+ * a trigger and a list, the list in a popup against the trigger. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known
  * from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only
  * reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once
  * and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's
@@ -196,7 +196,12 @@ const select = compose({
   view: (own) => {
     const value = shown(own.value)
     return {
-      root: part({ content: [{ part: 'trigger' }, { child: 'list' }] }),
+      popover: part({
+        content: [{ child: 'list' }],
+        hidden: !own.open,
+        popup: { anchor: ref(['trigger'], null) },
+      }),
+      root: part({ content: [{ part: 'trigger' }, { part: 'popover' }] }),
       trigger: part({
         aria: {
           activedescendant: own.active === null ? null : ref(['list', 'option'], own.active),

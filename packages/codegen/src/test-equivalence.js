@@ -752,7 +752,8 @@ function selectRun(widget, at, isDialog, pick, length) {
   })
   let content = selectProps(pick.chance(40))
   let open = pick.chance(70)
-  const propsNow = () => (isDialog ? { closeLabel: 'Close', content, open, title: 'Pick' } : content)
+  const ignoreOutside = pick.chance(30)
+  const propsNow = () => (isDialog ? { closeLabel: 'Close', content, ignoreOutside, open, title: 'Pick' } : content)
   const props = propsNow()
   /** @type {{ path: Path, input: unknown }[]} */
   const deliveries = []
@@ -823,7 +824,25 @@ function selectRun(widget, at, isDialog, pick, length) {
       return { input: { id: change.id, type: 'refused' }, path: change.from }
     }
     if (isDialog && roll < 96) {
-      return pick.chance(50) ? { input: click('close'), path: [] } : { input: keydown('root', 'Escape'), path: [] }
+      const which = pick.int(5)
+      if (which === 0) {
+        return { input: click('close'), path: [] }
+      }
+      if (which === 1) {
+        return { input: keydown('dialog', 'Escape'), path: [] }
+      }
+      return which === 2
+        ? { input: click('root'), path: [] }
+        : {
+            input: {
+              button: 0,
+              item: null,
+              part: pick.chance(50) ? 'root' : 'dialog',
+              timeStamp: 0,
+              type: 'mousedown',
+            },
+            path: [],
+          }
     }
     return {
       input: { item: null, offset: pick.int(300), part: 'root', timeStamp: 0, type: 'scroll' },

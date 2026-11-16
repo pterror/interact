@@ -11,6 +11,7 @@ const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 const server = await load(await compiled('server'))
 const props = {
   closeLabel: 'Close',
+  ignoreOutside: false,
   content: { defaultValue: 'Banana', label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' },
   of: { content: server['select'], initialFocus: ['content', 'trigger'] },
   open: true,

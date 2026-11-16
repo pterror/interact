@@ -13,6 +13,14 @@
               }
             },
             {
+              "description": "The widget's `ignoreOutside`",
+              "fieldName": "ignoreOutside",
+              "name": "ignore-outside",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
               "description": "The widget's `title`",
               "fieldName": "title",
               "name": "title",
@@ -43,6 +51,10 @@
             },
             {
               "description": "The dialog; its `part` also names each state it shows",
+              "name": "dialog"
+            },
+            {
+              "description": "A part; its `part` also names each state it shows",
               "name": "root"
             },
             {
@@ -56,7 +68,7 @@
           ],
           "cssStates": [],
           "customElement": true,
-          "description": "A modal dialog around a content widget: the WAI-ARIA modal dialog (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). `open` is always the app's, by the contract's rule: Escape (one the content didn't take, heard as it bubbles from the content) and the close button close it at once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. Opening focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what `aria-modal` asks of the host.",
+          "description": "A modal dialog around a content widget: the WAI-ARIA modal dialog (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), shown over everything else in an overlay. `open` is always the app's, by the contract's rule: Escape (one the content didn't take, heard as it bubbles from the content), the close button, and a press outside the dialog (on the overlay, unless `ignoreOutside`) close it at once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. A press outside closes it once it is released there, so what is under the overlay never takes the click. Opening focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what `aria-modal` asks of the host.",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
@@ -74,6 +86,14 @@
               "name": "closeLabel",
               "type": {
                 "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `ignoreOutside`",
+              "kind": "field",
+              "name": "ignoreOutside",
+              "type": {
+                "text": "boolean"
               }
             },
             {
@@ -434,7 +454,7 @@
             }
           ],
           "customElement": true,
-          "description": "A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/), focus moved to each item in turn. Items are the keys of a collection the host holds (`source`), asked for whole, since a menu draws every item: a first page, then the rest once the count is known; only the answer to the latest ask is used, and `changed` asks again. The host draws each item. Characters typed are typeahead, which the host finds (`ask` with `find`). Choosing an item emits `activate`; disabled items are moved to but not chosen.",
+          "description": "A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/), the menu a popup against the button, focus moved to each item in turn. Items are the keys of a collection the host holds (`source`), asked for whole, since a menu draws every item: a first page, then the rest once the count is known; only the answer to the latest ask is used, and `changed` asks again. The host draws each item. Characters typed are typeahead, which the host finds (`ask` with `find`). Choosing an item emits `activate`; disabled items are moved to but not chosen.",
           "events": [
             {
               "description": "The widget's `activate` effect, as its detail",
@@ -829,6 +849,10 @@
           "cssParts": [
             {
               "description": "A part; its `part` also names each state it shows",
+              "name": "popover"
+            },
+            {
+              "description": "A part; its `part` also names each state it shows",
               "name": "root"
             },
             {
@@ -859,7 +883,7 @@
             }
           ],
           "customElement": true,
-          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed (`until`).",
+          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list, the list in a popup against the trigger. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed (`until`).",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",

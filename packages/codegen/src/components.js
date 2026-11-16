@@ -137,7 +137,7 @@ function readWidget(checker, name, declaration, root) {
   const module = fileName.startsWith(root) ? fileName.slice(root.length) : fileName
   const props = propsOf(checker, widgetType)
   const effects = ownEffects(checker, spec)
-  const value = boundOf(checker, props, effects)
+  const value = boundOf(checker, props, effects, pendingFields(checker, spec))
   if (value !== null && 'error' in value) {
     return value
   }
@@ -384,14 +384,40 @@ function ownEffects(checker, spec) {
 }
 
 /**
+ * The fields of a widget's own state that hold a value it changes by the contract's rule (a `Pending`: what the app
+ * gave, and the changes not yet settled), read from what its `init` returns
+ * @param {ts.TypeChecker} checker - The checker
+ * @param {ts.ObjectLiteralExpression} spec - The widget's object or spec
+ * @returns {Set<string>} Their names
+ */
+function pendingFields(checker, spec) {
+  const init = propertyOf(spec, 'init')
+  const initType = init === null ? null : checker.getTypeAtLocation(init)
+  /** @type {Set<string>} */
+  const found = new Set()
+  for (const signature of initType?.getCallSignatures() ?? []) {
+    const [own] = typeArguments(checker, signature.getReturnType())
+    for (const name of own === undefined ? [] : fieldsOf(checker, own)) {
+      const field = own?.getProperty(name)
+      const type = field === undefined ? null : checker.getTypeOfSymbol(field)
+      if (type?.getProperty('changes') !== undefined && type.getProperty('app') !== undefined) {
+        found.add(name)
+      }
+    }
+  }
+  return found
+}
+
+/**
  * The value a widget binds: the prop whose type is the value its own `change` effects carry, as it is or as
- * `{ value } | null`
+ * `{ value } | null`; of several such props, the one its state holds under its own name as a value it changes
  * @param {ts.TypeChecker} checker - The checker
  * @param {Map<string, ts.Type>} props - The widget's props
  * @param {Map<string, ts.Type>} effects - Its own effects
+ * @param {ReadonlySet<string>} pending - The fields of its state holding a value it changes
  * @returns {Described['value'] | Readonly<{ error: string }>} The bound value, none, or why it is unclear
  */
-function boundOf(checker, props, effects) {
+function boundOf(checker, props, effects, pending) {
   const change = effects.get('change')
   const valueField = change?.getProperty('value')
   if (change === undefined || valueField === undefined) {
@@ -410,8 +436,9 @@ function boundOf(checker, props, effects) {
       found.push({ prop, wrapped: false })
     }
   }
-  const [only] = found
-  if (only === undefined || found.length > 1) {
+  const held = found.length > 1 ? found.filter((one) => pending.has(one.prop)) : found
+  const [only] = held
+  if (only === undefined || held.length > 1) {
     return {
       error: `its change effects carry a value no single prop is (${found.map((one) => one.prop).join(', ') || 'none'})`,
     }

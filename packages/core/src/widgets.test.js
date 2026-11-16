@@ -113,6 +113,7 @@ const fruitDialog = dialog(select, ['content', 'trigger'])
 const ALL = ['apple', 'banana', 'cherry']
 const DIALOG = {
   closeLabel: 'Close',
+  ignoreOutside: false,
   content: { label: 'Fruit', placeholder: 'Choose', rows: 3, source: 'fruit', value: null },
   open: true,
   title: 'Pick a fruit',

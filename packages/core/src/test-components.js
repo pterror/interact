@@ -23,7 +23,7 @@ import { select } from './select.js'
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 const NAMING = { id: 'w', keyId: String }
 const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
-const DIALOG = { closeLabel: 'Close', title: 'Pick a fruit' }
+const DIALOG = { closeLabel: 'Close', ignoreOutside: false, title: 'Pick a fruit' }
 
 /**
  * Which component, whose value is whose: `own` starts from a default, `app` is given by the app, which takes every
@@ -188,7 +188,16 @@ function stepsFor(kind) {
     { key: 'ArrowUp', press: trigger },
     { key: 'Tab', press: trigger },
   ]
-  return kind === 'select' ? steps : [...steps, { key: 'Escape', press: trigger }, { key: 'Escape', press: trigger }]
+  return kind === 'select'
+    ? steps
+    : [
+        ...steps,
+        { mousedown: 'w-dialog' },
+        { click: 'w-root' },
+        { mousedown: 'w-root' },
+        { click: 'w-root' },
+        { key: 'Escape', press: trigger },
+      ]
 }
 
 /**

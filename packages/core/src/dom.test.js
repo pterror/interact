@@ -157,7 +157,7 @@ describe('the DOM renderer', () => {
     await settled()
     press(trigger, 'ArrowDown')
     const parts = partsOf(host.tree())
-    expect(parts.length).toBe(7)
+    expect(parts.length).toBe(8)
     for (const part of parts) {
       const element = elementOf(part.target)
       if (element === null) {
@@ -254,6 +254,7 @@ describe('the DOM renderer', () => {
 
     const modal = draw(dialog(select, ['content', 'trigger']), {
       closeLabel: 'Close',
+      ignoreOutside: false,
       content: SELECT,
       open: true,
       title: 'Pick',
@@ -266,7 +267,7 @@ describe('the DOM renderer', () => {
     const opener = document.createElement('button')
     document.body.append(opener)
     opener.focus()
-    const props = { closeLabel: 'Close', content: SELECT, open: false, title: 'Pick a fruit' }
+    const props = { closeLabel: 'Close', ignoreOutside: false, content: SELECT, open: false, title: 'Pick a fruit' }
     const modal = draw(dialog(select, ['content', 'trigger']), props)
     cleanup.push(modal.stop)
     modal.host.setProps({ ...props, open: true })
@@ -277,6 +278,32 @@ describe('the DOM renderer', () => {
     expect(document.querySelector('[role=dialog]')?.hasAttribute('hidden')).toBe(true)
     modal.host.setProps(props)
     expect([opener.hasAttribute('inert'), document.activeElement]).toEqual([false, opener])
+  })
+
+  test('the dialog: a press released outside it closes it, unless it ignores outside; it locks scrolling', () => {
+    const props = { closeLabel: 'Close', content: SELECT, ignoreOutside: false, open: true, title: 'Pick a fruit' }
+    const modal = draw(dialog(select, ['content', 'trigger']), props)
+    cleanup.push(modal.stop)
+    const overlay = modal.container.firstElementChild
+    const box = document.querySelector('[role=dialog]')
+    if (overlay === null || box === null) {
+      throw new TypeError('No dialog')
+    }
+    expect([overlay.getAttribute('popover'), document.documentElement.style.overflow]).toEqual(['manual', 'hidden'])
+    box.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    document.querySelector('[role=combobox]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(modal.heard()).toEqual([])
+    overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(modal.heard()).toEqual([{ id: 1, type: 'change', value: false }])
+    modal.host.setProps({ ...props, open: false })
+    expect(document.documentElement.style.overflow).toBe('')
+    modal.host.setProps({ ...props, ignoreOutside: true })
+    overlay.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    overlay.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(modal.heard()).toEqual([{ id: 1, type: 'change', value: false }])
   })
 
   test('the reorderable list: a drag shows at once, the host source takes it, and Alt+ArrowDown goes on from it', async () => {

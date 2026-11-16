@@ -136,7 +136,7 @@ describe('the custom elements', () => {
     const root = dialog.shadowRoot
     const trigger = root?.querySelector('[role=combobox]')
     expect(trigger?.getAttribute('part')).toBe('trigger')
-    expect(root?.querySelector('[role=dialog]')?.getAttribute('part')).toBe('root')
+    expect(root?.querySelector('[role=dialog]')?.getAttribute('part')).toBe('dialog')
     expect(root?.querySelector('slot[name=close]')?.textContent).toBe('Close')
     trigger?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'ArrowDown' }))
     await settled()

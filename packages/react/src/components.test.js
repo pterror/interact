@@ -43,6 +43,7 @@ function App({ mounting }) {
   }
   return createElement(PickDialog, {
     closeLabel: 'Close',
+    ignoreOutside: false,
     content: select,
     naming,
     onOpenChange: (/** @type {boolean} */ next) => {
@@ -99,6 +100,7 @@ describe('the React components', () => {
     const sources = { fruit: arraySource(FRUIT) }
     const element = createElement(PickDialog, {
       closeLabel: 'Close',
+      ignoreOutside: false,
       content: { ...SELECT, defaultValue: 'Banana' },
       defaultOpen: true,
       sources,

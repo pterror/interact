@@ -1,6 +1,8 @@
 /**
  * Draws any widget's view in a terminal, generically, by role: a button or combobox is one line in brackets, a
- * listbox or menu a line per option or item, a dialog a box, a heading bold; the focused part and the option a focused
+ * listbox or menu a line per option or item, a dialog a box, a heading bold; a popup with an anchor is drawn over
+ * what is below its anchor, from the anchor's column, or over what is above it when it doesn't fit below the screen's
+ * height; the focused part and the option a focused
  * part names by `aria-activedescendant` are drawn inverted, a selected option with a tick, a disabled one dim. Raw-mode
  * key presses become `keydown` with UI Events key values, and xterm's SGR mouse reports become pointer events and
  * clicks on the part under the pointer, in cells (from 0): a widget's thresholds are props, so the app gives them in
@@ -8,7 +10,7 @@
  *
  * What a browser does that a terminal doesn't, this does: focus (Tab through the parts with `tabindex` 0, kept inside
  * a shown `aria-modal` part, given back when it closes), a click on a button for Enter and Space, focus on a press,
- * and an event heard by the innermost part listening for it.
+ * an event heard by the innermost part listening for it, and a press outside the popup shown last heard by it.
  */
 
 import { host as run } from './host.js'
@@ -35,12 +37,13 @@ import { announcement } from './words.js'
  */
 
 /**
- * What the host needs, and the terminal; optionally an item's text (by default its text in its source), the words
+ * What the host needs, and the terminal (its width, and its height, by default unbounded); optionally an item's text (by default its text in its source), the words
  * announcements use over the English ones, and parts the app draws itself, by name (`option`)
  * @typedef {HostOptions & Readonly<{
  *   input: TerminalInput,
  *   write: (text: string) => void,
  *   columns: number,
+ *   height?: number,
  *   item?: (key: Key) => string,
  *   words?: Words,
  *   parts?: Readonly<{ [name: string]: DrawPart }>,
@@ -204,13 +207,57 @@ function isTarget(value) {
 }
 
 /**
+ * Rows with a popup's rows drawn over them from a row and a column, each row of what was there kept to the column
+ * @param {readonly (readonly Segment[])[]} rows - The rows
+ * @param {number} from - The first row the popup covers
+ * @param {number} column - The column it starts at
+ * @param {readonly (readonly Segment[])[]} popup - Its rows
+ * @returns {(readonly Segment[])[]} The rows after
+ */
+function drawOver(rows, from, column, popup) {
+  const drawn = [...rows]
+  for (const [index, row] of popup.entries()) {
+    /** @type {Segment[]} */
+    const kept = []
+    let left = column
+    for (const piece of rows[from + index] ?? []) {
+      if (left > 0) {
+        kept.push({ ...piece, text: piece.text.slice(0, left) })
+        left -= Math.min(left, piece.text.length)
+      }
+    }
+    drawn[from + index] = [...kept, segment(' '.repeat(left), null, ''), ...row]
+  }
+  return drawn
+}
+
+/**
+ * Where a part's first row is drawn: its row, and the column it starts at
+ * @param {readonly (readonly Segment[])[]} rows - The rows
+ * @param {string} key - The part
+ * @returns {Readonly<{ row: number, column: number }> | null} Where, or `null` if it isn't drawn
+ */
+function placeOf(rows, key) {
+  for (const [row, pieces] of rows.entries()) {
+    let column = 0
+    for (const piece of pieces) {
+      if (piece.key === key) {
+        return { column, row }
+      }
+      column += piece.text.length
+    }
+  }
+  return null
+}
+
+/**
  * Lays a tree out as rows, by role
  * @param {Part} tree - The root
- * @param {Readonly<{ focused: string | null, item: (content: Readonly<{ item: Key, source: string }>) => string, parts: Readonly<{ [name: string]: DrawPart }> }>} options
- *   - Which part has focus, the host's text for items, and the parts the app draws
+ * @param {Readonly<{ focused: string | null, item: (content: Readonly<{ item: Key, source: string }>) => string, parts: Readonly<{ [name: string]: DrawPart }>, height?: number }>} options
+ *   - Which part has focus, the host's text for items, the parts the app draws, and the screen's height
  * @returns {Layout} The rows, every part by identity, and each part's parent
  */
-function layout(tree, { focused, item, parts }) {
+function layout(tree, { focused, height = Infinity, item, parts }) {
   const naming = { id: '', keyId: String }
   /** @type {Map<string, Part>} */
   const nodes = new Map()
@@ -239,6 +286,8 @@ function layout(tree, { focused, item, parts }) {
   const focusedNode = focused === null ? undefined : nodes.get(focused)
   const named = focusedNode?.aria['activedescendant']
   const active = isTarget(named) ? identity(named, naming) : null
+  /** @type {{ anchor: string, rows: Segment[][] }[]} */
+  const popups = []
 
   /**
    * One part's rows
@@ -248,6 +297,11 @@ function layout(tree, { focused, item, parts }) {
    */
   const rows = (node, indent) => {
     if (node.hidden) {
+      return []
+    }
+    const anchor = node.popup?.anchor ?? null
+    if (anchor !== null) {
+      popups.push({ anchor: identity(anchor, naming), rows: rows({ ...node, popup: null }, '') })
       return []
     }
     const key = identity(node.target, naming)
@@ -325,7 +379,16 @@ function layout(tree, { focused, item, parts }) {
     }
   }
 
-  return { nodes, parents, rows: rows(tree, '') }
+  /** @type {readonly (readonly Segment[])[]} */
+  let laid = rows(tree, '')
+  for (const popup of popups) {
+    const at = placeOf(laid, popup.anchor)
+    if (at !== null) {
+      const below = at.row + 1 + popup.rows.length <= height || at.row < popup.rows.length
+      laid = drawOver(laid, below ? at.row + 1 : at.row - popup.rows.length, at.column, popup.rows)
+    }
+  }
+  return { nodes, parents, rows: laid }
 }
 
 /**
@@ -368,6 +431,7 @@ function paint(rows, columns) {
  */
 function renderTerminal(options) {
   const named = options.item ?? String
+  const height = options.height ?? Infinity
   /**
    * An item's text
    * @param {Readonly<{ item: Key, source: string }>} content - The item
@@ -527,7 +591,7 @@ function renderTerminal(options) {
    * @returns {void}
    */
   const draw = () => {
-    laid = layout(host.tree(), { focused, item, parts })
+    laid = layout(host.tree(), { focused, height, item, parts })
     for (const [key, node] of laid.nodes) {
       if (node.aria['modal'] === true) {
         const open = shown(key)
@@ -544,7 +608,7 @@ function renderTerminal(options) {
     }
     if (focused === null || !laid.nodes.has(focused) || !shown(focused)) {
       focused = tabbable()[0] ?? null
-      laid = layout(host.tree(), { focused, item, parts })
+      laid = layout(host.tree(), { focused, height, item, parts })
     }
     const status = [segment(said, null, 'dim')]
     options.write(`${ESC}[H${paint([...laid.rows, [], status], options.columns)}${ESC}[J`)
@@ -613,6 +677,29 @@ function renderTerminal(options) {
   }
 
   /**
+   * Delivers a pointer event where it lands: to the part under the pointer (none, outside a shown modal part, which
+   * makes the rest inert), or, when nothing there takes it, to the popup drawn last if it lands outside it
+   * @param {string | null} under - The part under the pointer
+   * @param {Readonly<{ [field: string]: Data }> & Readonly<{ type: string }>} event - The event's fields
+   * @returns {boolean} Whether its default was prevented
+   */
+  const press = (under, event) => {
+    const kept = trap()
+    const live = kept !== null && under !== null && !inside(under, kept) ? null : under
+    if (outwards(live).some((one) => laid.nodes.get(one)?.listens.includes(event.type) === true)) {
+      return fire(live, event)
+    }
+    /** @type {string | null} */
+    let last = null
+    for (const [part, node] of laid.nodes) {
+      if (node.popup !== null && shown(part)) {
+        last = part
+      }
+    }
+    return last !== null && (live === null || !inside(live, last)) ? fire(last, event) : false
+  }
+
+  /**
    * Handles a mouse report as pointer events, a press's focus and a click
    * @param {Extract<TerminalEvent, { kind: 'mouse' }>} event - The report
    * @returns {void}
@@ -624,21 +711,19 @@ function renderTerminal(options) {
     const at = partAt(event.x, event.y)
     const point = { button: 0, clientX: event.x - 1, clientY: event.y - 1, pointerId: 1 }
     if (event.release) {
-      fire(at, { ...point, type: 'pointerup' })
+      press(at, { ...point, type: 'pointerup' })
       const from = pressed
       pressed = null
       const shared = outwards(from?.key ?? null).find((one) => outwards(at).includes(one)) ?? null
-      if (shared !== null) {
-        fire(shared, { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, type: 'click' })
-      }
+      press(shared, { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false, type: 'click' })
     } else if (event.motion) {
       if (pressed !== null) {
-        fire(at, { ...point, type: 'pointermove' })
+        press(at, { ...point, type: 'pointermove' })
       }
     } else {
       pressed = { key: at, x: event.x, y: event.y }
-      fire(at, { ...point, type: 'pointerdown' })
-      if (!fire(at, { button: 0, type: 'mousedown' })) {
+      press(at, { ...point, type: 'pointerdown' })
+      if (!press(at, { button: 0, type: 'mousedown' })) {
         const focusable = outwards(at).find((one) => laid.nodes.get(one)?.tabindex !== null)
         if (focusable !== undefined) {
           setFocus(focusable)

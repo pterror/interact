@@ -89,6 +89,7 @@ function close(own, host) {
   const value = own.open
   const [open, id] = pendingChange({ ...value, changes: [...value.changes] }, false)
   own.open = open
+  own.outside = false
   host.preventDefault(HERE)
   host.change(HERE, id, false)
   return own
@@ -112,19 +113,22 @@ export function dialog(content, initialFocus) {
     return {
       closeLabel: props.closeLabel,
       content: props.content,
+      ignoreOutside: props.ignoreOutside,
       open: pendingPending(true, props.open),
+      outside: false,
       title: props.title,
     }
   }
   function step(own, input, host) {
     switch (input.type) {
       case 'props': {
-        const { closeLabel, open, title } = input.props
+        const { closeLabel, ignoreOutside, open, title } = input.props
         const ownOpen = own.open
         const value = input.props.content
         const value2 = own.open
         own.closeLabel = closeLabel
         own.content = value
+        own.ignoreOutside = ignoreOutside
         own.open = pendingFromApp({ ...value2, changes: [...value2.changes] }, true, open)
         own.title = title
         if (pendingShown(own.open) && !pendingShown(ownOpen)) {
@@ -141,8 +145,15 @@ export function dialog(content, initialFocus) {
         }
         return own
       }
+      case 'mousedown': {
+        own.outside = input.part === 'root'
+        return own
+      }
       case 'click': {
         if (input.part === 'close') {
+          return close(own, host)
+        }
+        if (input.part === 'root' && own.outside && !own.ignoreOutside) {
           return close(own, host)
         } else {
           return own
@@ -166,6 +177,10 @@ export function dialog(content, initialFocus) {
     } else {
       return own
     }
+  }
+  function bubbleContentMousedown(own, host) {
+    own.outside = false
+    return own
   }
   function contentProps(own) {
     return own.content
@@ -263,6 +278,9 @@ export function dialog(content, initialFocus) {
       if (input.type === 'keydown') {
         current.own = bubbleContentKeydown(current.own, input, prevented, ownHost)
       }
+      if (input.type === 'mousedown') {
+        current.own = bubbleContentMousedown(current.own, ownHost)
+      }
     }
   }
 
@@ -308,7 +326,7 @@ export function dialog(content, initialFocus) {
   }
 
   return {
-    bubble: { content: { keydown: bubbleContentKeydown } },
+    bubble: { content: { keydown: bubbleContentKeydown, mousedown: bubbleContentMousedown } },
     capture: {},
     children: { content },
     deliver,

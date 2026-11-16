@@ -14,9 +14,11 @@ import { optionsOf, run, typesOf } from '../interact.js'
 
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
- * (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). `open` is always the app's, by the contract's rule:
- * Escape (one the content didn't take, heard as it bubbles from the content) and the close button close it at
- * once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. Opening
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), shown over everything else in an overlay. `open` is
+ * always the app's, by the contract's rule: Escape (one the content didn't take, heard as it bubbles from the
+ * content), the close button, and a press outside the dialog (on the overlay, unless `ignoreOutside`) close it
+ * at once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. A press
+ * outside closes it once it is released there, so what is under the overlay never takes the click. Opening
  * focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what
  * `aria-modal` asks of the host.
  * @template {AnyComponent} Content
@@ -29,7 +31,7 @@ function dialog(content, initialFocus) {
   const description = {
     events: [],
     inside: { content: content.description },
-    props: ['closeLabel', 'title'],
+    props: ['closeLabel', 'ignoreOutside', 'title'],
     value: { empty: false, kind: 'boolean', prop: 'open', wrapped: false },
     widget: widget(content.description.widget, initialFocus),
   }
@@ -40,7 +42,7 @@ function dialog(content, initialFocus) {
    * @returns {() => VNodeChild} The render function
    */
   const setup = (props, context) => run(description, props, context)
-  /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, parts: 'close' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
+  /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>>, parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
   const types = typesOf
   return Object.assign(defineComponent(setup, optionsOf(description, 'Dialog')), { description, types: types() })
 }

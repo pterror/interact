@@ -169,7 +169,13 @@ const SELECT_RUNS = [
   },
 ]
 
-const DIALOG = { closeLabel: 'Close', content: { ...SELECT, rows: 3 }, open: true, title: 'Pick a fruit' }
+const DIALOG = {
+  closeLabel: 'Close',
+  ignoreOutside: false,
+  content: { ...SELECT, rows: 3 },
+  open: true,
+  title: 'Pick a fruit',
+}
 
 /** @type {readonly CompositeRun[]} */
 const DIALOG_RUNS = [

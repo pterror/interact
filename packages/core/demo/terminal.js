@@ -86,6 +86,7 @@ const app = compose({
     }),
     picker: (own) => ({
       closeLabel: 'Close',
+      ignoreOutside: false,
       content: { label: 'Fruit', placeholder: 'Choose…', rows: 4, source: 'fruit', value: { value: own.picked } },
       open: own.open,
       title: 'Pick a fruit',

@@ -10,9 +10,11 @@ type WidgetProps = PropsOf<Widget>
 
 /**
  * A modal dialog around a content widget: the WAI-ARIA modal dialog
- * (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). `open` is always the app's, by the contract's rule:
- * Escape (one the content didn't take, heard as it bubbles from the content) and the close button close it at
- * once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. Opening
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/), shown over everything else in an overlay. `open` is
+ * always the app's, by the contract's rule: Escape (one the content didn't take, heard as it bubbles from the
+ * content), the close button, and a press outside the dialog (on the overlay, unless `ignoreOutside`) close it
+ * at once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. A press
+ * outside closes it once it is released there, so what is under the overlay never takes the click. Opening
  * focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what
  * `aria-modal` asks of the host.
  */
