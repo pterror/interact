@@ -32,6 +32,7 @@ describe('packages', () => {
       '@pterror/interact-markdown -> @lezer/markdown',
       '@pterror/interact-react -> react',
       '@pterror/interact-solid -> solid-js',
+      '@pterror/interact-svelte -> svelte',
       '@pterror/interact-vue -> vue',
     ])
   })

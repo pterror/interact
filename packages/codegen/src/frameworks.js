@@ -356,6 +356,170 @@ function solid(widgets, header) {
 }
 
 /**
+ * Svelte's components: per widget, a module of its description (or, for a factory, making it), a component in runes
+ * (Svelte 5) and one in the legacy syntax (Svelte 4) binding the widget's bound value by its own name, each with its
+ * declarations
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @returns {Files} The files
+ */
+function svelte(widgets, header) {
+  /** @type {Map<string, string>} */
+  const files = new Map()
+  const comment = header.replace(/^\/\/ ?/u, '')
+  for (const widget of widgets) {
+    const name = capital(widget.name)
+    const file = fileName(widget.name)
+    const bound = widget.value?.prop ?? null
+    const inside = insideParams(widget)
+    const factory = widget.factory ?? []
+    const descriptionModule =
+      widget.factory === null
+        ? `${header}
+import { ${widget.name} as widget } from '${coreModule(widget)}'
+
+/**
+${docLines(widget.doc)}
+ * @type {import('@pterror/interact-core').Description}
+ */
+const ${widget.name} = ${descriptionLiteral(widget, 'widget', '{}')}
+
+export { ${widget.name} }
+`
+        : `${header}
+import { ${widget.name} as widget } from '${coreModule(widget)}'
+
+/**
+${docLines(widget.doc)}
+${factory
+  .map((param) =>
+    param.inside === null
+      ? ` * @param {Parameters<typeof widget>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`
+      : ` * @param {import('@pterror/interact-core').Description} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`,
+  )
+  .join('\n')}
+ * @returns {import('@pterror/interact-core').Description} The description
+ */
+function ${widget.name}(${factory.map((param) => param.name).join(', ')}) {
+  return ${descriptionLiteral(
+    widget,
+    `widget(${factory.map((param) => (param.inside === null ? param.name : `${param.name}.widget`)).join(', ')})`,
+    `{ ${inside.map((param) => `${param.inside}: ${param.name}`).join(', ')} }`,
+  )}
+}
+
+export { ${widget.name} }
+`
+    files.set(`widgets/${file}.js`, descriptionModule)
+    const of = widget.factory === null ? '' : 'of, '
+    const made =
+      widget.factory === null
+        ? `const description = ${widget.name}`
+        : `const description = ${widget.name}(${factory.map((param) => `of.${param.name}`).join(', ')})`
+    files.set(
+      `widgets/${file}.svelte`,
+      `<!-- ${comment} -->
+<script>
+  import Interact from '../interact.svelte'
+  import { ${widget.name} } from './${file}.js'
+
+  /** @type {Record<string, unknown>} */
+  let { ${of}${bound === null ? '' : `${bound} = $bindable(), `}...rest } = $props()
+  ${made}
+</script>
+
+<Interact {description}${bound === null ? '' : ` bind:bound={${bound}}`} {...rest} />
+`,
+    )
+    const typing = `${valueType(widget)}, ${eventType(widget)}`
+    const own = `Own<WidgetProps, ${bound === null ? 'never' : `'${bound}'`}, ${typing}, ${inside.length === 0 ? 'unknown' : `{ ${inside.map((param) => `${param.inside}: Record<string, unknown>`).join(', ')} }`}>`
+    const typeImports = `import type { Description, ${widget.events.length > 0 ? 'EffectOf, ' : ''}Key, PropsOf } from '@pterror/interact-core'
+import type { ${widget.name} as widget } from '${coreModule(widget)}'`
+    const typeAliases = `type Widget = ${widget.factory === null ? 'typeof widget' : 'ReturnType<typeof widget>'}
+type WidgetProps = PropsOf<Widget>
+`
+    files.set(
+      `widgets/${file}.svelte.d.ts`,
+      `${header}
+${typeImports}
+import type { Component, Snippet } from 'svelte'
+
+import type { HostProps, Own } from '../run.js'
+
+${typeAliases}
+/**
+${docLines(widget.doc)}
+ */
+declare const ${name}: Component<
+  ${own} &
+    HostProps & {
+      children?: Snippet<[Key]>
+      parts?: Readonly<Record<${partUnion(widget)}${inside.length === 0 ? '' : ' | string'}, Snippet<[Record<string, unknown>, Readonly<{ name: string; item: Key | null }>, Snippet]>>>${
+        widget.factory === null
+          ? ''
+          : `
+      of: Readonly<{ ${factory.map((param) => `${param.name}: ${param.inside === null ? `Parameters<typeof widget>[${String(factory.indexOf(param))}]` : 'Description'}`).join('; ')} }>`
+      }
+    },
+  Record<string, never>,
+  ${bound === null ? 'never' : `'${bound}'`}
+>
+export default ${name}
+`,
+    )
+    files.set(
+      `legacy/widgets/${file}.svelte.d.ts`,
+      `${header}
+${typeImports}
+import type { SvelteComponent } from 'svelte'
+
+import type { HostProps } from '../../run.js'
+
+${typeAliases}
+/**
+${docLines(widget.doc)}
+ */
+declare class ${name} extends SvelteComponent<
+  Omit<WidgetProps, ${
+    [bound, ...inside.map((param) => param.inside)]
+      .filter((one) => one !== null)
+      .map((one) => `'${one}'`)
+      .join(' | ') || 'never'
+  }> &
+    HostProps & {${bound === null ? '' : ` ${bound}?: ${valueType(widget)};`}${inside.map((param) => ` ${param.inside}: Record<string, unknown>;`).join('')} item?: unknown; parts?: Readonly<Record<string, unknown>>${widget.factory === null ? '' : `; of: Readonly<Record<string, unknown>>`} },
+  { change: CustomEvent<{ value: ${valueType(widget)}; change: { refuse: () => void } }>${widget.events.map((event) => `; ${event}: CustomEvent<Extract<${widget.events.length > 0 ? 'EffectOf<Widget>' : 'never'}, { type: '${event}' }>>`).join('')} }
+> {}
+export default ${name}
+`,
+    )
+    files.set(
+      `legacy/widgets/${file}.svelte`,
+      `<!-- ${comment} -->
+<script>
+  import Interact from '../interact.svelte'
+  import { ${widget.name} } from '../../widgets/${file}.js'
+${widget.factory === null ? '' : "\n  /** @type {{ content: import('@pterror/interact-core').Description, initialFocus: readonly string[] }} */\n  export let of\n"}${bound === null ? '' : `\n  /** @type {unknown} */\n  export let ${bound} = undefined\n`}
+  ${made}
+</script>
+
+<Interact {description}${bound === null ? '' : ` bind:bound={${bound}}`} {...$$restProps} on:change${widget.events.map((event) => ` on:${event}`).join('')}>
+</Interact>
+`,
+    )
+  }
+  const lines = widgets.flatMap((widget) => [
+    `export { default as ${capital(widget.name)} } from './widgets/${fileName(widget.name)}.svelte'`,
+    `export { ${widget.name} } from './widgets/${fileName(widget.name)}.js'`,
+  ])
+  files.set('index.js', `${header}\nexport { default as Interact } from './interact.svelte'\n${lines.join('\n')}\n`)
+  files.set(
+    'legacy/index.js',
+    `${header}\nexport { default as Interact } from './interact.svelte'\n${lines.map((line) => line.replace(/from '\.\/widgets\/(?<file>[\w-]+)\.js'/u, "from '../widgets/$<file>.js'")).join('\n')}\n`,
+  )
+  return files
+}
+
+/**
  * Vue's components
  * @param {readonly Described[]} widgets - The widgets
  * @param {string} header - The generated files' header
@@ -380,6 +544,7 @@ function vue(widgets, header) {
 
 export {
   solid,
+  svelte,
   vue,
   capital,
   componentIndex,

@@ -1,0 +1,11 @@
+{
+  "name": "@pterror/interact-test-svelte-4.2.20",
+  "private": true,
+  "description": "The framework version svelte-4.2.20 the components are tested against",
+  "type": "module",
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*",
+    "axe-core": "^4.14.0",
+    "svelte": "4.2.20"
+  }
+}

@@ -18,7 +18,8 @@
     "**/docs/.vitepress/**",
     "packages/codegen/out/**",
     // What the code generator writes (scripts/components.js), which tsgo checks
-    "packages/*/src/widgets/**"
+    "packages/*/src/widgets/**",
+    "packages/*/src/legacy/widgets/**"
   ],
   "overrides": [
     {
@@ -36,6 +37,25 @@
         "packages/solid/src/component*.js"
       ],
       "rules": { "unicorn/no-null": "off" }
+    },
+    {
+      // A Svelte 4 component declares its props as `export let` and its reactive statements as `$:` labels; a Svelte 5
+      // component drawing a tree imports itself; the core's data is `null`-based.
+      "files": ["packages/svelte/src/**/*.svelte"],
+      "rules": {
+        "import/no-mutable-exports": "off",
+        "eslint/no-labels": "off",
+        "eslint/no-global-assign": "off",
+        "import/unambiguous": "off",
+        "import/no-cycle": "off",
+        "import/no-self-import": "off",
+        "unicorn/no-null": "off"
+      }
+    },
+    {
+      // oxlint reads no `.svelte` file, so it can't see a component's default export.
+      "files": ["packages/svelte/src/**/*.js"],
+      "rules": { "import/named": "off" }
     },
     {
       // The core writes `(x) | 0` where an integer may leave i32 (packages/core/src/contract.js): a wrap the code

@@ -4,7 +4,7 @@
  */
 
 import { describe } from '../packages/codegen/src/components.js'
-import { react, solid, vue } from '../packages/codegen/src/frameworks.js'
+import { react, solid, svelte, vue } from '../packages/codegen/src/frameworks.js'
 import { load } from '../packages/codegen/src/program.js'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -26,6 +26,7 @@ if (diagnostics.length > 0) {
 const packages = [
   ['react', react(widgets, HEADER)],
   ['solid', solid(widgets, HEADER)],
+  ['svelte', svelte(widgets, HEADER)],
   ['vue', vue(widgets, HEADER)],
 ]
 
