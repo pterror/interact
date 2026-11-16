@@ -89,137 +89,15 @@ declare const List: import("vue").DefineSetupFnComponent<Omit<Readonly<{
 }> & {
     [x: `on${Capitalize<string>}`]: ((...args: any[]) => any) | undefined;
 }, import("vue").PublicProps> & {
-    description: {
-        events: string[];
-        inside: {};
-        props: string[];
-        value: {
-            empty: null;
-            prop: string;
-            wrapped: boolean;
-        };
-        widget: Readonly<{
-            init: (props: Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selected: Readonly<{
-                    value: import("@pterror/interact-core/contract").Key | null;
-                }> | null;
-            }>) => import("@pterror/interact-core/contract").Result<Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selection: import("@pterror/interact-core/pending").Pending<import("@pterror/interact-core/contract").Key | null>;
-                revision: import("@pterror/interact-core/contract").i53;
-                count: import("@pterror/interact-core/contract").i32 | null;
-                top: import("@pterror/interact-core/contract").i32;
-                from: import("@pterror/interact-core/contract").i32;
-                keys: readonly import("@pterror/interact-core/contract").Key[];
-                asked: import("@pterror/interact-core/contract").i53;
-                askedFor: import("@pterror/interact-core/list").Asked | null;
-                active: import("@pterror/interact-core/contract").Key | null;
-                activeRank: import("@pterror/interact-core/contract").i32 | null;
-                follow: 'key' | 'rank' | 'last';
-                rowSize: number | null;
-            }>, import("@pterror/interact-core/list").ListEffect>;
-            step: (state: Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selection: import("@pterror/interact-core/pending").Pending<import("@pterror/interact-core/contract").Key | null>;
-                revision: import("@pterror/interact-core/contract").i53;
-                count: import("@pterror/interact-core/contract").i32 | null;
-                top: import("@pterror/interact-core/contract").i32;
-                from: import("@pterror/interact-core/contract").i32;
-                keys: readonly import("@pterror/interact-core/contract").Key[];
-                asked: import("@pterror/interact-core/contract").i53;
-                askedFor: import("@pterror/interact-core/list").Asked | null;
-                active: import("@pterror/interact-core/contract").Key | null;
-                activeRank: import("@pterror/interact-core/contract").i32 | null;
-                follow: 'key' | 'rank' | 'last';
-                rowSize: number | null;
-            }>, input: import("@pterror/interact-core/list").ListInput) => import("@pterror/interact-core/contract").Result<Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selection: import("@pterror/interact-core/pending").Pending<import("@pterror/interact-core/contract").Key | null>;
-                revision: import("@pterror/interact-core/contract").i53;
-                count: import("@pterror/interact-core/contract").i32 | null;
-                top: import("@pterror/interact-core/contract").i32;
-                from: import("@pterror/interact-core/contract").i32;
-                keys: readonly import("@pterror/interact-core/contract").Key[];
-                asked: import("@pterror/interact-core/contract").i53;
-                askedFor: import("@pterror/interact-core/list").Asked | null;
-                active: import("@pterror/interact-core/contract").Key | null;
-                activeRank: import("@pterror/interact-core/contract").i32 | null;
-                follow: 'key' | 'rank' | 'last';
-                rowSize: number | null;
-            }>, import("@pterror/interact-core/list").ListEffect>;
-            view: (state: Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selection: import("@pterror/interact-core/pending").Pending<import("@pterror/interact-core/contract").Key | null>;
-                revision: import("@pterror/interact-core/contract").i53;
-                count: import("@pterror/interact-core/contract").i32 | null;
-                top: import("@pterror/interact-core/contract").i32;
-                from: import("@pterror/interact-core/contract").i32;
-                keys: readonly import("@pterror/interact-core/contract").Key[];
-                asked: import("@pterror/interact-core/contract").i53;
-                askedFor: import("@pterror/interact-core/list").Asked | null;
-                active: import("@pterror/interact-core/contract").Key | null;
-                activeRank: import("@pterror/interact-core/contract").i32 | null;
-                follow: 'key' | 'rank' | 'last';
-                rowSize: number | null;
-            }>, props: Readonly<{
-                label: string;
-                rows: import("@pterror/interact-core/contract").i32;
-                source: string;
-                shown: boolean;
-                focusable: boolean;
-                selected: Readonly<{
-                    value: import("@pterror/interact-core/contract").Key | null;
-                }> | null;
-            }>) => Readonly<{
-                [name: string]: Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }> | ((item: import("@pterror/interact-core/contract").Key) => Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }>);
-            }>;
+    description: Readonly<{
+        widget: import("@pterror/interact-core/compose").AnyWidget;
+        props: readonly string[];
+        value: import("@pterror/interact-core/components").Bound | null;
+        events: readonly string[];
+        inside: Readonly<{
+            [prop: string]: import("@pterror/interact-core/components").Description;
         }>;
-    };
+    }>;
     types: Readonly<{
         own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
             type: 'active';

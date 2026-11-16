@@ -25,7 +25,7 @@ const Select = component({
   events: [],
   inside: {},
   props: ['label', 'placeholder', 'rows', 'source'],
-  value: { empty: null, prop: 'value', wrapped: true },
+  value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
   widget,
 })
 

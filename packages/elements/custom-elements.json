@@ -1,0 +1,1050 @@
+{
+  "modules": [
+    {
+      "declarations": [
+        {
+          "attributes": [
+            {
+              "description": "The widget's `closeLabel`",
+              "fieldName": "closeLabel",
+              "name": "close-label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `title`",
+              "fieldName": "title",
+              "name": "title",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value: where it starts, and (for a flag) where it is",
+              "fieldName": "open",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The part focused when it opens, from the dialog (`['content', ...]` is inside the content), as a space-separated list",
+              "name": "initial-focus",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "The button; its `part` also names each state it shows",
+              "name": "close"
+            },
+            {
+              "description": "The dialog; its `part` also names each state it shows",
+              "name": "root"
+            },
+            {
+              "description": "The heading; its `part` also names each state it shows",
+              "name": "title"
+            },
+            {
+              "description": "The root of the element inside (content)",
+              "name": "content"
+            }
+          ],
+          "cssStates": [],
+          "customElement": true,
+          "description": "A modal dialog around a content widget: the WAI-ARIA modal dialog (https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/). `open` is always the app's, by the contract's rule: Escape (one the content didn't take, heard as it bubbles from the content) and the close button close it at once, pending, and emit `change` with `false`; the props confirm it, or `refused` opens it again. Opening focuses the part the app names. Keeping focus inside while open, and giving it back on close, is what `aria-modal` asks of the host.",
+          "events": [
+            {
+              "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
+              "name": "change",
+              "type": {
+                "text": "CustomEvent<{ value: unknown, refuse: () => void }>"
+              }
+            }
+          ],
+          "kind": "class",
+          "members": [
+            {
+              "description": "The widget's `closeLabel`",
+              "kind": "field",
+              "name": "closeLabel",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `title`",
+              "kind": "field",
+              "name": "title",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value, which a change sets",
+              "kind": "field",
+              "name": "open",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its key as text",
+              "kind": "field",
+              "name": "item",
+              "type": {
+                "text": "(key: Key) => string | Node"
+              }
+            },
+            {
+              "description": "An item's name in announcements: by default, its key as text",
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "(key: Key) => string"
+              }
+            },
+            {
+              "description": "How ids are made: by default, a prefix of its own and each key as text",
+              "kind": "field",
+              "name": "naming",
+              "type": {
+                "text": "Naming"
+              }
+            },
+            {
+              "description": "The collections the widget asks about, by the names its props give them",
+              "kind": "field",
+              "name": "sources",
+              "type": {
+                "text": "{ [name: string]: Source }"
+              }
+            },
+            {
+              "description": "Rebinds a key: the standard key the widget hears for one pressed",
+              "kind": "field",
+              "name": "translate",
+              "type": {
+                "text": "(input) => input | null"
+              }
+            },
+            {
+              "description": "The words announcements use, over the English ones",
+              "kind": "field",
+              "name": "words",
+              "type": {
+                "text": "Words"
+              }
+            }
+          ],
+          "name": "DialogElement",
+          "slots": [
+            {
+              "description": "What the `close` part says, over the widget's text",
+              "name": "close"
+            },
+            {
+              "description": "What the `title` part says, over the widget's text",
+              "name": "title"
+            }
+          ],
+          "superclass": {
+            "module": "src/element.js",
+            "name": "InteractElement"
+          },
+          "tagName": "interact-dialog"
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/widgets/dialog.js",
+            "name": "DialogElement"
+          },
+          "kind": "js",
+          "name": "DialogElement"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/widgets/dialog.js"
+    },
+    {
+      "declarations": [
+        {
+          "attributes": [
+            {
+              "description": "The widget's `focusable`",
+              "fieldName": "focusable",
+              "name": "focusable",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `label`",
+              "fieldName": "label",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "fieldName": "rows",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `shown`",
+              "fieldName": "shown",
+              "name": "shown",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "fieldName": "source",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value: where it starts, and (for a flag) where it is",
+              "fieldName": "selected",
+              "name": "selected",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "The option, one per item; its `part` also names each state it shows",
+              "name": "option"
+            },
+            {
+              "description": "The listbox; its `part` also names each state it shows",
+              "name": "root"
+            }
+          ],
+          "cssStates": [
+            {
+              "description": "A part drawn once shows `active`",
+              "name": "active"
+            },
+            {
+              "description": "A part drawn once shows `selected`",
+              "name": "selected"
+            }
+          ],
+          "customElement": true,
+          "description": "A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset. Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.",
+          "events": [
+            {
+              "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
+              "name": "change",
+              "type": {
+                "text": "CustomEvent<{ value: unknown, refuse: () => void }>"
+              }
+            },
+            {
+              "description": "The widget's `active` effect, as its detail",
+              "name": "active",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ],
+          "kind": "class",
+          "members": [
+            {
+              "description": "The widget's `focusable`",
+              "kind": "field",
+              "name": "focusable",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `label`",
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "kind": "field",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `shown`",
+              "kind": "field",
+              "name": "shown",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "kind": "field",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value, which a change sets",
+              "kind": "field",
+              "name": "selected",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its key as text",
+              "kind": "field",
+              "name": "item",
+              "type": {
+                "text": "(key: Key) => string | Node"
+              }
+            },
+            {
+              "description": "An item's name in announcements: by default, its key as text",
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "(key: Key) => string"
+              }
+            },
+            {
+              "description": "How ids are made: by default, a prefix of its own and each key as text",
+              "kind": "field",
+              "name": "naming",
+              "type": {
+                "text": "Naming"
+              }
+            },
+            {
+              "description": "The collections the widget asks about, by the names its props give them",
+              "kind": "field",
+              "name": "sources",
+              "type": {
+                "text": "{ [name: string]: Source }"
+              }
+            },
+            {
+              "description": "Rebinds a key: the standard key the widget hears for one pressed",
+              "kind": "field",
+              "name": "translate",
+              "type": {
+                "text": "(input) => input | null"
+              }
+            },
+            {
+              "description": "The words announcements use, over the English ones",
+              "kind": "field",
+              "name": "words",
+              "type": {
+                "text": "Words"
+              }
+            }
+          ],
+          "name": "ListElement",
+          "slots": [],
+          "superclass": {
+            "module": "src/element.js",
+            "name": "InteractElement"
+          },
+          "tagName": "interact-list"
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/widgets/list.js",
+            "name": "ListElement"
+          },
+          "kind": "js",
+          "name": "ListElement"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/widgets/list.js"
+    },
+    {
+      "declarations": [
+        {
+          "attributes": [
+            {
+              "description": "The widget's `label`",
+              "fieldName": "label",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "The button; its `part` also names each state it shows",
+              "name": "button"
+            },
+            {
+              "description": "The menuitem, one per item; its `part` also names each state it shows",
+              "name": "item"
+            },
+            {
+              "description": "The menu; its `part` also names each state it shows",
+              "name": "menu"
+            },
+            {
+              "description": "A part; its `part` also names each state it shows",
+              "name": "root"
+            }
+          ],
+          "cssStates": [
+            {
+              "description": "A part drawn once shows `disabled`",
+              "name": "disabled"
+            },
+            {
+              "description": "A part drawn once shows `expanded`",
+              "name": "expanded"
+            }
+          ],
+          "customElement": true,
+          "description": "A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/), focus moved to each item in turn. Items are few and the app's, so they come in the props with their text, which typeahead reads. Choosing an item emits `activate`; disabled items are moved to but not chosen.",
+          "events": [
+            {
+              "description": "The widget's `activate` effect, as its detail",
+              "name": "activate",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ],
+          "kind": "class",
+          "members": [
+            {
+              "description": "The widget's `items`",
+              "kind": "field",
+              "name": "items",
+              "type": {
+                "text": "unknown"
+              }
+            },
+            {
+              "description": "The widget's `label`",
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its key as text",
+              "kind": "field",
+              "name": "item",
+              "type": {
+                "text": "(key: Key) => string | Node"
+              }
+            },
+            {
+              "description": "An item's name in announcements: by default, its key as text",
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "(key: Key) => string"
+              }
+            },
+            {
+              "description": "How ids are made: by default, a prefix of its own and each key as text",
+              "kind": "field",
+              "name": "naming",
+              "type": {
+                "text": "Naming"
+              }
+            },
+            {
+              "description": "The collections the widget asks about, by the names its props give them",
+              "kind": "field",
+              "name": "sources",
+              "type": {
+                "text": "{ [name: string]: Source }"
+              }
+            },
+            {
+              "description": "Rebinds a key: the standard key the widget hears for one pressed",
+              "kind": "field",
+              "name": "translate",
+              "type": {
+                "text": "(input) => input | null"
+              }
+            },
+            {
+              "description": "The words announcements use, over the English ones",
+              "kind": "field",
+              "name": "words",
+              "type": {
+                "text": "Words"
+              }
+            }
+          ],
+          "name": "MenuElement",
+          "slots": [
+            {
+              "description": "What the `button` part says, over the widget's text",
+              "name": "button"
+            },
+            {
+              "description": "What the `item` part says, over the widget's text",
+              "name": "item"
+            }
+          ],
+          "superclass": {
+            "module": "src/element.js",
+            "name": "InteractElement"
+          },
+          "tagName": "interact-menu"
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/widgets/menu.js",
+            "name": "MenuElement"
+          },
+          "kind": "js",
+          "name": "MenuElement"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/widgets/menu.js"
+    },
+    {
+      "declarations": [
+        {
+          "attributes": [
+            {
+              "description": "The widget's `dragDistance`",
+              "fieldName": "dragDistance",
+              "name": "drag-distance",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `focusable`",
+              "fieldName": "focusable",
+              "name": "focusable",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `keyshortcuts`",
+              "fieldName": "keyshortcuts",
+              "name": "keyshortcuts",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `label`",
+              "fieldName": "label",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "fieldName": "rows",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `shown`",
+              "fieldName": "shown",
+              "name": "shown",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "fieldName": "source",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value: where it starts, and (for a flag) where it is",
+              "fieldName": "selected",
+              "name": "selected",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "A part, one per item; its `part` also names each state it shows",
+              "name": "option"
+            },
+            {
+              "description": "A part; its `part` also names each state it shows",
+              "name": "root"
+            }
+          ],
+          "cssStates": [],
+          "customElement": true,
+          "description": "A listbox whose options can be reordered, by dragging with a pointer or by Alt+ArrowUp and Alt+ArrowDown on the active option, as in the WAI-ARIA listbox with rearrangeable options (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/examples/listbox-rearrangeable/). It is the list with its step and view wrapped: what it handles first is the drag and the move keys, and everything else is the list's. The order is the collection's, by the contract's rule: a move shows at once, is emitted as `move` with an id, and stays pending, applied over the keys the host answers with, until the host has it (`confirmed`, then the next answer holds it) or refuses it (`refused`, which undoes it). Every move is made against the order shown, pending moves included. ARIA has no word for a dragged item or a drop place (`aria-grabbed` and `aria-dropeffect` are deprecated), so they are `data` states, and a move is announced. A drag starts once the pointer has moved `dragDistance` (in the target's units) from where it was pressed, and lands by which option the pointer is over: after it when that option is later than the dragged one, before it when earlier.",
+          "events": [
+            {
+              "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
+              "name": "change",
+              "type": {
+                "text": "CustomEvent<{ value: unknown, refuse: () => void }>"
+              }
+            },
+            {
+              "description": "The widget's `active` effect, as its detail",
+              "name": "active",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ],
+          "kind": "class",
+          "members": [
+            {
+              "description": "The widget's `dragDistance`",
+              "kind": "field",
+              "name": "dragDistance",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `focusable`",
+              "kind": "field",
+              "name": "focusable",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `keyshortcuts`",
+              "kind": "field",
+              "name": "keyshortcuts",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `label`",
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "kind": "field",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `shown`",
+              "kind": "field",
+              "name": "shown",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "kind": "field",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value, which a change sets",
+              "kind": "field",
+              "name": "selected",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its key as text",
+              "kind": "field",
+              "name": "item",
+              "type": {
+                "text": "(key: Key) => string | Node"
+              }
+            },
+            {
+              "description": "An item's name in announcements: by default, its key as text",
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "(key: Key) => string"
+              }
+            },
+            {
+              "description": "How ids are made: by default, a prefix of its own and each key as text",
+              "kind": "field",
+              "name": "naming",
+              "type": {
+                "text": "Naming"
+              }
+            },
+            {
+              "description": "The collections the widget asks about, by the names its props give them",
+              "kind": "field",
+              "name": "sources",
+              "type": {
+                "text": "{ [name: string]: Source }"
+              }
+            },
+            {
+              "description": "Rebinds a key: the standard key the widget hears for one pressed",
+              "kind": "field",
+              "name": "translate",
+              "type": {
+                "text": "(input) => input | null"
+              }
+            },
+            {
+              "description": "The words announcements use, over the English ones",
+              "kind": "field",
+              "name": "words",
+              "type": {
+                "text": "Words"
+              }
+            }
+          ],
+          "name": "ReorderListElement",
+          "slots": [],
+          "superclass": {
+            "module": "src/element.js",
+            "name": "InteractElement"
+          },
+          "tagName": "interact-reorder-list"
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/widgets/reorder-list.js",
+            "name": "ReorderListElement"
+          },
+          "kind": "js",
+          "name": "ReorderListElement"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/widgets/reorder-list.js"
+    },
+    {
+      "declarations": [
+        {
+          "attributes": [
+            {
+              "description": "The widget's `label`",
+              "fieldName": "label",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `placeholder`",
+              "fieldName": "placeholder",
+              "name": "placeholder",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "fieldName": "rows",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "fieldName": "source",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value: where it starts, and (for a flag) where it is",
+              "fieldName": "value",
+              "name": "value",
+              "type": {
+                "text": "string"
+              }
+            }
+          ],
+          "cssParts": [
+            {
+              "description": "A part; its `part` also names each state it shows",
+              "name": "root"
+            },
+            {
+              "description": "The combobox; its `part` also names each state it shows",
+              "name": "trigger"
+            },
+            {
+              "description": "The option, one per item; its `part` also names each state it shows",
+              "name": "option"
+            },
+            {
+              "description": "The listbox; its `part` also names each state it shows",
+              "name": "list"
+            }
+          ],
+          "cssStates": [
+            {
+              "description": "A part drawn once shows `active`",
+              "name": "active"
+            },
+            {
+              "description": "A part drawn once shows `expanded`",
+              "name": "expanded"
+            },
+            {
+              "description": "A part drawn once shows `selected`",
+              "name": "selected"
+            }
+          ],
+          "customElement": true,
+          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.",
+          "events": [
+            {
+              "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
+              "name": "change",
+              "type": {
+                "text": "CustomEvent<{ value: unknown, refuse: () => void }>"
+              }
+            }
+          ],
+          "kind": "class",
+          "members": [
+            {
+              "description": "The widget's `label`",
+              "kind": "field",
+              "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `placeholder`",
+              "kind": "field",
+              "name": "placeholder",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `rows`",
+              "kind": "field",
+              "name": "rows",
+              "type": {
+                "text": "number"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "kind": "field",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The bound value, which a change sets",
+              "kind": "field",
+              "name": "value",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "How an item is drawn: by default, its key as text",
+              "kind": "field",
+              "name": "item",
+              "type": {
+                "text": "(key: Key) => string | Node"
+              }
+            },
+            {
+              "description": "An item's name in announcements: by default, its key as text",
+              "kind": "field",
+              "name": "name",
+              "type": {
+                "text": "(key: Key) => string"
+              }
+            },
+            {
+              "description": "How ids are made: by default, a prefix of its own and each key as text",
+              "kind": "field",
+              "name": "naming",
+              "type": {
+                "text": "Naming"
+              }
+            },
+            {
+              "description": "The collections the widget asks about, by the names its props give them",
+              "kind": "field",
+              "name": "sources",
+              "type": {
+                "text": "{ [name: string]: Source }"
+              }
+            },
+            {
+              "description": "Rebinds a key: the standard key the widget hears for one pressed",
+              "kind": "field",
+              "name": "translate",
+              "type": {
+                "text": "(input) => input | null"
+              }
+            },
+            {
+              "description": "The words announcements use, over the English ones",
+              "kind": "field",
+              "name": "words",
+              "type": {
+                "text": "Words"
+              }
+            }
+          ],
+          "name": "SelectElement",
+          "slots": [
+            {
+              "description": "What the `trigger` part says, over the widget's text",
+              "name": "trigger"
+            }
+          ],
+          "superclass": {
+            "module": "src/element.js",
+            "name": "InteractElement"
+          },
+          "tagName": "interact-select"
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/widgets/select.js",
+            "name": "SelectElement"
+          },
+          "kind": "js",
+          "name": "SelectElement"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/widgets/select.js"
+    },
+    {
+      "declarations": [
+        {
+          "description": "Registers every element's tag in a registry (by default the page's), but those it has already",
+          "kind": "function",
+          "name": "register",
+          "parameters": [
+            {
+              "name": "registry",
+              "optional": true,
+              "type": {
+                "text": "CustomElementRegistry"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "declaration": {
+            "module": "src/register.js",
+            "name": "register"
+          },
+          "kind": "js",
+          "name": "register"
+        },
+        {
+          "declaration": {
+            "module": "src/widgets/dialog.js",
+            "name": "DialogElement"
+          },
+          "kind": "custom-element-definition",
+          "name": "interact-dialog"
+        },
+        {
+          "declaration": {
+            "module": "src/widgets/list.js",
+            "name": "ListElement"
+          },
+          "kind": "custom-element-definition",
+          "name": "interact-list"
+        },
+        {
+          "declaration": {
+            "module": "src/widgets/menu.js",
+            "name": "MenuElement"
+          },
+          "kind": "custom-element-definition",
+          "name": "interact-menu"
+        },
+        {
+          "declaration": {
+            "module": "src/widgets/reorder-list.js",
+            "name": "ReorderListElement"
+          },
+          "kind": "custom-element-definition",
+          "name": "interact-reorder-list"
+        },
+        {
+          "declaration": {
+            "module": "src/widgets/select.js",
+            "name": "SelectElement"
+          },
+          "kind": "custom-element-definition",
+          "name": "interact-select"
+        }
+      ],
+      "kind": "javascript-module",
+      "path": "src/register.js"
+    }
+  ],
+  "schemaVersion": "2.1.0"
+}

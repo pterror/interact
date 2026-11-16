@@ -1,0 +1,13 @@
+/**
+ * A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws
+ * a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are
+ * known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and
+ * `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the
+ * list's `scroll` offset. Selection is the value, by the contract's rule: with `selected` in its props (not
+ * `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list
+ * emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`)
+ * without reading the list's state.
+ */
+declare const ListElement: typeof import("../element.js").InteractElement;
+export { ListElement };

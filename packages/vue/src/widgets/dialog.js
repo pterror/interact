@@ -5,7 +5,7 @@ import { defineComponent } from 'vue'
 import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { AnyComponent, Emits, Given, Own, OwnOf, PartsInside, Slots } from '../interact.js' */
-/** @import { PropsOf } from '@pterror/interact-core' */
+/** @import { Description, PropsOf } from '@pterror/interact-core' */
 /** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
 
 /** @typedef {ReturnType<typeof widget>} Widget */
@@ -24,11 +24,12 @@ import { optionsOf, run, typesOf } from '../interact.js'
  * @returns The component
  */
 function dialog(content, initialFocus) {
+  /** @type {Description} */
   const description = {
     events: [],
     inside: { content: content.description },
     props: ['closeLabel', 'title'],
-    value: { empty: false, prop: 'open', wrapped: false },
+    value: { empty: false, kind: 'boolean', prop: 'open', wrapped: false },
     widget: widget(content.description.widget, initialFocus),
   }
   /**

@@ -5,6 +5,7 @@
  * whose content is the widget's text, and, for a factory, the widgets it takes and the props each is given by.
  */
 
+import { ARIA_STATES } from '@pterror/interact-core'
 import ts from 'typescript'
 
 import { declarationOf, symbolOf } from './program.js'
@@ -27,12 +28,14 @@ const CARRIED = new Set([
   'wake',
 ])
 
-/** The ARIA attributes that are states (https://www.w3.org/TR/wai-aria-1.2/#state_prop_def), as the view names them */
-const ARIA_STATES = new Set(['busy', 'checked', 'current', 'disabled', 'expanded', 'invalid', 'pressed', 'selected'])
-
 /**
  * A part as the app names it: drawn once or per key, with its role where the view writes it out
  * @typedef {Readonly<{ name: string, perKey: boolean, role: string | null, text: boolean }>} PartInfo
+ */
+
+/**
+ * What a prop holds, as an attribute can give it: text, a number, a flag, or something only a property can
+ * @typedef {'string' | 'number' | 'boolean' | 'other'} Kind
  */
 
 /**
@@ -43,7 +46,8 @@ const ARIA_STATES = new Set(['busy', 'checked', 'current', 'disabled', 'expanded
  *   module: string,
  *   doc: string,
  *   props: readonly string[],
- *   value: Readonly<{ prop: string, wrapped: boolean, empty: null | boolean | number | string }> | null,
+ *   kinds: Readonly<{ [prop: string]: Kind }>,
+ *   value: Readonly<{ prop: string, wrapped: boolean, empty: null | boolean | number | string, kind: Kind }> | null,
  *   events: readonly string[],
  *   parts: readonly PartInfo[],
  *   states: readonly string[],
@@ -156,8 +160,14 @@ function readWidget(checker, name, declaration, root) {
   }
   const inside = new Set((factory ?? []).flatMap((param) => (param.inside === null ? [] : [param.inside])))
   const bound = value?.prop
+  /** @type {{ [prop: string]: Kind }} */
+  const kinds = {}
+  for (const [prop, propType] of props) {
+    kinds[prop] = kindOf(checker, propType)
+  }
   return {
     doc: moduleDoc(declaration.getSourceFile()),
+    kinds,
     events: [...effects.keys()].filter((type_) => !CARRIED.has(type_) && type_ !== 'change').toSorted(),
     factory,
     module,
@@ -406,7 +416,26 @@ function boundOf(checker, props, effects) {
       error: `its change effects carry a value no single prop is (${found.map((one) => one.prop).join(', ') || 'none'})`,
     }
   }
-  return { empty: emptyOf(value), ...only }
+  return { empty: emptyOf(value), kind: kindOf(checker, value), ...only }
+}
+
+/**
+ * What a type holds, as an attribute can give it
+ * @param {ts.TypeChecker} checker - The checker
+ * @param {ts.Type} type - The type
+ * @returns {Kind} Its kind: `string` for a key (an attribute gives a key as text)
+ */
+function kindOf(checker, type) {
+  const given = checker.getNonNullableType(type)
+  if (isBoolean(given)) {
+    return 'boolean'
+  }
+  if (isNumber(given)) {
+    return 'number'
+  }
+  return isString(given) || membersOf(given).every((member) => isString(member) || isNumber(member))
+    ? 'string'
+    : 'other'
 }
 
 /**
@@ -604,7 +633,7 @@ function hasText(literal) {
  */
 function statesOf(literal) {
   const aria = fieldNames(propertyOf(literal, 'aria'))
-  return [...aria.filter((name) => ARIA_STATES.has(name)), ...fieldNames(propertyOf(literal, 'data'))]
+  return [...aria.filter((name) => ARIA_STATES.includes(name)), ...fieldNames(propertyOf(literal, 'data'))]
 }
 
 /**

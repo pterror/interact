@@ -63,6 +63,16 @@
         "@pterror/interact-list",
       ],
     },
+    "packages/elements": {
+      "name": "@pterror/interact-elements",
+      "version": "0.0.0",
+      "devDependencies": {
+        "@pterror/interact-core": "workspace:*",
+      },
+      "peerDependencies": {
+        "@pterror/interact-core": "workspace:^",
+      },
+    },
     "packages/keybinds": {
       "name": "@pterror/interact-keybinds",
       "version": "0.1.0",
@@ -140,7 +150,7 @@
       },
       "peerDependencies": {
         "@pterror/interact-core": "workspace:^",
-        "svelte": "^4.0.0 || ^5.20.0",
+        "svelte": "^4.0.0 || ^5.26.0",
       },
     },
     "packages/vue": {
@@ -367,6 +377,8 @@
     "@pterror/interact-core": ["@pterror/interact-core@workspace:packages/core"],
 
     "@pterror/interact-editor": ["@pterror/interact-editor@workspace:packages/editor"],
+
+    "@pterror/interact-elements": ["@pterror/interact-elements@workspace:packages/elements"],
 
     "@pterror/interact-keybinds": ["@pterror/interact-keybinds@workspace:packages/keybinds"],
 

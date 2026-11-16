@@ -26,7 +26,7 @@ export { change, fromApp, pending, refuse, shown } from './pending.js'
 export { reorderList } from './reorder.js'
 export { select } from './select.js'
 export { layout, parseInput, renderTerminal } from './terminal.js'
-export { attributesOf, elementFor, identity, idOf, page, partName } from './web.js'
+export { ARIA_STATES, attributesOf, elementFor, identity, idOf, page, partName, statesOf } from './web.js'
 export { announcement, english, say } from './words.js'
 
 /** @typedef {import('./contract.js').Key} Key */

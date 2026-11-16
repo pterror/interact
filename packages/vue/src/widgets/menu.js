@@ -5,12 +5,13 @@ import { defineComponent } from 'vue'
 import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { Emits, Given, Own, Slots } from '../interact.js' */
-/** @import { EffectOf, PropsOf } from '@pterror/interact-core' */
+/** @import { Description, EffectOf, PropsOf } from '@pterror/interact-core' */
 /** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
 
 /** @typedef {typeof widget} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
+/** @type {Description} */
 const description = { events: ['activate'], inside: {}, props: ['items', 'label'], value: null, widget }
 /**
  * The setup

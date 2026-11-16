@@ -47,11 +47,12 @@ const DIALOG = { closeLabel: 'Close', title: 'Pick a fruit' }
  */
 
 /**
- * A framework, as these checks drive it: mounting a component, waiting until it has drawn what it was told, and
- * taking it down
+ * A framework, as these checks drive it: mounting a component, waiting until it has drawn what it was told, taking it
+ * down, and, for one drawing into a shadow root, where in the container its parts are
  * @typedef {Readonly<{
  *   mount: (mounting: Mounting) => Promise<() => void> | (() => void),
  *   settle: () => Promise<void>,
+ *   within?: (container: HTMLElement) => Element | ShadowRoot,
  * }>} Framework
  */
 
@@ -68,7 +69,8 @@ const DIALOG = { closeLabel: 'Close', title: 'Pick a fruit' }
 
 /**
  * A node as text: elements with their attributes sorted, text as it is, comments left out, so two renderers' DOM
- * compares by what it means
+ * compares by what it means. What only styles a part from outside a shadow root is left out too: the `part`
+ * attribute, and a slot, whose fallback text is what it shows
  * @param {Node} node - The node
  * @returns {string} The text
  */
@@ -79,8 +81,12 @@ function serialize(node) {
   if (!(node instanceof Element)) {
     return ''
   }
+  if (node.localName === 'slot') {
+    return node.textContent
+  }
   const attributes = node
     .getAttributeNames()
+    .filter((name) => name !== 'part')
     .map((name) => `${name}="${node.getAttribute(name) ?? ''}"`)
     .toSorted()
     .join(' ')
@@ -89,8 +95,20 @@ function serialize(node) {
 }
 
 /**
+ * The element focus is in, inside any shadow roots
+ * @returns {Element | null} The element
+ */
+function focusedNow() {
+  let focused = document.activeElement
+  while (focused?.shadowRoot?.activeElement !== null && focused?.shadowRoot?.activeElement !== undefined) {
+    focused = focused.shadowRoot.activeElement
+  }
+  return focused
+}
+
+/**
  * The element of a part, by its id
- * @param {HTMLElement} container - Where the widget is drawn
+ * @param {Element | ShadowRoot} container - Where the widget is drawn
  * @param {string} id - The part's id
  * @returns {HTMLElement} Its element
  */
@@ -104,7 +122,7 @@ function partIn(container, id) {
 
 /**
  * Carries out a step on a widget drawn in a container
- * @param {HTMLElement} container - Where it is drawn
+ * @param {Element | ShadowRoot} container - Where it is drawn
  * @param {Step} step - The step
  * @returns {boolean} Whether the step's default was prevented
  */
@@ -127,13 +145,13 @@ function carry(container, step) {
 
 /**
  * What a container shows now
- * @param {HTMLElement} container - Where the widget is drawn
+ * @param {Element | ShadowRoot} container - Where the widget is drawn
  * @param {boolean | null} prevented - Whether the last step's default was prevented
  * @param {readonly string[]} changes - The changes told so far
  * @returns {Snapshot} The snapshot
  */
 function snapshot(container, prevented, changes) {
-  const focused = document.activeElement
+  const focused = focusedNow()
   return {
     changes: [...changes],
     dom: [...container.childNodes].map((child) => serialize(child)).join(''),
@@ -267,12 +285,13 @@ async function framed(framework, kind, mode, value) {
   })
   await framework.settle()
   await settled()
-  const shots = [snapshot(container, null, changes)]
+  const root = framework.within?.(container) ?? container
+  const shots = [snapshot(root, null, changes)]
   for (const step of stepsFor(kind)) {
-    const prevented = carry(container, step)
+    const prevented = carry(root, step)
     // oxlint-disable-next-line no-await-in-loop -- each step lands before the next is taken
     await Promise.all([framework.settle(), settled()])
-    shots.push(snapshot(container, prevented, changes))
+    shots.push(snapshot(root, prevented, changes))
   }
   stop()
   await framework.settle()

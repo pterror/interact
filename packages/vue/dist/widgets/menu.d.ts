@@ -55,77 +55,15 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
 }> & {
     [x: `on${Capitalize<string>}`]: ((...args: any[]) => any) | undefined;
 }, import("vue").PublicProps> & {
-    description: {
-        events: string[];
-        inside: {};
-        props: string[];
-        value: null;
-        widget: Readonly<{
-            init: (props: Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-            }>) => import("@pterror/interact-core/contract").Result<Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-                open: boolean;
-                active: import("@pterror/interact-core/contract").Key | null;
-                prefix: string;
-                until: number;
-            }>, import("@pterror/interact-core/menu").MenuEffect>;
-            step: (state: Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-                open: boolean;
-                active: import("@pterror/interact-core/contract").Key | null;
-                prefix: string;
-                until: number;
-            }>, input: import("@pterror/interact-core/menu").MenuInput) => import("@pterror/interact-core/contract").Result<Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-                open: boolean;
-                active: import("@pterror/interact-core/contract").Key | null;
-                prefix: string;
-                until: number;
-            }>, import("@pterror/interact-core/menu").MenuEffect>;
-            view: (state: Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-                open: boolean;
-                active: import("@pterror/interact-core/contract").Key | null;
-                prefix: string;
-                until: number;
-            }>, props: Readonly<{
-                label: string;
-                items: readonly import("@pterror/interact-core/menu").MenuItem[];
-            }>) => Readonly<{
-                [name: string]: Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }> | ((item: import("@pterror/interact-core/contract").Key) => Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }>);
-            }>;
+    description: Readonly<{
+        widget: import("@pterror/interact-core/compose").AnyWidget;
+        props: readonly string[];
+        value: import("@pterror/interact-core/components").Bound | null;
+        events: readonly string[];
+        inside: Readonly<{
+            [prop: string]: import("@pterror/interact-core/components").Description;
         }>;
-    };
+    }>;
     types: Readonly<{
         own: Own<WidgetProps, never, never, Extract<EffectOf<Widget>, Readonly<{
             type: 'activate';

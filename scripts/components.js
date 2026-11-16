@@ -4,7 +4,8 @@
  */
 
 import { describe } from '../packages/codegen/src/components.js'
-import { react, solid, svelte, vue } from '../packages/codegen/src/frameworks.js'
+import { elements, react, solid, svelte, vue } from '../packages/codegen/src/frameworks.js'
+import { manifest } from '../packages/codegen/src/manifest.js'
 import { load } from '../packages/codegen/src/program.js'
 
 const ROOT = new URL('..', import.meta.url).pathname
@@ -24,6 +25,7 @@ if (diagnostics.length > 0) {
 
 /** @type {readonly (readonly [string, ReadonlyMap<string, string>])[]} */
 const packages = [
+  ['elements', elements(widgets, HEADER)],
   ['react', react(widgets, HEADER)],
   ['solid', solid(widgets, HEADER)],
   ['svelte', svelte(widgets, HEADER)],
@@ -36,16 +38,19 @@ const staging = made.trim()
 /** @type {string[]} */
 const stale = []
 /** @type {readonly Readonly<{ path: string, text: string }>[]} */
-const outputs = packages.flatMap((made_) => {
-  const [name, files] = made_
-  return Array.from(files.keys(), (path) => ({ path: `${name}/${path}`, text: files.get(path) ?? '' }))
-})
+const outputs = [
+  ...packages.flatMap((made_) => {
+    const [name, files] = made_
+    return Array.from(files.keys(), (path) => ({ path: `${name}/src/${path}`, text: files.get(path) ?? '' }))
+  }),
+  { path: 'elements/custom-elements.json', text: manifest(widgets) },
+]
 await Promise.all(outputs.map(async (output) => Bun.write(`${staging}/${output.path}`, output.text)))
 await Bun.$`${ROOT}node_modules/.bin/oxfmt --config=${ROOT}.oxfmtrc.json .`.cwd(staging).quiet()
 await Promise.all(
   outputs.map(async (output) => {
     const { path } = output
-    const target = `${ROOT}packages/${path.replace('/', '/src/')}`
+    const target = `${ROOT}packages/${path}`
     const text = await Bun.file(`${staging}/${path}`).text()
     const existing = Bun.file(target)
     const now = (await existing.exists()) ? await existing.text() : undefined

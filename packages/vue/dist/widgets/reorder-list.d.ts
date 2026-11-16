@@ -97,47 +97,15 @@ declare const ReorderList: import("vue").DefineSetupFnComponent<Omit<Readonly<{
 }> & {
     [x: `on${Capitalize<string>}`]: ((...args: any[]) => any) | undefined;
 }, import("vue").PublicProps> & {
-    description: {
-        events: string[];
-        inside: {};
-        props: string[];
-        value: {
-            empty: null;
-            prop: string;
-            wrapped: boolean;
-        };
-        widget: Readonly<{
-            init: (props: import("@pterror/interact-core/reorder").ReorderProps) => import("@pterror/interact-core/contract").Result<import("@pterror/interact-core/reorder").ReorderState, import("@pterror/interact-core/reorder").ReorderEffect>;
-            step: (state: import("@pterror/interact-core/reorder").ReorderState, input: import("@pterror/interact-core/reorder").ReorderInput) => import("@pterror/interact-core/contract").Result<import("@pterror/interact-core/reorder").ReorderState, import("@pterror/interact-core/reorder").ReorderEffect>;
-            view: (state: import("@pterror/interact-core/reorder").ReorderState, props: import("@pterror/interact-core/reorder").ReorderProps) => Readonly<{
-                [name: string]: Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }> | ((item: import("@pterror/interact-core/contract").Key) => Readonly<{
-                    role: string | null;
-                    aria: Readonly<{
-                        [name: string]: import("@pterror/interact-core/contract").AriaValue;
-                    }>;
-                    data: Readonly<{
-                        [name: string]: string | boolean | null;
-                    }>;
-                    tabindex: number | null;
-                    hidden: boolean;
-                    listens: readonly string[];
-                    content: readonly import("@pterror/interact-core/contract").Content[];
-                }>);
-            }>;
+    description: Readonly<{
+        widget: import("@pterror/interact-core/compose").AnyWidget;
+        props: readonly string[];
+        value: import("@pterror/interact-core/components").Bound | null;
+        events: readonly string[];
+        inside: Readonly<{
+            [prop: string]: import("@pterror/interact-core/components").Description;
         }>;
-    };
+    }>;
     types: Readonly<{
         own: Own<WidgetProps, 'selected', NonNullable<WidgetProps['selected']>['value'], Extract<EffectOf<Widget>, Readonly<{
             type: 'active';

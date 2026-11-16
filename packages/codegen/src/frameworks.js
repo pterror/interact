@@ -272,6 +272,7 @@ function vueModule(widget, header) {
   const insideLiteral = `{ ${inside.map((param) => `${param.inside}: ${param.name}.description`).join(', ')} }`
   const made = (/** @type {string} */ indent, /** @type {string} */ widgetExpression) =>
     [
+      '/** @type {Description} */',
       `const description = ${descriptionLiteral(widget, widgetExpression, inside.length === 0 ? '{}' : insideLiteral)}`,
       '/**',
       ' * The setup',
@@ -291,7 +292,7 @@ import { defineComponent } from 'vue'
 import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { ${inside.length === 0 ? '' : 'AnyComponent, '}Emits, Given, Own${inside.length === 0 ? '' : ', OwnOf, PartsInside'}, Slots } from '../interact.js' */
-/** @import { ${coreTypes} } from '@pterror/interact-core' */
+/** @import { Description, ${coreTypes} } from '@pterror/interact-core' */
 /** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */`
   if (widget.factory === null) {
     return `${header}
@@ -520,6 +521,121 @@ ${widget.factory === null ? '' : "\n  /** @type {{ content: import('@pterror/int
 }
 
 /**
+ * The kinds of an element's props: the widget's props and its bound value, but those holding the props of a widget
+ * inside
+ * @param {Described} widget - The widget
+ * @returns {{ [prop: string]: string }} Each prop's kind
+ */
+function elementKinds(widget) {
+  /** @type {{ [prop: string]: string }} */
+  const kinds = {}
+  for (const prop of widget.props) {
+    kinds[prop] = widget.kinds[prop] ?? 'other'
+  }
+  if (widget.value !== null) {
+    kinds[widget.value.prop] = widget.value.kind
+  }
+  return kinds
+}
+
+/**
+ * The tag of a widget's element
+ * @param {Described} widget - The widget
+ * @returns {string} The tag
+ */
+function tagOf(widget) {
+  return `interact-${fileName(widget.name)}`
+}
+
+/**
+ * The custom elements: per widget, a module defining its element and registering its tag
+ * @param {readonly Described[]} widgets - The widgets
+ * @param {string} header - The generated files' header
+ * @returns {Files} The files
+ */
+function elements(widgets, header) {
+  /** @type {Map<string, string>} */
+  const files = new Map()
+  for (const widget of widgets) {
+    const name = `${capital(widget.name)}Element`
+    const inside = insideParams(widget)
+    const factory = widget.factory ?? []
+    const plain = factory.filter((param) => param.inside === null)
+    const info =
+      widget.factory === null
+        ? `{ description: ${descriptionLiteral(widget, 'widget', '{}')}, factory: null, kinds: ${JSON.stringify(elementKinds(widget))}, params: [] }`
+        : `{
+  description: null,
+  /**
+${inside.map((param) => `   * @param {import('@pterror/interact-core').Description} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`).join('\n')}
+${plain.map((param) => `   * @param {Parameters<typeof widget>[${String(factory.indexOf(param))}]} ${param.name} - ${param.doc.replaceAll('\n', ' ')}`).join('\n')}
+   * @returns {import('@pterror/interact-core').Description} The widget, described
+   */
+  factory: (${inside.map((param) => param.name).join(', ')}, ${plain.map((param) => param.name).join(', ')}) => (${descriptionLiteral(
+    widget,
+    `widget(${factory.map((param) => (param.inside === null ? param.name : `${param.name}.widget`)).join(', ')})`,
+    `{ ${inside.map((param) => `${param.inside}: ${param.name}`).join(', ')} }`,
+  )}),
+  kinds: ${JSON.stringify(elementKinds(widget))},
+  params: ${JSON.stringify(plain.map((param) => param.name))},
+}`
+    files.set(
+      `widgets/${fileName(widget.name)}.js`,
+      `${header}
+import { ${widget.name} as widget } from '${coreModule(widget)}'
+
+import { define } from '../element.js'
+
+/**
+${docLines(widget.doc)}
+ */
+const ${name} = define(${info})
+
+export { ${name} }
+`,
+    )
+  }
+  files.set(
+    'register.js',
+    `${header}
+${widgets.map((widget) => `import { ${capital(widget.name)}Element } from './widgets/${fileName(widget.name)}.js'`).join('\n')}
+
+/**
+ * Each element's tag, and its class
+ * @type {readonly (readonly [string, CustomElementConstructor])[]}
+ */
+const TAGS = [
+${widgets.map((widget) => `  ['${tagOf(widget)}', ${capital(widget.name)}Element],`).join('\n')}
+]
+
+/**
+ * Registers every element's tag in a registry, but those it has already
+ * @param {CustomElementRegistry} registry - The registry
+ * @returns {void}
+ */
+function register(registry = customElements) {
+  for (const [tag, element] of TAGS) {
+    if (registry.get(tag) === undefined) {
+      registry.define(tag, element)
+    }
+  }
+}
+
+export { register }
+`,
+  )
+  files.set(
+    'index.js',
+    `${header}
+export { define, InteractElement } from './element.js'
+export { register } from './register.js'
+${widgets.map((widget) => `export { ${capital(widget.name)}Element } from './widgets/${fileName(widget.name)}.js'`).join('\n')}
+`,
+  )
+  return files
+}
+
+/**
  * Vue's components
  * @param {readonly Described[]} widgets - The widgets
  * @param {string} header - The generated files' header
@@ -543,7 +659,10 @@ function vue(widgets, header) {
 }
 
 export {
+  elementKinds,
+  elements,
   solid,
+  tagOf,
   svelte,
   vue,
   capital,

@@ -1,0 +1,29 @@
+{
+  "name": "@pterror/interact-elements",
+  "version": "0.0.0",
+  "private": true,
+  "description": "interact's widgets as custom elements, generated from each widget's view, props and effects, with their Custom Elements Manifest",
+  "license": "ISC",
+  "type": "module",
+  "sideEffects": false,
+  "main": "src/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./custom-elements.json": "./custom-elements.json",
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "default": "./src/*.js"
+    }
+  },
+  "devDependencies": {
+    "@pterror/interact-core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@pterror/interact-core": "workspace:^"
+  },
+  "customElements": "custom-elements.json"
+}

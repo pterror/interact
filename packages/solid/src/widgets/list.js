@@ -28,7 +28,7 @@ const List = component({
   events: ['active'],
   inside: {},
   props: ['focusable', 'label', 'rows', 'shown', 'source'],
-  value: { empty: null, prop: 'selected', wrapped: true },
+  value: { empty: null, kind: 'string', prop: 'selected', wrapped: true },
   widget,
 })
 

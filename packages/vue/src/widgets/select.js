@@ -5,17 +5,18 @@ import { defineComponent } from 'vue'
 import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { Emits, Given, Own, Slots } from '../interact.js' */
-/** @import { PropsOf } from '@pterror/interact-core' */
+/** @import { Description, PropsOf } from '@pterror/interact-core' */
 /** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
 
 /** @typedef {typeof widget} Widget */
 /** @typedef {PropsOf<Widget>} WidgetProps */
 
+/** @type {Description} */
 const description = {
   events: [],
   inside: {},
   props: ['label', 'placeholder', 'rows', 'source'],
-  value: { empty: null, prop: 'value', wrapped: true },
+  value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
   widget,
 }
 /**

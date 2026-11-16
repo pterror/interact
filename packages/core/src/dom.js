@@ -4,7 +4,7 @@
  * change.
  */
 
-import { elementFor, identity, page, partName } from './web.js'
+import { elementFor, identity, page, partName, statesOf } from './web.js'
 
 /** @import { Node as Part, Target } from './compose.js' */
 /** @import { Key } from './contract.js' */
@@ -18,10 +18,14 @@ import { elementFor, identity, page, partName } from './web.js'
  */
 
 /**
- * Where to draw, and what the page needs; optionally how the host draws an item (by default its key as text) and the
- * parts the app makes itself, by name (`option`)
+ * Where to draw (an element, or a shadow root), and what the page needs; optionally how the host draws an item (by
+ * default its key as text), the parts the app makes itself, by name (`option`), and whether each part's element names
+ * itself and the states it shows in its `part` attribute, for styling from outside a shadow root (`::part(option
+ * selected)`), and whether a part's text is the fallback of a slot named after the part, which the app can fill
  * @typedef {PageOptions & Readonly<{
- *   container: Element,
+ *   container: Element | ShadowRoot,
+ *   exposeParts?: boolean,
+ *   slotText?: boolean,
  *   item?: (key: Key) => string | globalThis.Node,
  *   parts?: Readonly<{ [name: string]: (target: Target) => Made }>,
  * }>} DomOptions
@@ -71,6 +75,8 @@ function renderDom(options) {
   const parts = options.parts ?? {}
   /** @type {Map<string, Made>} */
   const made = new Map()
+  /** @type {Map<string, HTMLSlotElement>} */
+  const slots = new Map()
   const live = document.createElement('div')
   live.setAttribute('role', 'status')
   const running = page(
@@ -117,9 +123,21 @@ function renderDom(options) {
     made.set(key, drawn)
     const { element, slot } = drawn
     running.bind(key, element, node)
+    if (options.exposeParts === true) {
+      element.setAttribute('part', [partName(node.target), ...statesOf(node)].join(' '))
+    }
     const children = node.content.map((content, index) => {
       if ('target' in content) {
         return draw(content, seen)
+      }
+      if ('text' in content && options.slotText === true) {
+        const named = slots.get(key) ?? document.createElement('slot')
+        slots.set(key, named)
+        named.setAttribute('name', partName(node.target))
+        if (named.textContent !== content.text) {
+          named.textContent = content.text
+        }
+        return named
       }
       const text = 'text' in content ? content.text : item(content.item)
       return typeof text === 'string' ? textAt(slot, index, text) : text
@@ -139,6 +157,7 @@ function renderDom(options) {
     for (const key of made.keys()) {
       if (!seen.has(key)) {
         made.delete(key)
+        slots.delete(key)
         running.unbind(key)
       }
     }

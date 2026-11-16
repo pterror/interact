@@ -177,6 +177,26 @@ function partName(target) {
 }
 
 /**
+ * The ARIA attributes that are states (https://www.w3.org/TR/wai-aria-1.2/#state_prop_def), by the names views give
+ * them
+ */
+const ARIA_STATES = ['busy', 'checked', 'current', 'disabled', 'expanded', 'invalid', 'pressed', 'selected']
+
+/**
+ * The states a part shows now: each ARIA state it has as `true`, and each of its `data` fields set, by name
+ * @param {Node} node - The part
+ * @returns {string[]} Their names
+ */
+function statesOf(node) {
+  const aria = ARIA_STATES.filter((name) => node.aria[name] === true || node.aria[name] === 'true')
+  const data = Object.keys(node.data).filter((name) => {
+    const value = node.data[name]
+    return value === true || (typeof value === 'string' && value !== '')
+  })
+  return [...aria, ...data]
+}
+
+/**
  * The role an element has without a `role` attribute, as far as parts go: a `button`'s
  * @param {Element} element - The element
  * @returns {string | null} The role
@@ -553,4 +573,4 @@ function page(options, live) {
   }
 }
 
-export { attributesOf, elementFor, identity, idOf, page, partName }
+export { ARIA_STATES, attributesOf, elementFor, identity, idOf, page, partName, statesOf }

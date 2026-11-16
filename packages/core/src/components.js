@@ -13,8 +13,9 @@ import { isRecord } from './compose.js'
 
 /**
  * The value a component binds: the widget's prop, whether the widget takes it as `{ value }` (with `null` for none
- * given: the select's `value`) or as it is (the dialog's `open`), and the value before any is given or chosen
- * @typedef {Readonly<{ prop: string, wrapped: boolean, empty: Data }>} Bound
+ * given: the select's `value`) or as it is (the dialog's `open`), the value before any is given or chosen, and what it
+ * holds as an attribute can give it (a key as text)
+ * @typedef {Readonly<{ prop: string, wrapped: boolean, empty: Data, kind: 'string' | 'number' | 'boolean' | 'other' }>} Bound
  */
 
 /**
