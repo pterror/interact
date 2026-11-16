@@ -56,8 +56,11 @@
 
 /**
  * The host methods a generated widget calls, as data: for each, the type of the effect it stands for and the effect's
- * fields, in the order the method takes them after where the effect came from
- * @typedef {Readonly<{ [method: string]: Readonly<{ type: string, fields: readonly string[] }> }>} Methods
+ * fields, in the order the method takes them after where the effect came from. A field in `tuples` is an array the
+ * method takes as that many arguments, its items
+ * @typedef {Readonly<{
+ *   [method: string]: Readonly<{ type: string, fields: readonly string[], tuples?: Readonly<Record<string, number>> }>,
+ * }>} Methods
  */
 
 /**
@@ -262,7 +265,7 @@ function recorder(methods) {
   const outs = []
   /** @type {{ [method: string]: (from: Path, ...fields: readonly unknown[]) => void }} */
   const host = {}
-  for (const [method, { fields, type }] of Object.entries(methods)) {
+  for (const [method, { fields, tuples = {}, type }] of Object.entries(methods)) {
     /**
      * @param {Path} from - Where the effect came from
      * @param {readonly unknown[]} values - Its fields, in order
@@ -271,9 +274,12 @@ function recorder(methods) {
     host[method] = (from, ...values) => {
       /** @type {{ [field: string]: unknown }} */
       const effect = { type }
-      fields.forEach((field, at) => {
-        effect[field] = values[at]
-      })
+      let at = 0
+      for (const field of fields) {
+        const length = tuples[field]
+        effect[field] = length === undefined ? values[at] : values.slice(at, at + length)
+        at += length ?? 1
+      }
       outs.push({ effect, from })
     }
   }

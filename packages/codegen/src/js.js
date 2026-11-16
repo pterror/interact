@@ -5,12 +5,12 @@
  * (V8 allocates a small array faster than it empties a kept one).
  */
 
-import { effectsOf, factoryKnown } from './effects.js'
+import { effectsOf, factoryKnown, fieldsFromParams } from './effects.js'
 import { capital } from './normalize.js'
 import { blocksOf, eachInStmt, isLengthOf } from './walk.js'
 
 /** @import { Binding, Constant, Expr, Fn, Item, Pattern, Stmt } from './ir.js' */
-/** @import { Call, Effects } from './effects.js' */
+/** @import { Call, Effects, Method } from './effects.js' */
 /** @import { Plan } from './plan.js' */
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/u
@@ -210,9 +210,25 @@ function effectsText(effects, isComposite) {
   )
   const entries = methods.map(
     (one) =>
-      `  ${one.method}: { fields: [${one.fields.map((field) => quote(field)).join(', ')}], type: ${quote(one.type)} },`,
+      `  ${one.method}: { fields: [${one.fields.map((field) => quote(field)).join(', ')}], ${
+        Object.keys(one.tuples).length === 0
+          ? ''
+          : `tuples: { ${Object.entries(one.tuples)
+              .map(([field, length]) => `${field}: ${String(length)}`)
+              .join(', ')} }, `
+      }type: ${quote(one.type)} },`,
   )
   return entries.length === 0 ? '{}' : `{\n${entries.join('\n')}\n}`
+}
+
+/**
+ * Where a field's parameters start among a host method's
+ * @param {Method} method - The method
+ * @param {number} field - The field's place
+ * @returns {number} Its first parameter's place
+ */
+function paramIndex(method, field) {
+  return method.fields.slice(0, field).reduce((sum, name) => sum + (method.tuples[name] ?? 1), 0)
 }
 
 /**
@@ -283,9 +299,9 @@ function compositeParts(planned, nameOf, others) {
     '  },',
     '}',
     ...ownMethods.flatMap((one) => [
-      `ownHost.${one.method} = (${['from', ...one.fields].join(', ')}) => {`,
+      `ownHost.${one.method} = (${['from', ...one.params].join(', ')}) => {`,
       ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
-      `  upward.${one.method}(${['from', ...one.fields].join(', ')})`,
+      `  upward.${one.method}(${['from', ...one.params].join(', ')})`,
       '}',
     ]),
     '',
@@ -324,11 +340,13 @@ function compositeParts(planned, nameOf, others) {
         const fields = planned.handlerFields.get(handler.fn) ?? null
         const args = [
           'current.own',
-          ...(fields ?? [`{ ${[`type: ${quote(one.type)}`, ...one.fields].join(', ')} }`]),
+          ...(fields ?? [
+            `{ ${[`type: ${quote(one.type)}`, ...fieldsFromParams(one, ':', (items) => `[${items.join(', ')}]`)].join(', ')} }`,
+          ]),
           ...(fn.params.length > 2 ? ['from'] : []),
           'ownHost',
         ]
-        const params = ['from', ...one.fields].join(', ')
+        const params = ['from', ...one.params].join(', ')
         lines.push(
           `  ${one.method}: (${params}) => {`,
           ...(one.type === 'preventDefault' ? ['    prevented = true'] : []),
@@ -338,7 +356,7 @@ function compositeParts(planned, nameOf, others) {
           '    const stop = stopped',
           '    stopped = was',
           '    if (!stop) {',
-          `      upward.${one.method}(${[`${child.name}From(from)`, ...one.fields].join(', ')})`,
+          `      upward.${one.method}(${[`${child.name}From(from)`, ...one.params].join(', ')})`,
           '    }',
           '  },',
         )
@@ -361,9 +379,9 @@ function compositeParts(planned, nameOf, others) {
             handledTypes.has(one.type)
               ? []
               : [
-                  `${child.host}.${one.method} = (${['from', ...one.fields].join(', ')}) => {`,
+                  `${child.host}.${one.method} = (${['from', ...one.params].join(', ')}) => {`,
                   ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
-                  `  upward.${one.method}(${[`${child.name}From(from)`, ...one.fields].join(', ')})`,
+                  `  upward.${one.method}(${[`${child.name}From(from)`, ...one.params].join(', ')})`,
                   '}',
                 ],
           )
@@ -542,7 +560,14 @@ function declarations(planned, effects, imports) {
   const methods = effects.methods
     .filter((one) => !isComposite || (one.type !== 'send' && one.type !== 'stopPropagation'))
     .map((one) => {
-      const params = one.fields.map((field) => `${field}: ${capital(one.method)}[${quote(field)}]`)
+      const params = one.fields.flatMap((field) => {
+        const length = one.tuples[field]
+        const at = one.fields.indexOf(field)
+        const names = one.params.slice(paramIndex(one, at), paramIndex(one, at) + (length ?? 1))
+        return length === undefined
+          ? [`${field}: ${capital(one.method)}[${quote(field)}]`]
+          : names.map((name, index) => `${name}: ${capital(one.method)}[${quote(field)}][${String(index)}]`)
+      })
       return `  ${one.method}(${['from: Path', ...params].join(', ')}): void`
     })
   const effectTypes = effects.methods

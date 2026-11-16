@@ -7,15 +7,13 @@
  * bytes as on UTF-16 for well-formed text (equality, `startsWith`, `endsWith`, `includes`, concatenation, `split`) are
  * taken, and `toLowerCase` and `/^.$/u` by code point, with tables of the generator's Unicode (case.js).
  *
- * Effects are calls on the host, as in the JavaScript. An array an effect carries that is written out where it is
- * made (`ranks`) is a table of the module's own, refilled for the next call there: the host reads it during the call
- * and copies what it keeps.
+ * Effects are calls on the host, as in the JavaScript.
  */
 
 import ts from 'typescript'
 
 import { lowerHelper } from './case.js'
-import { effectsOf, factoryKnown } from './effects.js'
+import { effectsOf, factoryKnown, fieldsFromParams } from './effects.js'
 import { capital } from './normalize.js'
 import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
 import { isLengthOf } from './walk.js'
@@ -217,15 +215,6 @@ const INT32 = { hi: 2 ** 31 - 1, int: true, lo: -(2 ** 31) }
 const EXACT_BITS = { hi: 2 ** 51, int: true, lo: -(2 ** 51) }
 
 /**
- * Whether an argument of a host call is an array written out, which a table of the module's own can carry
- * @param {Expr} arg - The argument
- * @returns {boolean} Whether it is
- */
-function reused(arg) {
-  return arg.kind === 'array' && arg.items.length > 0 && arg.items.every((item) => !item.spread)
-}
-
-/**
  * @param {Expr} value - An expression
  * @returns {boolean} Whether it is the literal 0
  */
@@ -296,8 +285,6 @@ function luaModule(planned, checker, imports, others) {
   ])
   /** @type {Set<keyof typeof HELPERS>} */
   const helpers = new Set()
-  /** @type {string[]} */
-  const scratch = []
   /** @type {Set<'lower'>} */
   const tables = new Set()
 
@@ -1464,24 +1451,7 @@ function luaModule(planned, checker, imports, others) {
       /** @type {string[]} */
       const lines = []
       if (call.kind === 'call') {
-        const values = call.args.flatMap((arg) =>
-          arg.kind === 'array' && reused(arg) ? arg.items.map((item) => item.value) : [arg],
-        )
-        const flat = ordered(values, lines, indent)
-        let next = 0
-        const texts = call.args.map((arg) => {
-          if (arg.kind !== 'array' || !reused(arg)) {
-            next += 1
-            return flat[next - 1] ?? ''
-          }
-          const table = `${snake(call.method.method)}_${String(scratch.length + 1)}`
-          scratch.push(table)
-          for (let index = 0; index < arg.items.length; index += 1) {
-            lines.push(`${indent}${table}[${String(index + 1)}] = ${flat[next] ?? ''}`)
-            next += 1
-          }
-          return table
-        })
+        const texts = ordered(call.args, lines, indent)
         const given = ['HERE', ...texts].join(', ')
         const count = effects.counted.has(call.method.type) ? [`${indent}counted = counted + 1`] : []
         return [...lines, ...count, `${indent}${host}${member(call.method.method)}(${given})`]
@@ -1658,13 +1628,6 @@ function luaModule(planned, checker, imports, others) {
     ...(effects.counted.size > 0
       ? ['-- How many of the effects a test reads the widget has made', 'local counted = 0', '']
       : []),
-    ...(scratch.length > 0
-      ? [
-          '-- Tables a host call is given, refilled for each call: the host reads them during the call',
-          `local ${scratch.join(', ')} = ${scratch.map(() => '{}').join(', ')}`,
-          '',
-        ]
-      : []),
     ...(widget.composite === null ? [] : [...SAME, '']),
   ]
   return `${[imports.header, '', ...requires, 'local M = {}', '', ...head, all].join('\n')}\n`
@@ -1698,7 +1661,11 @@ function luaEffects(effects, isComposite) {
   )
   const entries = methods.map(
     (one) =>
-      `  ${key(one.method)} = { type = ${quote(one.type)}, fields = { ${one.fields.map((field) => quote(field)).join(', ')} } },`,
+      `  ${key(one.method)} = { type = ${quote(one.type)}, fields = { ${one.fields.map((field) => quote(field)).join(', ')} }, tuples = { ${Object.entries(
+        one.tuples,
+      )
+        .map(([field, length]) => `${key(field)} = ${String(length)}`)
+        .join(', ')} } },`,
   )
   return entries.length === 0 ? '{}' : `{\n${entries.join('\n')}\n}`
 }
@@ -1753,9 +1720,9 @@ function compositeLua(planned, name, others, factoryLocals) {
     'end',
     'own_host.stopPropagation = function() stopped = true end',
     ...own.flatMap((one) => [
-      `own_host${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+      `own_host${member(one.method)} = function(${['from', ...one.params].join(', ')})`,
       ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
-      `  upward${member(one.method)}(${['from', ...one.fields].join(', ')})`,
+      `  upward${member(one.method)}(${['from', ...one.params].join(', ')})`,
       'end',
     ]),
     '',
@@ -1765,14 +1732,6 @@ function compositeLua(planned, name, others, factoryLocals) {
     `for _, method in ipairs({ ${[...own.map((one) => quote(one.method)), '"send"', '"stopPropagation"'].join(', ')} }) do`,
     '  defer_host[method] = function(from, ...)',
     '    local args, n = { ... }, select("#", ...)',
-    '    -- A table a call is given is refilled by the next call there: kept as it is now',
-    '    for i = 1, n do',
-    '      if type(args[i]) == "table" then',
-    '        local copy = {}',
-    '        for k, v in pairs(args[i]) do copy[k] = v end',
-    '        args[i] = copy',
-    '      end',
-    '    end',
     '    deferred[#deferred + 1] = { method, args, n }',
     '  end',
     'end',
@@ -1802,17 +1761,17 @@ function compositeLua(planned, name, others, factoryLocals) {
         throw new Error(`${widget.name}: an \`on\` handler of a child the generator doesn't know the effects of`)
       }
       for (const one of known.methods.filter((method) => method.type === handler.type)) {
-        const record = `{ ${[`type = ${quote(one.type)}`, ...one.fields.map((field) => `${key(field)} = ${field}`)].join(', ')} }`
+        const record = `{ ${[`type = ${quote(one.type)}`, ...fieldsFromParams(one, ' =', (items) => `{ ${items.join(', ')} }`)].join(', ')} }`
         const args = ['current.own', ...(fields ?? [record]), ...(fn.params.length > 2 ? ['from'] : []), 'own_host']
         lines.push(
-          `${child.host}${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+          `${child.host}${member(one.method)} = function(${['from', ...one.params].join(', ')})`,
           ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
           '  local was = stopped',
           '  stopped = false',
           `  current.own = ${name(handler.fn)}(${args.join(', ')})`,
           '  local stop = stopped',
           '  stopped = was',
-          `  if not stop then upward${member(one.method)}(${[`${child.via}(from)`, ...one.fields].join(', ')}) end`,
+          `  if not stop then upward${member(one.method)}(${[`${child.via}(from)`, ...one.params].join(', ')}) end`,
           'end',
         )
       }
@@ -1831,9 +1790,9 @@ function compositeLua(planned, name, others, factoryLocals) {
     } else {
       for (const one of known.methods.filter((method) => !handledTypes.has(method.type))) {
         lines.push(
-          `${child.host}${member(one.method)} = function(${['from', ...one.fields].join(', ')})`,
+          `${child.host}${member(one.method)} = function(${['from', ...one.params].join(', ')})`,
           ...(one.type === 'preventDefault' ? ['  prevented = true'] : []),
-          `  upward${member(one.method)}(${[`${child.via}(from)`, ...one.fields].join(', ')})`,
+          `  upward${member(one.method)}(${[`${child.via}(from)`, ...one.params].join(', ')})`,
           'end',
         )
       }

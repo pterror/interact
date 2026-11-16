@@ -12,8 +12,16 @@ import { blocksOf } from './walk.js'
 /** @import { Plan } from './plan.js' */
 
 /**
- * A host method
- * @typedef {Readonly<{ method: string, type: string, fields: readonly string[] }>} Method
+ * A host method: the effect's fields in order, and the parameters they are passed as (a field holding an array
+ * written out where the effect is made, `ranks`, is passed as its items: `ranksFrom`, `ranksTo`; its length in
+ * `tuples`)
+ * @typedef {Readonly<{
+ *   method: string,
+ *   type: string,
+ *   fields: readonly string[],
+ *   tuples: Readonly<Record<string, number>>,
+ *   params: readonly string[],
+ * }>} Method
  */
 
 /**
@@ -39,7 +47,7 @@ import { blocksOf } from './walk.js'
  * @returns {Effects} The methods
  */
 function effectsOf(planned, known) {
-  /** @type {Map<string, Readonly<{ type: string, fields: readonly string[] }>>} */
+  /** @type {Map<string, Readonly<{ type: string, fields: readonly string[], tuples: Readonly<Record<string, number>> }>>} */
   const shapes = new Map()
   /**
    * The records an append makes, flattened: each with its type, fields and values, or a condition choosing
@@ -97,10 +105,19 @@ function effectsOf(planned, known) {
     }
     fields.delete('type')
     const sorted = [...fields].toSorted(([a], [b]) => (a < b ? -1 : 1))
-    shapes.set(`${type.value}|${sorted.map(([name]) => name).join(',')}`, {
-      fields: sorted.map(([name]) => name),
-      type: type.value,
-    })
+    /** @type {Record<string, number>} */
+    const tuples = {}
+    for (const [name, field] of sorted) {
+      if (field.kind === 'array' && field.items.length > 0 && field.items.every((item) => !item.spread)) {
+        tuples[name] = field.items.length
+      }
+    }
+    const shapeKey = `${type.value}|${sorted.map(([name]) => name).join(',')}`
+    const seen = shapes.get(shapeKey)
+    if (seen !== undefined && JSON.stringify(seen.tuples) !== JSON.stringify(tuples)) {
+      throw new Error(`an effect whose array field is written out in one place and not another, at ${placeOf(value)}`)
+    }
+    shapes.set(shapeKey, { fields: sorted.map(([name]) => name), tuples, type: type.value })
     return { fields: sorted, kind: 'record', type: type.value }
   }
   /** @type {Set<string>} */
@@ -125,7 +142,7 @@ function effectsOf(planned, known) {
   }
   /** @type {Map<string, Method>} */
   const methods = new Map()
-  /** @type {Map<string, Readonly<{ type: string, fields: readonly string[] }>[]>} */
+  /** @type {Map<string, Readonly<{ type: string, fields: readonly string[], tuples: Readonly<Record<string, number>> }>[]>} */
   const byType = new Map()
   for (const shape of shapes.values()) {
     byType.set(shape.type, [...(byType.get(shape.type) ?? []), shape])
@@ -134,7 +151,14 @@ function effectsOf(planned, known) {
     for (const shape of list) {
       const own = shape.fields.find((field) => !list.every((other) => other.fields.includes(field)))
       const method = list.length === 1 || own === undefined ? type : `${type}${capital(own)}`
-      methods.set(`${type}|${shape.fields.join(',')}`, { fields: shape.fields, method, type })
+      const params = shape.fields.flatMap((field) => paramsOf(field, shape.tuples[field]))
+      methods.set(`${type}|${shape.fields.join(',')}`, {
+        fields: shape.fields,
+        method,
+        params,
+        tuples: shape.tuples,
+        type,
+      })
     }
   }
   /**
@@ -151,13 +175,46 @@ function effectsOf(planned, known) {
       if (method === undefined) {
         throw new Error(`no host method for ${one.type}`)
       }
-      return { args: one.fields.map(([, value]) => value), kind: 'call', method }
+      const args = one.fields.flatMap(([name, value]) =>
+        method.tuples[name] !== undefined && value.kind === 'array' ? value.items.map((item) => item.value) : [value],
+      )
+      return { args, kind: 'call', method }
     })
   return {
     calls: (items) => toCalls(flatten(items)),
     counted,
     methods: [...methods.values()].toSorted((a, b) => (a.method < b.method ? -1 : 1)),
   }
+}
+
+/**
+ * The parameters a field is passed as: itself, or its items
+ * @param {string} field - The field
+ * @param {number | undefined} length - Its length, if it is an array written out
+ * @returns {string[]} The parameters' names
+ */
+function paramsOf(field, length) {
+  if (length === undefined) {
+    return [field]
+  }
+  return length === 2 ? [`${field}From`, `${field}To`] : Array.from({ length }, (_, at) => `${field}${String(at)}`)
+}
+
+/**
+ * A record of an effect's fields from a host method's parameters, as source: `name: value` for each field
+ * @param {Method} method - The method
+ * @param {string} assign - How a field is written: `:` in JavaScript, `=` in Lua
+ * @param {(items: readonly string[]) => string} array - How an array is written
+ * @returns {string[]} The fields, written
+ */
+function fieldsFromParams(method, assign, array) {
+  let at = 0
+  return method.fields.map((field) => {
+    const length = method.tuples[field]
+    const taken = method.params.slice(at, at + (length ?? 1))
+    at += length ?? 1
+    return `${field}${assign} ${length === undefined ? (taken[0] ?? field) : array(taken)}`
+  })
 }
 
 /**
@@ -212,4 +269,4 @@ function factoryKnown(planned) {
   return known
 }
 
-export { effectsOf, factoryKnown }
+export { effectsOf, factoryKnown, fieldsFromParams }
