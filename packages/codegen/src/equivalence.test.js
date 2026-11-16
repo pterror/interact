@@ -9,7 +9,7 @@ import { select } from '@pterror/interact-core/select'
 
 import { generate, generateFrom } from './generate.js'
 import { loadFiles } from './program.js'
-import { beyondSource, bitsRuns, searchRuns } from './test-beyond.js'
+import { beyondSource, bitsRuns, nestRuns, searchRuns } from './test-beyond.js'
 import { canon, listRuns, LUA_DRIVER, menuRuns, selectRuns, toLua } from './test-equivalence.js'
 import { DIALOG_RUNS, LIST_RUNS, MENU_RUNS, REORDER_RUNS, SELECT_RUNS } from './test-recorded.js'
 
@@ -37,7 +37,7 @@ beforeAll(async () => {
   })
   const beyond = generateFrom(
     loadFiles({
-      '/beyond/index.js': "export { bits, search } from './widgets.js'\n",
+      '/beyond/index.js': "export { bits, nest, search } from './widgets.js'\n",
       '/beyond/widgets.js': beyondSource(`${ROOT}packages/core/src/contract.js`),
     }),
     {
@@ -248,6 +248,14 @@ describe('generated code does what its source does, step for step', () => {
   test('bitwise operators on any number, as JavaScript converts them: JavaScript and Lua', async () => {
     const runs = bitsRuns(7, RUNS, LENGTH).map((run) => asDeliveries(run))
     await check('bits', await sourceExport('bits'), await generatedExport('bits'), runs, null)
+  })
+
+  test('records a state owns changed in place, and not one an effect hands out: JavaScript and Lua', async () => {
+    const runs = nestRuns(8, RUNS, LENGTH).map((run) => asDeliveries(run))
+    await check('nest', await sourceExport('nest'), await generatedExport('nest'), runs, null)
+    const made = generated.get('nest')?.js ?? ''
+    expect(made).toContain('at.x = ')
+    expect(made).not.toContain('kept.x = ')
   })
 
   test('select: JavaScript and Lua, through the runtime', async () => {

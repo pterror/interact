@@ -86,6 +86,38 @@ export const bits = {
   init: () => [{ total: 0 }, []],
   step: bitsStep,
 }
+
+/** @typedef {Readonly<{ x: number, y: number }>} Point */
+/** @typedef {Readonly<{ at: Point, last: Point, kept: Point, moves: number }>} NestState */
+/** @typedef {Readonly<{ type: 'move', x: number, y: number, keep: boolean, reset: boolean }>} NestInput */
+/** @typedef {Readonly<{ type: 'kept', point: Point }>} Kept */
+
+/** @type {Point} */
+const ORIGIN = { x: 0, y: 0 }
+
+/**
+ * Records a state owns, changed by spreads: at and last only read, kept also handed out in an effect
+ * @param {NestState} state - The points
+ * @param {NestInput} input - The move
+ * @returns {Result<NestState, Kept>} The points; the kept one, when kept
+ */
+function nestStep(state, input) {
+  if (input.reset) {
+    return [{ ...state, at: ORIGIN, last: { ...state.at } }, []]
+  }
+  const { at } = state
+  const moved = { ...state, at: { ...at, x: at.x + input.x }, last: { ...state.last, y: at.y } }
+  const next = { ...moved, at: { ...moved.at, y: moved.at.y + input.y }, moves: state.moves + 1 }
+  if (input.keep) {
+    return [{ ...next, kept: { ...next.at } }, [{ point: next.kept, type: 'kept' }]]
+  }
+  return [{ ...next, kept: { ...next.kept, x: next.kept.x + 1 } }, []]
+}
+
+export const nest = {
+  init: () => [{ at: ORIGIN, kept: { x: 0, y: 0 }, last: ORIGIN, moves: 0 }, []],
+  step: nestStep,
+}
 `
 }
 
@@ -154,4 +186,29 @@ function bitsRuns(seed, runs, length) {
   }))
 }
 
-export { beyondSource, bitsRuns, searchRuns }
+/**
+ * Random runs of the nested records' widget
+ * @param {number} seed - The seed
+ * @param {number} runs - How many
+ * @param {number} length - Inputs in each
+ * @returns {LeafRun[]} The runs
+ */
+function nestRuns(seed, runs, length) {
+  let at = seed
+  const draw = () => {
+    at = (at * 16_807) % 2_147_483_647
+    return at
+  }
+  return Array.from({ length: runs }, () => ({
+    inputs: Array.from({ length }, () => ({
+      keep: draw() % 4 === 0,
+      reset: draw() % 6 === 0,
+      type: 'move',
+      x: (draw() % 21) - 10,
+      y: (draw() % 21) - 10,
+    })),
+    props: null,
+  }))
+}
+
+export { beyondSource, bitsRuns, nestRuns, searchRuns }

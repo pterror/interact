@@ -17,11 +17,13 @@
 
 import ts from 'typescript'
 
+import { ownedFields } from './fields.js'
 import { local } from './ir.js'
 import { capital, normalize } from './normalize.js'
 import { fieldsOf, tupleOf } from './types.js'
 import { bindingsOf, blocksOf, children, completes, eachExpr, eachInStmt, exprsOf, mapChildren } from './walk.js'
 
+/** @import { OwnedField } from './fields.js' */
 /** @import { Binding, Constant, Entry, Expr, Fn, Item, Pattern, Stmt, Widget } from './ir.js' */
 
 /**
@@ -136,6 +138,13 @@ function plan(widget, checker) {
     normalized.set(fn, { ...fn, body: normalize(fn, context) })
   }
   const order = postOrder(entries, (one) => normalized.get(one) ?? one)
+  const owns = ownedFields(
+    widget,
+    order,
+    (fn) => normalized.get(fn) ?? fn,
+    checker,
+    (type) => isRecordType(checker, type),
+  )
   /** @type {Map<Fn, Info>} */
   const infos = new Map()
   /** @type {Map<Fn, Fn>} */
@@ -160,7 +169,19 @@ function plan(widget, checker) {
       }
     }
     infos.set(fn, info)
-    planned.set(fn, rewrite(source, info, { checker, fresh, infos, isResult, isResultOrNull, normalized, resultKind }))
+    planned.set(
+      fn,
+      rewrite(source, info, {
+        checker,
+        fresh,
+        infos,
+        isResult,
+        isResultOrNull,
+        normalized,
+        ownedFields: owns,
+        resultKind,
+      }),
+    )
   }
   const constants = new Set()
   for (const fn of planned.values()) {
@@ -370,6 +391,7 @@ function substituted(checker, type) {
  *   isResult: (type: ts.Type) => boolean,
  *   isResultOrNull: (type: ts.Type) => boolean,
  *   resultKind: (fn: Fn) => 'result' | 'nullable' | null,
+ *   ownedFields: ReadonlyMap<string, OwnedField>,
  * }>} Tools
  */
 
@@ -444,11 +466,43 @@ function rewrite(fn, info, tools) {
     if (expr.kind === 'local') {
       return groups.get(expr.binding) ?? null
     }
+    if (expr.kind === 'field' && !expr.optional && tools.ownedFields.has(expr.name)) {
+      const parent = groupOf(expr.object)
+      return parent === null || holderOf.has(parent) ? null : nestedGroup(parent, expr.name)
+    }
     if (expr.kind === 'conditional') {
       const then = groupOf(expr.whenTrue)
       return then !== null && then === groupOf(expr.whenFalse) ? then : null
     }
     return null
+  }
+
+  /** @type {Map<number, Readonly<{ parent: number, field: string }>>} */
+  const holderOf = new Map()
+  /** @type {Map<Binding, number>} */
+  const takenFrom = new Map()
+  /** @type {Map<string, number>} */
+  const nestedIds = new Map()
+
+  /**
+   * The group of the records an owned field of a group's record holds: owned when the group is
+   * @param {number} parent - The group
+   * @param {string} field - The field
+   * @returns {number} The group
+   */
+  const nestedGroup = (parent, field) => {
+    const key = `${String(parent)}|${field}`
+    const known = nestedIds.get(key)
+    if (known !== undefined) {
+      return known
+    }
+    groupIds += 1
+    nestedIds.set(key, groupIds)
+    holderOf.set(groupIds, { field, parent })
+    if (owned.has(parent)) {
+      owned.add(groupIds)
+    }
+    return groupIds
   }
 
   /**
@@ -575,6 +629,80 @@ function rewrite(fn, info, tools) {
   }
 
   /**
+   * Whether a record a holder's field held, changed in place at a point, goes back in that field before the holder is
+   * used again: a record around the change, or one in the statements straight after it, spreads the holder and sets
+   * the field. Else the holder would still hold the record changed
+   * @param {Expr} site - Where it is changed
+   * @param {readonly Stmt[]} rest - The statements after it in its block
+   * @param {number} holder - The holder's group
+   * @param {string} field - The field
+   * @returns {boolean} Whether it does
+   */
+  const refilled = (site, rest, holder, field) => {
+    const sets = (/** @type {Expr} */ expr) =>
+      expr.kind === 'record' &&
+      expr.entries.some((entry) => entry.kind === 'spread' && groupOf(entry.value) === holder) &&
+      expr.entries.some((entry) => entry.kind === 'field' && entry.name === field)
+    for (let up = parents.get(site); up !== undefined; up = parents.get(up.parent)) {
+      if (sets(up.parent)) {
+        return true
+      }
+    }
+    for (const stmt of rest) {
+      if (blocksOf(stmt).length > 0) {
+        return false
+      }
+      if (exprsOf(stmt).some((expr) => anyIn(expr, sets))) {
+        return true
+      }
+      if (stmt.kind === 'return') {
+        return false
+      }
+    }
+    return false
+  }
+
+  /**
+   * The reads of a nested group's records among reads of it and of the records holding them: a holder's read of the
+   * field is a read of the record; its reads of other fields leave it; a holder copied or passed on whole, the field
+   * not set anew, can't be planned
+   * @param {readonly Expr[]} reads - The reads
+   * @param {ReadonlySet<Binding>} holders - The holders' locals
+   * @param {string} field - The field holding the records
+   * @returns {Expr[] | null} The reads of the records, or `null`
+   */
+  const heldReads = (reads, holders, field) => {
+    /** @type {Expr[]} */
+    const result = []
+    for (const read of reads) {
+      if (read.kind !== 'local' || !holders.has(read.binding)) {
+        result.push(read)
+        continue
+      }
+      const up = parents.get(read)
+      const parent = up?.parent
+      if (parent?.kind === 'field' && parent.object === read) {
+        if (parent.name === field) {
+          result.push(parent)
+        }
+        continue
+      }
+      if (parent?.kind === 'record' && up !== undefined) {
+        const later = parent.entries.slice(up.entry + 1)
+        if (later.some((entry) => entry.kind === 'field' && entry.name === field)) {
+          continue
+        }
+      }
+      if (parent?.kind === 'call' && onlyReads(parent)) {
+        result.push(read)
+        continue
+      }
+      return null
+    }
+    return result
+  }
+
+  /**
    * Checks a change of a group at a point and plans the reads after it
    * @param {number} group - The group changed
    * @param {Expr} site - The expression that changes it
@@ -609,6 +737,20 @@ function rewrite(fn, info, tools) {
         })
       }
     }
+    const within = holderOf.get(group)
+    if (within !== undefined && !refilled(site, rest, within.parent, within.field)) {
+      return null
+    }
+    /** @type {Set<Binding>} */
+    const holders = new Set()
+    if (within !== undefined) {
+      for (const [binding, one] of groups) {
+        if (one === within.parent) {
+          holders.add(binding)
+          stale.add(binding)
+        }
+      }
+    }
     const inStmt = order
       .slice(at + 1)
       .filter(
@@ -630,9 +772,13 @@ function rewrite(fn, info, tools) {
     if (runsOn && completes(after) && readsIn(cont, stale).length > 0) {
       return null
     }
-    const reads = [...inStmt, ...(runsOn ? readsIn(after, stale) : [])]
+    const found = [...inStmt, ...(runsOn ? readsIn(after, stale) : [])]
     if (blocksOf(stmt).length > 0) {
-      reads.push(...readsIn(blocksOf(stmt).flat(), stale))
+      found.push(...readsIn(blocksOf(stmt).flat(), stale))
+    }
+    const reads = within === undefined ? found : heldReads(found, holders, within.field)
+    if (reads === null) {
+      return null
     }
     const planned = planReads(reads, writes, defined)
     if (planned === null) {
@@ -647,7 +793,7 @@ function rewrite(fn, info, tools) {
       let temp = temps.get(key)
       if (temp === undefined) {
         const binding = fresh(nameFor(expr), expr.type)
-        hoisted.push({ at: expr.at, kind: 'const', pattern: { binding, kind: 'bind' }, value: expr })
+        hoisted.push({ at: expr.at, kind: 'const', pattern: { binding, kind: 'bind' }, value: asPlanned(expr) })
         defined.add(binding)
         temp = local(binding, expr.at)
         temps.set(key, temp)
@@ -668,7 +814,7 @@ function rewrite(fn, info, tools) {
       let temp = temps.get(key)
       if (temp === undefined) {
         const binding = fresh(nameFor(read), read.type)
-        hoisted.push({ at: spread.at, kind: 'const', pattern: { binding, kind: 'bind' }, value: read })
+        hoisted.push({ at: spread.at, kind: 'const', pattern: { binding, kind: 'bind' }, value: asPlanned(read) })
         defined.add(binding)
         temp = local(binding, spread.at)
         temps.set(key, temp)
@@ -680,6 +826,19 @@ function rewrite(fn, info, tools) {
       patched.set(spread, fields)
     }
     return hoisted
+  }
+
+  /**
+   * An expression of the source read where it is moved to: its locals as the planned function names them
+   * @param {Expr} value - The expression
+   * @returns {Expr} It
+   */
+  const asPlanned = (value) => {
+    if (value.kind === 'local') {
+      const to = renamedLocals.get(value.binding) ?? resultStates.get(value.binding)
+      return to === undefined ? value : { ...value, binding: to, type: to.type }
+    }
+    return mapChildren(value, asPlanned)
   }
 
   /**
@@ -795,6 +954,19 @@ function rewrite(fn, info, tools) {
         }
         const [pre, value] = expr(stmt.value, scope, state)
         const [first] = bindingsOf(stmt.pattern)
+        if (stmt.pattern.kind === 'object') {
+          const holder = groupOf(value)
+          for (const one of stmt.pattern.fields) {
+            if (
+              holder !== null &&
+              one.pattern.kind === 'bind' &&
+              tools.ownedFields.has(one.name) &&
+              !holderOf.has(holder)
+            ) {
+              join(one.pattern.binding, nestedGroup(holder, one.name), false)
+            }
+          }
+        }
         if (stmt.pattern.kind === 'bind' && first !== undefined) {
           bindValue(first, value, stmt.value)
           if (value.kind === 'local' && !value.binding.mutable && !first.mutable) {
@@ -1269,8 +1441,12 @@ function rewrite(fn, info, tools) {
           args.push(value)
         } else if (group === null && isFresh(value)) {
           args.push(value)
+        } else if (isStable(value)) {
+          args.push(copied(copyOf(value)))
         } else {
-          args.push(copyOf(value))
+          const binding = fresh('value', value.type)
+          pre.push({ at: value.at, kind: 'const', pattern: bindPattern(binding), value })
+          args.push(copied(copyOf(local(binding, value.at))))
         }
         return
       }
@@ -1532,13 +1708,18 @@ function rewrite(fn, info, tools) {
     for (const entry of value.entries) {
       const [entryPre, rewritten] = expr(entry.value, scope, state)
       if (entryPre.length > 0) {
-        materialize(
-          entries.map((one) => one.value),
-          pre,
-        )
+        const values = entries.map((one) => one.value)
+        materialize(values, pre)
+        entries.forEach((one, at) => {
+          entries[at] = { ...one, value: values[at] ?? one.value }
+        })
       }
       pre.push(...entryPre)
-      entries.push({ ...entry, value: rewritten })
+      const kept =
+        entry.kind === 'field' &&
+        rewritten.kind === 'constant' &&
+        tools.ownedFields.get(entry.name)?.copyConstants === true
+      entries.push({ ...entry, value: kept ? copyOf(rewritten) : rewritten })
       const patch = patched.get(entry.value)
       if (entry.kind === 'spread' && patch !== undefined) {
         for (const [name, temp] of patch) {
@@ -1547,9 +1728,23 @@ function rewrite(fn, info, tools) {
       }
     }
     const targetAt = entries.findIndex((entry) => entry.kind === 'spread' && groupOf(entry.value) !== null)
+    const spreadTarget = entries[targetAt]
+    /** @type {Binding | null} */
+    let takenOut = null
+    if (spreadTarget?.value.kind === 'field' && isStable(spreadTarget.value.object)) {
+      const binding = fresh(nameFor(spreadTarget.value), spreadTarget.value.type)
+      join(binding, groupOf(spreadTarget.value), false)
+      defined.add(binding)
+      pre.push({ at: spreadTarget.value.at, kind: 'const', pattern: bindPattern(binding), value: spreadTarget.value })
+      entries[targetAt] = { kind: 'spread', value: local(binding, spreadTarget.value.at) }
+      takenOut = binding
+    }
     const target = entries[targetAt]
     if (target?.value.kind !== 'local') {
-      return [pre, { ...value, entries }]
+      return [pre, copied({ ...value, entries })]
+    }
+    if (takenOut !== null) {
+      takenFrom.set(takenOut, groupOf(target.value) ?? -1)
     }
     const targetBinding = target.value.binding
     const group = groupOf(target.value) ?? -1
@@ -1565,7 +1760,7 @@ function rewrite(fn, info, tools) {
       }
       const sameGroup = groupOf(entry.value) === group
       if ((index < targetAt || !isLiteralRecord(entry.value)) && !sameGroup) {
-        return [pre, { ...value, entries }]
+        return [pre, copied({ ...value, entries })]
       }
       if (sameGroup && mustAlias(entry.value, targetBinding)) {
         continue
@@ -1584,10 +1779,18 @@ function rewrite(fn, info, tools) {
       ) {
         sets.delete(name)
       }
+      if (
+        set.kind === 'local' &&
+        takenFrom.has(set.binding) &&
+        holderOf.get(takenFrom.get(set.binding) ?? -1)?.field === name &&
+        holderOf.get(takenFrom.get(set.binding) ?? -1)?.parent === group
+      ) {
+        sets.delete(name)
+      }
     }
     const moved = claim(group, value, scope.stmt, scope.rest, scope.cont, new Set(sets.keys()), null)
     if (moved === null) {
-      return [pre, { ...value, entries }]
+      return [pre, copied({ ...value, entries })]
     }
     pending.push(...moved)
     if (group === stateGroup) {
@@ -1608,6 +1811,54 @@ function rewrite(fn, info, tools) {
       written.add(name)
     }
     return [[...pre, ...assigned], { ...target.value, type: value.type }]
+  }
+
+  /**
+   * A record made anew with each owned field's record copied too, where a spread of a record that may still be held
+   * gives it
+   * @param {Expr & { kind: 'record' }} value - The record
+   * @returns {Expr & { kind: 'record' }} It
+   */
+  const copied = (value) => {
+    /** @type {Entry[]} */
+    const extra = []
+    for (const field of tools.ownedFields.keys()) {
+      const last = value.entries.findLast(
+        (entry) =>
+          (entry.kind === 'field' && entry.name === field) ||
+          (entry.kind === 'spread' && fieldsOf(checker, entry.value.type).includes(field)),
+      )
+      if (last?.kind !== 'spread' || !(last.value.kind === 'local' || last.value.kind === 'field')) {
+        continue
+      }
+      extra.push({ kind: 'field', name: field, value: copiedField(last.value, field) })
+    }
+    return extra.length === 0 ? value : { ...value, entries: [...value.entries, ...extra] }
+  }
+
+  /**
+   * A copy of the record an owned field of a record holds, `null` kept
+   * @param {Expr} holder - The record
+   * @param {string} field - The field
+   * @returns {Expr} The copy
+   */
+  const copiedField = (holder, field) => {
+    const type = fieldType(holder.type, field)
+    /** @type {Expr} */
+    const read = { at: holder.at, kind: 'field', name: field, object: holder, optional: false, type }
+    if (!type.isUnion() || !type.types.some((one) => (one.flags & ts.TypeFlags.Null) !== 0)) {
+      return copyOf(read)
+    }
+    /** @type {Expr} */
+    const none = { at: holder.at, kind: 'literal', type: checker.getNullType(), value: null }
+    return {
+      at: holder.at,
+      kind: 'conditional',
+      test: { at: holder.at, kind: 'binary', left: read, op: '===', right: none, type: booleanType },
+      type,
+      whenFalse: copyOf(read),
+      whenTrue: none,
+    }
   }
 
   /**
@@ -1899,6 +2150,16 @@ function takeFields(fn, index, fresh) {
 }
 
 /**
+ * Whether an expression or one inside it passes a test
+ * @param {Expr} expr - The expression
+ * @param {(one: Expr) => boolean} test - The test
+ * @returns {boolean} Whether one does
+ */
+function anyIn(expr, test) {
+  return test(expr) || children(expr).some((child) => anyIn(child, test))
+}
+
+/**
  * How many times some statements read a local
  * @param {readonly Stmt[]} stmts - The statements
  * @param {Binding} binding - The local
@@ -2125,7 +2386,7 @@ function emptyArray(at, type) {
 /**
  * A shallow copy of a record
  * @param {Expr} value - The record
- * @returns {Expr} `{ ...value }`
+ * @returns {Expr & { kind: 'record' }} `{ ...value }`
  */
 function copyOf(value) {
   return { at: value.at, entries: [{ kind: 'spread', value }], kind: 'record', type: value.type }
