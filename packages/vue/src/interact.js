@@ -146,7 +146,7 @@ const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef
 /**
  * What a component's setup reads of Vue's context: the app's slots, and emitting an event (a method, so a context
  * typed by the component's own events is one)
- * @typedef {Readonly<{ slots: Readonly<{ [name: string]: SlotLike | undefined }> }> & Readonly<{
+ * @typedef {Readonly<{ slots: object }> & Readonly<{
  *   emit(event: string, ...args: readonly unknown[]): void,
  * }>} Context
  */
@@ -233,6 +233,27 @@ function vueAttributes(attributes) {
 }
 
 /**
+ * Whether a value is a slot
+ * @param {unknown} value - The value
+ * @returns {value is SlotLike} Whether it is a function
+ */
+function isSlot(value) {
+  return typeof value === 'function'
+}
+
+/**
+ * The app's slot of a name
+ * @param {object} slots - The app's slots
+ * @param {string} name - The slot's name
+ * @returns {SlotLike | undefined} The slot, if the app gives it
+ */
+function slotOf(slots, name) {
+  /** @type {unknown} */
+  const slot = Reflect.get(slots, name)
+  return isSlot(slot) ? slot : undefined
+}
+
+/**
  * Draws a part and what is in it
  * @param {Part} node - The part
  * @param {Naming} naming - How ids are made
@@ -250,11 +271,11 @@ function drawPart(node, naming, slots, sources) {
       if ('text' in content) {
         return content.text
       }
-      const item = slots['default']
+      const item = slotOf(slots, 'default')
       return item === undefined ? itemText(content, sources) : item({ item: content.item })
     })
   const name = partName(node.target)
-  const replaced = slots[name]
+  const replaced = slotOf(slots, name)
   const key = identity(node.target, naming)
   if (replaced !== undefined) {
     const attrs = vueAttributes(attributesOf(node, naming, null))

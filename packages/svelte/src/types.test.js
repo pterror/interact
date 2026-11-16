@@ -1,6 +1,6 @@
 /**
- * The components' types, checked by the type checker: what this module writes is typed by them, and what it writes
- * wrong is an error they report
+ * The components' types, checked by the type checker: each `true` below is typed by a comparison of them that only
+ * holds while they are as the test says
  */
 
 import { expect, test } from 'bun:test'
@@ -9,18 +9,29 @@ import { expect, test } from 'bun:test'
 /** @import { select } from './widgets/select.js' */
 
 /** @typedef {Parameters<typeof Dialog<typeof select>>[1]} DialogProps */
+/** @typedef {DialogProps['content']} Content */
+
+/**
+ * Whether two types are the same
+ * @template A, B
+ * @typedef {[A] extends [B] ? ([B] extends [A] ? true : false) : false} Same
+ */
+
+/** @type {Same<Content['label'], string>} */
+const labelled = true
+
+/** @type {'sorce' extends keyof Content ? false : true} */
+const noOtherProp = true
+
+/** @type {Same<Content['items'], readonly import('@pterror/interact-core').Item[] | undefined>} */
+const takesItems = true
+
+/** @type {Same<keyof NonNullable<DialogProps['parts']>, 'close' | 'content' | 'dialog' | 'list' | 'option' | 'popover' | 'root' | 'title' | 'trigger'>} */
+const parts = true
 
 /** @type {DialogProps['content']} */
 const content = { items: ['Apple', 'Banana'], label: 'Fruit', placeholder: 'Choose', rows: 4 }
 
-/** @type {DialogProps['content']} */
-// @ts-expect-error -- the select inside takes no prop of that name
-const wrong = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', sorce: 'fruit' }
-
-/** @type {NonNullable<DialogProps['parts']>} */
-// @ts-expect-error -- no part of the dialog, or of the select inside it, has that name
-const misnamed = { nowhere: undefined }
-
 test("type the dialog's content by the select inside, and its parts by both", () => {
-  expect([content.label, wrong.label, Object.keys(misnamed)]).toEqual(['Fruit', 'Fruit', ['nowhere']])
+  expect([labelled, noOtherProp, takesItems, parts, content.label]).toEqual([true, true, true, true, 'Fruit'])
 })

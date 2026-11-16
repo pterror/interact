@@ -6,7 +6,7 @@ import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { AnyComponent, Emits, Given, Own, OwnOf, PartsInside, Slots } from '../interact.js' */
 /** @import { Description, PropsOf } from '@pterror/interact-core' */
-/** @import { DefineSetupFnComponent, SetupContext, SlotsType, VNodeChild } from 'vue' */
+/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
 /** @import { dialog as source } from '@pterror/interact-core/dialog' */
 
 /** @typedef {ReturnType<typeof source>} Widget */
@@ -39,17 +39,18 @@ function dialog(content, initialFocus) {
   /**
    * The setup
    * @param {Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never> & Given} props - The props
-   * @param {SetupContext<Emits<'open', WidgetProps['open'], never>, SlotsType<Slots<string>>>} context - The slots and emit
+   * @param {SetupContext<Emits<'open', WidgetProps['open'], never>, SlotsType<Slots<'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>>>} context - The slots and emit
    * @returns {() => VNodeChild} The render function
    */
   const setup = (props, context) => run(description, props, context)
   /** @type {() => Readonly<{ own: Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never>, parts: 'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'> }> | undefined} */
   const types = typesOf
-  /** @type {DefineSetupFnComponent<Own<WidgetProps, 'open', WidgetProps['open'], never, Readonly<{ content: OwnOf<Content> }>, never> & Given, Emits<'open', WidgetProps['open'], never>, SlotsType<Slots<'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>>> & Readonly<{ description: Description, types: ReturnType<typeof types> }>} */
-  const typed = /** @type {never} */ (
-    Object.assign(defineComponent(setup, optionsOf(description, 'Dialog')), { description, types: types() })
-  )
-  return typed
+  /** @type {SlotsType<Slots<'close' | 'dialog' | 'root' | 'title' | PartsInside<Content, 'content'>>>} */
+  const slots = {}
+  return Object.assign(defineComponent(setup, { ...optionsOf(description, 'Dialog'), slots }), {
+    description,
+    types: types(),
+  })
 }
 
 export { dialog }

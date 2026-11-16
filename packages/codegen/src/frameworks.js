@@ -309,7 +309,7 @@ function vueModule(widget, header) {
       '/**',
       ' * The setup',
       ` * @param {${own} & Given} props - The props`,
-      ` * @param {SetupContext<Emits<${bound}, ${typing}>, SlotsType<Slots<${inside.length === 0 ? parts : 'string'}>>>} context - The slots and emit`,
+      ` * @param {SetupContext<Emits<${bound}, ${typing}>, SlotsType<Slots<${parts}>>>} context - The slots and emit`,
       ' * @returns {() => VNodeChild} The render function',
       ' */',
       'const setup = (props, context) => run(description, props, context)',
@@ -326,7 +326,7 @@ import { optionsOf, run, typesOf } from '../interact.js'
 
 /** @import { ${inside.length === 0 ? '' : 'AnyComponent, '}Emits, Given, Own${inside.length === 0 ? '' : ', OwnOf, PartsInside'}, Slots } from '../interact.js' */
 /** @import { Description, ${coreTypes} } from '@pterror/interact-core' */
-/** @import { ${inside.length === 0 ? '' : 'DefineSetupFnComponent, '}SetupContext, SlotsType, VNodeChild } from 'vue' */
+/** @import { SetupContext, SlotsType, VNodeChild } from 'vue' */
 ${imported.types}`
   if (widget.factory === null) {
     return `${header}
@@ -367,9 +367,12 @@ ${params}
  */
 function ${widget.name}(${factory.map((param) => param.name).join(', ')}) {
 ${made('  ', `widget(${args})`)}
-  /** @type {DefineSetupFnComponent<${own} & Given, Emits<${bound}, ${typing}>, SlotsType<Slots<${parts}>>> & Readonly<{ description: Description, types: ReturnType<typeof types> }>} */
-  const typed = /** @type {never} */ (Object.assign(defineComponent(setup, optionsOf(description, '${name}')), { description, types: types() }))
-  return typed
+  /** @type {SlotsType<Slots<${parts}>>} */
+  const slots = {}
+  return Object.assign(defineComponent(setup, { ...optionsOf(description, '${name}'), slots }), {
+    description,
+    types: types(),
+  })
 }
 
 export { ${widget.name} }

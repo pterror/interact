@@ -86,9 +86,7 @@ export type SlotLike = Readonly<{
     }>): VNodeChild;
 }>['draw'];
 export type Context = Readonly<{
-    slots: Readonly<{
-        [name: string]: SlotLike | undefined;
-    }>;
+    slots: object;
 }> & Readonly<{
     emit(event: string, ...args: readonly unknown[]): void;
 }>;
