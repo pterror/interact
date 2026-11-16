@@ -4,7 +4,7 @@
  * change.
  */
 
-import { elementFor, identity, page, partName, statesOf } from './web.js'
+import { elementFor, identity, itemText, page, partName, statesOf } from './web.js'
 
 /** @import { Node as Part, Target } from './compose.js' */
 /** @import { Key } from './contract.js' */
@@ -19,7 +19,7 @@ import { elementFor, identity, page, partName, statesOf } from './web.js'
 
 /**
  * Where to draw (an element, or a shadow root), and what the page needs; optionally how the host draws an item (by
- * default its key as text), the parts the app makes itself, by name (`option`), and whether each part's element names
+ * default its text in its source), the parts the app makes itself, by name (`option`), and whether each part's element names
  * itself and the states it shows in its `part` attribute, for styling from outside a shadow root (`::part(option
  * selected)`), and whether a part's text is the fallback of a slot named after the part, which the app can fill
  * @typedef {PageOptions & Readonly<{
@@ -70,8 +70,14 @@ function placeChildren(slot, children) {
  * @returns {Readonly<{ host: Host, stop: () => void }>} The running widget, and stopping it
  */
 function renderDom(options) {
-  const { container } = options
-  const item = options.item ?? String
+  const { container, sources } = options
+  const { item } = options
+  /**
+   * What an item is drawn as
+   * @param {Readonly<{ item: Key, source: string }>} content - The item
+   * @returns {string | globalThis.Node} Its text or node
+   */
+  const drawItem = (content) => (item === undefined ? itemText(content, sources) : item(content.item))
   const parts = options.parts ?? {}
   /** @type {Map<string, Made>} */
   const made = new Map()
@@ -85,7 +91,7 @@ function renderDom(options) {
       name:
         options.name ??
         ((key) => {
-          const drawn = item(key)
+          const drawn = item === undefined ? String(key) : item(key)
           return typeof drawn === 'string' ? drawn : (drawn.textContent ?? '')
         }),
     },
@@ -139,7 +145,7 @@ function renderDom(options) {
         }
         return named
       }
-      const text = 'text' in content ? content.text : item(content.item)
+      const text = 'text' in content ? content.text : drawItem(content)
       return typeof text === 'string' ? textAt(slot, index, text) : text
     })
     placeChildren(slot, children)

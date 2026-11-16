@@ -288,8 +288,11 @@ function stepOwn(state, input) {
     }
     case 'answer':
     case 'changed':
+    case 'focus':
+    case 'found':
     case 'measured':
-    case 'scroll': {
+    case 'scroll':
+    case 'time': {
       return toList(state, input)
     }
     default: {

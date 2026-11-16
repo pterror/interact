@@ -15,6 +15,7 @@ import {
   heldFrom,
   holding,
   identity,
+  itemText,
   ownValue,
   page,
   partName,
@@ -45,7 +46,7 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
  */
 
 /**
- * What every component takes beside its widget's props: how an item is drawn (by default its key as text) and named in
+ * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and named in
  * announcements, the parts the app draws itself, the sources the widget asks about, the words announcements use, how
  * ids are made (by default from `useId`), and key rebinding
  * @template {string} Parts
@@ -117,10 +118,12 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
  */
 
 /**
- * How a component draws its parts: the same for every part it draws
+ * How a component draws its parts: the same for every part it draws. An item the app draws no way is its text in its
+ * source
  * @typedef {Readonly<{
  *   naming: Naming,
- *   item: (key: Key) => ReactNode,
+ *   item: ((key: Key) => ReactNode) | undefined,
+ *   sources: Readonly<{ [name: string]: Source }> | undefined,
  *   parts: Readonly<{ [name: string]: FunctionComponent<PartProps> | undefined }>,
  * }>} Drawing
  */
@@ -218,7 +221,8 @@ function DrawPart({ drawing, node }) {
     if ('text' in content) {
       return content.text
     }
-    return createElement(Fragment, { key: `item ${String(index)}` }, drawing.item(content.item))
+    const drawn = drawing.item === undefined ? itemText(content, drawing.sources) : drawing.item(content.item)
+    return createElement(Fragment, { key: `item ${String(index)}` }, drawn)
   })
   const name = partName(node.target)
   const replaced = drawing.parts[name]
@@ -267,14 +271,20 @@ function start(description, props, held, naming, effect, live) {
  * @returns {Drawing} How parts are drawn
  */
 function useDrawing(naming, props) {
-  const item = props.item ?? String
+  const { item, sources } = props
   const parts = props.parts ?? NO_PARTS
   const last = useRef(noDrawing())
   const kept = last.current
-  if (kept?.item === item && kept.parts === parts && same(kept.naming, naming)) {
+  if (
+    kept !== null &&
+    kept.item === item &&
+    kept.sources === sources &&
+    kept.parts === parts &&
+    same(kept.naming, naming)
+  ) {
     return kept
   }
-  const drawing = { item, naming, parts }
+  const drawing = { item, naming, parts, sources }
   last.current = drawing
   return drawing
 }

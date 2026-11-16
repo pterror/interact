@@ -5,7 +5,7 @@
  * anything global; a widget never calls the host.
  *
  * Inputs are the web's UI Events by name and value (`click`, `keydown` with standard `key` values, pointer and focus
- * events), each naming the part it happened on, plus what the host tells a widget: `answer`, `props`, `time`,
+ * events), each naming the part it happened on, plus what the host tells a widget: `answer`, `found`, `props`, `time`,
  * `changed`, `confirmed`, `refused`, and geometry only as `scroll` and `measured`. Effects are data the host carries
  * out.
  *
@@ -57,12 +57,13 @@
 /**
  * What goes inside a part, in order: one of the widget's own parts (`part`), one drawn per key (`each`, called only for
  * the keys given, which are the window), a child widget's root (`child`), text the widget has (`text`, from its
- * props), or the host's content for an item (`item`: the host draws what the item is; the core never holds it)
+ * props), or the host's content for an item of the collection `source` (`item`: the host draws what the item is, by
+ * default its text in that source; the core never holds it)
  * @typedef {Readonly<{ part: string }>
  *   | Readonly<{ each: string, keys: readonly Key[] }>
  *   | Readonly<{ child: string }>
  *   | Readonly<{ text: string }>
- *   | Readonly<{ item: Key }>} Content
+ *   | Readonly<{ item: Key, source: string }>} Content
  */
 
 /**
@@ -184,11 +185,18 @@
  */
 
 /**
+ * The answer to an `ask` to find a key: the key found, or `null` for none. `id` is the ask's
+ * @typedef {Readonly<{ type: 'found', id: i53, key: Key | null }>} Found
+ */
+
+/**
  * A question for the host about a collection, named by `source`: the keys at ranks `[from, to)`, or (`locate`) a
- * window of `rows` keys that holds a key. The answer comes back to the widget that asked, as `answer` with the same
- * `id`
+ * window of `rows` keys that holds a key, answered by `answer` with the same `id`; or (`find`) the first key whose text
+ * starts with `find`, ignoring case, from the key `at` on (after it when `next`; from the first key when `at` is
+ * `null`), wrapping round, answered by `found` with the same `id`. Either answer comes back to the widget that asked
  * @typedef {Readonly<{ type: 'ask', id: i53, source: string, ranks: readonly [i32, i32] }>
- *   | Readonly<{ type: 'ask', id: i53, source: string, locate: Key, rows: i32 }>} Ask
+ *   | Readonly<{ type: 'ask', id: i53, source: string, locate: Key, rows: i32 }>
+ *   | Readonly<{ type: 'ask', id: i53, source: string, find: string, at: Key | null, next: boolean }>} Ask
  */
 
 /**

@@ -17,6 +17,7 @@ import {
   heldFrom,
   holding,
   identity,
+  itemText,
   ownValue,
   page,
   partName,
@@ -219,19 +220,21 @@ function vueAttributes(attributes) {
  * @param {Part} node - The part
  * @param {Naming} naming - How ids are made
  * @param {Context['slots']} slots - The app's slots
+ * @param {Readonly<{ [name: string]: Source }> | undefined} sources - The sources, whose text an item is drawn as when
+ *   the default slot doesn't draw it
  * @returns {VNode} The part
  */
-function drawPart(node, naming, slots) {
+function drawPart(node, naming, slots, sources) {
   const children = () =>
     node.content.map((content) => {
       if ('target' in content) {
-        return drawPart(content, naming, slots)
+        return drawPart(content, naming, slots, sources)
       }
       if ('text' in content) {
         return content.text
       }
       const item = slots['default']
-      return item === undefined ? String(content.item) : item({ item: content.item })
+      return item === undefined ? itemText(content, sources) : item({ item: content.item })
     })
   const name = partName(node.target)
   const replaced = slots[name]
@@ -381,7 +384,7 @@ function run(description, props, context) {
   return () => {
     void version.value
     return [
-      drawPart(running.host.tree(), naming, context.slots),
+      drawPart(running.host.tree(), naming, context.slots, props.sources),
       h('div', {
         ref: (/** @type {unknown} */ element) => {
           live.value = element instanceof Element ? element : null

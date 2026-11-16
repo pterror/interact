@@ -102,7 +102,6 @@ describe('Interact', () => {
     press(trigger, 'ArrowDown')
     await settled()
     press(trigger, 'ArrowDown')
-    press(trigger, 'ArrowDown')
     const options = [...container.querySelectorAll('[role=option]')]
     expect(options.map((option) => option.textContent)).toEqual(['Apple', 'Banana', 'Cherry', 'Date'])
     expect(made).toBe(4)

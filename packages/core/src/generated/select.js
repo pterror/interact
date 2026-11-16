@@ -13,6 +13,8 @@ const EFFECTS = {
 
 const NONE = []
 
+const typeaheadTYPEAHEAD_MS = 500
+
 const PREVENT = [{ type: 'preventDefault' }]
 
 const STOP = [{ type: 'stopPropagation' }]
@@ -38,6 +40,7 @@ function init(props, host) {
     placeholder: props.placeholder,
     rows: props.rows,
     source: props.source,
+    until: 0,
     value: pendingPending(props.value !== null, props.value === null ? null : props.value.value),
   }
 }
@@ -69,6 +72,24 @@ function pendingFromApp(held, controlled, value) {
 function pendingRefuse(held, id) {
   held.changes = held.changes.filter((one) => one.id !== id)
   return held
+}
+
+/**
+ * Whether a key is a character typed, not a named key (one code point; a named key is a word), with no modifier
+ * that makes it a shortcut
+ * @param input - The key
+ */
+function typeaheadIsTyped(input) {
+  return /^.$/u.test(input.key) && !input.ctrlKey && !input.metaKey && !input.altKey
+}
+
+/**
+ * Whether a prefix is being typed at a time
+ * @param until - When the prefix ends
+ * @param timeStamp - The time
+ */
+function typeaheadTyping(until, timeStamp) {
+  return timeStamp < until
 }
 
 /**
@@ -122,6 +143,12 @@ function choose(own, key, host) {
  */
 function keydown(own, input, host) {
   const { key } = input
+  if (typeaheadIsTyped(input) && (key !== ' ' || (own.open && typeaheadTyping(own.until, input.timeStamp)))) {
+    own.open = true
+    own.until = input.timeStamp + typeaheadTYPEAHEAD_MS
+    host.send(HERE, input, 'list')
+    return own
+  }
   if (!own.open) {
     if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') {
       own.open = true
@@ -306,6 +333,9 @@ const listHost = {
     }
   },
 }
+listHost.askAt = (from, at, find, id, next, source) => {
+  upward.askAt(listFrom(from), at, find, id, next, source)
+}
 listHost.askLocate = (from, id, locate, rows, source) => {
   upward.askLocate(listFrom(from), id, locate, rows, source)
 }
@@ -315,6 +345,9 @@ listHost.askRanks = (from, id, ranksFrom, ranksTo, source) => {
 listHost.preventDefault = (from) => {
   prevented = true
   upward.preventDefault(listFrom(from))
+}
+listHost.wake = (from, at) => {
+  upward.wake(listFrom(from), at)
 }
 
 /** Delivers an input to a child, or below it */

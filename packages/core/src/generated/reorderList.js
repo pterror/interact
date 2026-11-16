@@ -7,11 +7,13 @@ const HERE = []
 const EFFECTS = {
   active: { fields: ['item'], type: 'active' },
   announce: { fields: ['message', 'urgent', 'values'], type: 'announce' },
+  askAt: { fields: ['at', 'find', 'id', 'next', 'source'], type: 'ask' },
   askLocate: { fields: ['id', 'locate', 'rows', 'source'], type: 'ask' },
   askRanks: { fields: ['id', 'ranks', 'source'], tuples: { ranks: 2 }, type: 'ask' },
   change: { fields: ['id', 'value'], type: 'change' },
   move: { fields: ['after', 'id', 'item', 'source', 'target'], type: 'move' },
   preventDefault: { fields: [], type: 'preventDefault' },
+  wake: { fields: ['at'], type: 'wake' },
 }
 
 /** How many of the effects a test reads the widget has made */
@@ -51,6 +53,8 @@ const listNONE = []
 const IDLE = { mode: 'idle' }
 
 const NONE = []
+
+const typeaheadTYPEAHEAD_MS = 500
 
 const listPrevent = [{ type: 'preventDefault' }]
 
@@ -119,13 +123,16 @@ function listInit(props, host) {
       from: 0,
       keys: [],
       label: props.label,
+      prefix: '',
       revision: 0,
       rowSize: null,
       rows: props.rows,
       selection: pendingPending(props.selected !== null, props.selected === null ? null : props.selected.value),
       shown: props.shown,
+      sought: 0,
       source: props.source,
       top: 0,
+      until: 0,
     },
     host,
   )
@@ -351,34 +358,6 @@ function pendingFromApp(held, controlled, value) {
 }
 
 /**
- * Takes new props
- * @param state - The list
- * @param props - The props
- */
-function listPropsChanged(state, props, host) {
-  const controlled = props.selected !== null
-  state.focusable = props.focusable
-  state.label = props.label
-  state.rows = props.rows
-  state.selection = pendingFromApp(
-    state.selection,
-    controlled,
-    props.selected === null ? state.selection.app : props.selected.value,
-  )
-  state.shown = props.shown
-  state.source = props.source
-  if (!props.shown) {
-    state.active = null
-    state.activeRank = null
-    state.askedFor = null
-    state.count = null
-    state.follow = 'key'
-    return state
-  }
-  return listEnsure(state, host)
-}
-
-/**
  * Makes the option at a rank active, moving the window to show it
  * @param state - The list
  * @param wanted - The rank, clamped to the list
@@ -408,6 +387,56 @@ function listMoveTo(state, wanted, host) {
     state.top = top
   }
   return listEnsure(state, host)
+}
+
+/**
+ * Starts on the first option when nothing is active or selected
+ * @param state - The list
+ */
+function listStartFirst(state, host) {
+  if (state.active !== null || pendingShown(state.selection) !== null) {
+    return listEnsure(state, host)
+  }
+  if (state.count === null) {
+    state.activeRank = 0
+    state.follow = 'rank'
+    return listEnsure(state, host)
+  } else {
+    return listMoveTo(state, 0, host)
+  }
+}
+
+/**
+ * Takes new props
+ * @param state - The list
+ * @param props - The props
+ */
+function listPropsChanged(state, props, host) {
+  const controlled = props.selected !== null
+  const stateShown = state.shown
+  state.focusable = props.focusable
+  state.label = props.label
+  state.rows = props.rows
+  state.selection = pendingFromApp(
+    state.selection,
+    controlled,
+    props.selected === null ? state.selection.app : props.selected.value,
+  )
+  state.shown = props.shown
+  state.source = props.source
+  if (!props.shown) {
+    state.active = null
+    state.activeRank = null
+    state.askedFor = null
+    state.count = null
+    state.follow = 'key'
+    return state
+  }
+  if (stateShown) {
+    return listEnsure(state, host)
+  } else {
+    return listStartFirst(state, host)
+  }
 }
 
 /**
@@ -446,6 +475,75 @@ function listAnswered(state, answer, host) {
 function pendingRefuse(held, id) {
   held.changes = held.changes.filter((one) => one.id !== id)
   return held
+}
+
+/**
+ * Makes a key active, moving the window to show it: at once if it is held, else by asking for a window holding it
+ * @param state - The list
+ * @param key - The key
+ */
+function listMoveToKey(state, key, host) {
+  const rank = listRankOf(state, key)
+  if (rank !== null) {
+    return listMoveTo(state, rank, host)
+  }
+  const { revision, rows, source } = state
+  const id = state.asked + 1
+  state.active = key
+  state.activeRank = null
+  state.asked = id
+  state.askedFor = { locate: key, revision, rows }
+  state.follow = 'key'
+  host.askLocate(HERE, id, key, (rows + 2) | 0, source)
+  return state
+}
+
+/**
+ * Whether a prefix is being typed at a time
+ * @param until - When the prefix ends
+ * @param timeStamp - The time
+ */
+function typeaheadTyping(until, timeStamp) {
+  return timeStamp < until
+}
+
+/**
+ * Whether a key is a character typed, not a named key (one code point; a named key is a word), with no modifier
+ * that makes it a shortcut
+ * @param input - The key
+ */
+function typeaheadIsTyped(input) {
+  return /^.$/u.test(input.key) && !input.ctrlKey && !input.metaKey && !input.altKey
+}
+
+/**
+ * A character typed: the prefix after it, when it ends, and what to find
+ * @param prefix - The prefix so far
+ * @param until - When it ends
+ * @param input - The character
+ */
+function typeaheadTyped(prefix, until, input) {
+  const letter = input.key.toLowerCase()
+  const now = `${typeaheadTyping(until, input.timeStamp) ? prefix : ''}${letter}`
+  const repeated = now.split(letter).every((between) => between === '')
+  return { find: repeated ? letter : now, next: repeated, prefix: now, until: input.timeStamp + typeaheadTYPEAHEAD_MS }
+}
+
+/**
+ * A character typed: asks the host for the option it and those before it start
+ * @param state - The list
+ * @param input - The character
+ */
+function listType(state, input, host) {
+  const made = typeaheadTyped(state.prefix, state.until, input)
+  const id = state.sought + 1
+  state.prefix = made.prefix
+  state.sought = id
+  state.until = made.until
+  host.preventDefault(HERE)
+  host.askAt(HERE, state.active, made.find, id, made.next, state.source)
+  host.wake(HERE, made.until)
+  return state
 }
 
 /**
@@ -515,13 +613,17 @@ function listRankFor(state, key) {
 }
 
 /**
- * Handles a key: arrows, Home, End and the page keys move; Enter and Space choose the active option
+ * Handles a key: arrows, Home, End and the page keys move; Enter and Space choose the active option; a character
+ * is typeahead, Space too while a prefix is being typed
  * @param state - The list
  * @param input - The key
  */
 function listKeydown(state, input, host) {
   if (input.altKey || input.ctrlKey || input.metaKey) {
     return state
+  }
+  if (typeaheadIsTyped(input) && (input.key !== ' ' || typeaheadTyping(state.until, input.timeStamp))) {
+    return listType(state, input, host)
   }
   if (input.key === 'Enter' || input.key === ' ') {
     host.preventDefault(HERE)
@@ -562,6 +664,26 @@ function listStepOwn(state, input, host) {
     case 'refused': {
       state.selection = pendingRefuse(state.selection, input.id)
       return state
+    }
+    case 'found': {
+      if (input.id === state.sought && input.key !== null && state.shown) {
+        return listMoveToKey(state, input.key, host)
+      } else {
+        return state
+      }
+    }
+    case 'time': {
+      if (!typeaheadTyping(state.until, input.now)) {
+        state.prefix = ''
+      }
+      return state
+    }
+    case 'focus': {
+      if (input.part === 'root' && state.shown) {
+        return listStartFirst(state, host)
+      } else {
+        return state
+      }
     }
     case 'keydown': {
       return listKeydown(state, input, host)
@@ -738,8 +860,11 @@ function stepOwn(state, input, host) {
     }
     case 'answer':
     case 'changed':
+    case 'focus':
+    case 'found':
     case 'measured':
-    case 'scroll': {
+    case 'scroll':
+    case 'time': {
       return toList(state, input, host)
     }
     default: {

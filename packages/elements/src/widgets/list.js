@@ -9,10 +9,12 @@ import { define } from '../element.js'
  * a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are
  * known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and
  * `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the
- * list's `scroll` offset. Selection is the value, by the contract's rule: with `selected` in its props (not
- * `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list
- * emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`)
- * without reading the list's state.
+ * list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with
+ * `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or
+ * focused so, the first option is active. Selection is the value, by the contract's rule: with `selected` in its
+ * props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it.
+ * The list emits `active` whenever the active option it draws changes, so a parent can name it
+ * (`aria-activedescendant`) without reading the list's state.
  */
 const ListElement = define({
   description: {

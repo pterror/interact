@@ -49,7 +49,7 @@
   })
 </script>
 
-<Part item={children} naming={running.page.naming} node={tree} {parts} /><div
+<Part item={children} naming={running.page.naming} node={tree} {parts} sources={rest.sources} /><div
   bind:this={live}
   role="status"
 ></div>

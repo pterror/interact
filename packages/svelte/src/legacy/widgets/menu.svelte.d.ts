@@ -10,8 +10,11 @@ type WidgetProps = PropsOf<Widget>
 
 /**
  * A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/),
- * focus moved to each item in turn. Items are few and the app's, so they come in the props with their text,
- * which typeahead reads. Choosing an item emits `activate`; disabled items are moved to but not chosen.
+ * focus moved to each item in turn. Items are the keys of a collection the host holds (`source`), asked for
+ * whole, since a menu draws every item: a first page, then the rest once the count is known; only the answer to
+ * the latest ask is used, and `changed` asks again. The host draws each item. Characters typed are typeahead,
+ * which the host finds (`ask` with `find`). Choosing an item emits `activate`; disabled items are moved to but
+ * not chosen.
  */
 declare class Menu extends SvelteComponent<
   Omit<WidgetProps, never> & HostProps & { item?: unknown; parts?: Readonly<Record<string, unknown>> },

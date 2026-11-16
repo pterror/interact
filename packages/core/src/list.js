@@ -4,6 +4,8 @@
  * window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys
  * come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again.
  * The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset.
+ * Characters typed are typeahead: the host finds the option they start (`ask` with `find`), and only the answer to the
+ * latest find is used. Shown with nothing selected and nothing active, or focused so, the first option is active.
  *
  * Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending
  * until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws
@@ -12,8 +14,9 @@
 
 import { part, ref } from './contract.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
+import { isTyped, typed, typing } from './typeahead.js'
 
-/** @import { Answer, Ask, Change, Changed, Click, i32, i53, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, View, Widget } from './contract.js' */
+/** @import { Answer, Ask, Change, Changed, Click, Focused, Found, i32, i53, Key, KeyDown, Measured, Part, PreventDefault, PropsInput, Refused, Result, Scroll, Time, View, Wake, Widget } from './contract.js' */
 /** @import { Pending } from './pending.js' */
 
 /**
@@ -37,7 +40,8 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
 /**
  * `top` is the first rank drawn; `keys` the keys held, from rank `from`. `active` is the active key; `activeRank`
  * its rank, which leads while `follow` is `rank` (a move to a rank not held yet) and follows the key otherwise;
- * `last` is a move to the last option before the count is known. `rowSize` is an option's measured size
+ * `last` is a move to the last option before the count is known. `rowSize` is an option's measured size. `prefix` is
+ * what typeahead has typed, kept until `until` (ms, on the inputs' clock); `sought` is the latest find's id
  * @typedef {Readonly<{
  *   label: string,
  *   rows: i32,
@@ -56,12 +60,15 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   activeRank: i32 | null,
  *   follow: 'key' | 'rank' | 'last',
  *   rowSize: number | null,
+ *   prefix: string,
+ *   until: number,
+ *   sought: i53,
  * }>} ListState
  */
 
 /** @typedef {Readonly<{ type: 'active', item: Key | null }>} Active */
-/** @typedef {KeyDown | Click | Scroll | Measured | PropsInput<ListProps> | Answer | Changed | Refused} ListInput */
-/** @typedef {Ask | Change<Key | null> | PreventDefault | Active} ListEffect */
+/** @typedef {KeyDown | Click | Focused | Scroll | Measured | PropsInput<ListProps> | Answer | Found | Changed | Refused | Time} ListInput */
+/** @typedef {Ask | Change<Key | null> | PreventDefault | Wake | Active} ListEffect */
 
 /** @type {readonly ListEffect[]} */
 const NONE = []
@@ -228,6 +235,56 @@ function moveTo(state, wanted) {
 }
 
 /**
+ * Makes a key active, moving the window to show it: at once if it is held, else by asking for a window holding it
+ * @param {ListState} state - The list
+ * @param {Key} key - The key
+ * @returns {Result<ListState, ListEffect>} The list, and any ask it needs
+ */
+function moveToKey(state, key) {
+  const rank = rankOf(state, key)
+  if (rank !== null) {
+    return moveTo(state, rank)
+  }
+  const { revision, rows, source } = state
+  const id = state.asked + 1
+  return [
+    { ...state, active: key, activeRank: null, asked: id, askedFor: { locate: key, revision, rows }, follow: 'key' },
+    [{ id, locate: key, rows: (rows + 2) | 0, source, type: 'ask' }],
+  ]
+}
+
+/**
+ * Starts on the first option when nothing is active or selected
+ * @param {ListState} state - The list
+ * @returns {Result<ListState, ListEffect>} The list, and any ask it needs
+ */
+function startFirst(state) {
+  if (state.active !== null || shown(state.selection) !== null) {
+    return ensure(state)
+  }
+  return state.count === null ? ensure({ ...state, activeRank: 0, follow: 'rank' }) : moveTo(state, 0)
+}
+
+/**
+ * A character typed: asks the host for the option it and those before it start
+ * @param {ListState} state - The list
+ * @param {KeyDown} input - The character
+ * @returns {Result<ListState, ListEffect>} The list, and its effects
+ */
+function type(state, input) {
+  const made = typed(state.prefix, state.until, input)
+  const id = state.sought + 1
+  return [
+    { ...state, prefix: made.prefix, sought: id, until: made.until },
+    [
+      { type: 'preventDefault' },
+      { at: state.active, find: made.find, id, next: made.next, source: state.source, type: 'ask' },
+      { at: made.until, type: 'wake' },
+    ],
+  ]
+}
+
+/**
  * Chooses a key: the list's value
  * @param {ListState} state - The list
  * @param {Key | null} key - The key
@@ -276,7 +333,8 @@ function rankFor(state, key) {
 }
 
 /**
- * Handles a key: arrows, Home, End and the page keys move; Enter and Space choose the active option
+ * Handles a key: arrows, Home, End and the page keys move; Enter and Space choose the active option; a character
+ * is typeahead, Space too while a prefix is being typed
  * @param {ListState} state - The list
  * @param {KeyDown} input - The key
  * @returns {Result<ListState, ListEffect>} The list, and its effects
@@ -287,6 +345,9 @@ function keydown(state, input) {
   }
   /** @type {readonly ListEffect[]} */
   const prevent = [{ type: 'preventDefault' }]
+  if (isTyped(input) && (input.key !== ' ' || typing(state.until, input.timeStamp))) {
+    return type(state, input)
+  }
   if (input.key === 'Enter' || input.key === ' ') {
     const [next, effects] = choose(state, state.active)
     return [next, [...prevent, ...effects]]
@@ -327,7 +388,7 @@ function propsChanged(state, props) {
   if (!props.shown) {
     return [{ ...next, active: null, activeRank: null, askedFor: null, count: null, follow: 'key' }, NONE]
   }
-  return ensure(next)
+  return state.shown ? ensure(next) : startFirst(next)
 }
 
 /**
@@ -349,6 +410,17 @@ function stepOwn(state, input) {
     }
     case 'refused': {
       return [{ ...state, selection: refuse(state.selection, input.id) }, NONE]
+    }
+    case 'found': {
+      return input.id === state.sought && input.key !== null && state.shown
+        ? moveToKey(state, input.key)
+        : [state, NONE]
+    }
+    case 'time': {
+      return [typing(state.until, input.now) ? state : { ...state, prefix: '' }, NONE]
+    }
+    case 'focus': {
+      return input.part === 'root' && state.shown ? startFirst(state) : [state, NONE]
     }
     case 'keydown': {
       return keydown(state, input)
@@ -416,7 +488,7 @@ function view(state) {
       },
       content: [{ each: 'option', keys }],
       hidden: !state.shown,
-      listens: state.focusable ? ['keydown', 'scroll'] : ['scroll'],
+      listens: state.focusable ? ['keydown', 'focus', 'scroll'] : ['scroll'],
       role: 'listbox',
       tabindex: state.focusable ? 0 : null,
     }),
@@ -437,7 +509,7 @@ function optionPart(state, key) {
       selected: key === shown(state.selection),
       setsize: state.count ?? -1,
     },
-    content: [{ item: key }],
+    content: [{ item: key, source: state.source }],
     data: { active: key === state.active },
     listens: ['click', 'measured'],
     role: 'option',
@@ -458,13 +530,16 @@ const list = {
       from: 0,
       keys: [],
       label: props.label,
+      prefix: '',
       revision: 0,
       rowSize: null,
       rows: props.rows,
       selection: pending(props.selected !== null, props.selected === null ? null : props.selected.value),
       shown: props.shown,
+      sought: 0,
       source: props.source,
       top: 0,
+      until: 0,
     }),
   step,
   view,

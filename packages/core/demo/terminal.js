@@ -73,14 +73,7 @@ const app = compose({
     },
   },
   props: {
-    actions: () => ({
-      items: [
-        { disabled: false, key: 'pick', text: 'Pick a fruit…' },
-        { disabled: false, key: 'shuffle', text: 'Shuffle' },
-        { disabled: true, key: 'nothing', text: 'Nothing (disabled)' },
-      ],
-      label: 'Actions',
-    }),
+    actions: () => ({ disabled: ['nothing'], label: 'Actions', source: 'actions' }),
     order: () => ({
       dragDistance: 1,
       focusable: true,
@@ -101,7 +94,10 @@ const app = compose({
   step: (own) => [own, []],
   view: (own) => ({
     picked: part({
-      content: own.picked === null ? [{ text: 'Nothing picked' }] : [{ text: 'Picked: ' }, { item: own.picked }],
+      content:
+        own.picked === null
+          ? [{ text: 'Nothing picked' }]
+          : [{ text: 'Picked: ' }, { item: own.picked, source: 'fruit' }],
     }),
     root: part({ content: [{ child: 'actions' }, { part: 'picked' }, { child: 'order' }, { child: 'picker' }] }),
   }),

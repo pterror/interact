@@ -191,7 +191,7 @@ describe('the React components', () => {
       press(trigger, 'ArrowDown')
       press(trigger, 'Enter')
       await settled()
-      expect(trigger?.textContent).toBe(own ? 'Banana' : 'Cherry')
+      expect(trigger?.textContent).toBe('Cherry')
       await Bun.sleep(40)
       expect(trigger?.textContent).toBe(own ? 'Choose a fruit' : 'Apple')
       root.unmount()

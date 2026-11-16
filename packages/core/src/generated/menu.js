@@ -6,33 +6,54 @@ const HERE = []
 
 const EFFECTS = {
   activate: { fields: ['item'], type: 'activate' },
+  askAt: { fields: ['at', 'find', 'id', 'next', 'source'], type: 'ask' },
+  askRanks: { fields: ['id', 'ranks', 'source'], tuples: { ranks: 2 }, type: 'ask' },
   focus: { fields: ['item', 'part'], tuples: { part: 1 }, type: 'focus' },
   preventDefault: { fields: [], type: 'preventDefault' },
   wake: { fields: ['at'], type: 'wake' },
 }
 
+const FIRST_PAGE = 64
+
 const NONE = []
 
 const FOCUS_BUTTON = { item: null, part: ['button'], type: 'focus' }
 
-const TYPEAHEAD_MS = 500
+const typeaheadTYPEAHEAD_MS = 500
 
 const PREVENT = { type: 'preventDefault' }
 
-function init(props, host) {
-  return { active: null, items: props.items, label: props.label, open: false, prefix: '', until: 0 }
+/**
+ * Asks for the items, from the first, as many as there are or the first page
+ * @param state - The menu
+ * @param count - How many to ask for
+ */
+function ask(state, count, host) {
+  const id = state.asked + 1
+  state.asked = id
+  host.askRanks(HERE, id, 0, count, state.source)
+  return state
 }
 
-/**
- * Closes the menu and gives focus back to the button
- * @param state - The menu
- */
-function close(state, host) {
-  state.active = null
-  state.open = false
-  state.prefix = ''
-  host.focus(HERE, null, 'button')
-  return state
+function init(props, host) {
+  return ask(
+    {
+      active: null,
+      asked: 0,
+      count: null,
+      disabled: props.disabled,
+      keys: [],
+      label: props.label,
+      open: false,
+      opening: null,
+      prefix: '',
+      sought: 0,
+      source: props.source,
+      until: 0,
+    },
+    FIRST_PAGE,
+    host,
+  )
 }
 
 /**
@@ -45,18 +66,85 @@ function activate(state, key, host) {
     return state
   }
   state.active = key
+  state.opening = null
   host.focus(HERE, key, 'item')
   return state
 }
 
 /**
- * Opens the menu, an item active
+ * The first or last item
  * @param state - The menu
- * @param key - The item
+ * @param end - Which
  */
-function open(state, key, host) {
-  state.open = true
-  return activate(state, key, host)
+function endOf(state, end) {
+  return (end === 'first' ? state.keys[0] : state.keys.at(-1)) ?? null
+}
+
+/**
+ * Takes the answer to the latest ask: the items, asking for the rest if there are more
+ * @param state - The menu
+ * @param answer - The answer
+ */
+function answered(state, answer, host) {
+  if (answer.id !== state.asked) {
+    return state
+  }
+  const { count, keys } = answer
+  const active = state.active !== null && keys.includes(state.active) ? state.active : null
+  const stateActive = state.active
+  state.active = active
+  state.count = count
+  state.keys = keys
+  if (answer.from === 0 && count > keys.length) {
+    return ask(state, count, host)
+  }
+  if (state.open && state.opening !== null) {
+    return activate(state, endOf(state, state.opening), host)
+  }
+  if (state.open && active === null && stateActive !== null) {
+    return activate(state, endOf(state, 'first'), host)
+  } else {
+    return state
+  }
+}
+
+/**
+ * Whether a prefix is being typed at a time
+ * @param until - When the prefix ends
+ * @param timeStamp - The time
+ */
+function typeaheadTyping(until, timeStamp) {
+  return timeStamp < until
+}
+
+/**
+ * Closes the menu and gives focus back to the button
+ * @param state - The menu
+ */
+function close(state, host) {
+  state.active = null
+  state.open = false
+  state.opening = null
+  state.prefix = ''
+  host.focus(HERE, null, 'button')
+  return state
+}
+
+/**
+ * Opens the menu, the first or last item active, or once the items come
+ * @param state - The menu
+ * @param end - Which item
+ */
+function open(state, end, host) {
+  const key = endOf(state, end)
+  if (key === null) {
+    state.open = true
+    state.opening = end
+    return state
+  } else {
+    state.open = true
+    return activate(state, key, host)
+  }
 }
 
 /**
@@ -65,12 +153,50 @@ function open(state, key, host) {
  * @param key - The item
  */
 function choose(state, key, host) {
-  const item = state.items.find((one) => one.key === key)
-  if (item === undefined || item.disabled) {
+  if (key === null || !state.keys.includes(key) || state.disabled.includes(key)) {
     return state
   }
-  host.activate(HERE, item.key)
+  host.activate(HERE, key)
   return close(state, host)
+}
+
+/**
+ * Whether a key is a character typed, not a named key (one code point; a named key is a word), with no modifier
+ * that makes it a shortcut
+ * @param input - The key
+ */
+function typeaheadIsTyped(input) {
+  return /^.$/u.test(input.key) && !input.ctrlKey && !input.metaKey && !input.altKey
+}
+
+/**
+ * A character typed: the prefix after it, when it ends, and what to find
+ * @param prefix - The prefix so far
+ * @param until - When it ends
+ * @param input - The character
+ */
+function typeaheadTyped(prefix, until, input) {
+  const letter = input.key.toLowerCase()
+  const now = `${typeaheadTyping(until, input.timeStamp) ? prefix : ''}${letter}`
+  const repeated = now.split(letter).every((between) => between === '')
+  return { find: repeated ? letter : now, next: repeated, prefix: now, until: input.timeStamp + typeaheadTYPEAHEAD_MS }
+}
+
+/**
+ * A character typed: asks the host for the item it and those before it start
+ * @param state - The menu
+ * @param input - The character
+ */
+function type(state, input, host) {
+  const made = typeaheadTyped(state.prefix, state.until, input)
+  const id = state.sought + 1
+  state.prefix = made.prefix
+  state.sought = id
+  state.until = made.until
+  host.preventDefault(HERE)
+  host.askAt(HERE, state.active, made.find, id, made.next, state.source)
+  host.wake(HERE, made.until)
+  return state
 }
 
 /**
@@ -79,43 +205,10 @@ function choose(state, key, host) {
  * @param by - How far
  */
 function stepped(state, by) {
-  const { items } = state
-  const index = items.findIndex((item) => item.key === state.active)
-  const next = ((((index === -1 && by < 0 ? 0 : index) + by) % items.length) + items.length) % items.length
-  return items[next]?.key ?? null
-}
-
-/**
- * Typeahead: moves to the next item whose text starts with what was typed. The same character typed again cycles
- * through the items starting with it
- * @param state - The menu
- * @param input - The character typed
- */
-function typed(state, input, host) {
-  const typedSoFar = input.timeStamp < state.until ? state.prefix : ''
-  const prefix = `${typedSoFar}${input.key.toLowerCase()}`
-  const repeated = prefix.split(input.key.toLowerCase()).every((between) => between === '')
-  const wanted = repeated ? input.key.toLowerCase() : prefix
-  const { items } = state
-  const start = items.findIndex((item) => item.key === state.active)
-  const found = [...items.slice(start + (repeated ? 1 : 0)), ...items.slice(0, start + (repeated ? 1 : 0))].find(
-    (item2) => item2.text.toLowerCase().startsWith(wanted),
-  )
-  const until = input.timeStamp + TYPEAHEAD_MS
-  host.preventDefault(HERE)
-  state.prefix = prefix
-  state.until = until
-  const next = activate(state, found?.key ?? null, host)
-  host.wake(HERE, until)
-  return next
-}
-
-/**
- * Whether a UI Events key value is a character typed, not a named key (one code point; a named key is a word)
- * @param key - The key value
- */
-function isCharacter(key) {
-  return /^.$/u.test(key)
+  const { keys } = state
+  const index = state.active === null ? -1 : keys.indexOf(state.active)
+  const next = ((((index === -1 && by < 0 ? 0 : index) + by) % keys.length) + keys.length) % keys.length
+  return keys[next] ?? null
 }
 
 /**
@@ -125,6 +218,9 @@ function isCharacter(key) {
  */
 function itemKey(state, input, host) {
   const { key } = input
+  if (typeaheadIsTyped(input) && (key !== ' ' || typeaheadTyping(state.until, input.timeStamp))) {
+    return type(state, input, host)
+  }
   switch (key) {
     case 'ArrowDown': {
       host.preventDefault(HERE)
@@ -138,12 +234,12 @@ function itemKey(state, input, host) {
     }
     case 'Home': {
       host.preventDefault(HERE)
-      const state4 = activate(state, state.items[0]?.key ?? null, host)
+      const state4 = activate(state, endOf(state, 'first'), host)
       return state4
     }
     case 'End': {
       host.preventDefault(HERE)
-      const state5 = activate(state, state.items.at(-1)?.key ?? null, host)
+      const state5 = activate(state, endOf(state, 'last'), host)
       return state5
     }
     case 'Escape': {
@@ -153,25 +249,18 @@ function itemKey(state, input, host) {
     case 'Tab': {
       state.active = null
       state.open = false
+      state.opening = null
       state.prefix = ''
       return state
     }
     case 'Enter':
     case ' ': {
-      if (input.key === ' ' && input.timeStamp < state.until) {
-        return typed(state, input, host)
-      } else {
-        host.preventDefault(HERE)
-        const state6 = choose(state, state.active, host)
-        return state6
-      }
+      host.preventDefault(HERE)
+      const state6 = choose(state, state.active, host)
+      return state6
     }
     default: {
-      if (isCharacter(key) && !input.ctrlKey && !input.metaKey && !input.altKey) {
-        return typed(state, input, host)
-      } else {
-        return state
-      }
+      return state
     }
   }
 }
@@ -184,15 +273,34 @@ function itemKey(state, input, host) {
 function step(state, input, host) {
   switch (input.type) {
     case 'props': {
-      const { items, label } = input.props
-      const active = items.some((item) => item.key === state.active) ? state.active : null
-      state.active = active
-      state.items = items
+      const { disabled, label, source } = input.props
+      const stateSource = state.source
+      state.disabled = disabled
       state.label = label
-      return state
+      state.source = source
+      if (source === stateSource) {
+        return state
+      } else {
+        state.count = null
+        state.keys = []
+        return ask(state, FIRST_PAGE, host)
+      }
+    }
+    case 'answer': {
+      return answered(state, input, host)
+    }
+    case 'changed': {
+      return ask(state, Math.max(state.count ?? 0, FIRST_PAGE), host)
+    }
+    case 'found': {
+      if (input.id === state.sought && input.key !== null && state.open && state.keys.includes(input.key)) {
+        return activate(state, input.key, host)
+      } else {
+        return state
+      }
     }
     case 'time': {
-      if (input.now >= state.until) {
+      if (!typeaheadTyping(state.until, input.now)) {
         state.prefix = ''
       }
       return state
@@ -202,7 +310,7 @@ function step(state, input, host) {
         if (state.open) {
           return close(state, host)
         } else {
-          return open(state, state.items[0]?.key ?? null, host)
+          return open(state, 'first', host)
         }
       }
       if (input.part === 'item') {
@@ -217,8 +325,8 @@ function step(state, input, host) {
       }
       if (input.part === 'button' && (input.key === 'ArrowDown' || input.key === 'ArrowUp')) {
         host.preventDefault(HERE)
-        const next = open(state, (input.key === 'ArrowDown' ? state.items[0] : state.items.at(-1))?.key ?? null, host)
-        return next
+        const state2 = open(state, input.key === 'ArrowDown' ? 'first' : 'last', host)
+        return state2
       }
       return state
     }

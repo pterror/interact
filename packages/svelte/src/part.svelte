@@ -3,12 +3,12 @@
   its attributes, or the snippet the app replaces it by, given the attributes, which part it is, and its contents
 -->
 <script>
-  import { attributesOf, elementFor, identity, partName } from '@pterror/interact-core'
+  import { attributesOf, elementFor, identity, itemText, partName } from '@pterror/interact-core'
 
   import Part from './part.svelte'
 
-  /** @type {{ node: import('@pterror/interact-core').Node, naming: import('@pterror/interact-core').Naming, item: ((key: import('@pterror/interact-core').Key) => unknown) | undefined, parts: Readonly<Record<string, ((attrs: Record<string, unknown>, part: Readonly<{ name: string, item: import('@pterror/interact-core').Key | null }>, children: import('svelte').Snippet) => unknown) | undefined>> }} */
-  let { item, naming, node, parts } = $props()
+  /** @type {{ node: import('@pterror/interact-core').Node, naming: import('@pterror/interact-core').Naming, item: ((key: import('@pterror/interact-core').Key) => unknown) | undefined, sources: Readonly<Record<string, import('@pterror/interact-core').Source>> | undefined, parts: Readonly<Record<string, ((attrs: Record<string, unknown>, part: Readonly<{ name: string, item: import('@pterror/interact-core').Key | null }>, children: import('svelte').Snippet) => unknown) | undefined>> }} */
+  let { item, naming, node, parts, sources } = $props()
 
   const name = $derived(partName(node.target))
   const replaced = $derived(parts[name])
@@ -31,13 +31,13 @@
 {#snippet contents()}
   {#each node.content as content, index ('target' in content ? identity(content.target, naming) : `content ${String(index)}`)}
     {#if 'target' in content}
-      <Part {item} {naming} node={content} {parts} />
+      <Part {item} {naming} node={content} {parts} {sources} />
     {:else if 'text' in content}
       {content.text}
     {:else if item !== undefined}
       {@render item(content.item)}
     {:else}
-      {String(content.item)}
+      {itemText(content, sources)}
     {/if}
   {/each}
 {/snippet}

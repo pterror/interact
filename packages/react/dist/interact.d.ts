@@ -68,7 +68,10 @@ export type PartsInside<C extends AnyComponent, Inside extends string> = Exclude
 export type Given = HostProps<string> & Props;
 export type Drawing = Readonly<{
     naming: Naming;
-    item: (key: Key) => ReactNode;
+    item: ((key: Key) => ReactNode) | undefined;
+    sources: Readonly<{
+        [name: string]: Source;
+    }> | undefined;
     parts: Readonly<{
         [name: string]: FunctionComponent<PartProps> | undefined;
     }>;

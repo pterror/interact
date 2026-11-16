@@ -184,8 +184,8 @@ describe('the DOM renderer', () => {
         part.tabindex === null ? null : String(part.tabindex),
       ])
     }
-    expect(trigger.getAttribute('aria-activedescendant')).toBe('w-list-option-Apple')
-    expect(document.querySelector('#w-list-option-Apple[data-active=""]')).not.toBeNull()
+    expect(trigger.getAttribute('aria-activedescendant')).toBe('w-list-option-Banana')
+    expect(document.querySelector('#w-list-option-Banana[data-active=""]')).not.toBeNull()
     expect(trigger.getAttribute('aria-controls')).toBe('w-list-root')
     const dispatched = spyOn(host, 'dispatch')
     for (const part of parts) {
@@ -241,9 +241,9 @@ describe('the DOM renderer', () => {
     await settled()
     expect(await violations(picked.container)).toEqual([])
 
-    const items = FRUIT.slice(0, 3).map((name) => ({ disabled: false, key: name, text: name }))
-    const menued = draw(menu, { items, label: 'Actions' })
+    const menued = draw(menu, { disabled: [], label: 'Actions', source: 'fruit' })
     cleanup.push(menued.stop)
+    await settled()
     menued.container.querySelector('button')?.click()
     expect(await violations(menued.container)).toEqual([])
 

@@ -31,6 +31,7 @@ export type Flat = Readonly<{
         text: string;
     }> | Readonly<{
         item: Key;
+        source: string;
     }> | null)[];
 }>;
 /**

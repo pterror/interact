@@ -12,15 +12,8 @@ import { answer, click, keydown, pointer } from './test-inputs.js'
 /** @import { ReorderProps, ReorderState } from './reorder.js' */
 
 /** @type {MenuProps} */
-const MENU = {
-  items: [
-    { disabled: false, key: 'cut', text: 'Cut' },
-    { disabled: true, key: 'copy', text: 'Copy' },
-    { disabled: false, key: 'paste', text: 'Paste' },
-    { disabled: false, key: 'pin', text: 'Pin' },
-  ],
-  label: 'Edit',
-}
+const MENU = { disabled: ['copy'], label: 'Edit', source: 'edit' }
+const EDIT = ['cut', 'copy', 'paste', 'pin']
 
 /**
  * Steps a menu through inputs
@@ -37,10 +30,35 @@ function run(state, inputs) {
   return result
 }
 
+/**
+ * A menu with its items answered
+ * @returns {MenuState} The menu
+ */
+function withItems() {
+  return run(menu.init(MENU)[0], [answer(1, EDIT, [0, 64])])[0]
+}
+
+/**
+ * The host's answer to a find over the menu's items, as `arraySource` finds
+ * @param {number} id - The find's id
+ * @param {string | null} key - The key found
+ * @returns {import('./contract.js').Found} The answer
+ */
+function found(id, key) {
+  return { id, key, type: 'found' }
+}
+
 describe('menu', () => {
+  test('asks for its items whole: a first page, then the rest once it knows how many', () => {
+    const [first, asks] = menu.init(MENU)
+    expect(asks).toEqual([{ id: 1, ranks: [0, 64], source: 'edit', type: 'ask' }])
+    const many = Array.from({ length: 70 }, (_, index) => `k${String(index)}`)
+    const [, more] = run(first, [answer(1, many, [0, 64])])
+    expect(more).toEqual([{ id: 2, ranks: [0, 70], source: 'edit', type: 'ask' }])
+  })
+
   test('opens from the button with focus on the first item, moves with wrapping, and closes back to the button', () => {
-    const closed = menu.init(MENU)[0]
-    let [state, effects] = run(closed, [click('button')])
+    let [state, effects] = run(withItems(), [click('button')])
     expect([state.open, effects]).toEqual([true, [{ item: 'cut', part: ['item'], type: 'focus' }]])
     ;[state, effects] = run(state, [keydown('item', 'ArrowUp', { item: 'cut' })])
     expect(effects).toEqual([{ type: 'preventDefault' }, { item: 'pin', part: ['item'], type: 'focus' }])
@@ -51,8 +69,15 @@ describe('menu', () => {
     ])
   })
 
+  test('opened before its items come, focuses the first once they do', () => {
+    const [open, none] = run(menu.init(MENU)[0], [click('button')])
+    expect([open.open, none]).toEqual([true, []])
+    const [, effects] = run(open, [answer(1, EDIT, [0, 64])])
+    expect(effects).toEqual([{ item: 'cut', part: ['item'], type: 'focus' }])
+  })
+
   test('activates an item, but not a disabled one', () => {
-    const [state] = run(menu.init(MENU)[0], [click('button'), keydown('item', 'ArrowDown')])
+    const [state] = run(withItems(), [click('button'), keydown('item', 'ArrowDown')])
     expect(state.active).toBe('copy')
     expect(run(state, [keydown('item', 'Enter')])[1]).toEqual([{ type: 'preventDefault' }])
     const [, effects] = run(state, [click('item', 'paste')])
@@ -62,17 +87,25 @@ describe('menu', () => {
     ])
   })
 
-  test('typeahead moves by what was typed, asks to be woken to forget it, and cycles on a repeated letter', () => {
-    const [open] = run(menu.init(MENU)[0], [click('button')])
+  test('typeahead asks the host to find what was typed, takes the latest answer, and forgets it when woken', () => {
+    const [open] = run(withItems(), [click('button')])
     const [typed, effects] = run(open, [keydown('item', 'p', { timeStamp: 1000 })])
-    expect(typed.active).toBe('paste')
-    expect(effects.at(-1)).toEqual({ at: 1500, type: 'wake' })
-    let [state] = run(typed, [keydown('item', 'i', { timeStamp: 1100 })])
+    expect(effects).toEqual([
+      { type: 'preventDefault' },
+      { at: 'cut', find: 'p', id: 1, next: true, source: 'edit', type: 'ask' },
+      { at: 1500, type: 'wake' },
+    ])
+    const [more, again] = run(typed, [keydown('item', 'i', { timeStamp: 1100 })])
+    expect(again[1]).toEqual({ at: 'cut', find: 'pi', id: 2, next: false, source: 'edit', type: 'ask' })
+    let [state] = run(more, [found(1, 'paste'), found(2, 'pin')])
     expect(state.active).toBe('pin')
     ;[state] = run(state, [{ now: 1600, type: 'time' }])
     expect(state.prefix).toBe('')
-    ;[state] = run(state, [keydown('item', 'p', { timeStamp: 2000 }), keydown('item', 'p', { timeStamp: 2100 })])
-    expect(state.active).toBe('pin')
+    const [, cycled] = run(state, [
+      keydown('item', 'p', { timeStamp: 2000 }),
+      keydown('item', 'p', { timeStamp: 2100 }),
+    ])
+    expect(cycled[1]).toEqual({ at: 'pin', find: 'p', id: 4, next: true, source: 'edit', type: 'ask' })
   })
 })
 

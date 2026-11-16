@@ -97,7 +97,7 @@ describe('the terminal renderer', () => {
     const shown = terminal(select, SELECT)
     expect(shown.screen()).toEqual(['Fruit: [ Choose ▾ ]'])
     await shown.feed(`${ESC}[B`)
-    await shown.feed(`${ESC}[B${ESC}[B`)
+    await shown.feed(`${ESC}[B`)
     expect(shown.screen()).toEqual(['Fruit: [ Choose ▴ ]', '    Apple', '    Banana', '    Cherry', '    Date'])
     await shown.feed('\r')
     expect(shown.screen()).toEqual(['Fruit: [ Banana ▾ ]'])
@@ -118,7 +118,6 @@ describe('the terminal renderer', () => {
     const shown = terminal(select, SELECT, {
       option: (_node, look) => `${look.lit ? '>' : ' '} ${look.text.toUpperCase()}`,
     })
-    await shown.feed(`${ESC}[B`)
     await shown.feed(`${ESC}[B`)
     expect(shown.screen().slice(1, 3)).toEqual(['  > APPLE', '    BANANA'])
   })

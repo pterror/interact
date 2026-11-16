@@ -4,7 +4,7 @@
   its default slot
 -->
 <script>
-  import { attributesOf, elementFor, identity, partName } from '@pterror/interact-core'
+  import { attributesOf, elementFor, identity, itemText, partName } from '@pterror/interact-core'
 
   /** @type {import('@pterror/interact-core').Node} */
   export let node
@@ -14,6 +14,8 @@
   export let item = undefined
   /** @type {Record<string, any>} */
   export let parts = {}
+  /** @type {Readonly<Record<string, import('@pterror/interact-core').Source>> | undefined} */
+  export let sources = undefined
 
   $: name = partName(node.target)
   $: replaced = parts[name]
@@ -46,13 +48,13 @@
   <svelte:component this={replaced} {attrs} part={{ item: node.target.item, name }}>
     {#each node.content as content, index ('target' in content ? identity(content.target, naming) : `content ${String(index)}`)}
       {#if 'target' in content}
-        <svelte:self {item} {naming} node={content} {parts} />
+        <svelte:self {item} {naming} node={content} {parts} {sources} />
       {:else if 'text' in content}
         {content.text}
       {:else if item !== undefined}
         <svelte:component this={item} key={content.item} />
       {:else}
-        {String(content.item)}
+        {itemText(content, sources)}
       {/if}
     {/each}
   </svelte:component>
@@ -60,13 +62,13 @@
   <svelte:element this={kind.tag} {...attrs}>
     {#each node.content as content, index ('target' in content ? identity(content.target, naming) : `content ${String(index)}`)}
       {#if 'target' in content}
-        <svelte:self {item} {naming} node={content} {parts} />
+        <svelte:self {item} {naming} node={content} {parts} {sources} />
       {:else if 'text' in content}
         {content.text}
       {:else if item !== undefined}
         <svelte:component this={item} key={content.item} />
       {:else}
-        {String(content.item)}
+        {itemText(content, sources)}
       {/if}
     {/each}
   </svelte:element>

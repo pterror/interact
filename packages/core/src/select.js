@@ -3,13 +3,15 @@
  * a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known
  * from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only
  * reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once
- * and is pending until the props confirm it or the app refuses it.
+ * and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's
+ * typeahead; Space is typed too while a prefix is being typed (`until`).
  */
 
 import { compose } from './compose.js'
 import { part, ref } from './contract.js'
 import { list } from './list.js'
 import { change, fromApp, pending, refuse, shown } from './pending.js'
+import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
 
 /** @import { Blur, Change, Click, i32, Key, KeyDown, PreventDefault, PropsInput, Refused, Result } from './contract.js' */
 /** @import { Send, StopPropagation } from './compose.js' */
@@ -34,6 +36,7 @@ import { change, fromApp, pending, refuse, shown } from './pending.js'
  *   placeholder: string,
  *   rows: i32,
  *   source: string,
+ *   until: number,
  * }>} SelectOwn
  */
 
@@ -70,6 +73,9 @@ function choose(own, key) {
  */
 function keydown(own, input) {
   const { key } = input
+  if (isTyped(input) && (key !== ' ' || (own.open && typing(own.until, input.timeStamp)))) {
+    return [{ ...own, open: true, until: input.timeStamp + TYPEAHEAD_MS }, [{ input, to: 'list', type: 'send' }]]
+  }
   if (!own.open) {
     if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Enter' || key === ' ') {
       return [{ ...own, open: true }, PREVENT]
@@ -147,6 +153,7 @@ function init(props) {
       placeholder: props.placeholder,
       rows: props.rows,
       source: props.source,
+      until: 0,
       value: pending(props.value !== null, props.value === null ? null : props.value.value),
     },
     NONE,
@@ -198,7 +205,7 @@ const select = compose({
           haspopup: 'listbox',
           label: own.label,
         },
-        content: value === null ? [{ text: own.placeholder }] : [{ item: value }],
+        content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
         listens: ['click', 'keydown', 'blur'],
         role: 'combobox',
         tabindex: 0,

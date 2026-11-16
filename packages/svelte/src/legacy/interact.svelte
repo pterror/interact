@@ -65,7 +65,7 @@
   })
 </script>
 
-<Part {item} naming={running.page.naming} node={tree} {parts} /><div
+<Part {item} naming={running.page.naming} node={tree} {parts} sources={$$restProps['sources']} /><div
   bind:this={live}
   role="status"
 ></div>

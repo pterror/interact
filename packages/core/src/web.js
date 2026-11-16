@@ -12,7 +12,7 @@ import { announcement } from './words.js'
 
 /** @import { Node, Out, Target } from './compose.js' */
 /** @import { Key } from './contract.js' */
-/** @import { Host, HostOptions } from './host.js' */
+/** @import { Host, HostOptions, Source } from './host.js' */
 /** @import { Words } from './words.js' */
 
 /**
@@ -174,6 +174,17 @@ function effectType(out) {
  */
 function partName(target) {
   return target.part === 'root' ? (target.owner.at(-1) ?? 'root') : target.part
+}
+
+/**
+ * An item's text in the collection it is from, as a host draws and names it when the app draws it no other way: the
+ * source's text for it, or the key as text
+ * @param {Readonly<{ item: Key, source: string }>} content - The item, and its collection
+ * @param {Readonly<{ [name: string]: Source }> | undefined} sources - The collections the host holds
+ * @returns {string} Its text
+ */
+function itemText(content, sources) {
+  return sources?.[content.source]?.text?.(content.item) ?? String(content.item)
 }
 
 /**
@@ -573,4 +584,4 @@ function page(options, live) {
   }
 }
 
-export { ARIA_STATES, attributesOf, elementFor, identity, idOf, page, partName, statesOf }
+export { ARIA_STATES, attributesOf, elementFor, identity, idOf, itemText, page, partName, statesOf }

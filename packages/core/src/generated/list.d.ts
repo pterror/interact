@@ -5,14 +5,24 @@ type Source = typeof import('../list.js').list
 type State = ReturnType<Source['init']>[0]
 type Effect = ReturnType<Source['step']>[1][number]
 type Active = Extract<Effect, { type: 'active'; item: unknown }>
+type AskAt = Extract<Effect, { type: 'ask'; at: unknown; find: unknown; id: unknown; next: unknown; source: unknown }>
 type AskLocate = Extract<Effect, { type: 'ask'; id: unknown; locate: unknown; rows: unknown; source: unknown }>
 type AskRanks = Extract<Effect, { type: 'ask'; id: unknown; ranks: unknown; source: unknown }>
 type Change = Extract<Effect, { type: 'change'; id: unknown; value: unknown }>
 type PreventDefault = Extract<Effect, { type: 'preventDefault' }>
+type Wake = Extract<Effect, { type: 'wake'; at: unknown }>
 
 /** What list calls for each effect it makes, with where the effect came from */
 export type ListHost = {
   active(from: Path, item: Active['item']): void
+  askAt(
+    from: Path,
+    at: AskAt['at'],
+    find: AskAt['find'],
+    id: AskAt['id'],
+    next: AskAt['next'],
+    source: AskAt['source'],
+  ): void
   askLocate(
     from: Path,
     id: AskLocate['id'],
@@ -29,6 +39,7 @@ export type ListHost = {
   ): void
   change(from: Path, id: Change['id'], value: Change['value']): void
   preventDefault(from: Path): void
+  wake(from: Path, at: Wake['at']): void
 }
 
 type Generated<H> = {

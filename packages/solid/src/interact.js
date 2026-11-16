@@ -7,7 +7,7 @@
  * (`createUniqueId`), so they match between server and client, unless the app names them.
  */
 
-import { attributesOf, elementFor, identity, page, partName, same } from '@pterror/interact-core'
+import { attributesOf, elementFor, identity, itemText, page, partName, same } from '@pterror/interact-core'
 import {
   createComponent,
   createMemo,
@@ -38,7 +38,7 @@ import { Dynamic, isServer } from 'solid-js/web'
  */
 
 /**
- * What the page needs, optionally how an item is drawn (by default its key as text) and the parts the app draws itself,
+ * What the page needs, optionally how an item is drawn (by default its text in its source) and the parts the app draws itself,
  * by name (`option`)
  * @typedef {PageOptions & Readonly<{
  *   item?: ((key: Key) => JSX.Element) | undefined,
@@ -51,7 +51,7 @@ import { Dynamic, isServer } from 'solid-js/web'
  * @typedef {Readonly<{
  *   node: Part,
  *   content: readonly string[],
- *   values: readonly (Readonly<{ text: string }> | Readonly<{ item: Key }> | null)[],
+ *   values: readonly (Readonly<{ text: string }> | Readonly<{ item: Key, source: string }> | null)[],
  * }>} Flat
  */
 
@@ -119,13 +119,13 @@ function noElement() {
  * @returns {JSX.Element} Its root part, and the live region it announces in
  */
 function Interact(props) {
+  const { sources, translate } = props
   /**
-   * An item as the app draws it
-   * @param {Key} key - The item
+   * An item as the app draws it, or its text in its source
+   * @param {Readonly<{ item: Key, source: string }>} content - The item
    * @returns {JSX.Element} What it draws
    */
-  const item = (key) => (props.item ?? String)(key)
-  const { sources, translate } = props
+  const item = (content) => (props.item === undefined ? itemText(content, sources) : props.item(content.item))
   const [live, setLive] = createSignal(noElement())
   const running = page(
     {
@@ -217,7 +217,7 @@ function Interact(props) {
       const value = () => flat()?.values[index()] ?? null
       return () => {
         const given = value()
-        return given === null ? '' : 'text' in given ? given.text : item(given.item)
+        return given === null ? '' : 'text' in given ? given.text : item(given)
       }
     }
     const extra = tag === 'button' && replaced === undefined ? { type: 'button' } : {}

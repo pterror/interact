@@ -1,8 +1,8 @@
 /**
  * The host side of a widget: holds its state and props, delivers inputs, and carries out what needs the platform.
  * `wake` is the platform's timer; an `ask` or `move` about a source the app passed is answered from that source (its
- * answer back to the widget that asked, `confirmed` or `refused` for a move, `changed` to every widget that asked
- * about it when it changes). Moves go to a source one at a time, in the order they were made, since each was made
+ * `answer` or `found` back to the widget that asked, `confirmed` or `refused` for a move, `changed` to every widget
+ * that asked about it when it changes). Moves go to a source one at a time, in the order they were made, since each was made
  * against the order the ones before it left. Everything else goes to `effect`: the renderer's effects (focus, preventing a default,
  * announcing) to the renderer, the rest on to the app. Host events pass through `translate` first, which is where keys
  * are rebound: it gives the standard key a widget expects. Not pure: this is where the clock, timers and sources are.
@@ -21,11 +21,16 @@ import { deliver, isRecord, resolve, start, typeOf } from './compose.js'
 
 /**
  * A collection the host holds: windows read from it (now or later), moves made in it (`true` once made, `false` if
- * refused), and hearing it change
+ * refused), and hearing it change; optionally an item's text, for each key it has answered with (what the item is
+ * named and drawn as by default), and finding a key by the start of its text (the first from `at` on, after it when
+ * `next`, wrapping round, ignoring case; `null` for none), now or later. A source that can't find answers every find
+ * with none
  * @typedef {Readonly<{
  *   read: (question: Readonly<{ ranks: readonly [number, number] }> | Readonly<{ locate: Key, rows: number }>) => Window | Promise<Window>,
  *   move: (item: Key, target: Key, after: boolean) => boolean | Promise<boolean>,
  *   watch: (listener: () => void) => () => void,
+ *   text?: (key: Key) => string,
+ *   find?: (prefix: string, at: Key | null, next: boolean) => Key | null | Promise<Key | null>,
  * }>} Source
  */
 
@@ -56,12 +61,35 @@ import { deliver, isRecord, resolve, start, typeOf } from './compose.js'
  */
 
 /**
- * A collection in memory, as a source: its keys in order, which a move reorders
- * @param {readonly Key[]} initial - The keys
- * @returns {Source & Readonly<{ keys: () => readonly Key[], set: (keys: readonly Key[]) => void }>} The source, and
- *   its keys to read and set
+ * Finds a key by the start of its text in keys in memory, as a source finds it
+ * @param {readonly Key[]} keys - The keys
+ * @param {(key: Key) => string} textOf - Each one's text
+ * @param {string} prefix - What its text starts with, ignoring case
+ * @param {Key | null} at - The key to look from, or `null` for the first
+ * @param {boolean} next - Whether to look from the key after it
+ * @returns {Key | null} The first key found, wrapping round, or `null`
  */
-function arraySource(initial) {
+function findIn(keys, textOf, prefix, at, next) {
+  const wanted = prefix.toLowerCase()
+  const index = at === null ? -1 : keys.indexOf(at)
+  const first = index === -1 ? 0 : index + (next ? 1 : 0)
+  for (let step = 0; step < keys.length; step += 1) {
+    const key = keys[(first + step) % keys.length]
+    if (key !== undefined && textOf(key).toLowerCase().startsWith(wanted)) {
+      return key
+    }
+  }
+  return null
+}
+
+/**
+ * A collection in memory, as a source: its keys in order, which a move reorders, and each one's text
+ * @param {readonly Key[]} initial - The keys
+ * @param {(key: Key) => string} textOf - An item's text (by default its key as text)
+ * @returns {Source & Readonly<{ keys: () => readonly Key[], set: (keys: readonly Key[]) => void, text: (key: Key) => string }>}
+ *   The source, and its keys to read and set
+ */
+function arraySource(initial, textOf = String) {
   let keys = initial
   /** @type {Set<() => void>} */
   const listeners = new Set()
@@ -77,6 +105,7 @@ function arraySource(initial) {
     }
   }
   return {
+    find: (prefix, at, next) => findIn(keys, textOf, prefix, at, next),
     keys: () => keys,
     move: (item, target, after) => {
       if (!keys.includes(item) || !keys.includes(target) || item === target) {
@@ -99,6 +128,7 @@ function arraySource(initial) {
       return { count: keys.length, from, keys: keys.slice(from, to) }
     },
     set,
+    text: textOf,
     watch: (listener) => {
       listeners.add(listener)
       return () => {
@@ -159,6 +189,15 @@ function host(options) {
       const known = askers.get(name) ?? askersOf()
       known.set(out.from.join('/'), out.from)
       askers.set(name, known)
+      if (typeof effect['find'] === 'string') {
+        const at = effect['at'] === null ? null : keyOf(effect['at'])
+        const found = Promise.resolve(source.find?.(effect['find'], at, effect['next'] === true) ?? null)
+        deliverLater(
+          out.from,
+          found.then((key) => ({ id, key, type: 'found' })),
+        )
+        return true
+      }
       const ranks = effect['ranks']
       /** @type {Parameters<Source['read']>[0]} */
       const question = Array.isArray(ranks)
@@ -295,4 +334,4 @@ function keyOf(value) {
   return typeof value === 'string' || typeof value === 'number' ? value : ''
 }
 
-export { arraySource, host }
+export { arraySource, findIn, host }

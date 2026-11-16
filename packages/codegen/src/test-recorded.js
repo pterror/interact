@@ -105,21 +105,15 @@ const REORDER_RUNS = [
   },
 ]
 
-const MENU = {
-  items: [
-    { disabled: false, key: 'cut', text: 'Cut' },
-    { disabled: true, key: 'copy', text: 'Copy' },
-    { disabled: false, key: 'paste', text: 'Paste' },
-    { disabled: false, key: 'pin', text: 'Pin' },
-  ],
-  label: 'Edit',
-}
+const MENU = { disabled: ['copy'], label: 'Edit', source: 'edit' }
+const EDIT = ['cut', 'copy', 'paste', 'pin']
 
 /** @type {readonly LeafRun[]} */
 const MENU_RUNS = [
   {
     inputs: [
       click('button'),
+      answer(1, EDIT, 0, 64),
       keydown('item', 'ArrowUp', { item: 'cut' }),
       keydown('item', 'Escape', { item: 'pin' }),
       click('button'),
@@ -129,6 +123,8 @@ const MENU_RUNS = [
       click('button'),
       keydown('item', 'p', { timeStamp: 1000 }),
       keydown('item', 'i', { timeStamp: 1100 }),
+      { id: 1, key: 'paste', type: 'found' },
+      { id: 2, key: 'pin', type: 'found' },
       { now: 1600, type: 'time' },
       keydown('item', 'p', { timeStamp: 2000 }),
       keydown('item', 'p', { timeStamp: 2100 }),
@@ -154,6 +150,10 @@ const SELECT_RUNS = [
       { input: { id: 2, type: 'refused' }, path: [] },
       { input: keydown('trigger', 'End'), path: [] },
       { input: answer(2, FRUIT, 2, 8), path: ['list'] },
+      { input: keydown('trigger', 'c', { timeStamp: 3000 }), path: [] },
+      { input: { id: 1, key: 'cherry', type: 'found' }, path: ['list'] },
+      { input: keydown('trigger', 'h', { timeStamp: 3100 }), path: [] },
+      { input: { now: 3700, type: 'time' }, path: ['list'] },
       { input: { item: null, part: 'trigger', timeStamp: 0, type: 'blur' }, path: [] },
     ],
     props: SELECT,

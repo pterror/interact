@@ -82,10 +82,11 @@ describe('select', () => {
     expect(answered.children.list.keys).toEqual(ALL.slice(0, 5))
   })
 
-  test("names the active option in the trigger's aria-activedescendant, from the list's active effects only", () => {
-    const [moved, effects] = send(opened(), [], keydown('trigger', 'ArrowDown'))
+  test("opens on the first option when nothing is chosen, named in the trigger's aria-activedescendant", () => {
+    const first = opened()
+    expect(first.own.active).toBe('apple')
+    const [state, effects] = send(first, [], keydown('trigger', 'ArrowDown'))
     expect(effects).toEqual([{ effect: { type: 'preventDefault' }, from: ['list'] }])
-    const [state] = send(moved, [], keydown('trigger', 'ArrowDown'))
     expect(state.own.active).toBe('banana')
     const [trigger] = resolve(select, state, PROPS).content
     expect(trigger !== undefined && 'aria' in trigger ? trigger.aria['activedescendant'] : null).toEqual({
@@ -96,8 +97,7 @@ describe('select', () => {
   })
 
   test('chooses with Enter, keeping its own value when not given one', () => {
-    const [moved] = send(opened(), [], keydown('trigger', 'ArrowDown'))
-    const [state, effects] = send(moved, [], keydown('trigger', 'Enter'))
+    const [state, effects] = send(opened(), [], keydown('trigger', 'Enter'))
     expect([state.own.open, shown(state.own.value)]).toEqual([false, 'apple'])
     expect(effects).toEqual([{ type: 'preventDefault' }, { id: 1, type: 'change', value: 'apple' }])
   })
@@ -129,11 +129,32 @@ describe('select', () => {
   })
 
   test('closes on Escape without choosing, and on blur choosing the active option', () => {
-    const [moved] = send(opened(), [], keydown('trigger', 'ArrowDown'))
+    const moved = opened()
     const [escaped] = send(moved, [], keydown('trigger', 'Escape'))
     expect([escaped.own.open, shown(escaped.own.value)]).toEqual([false, null])
     const [blurred] = send(moved, [], { item: null, part: 'trigger', timeStamp: 0, type: 'blur' })
     expect([blurred.own.open, shown(blurred.own.value)]).toEqual([false, 'apple'])
+  })
+
+  test('opens on a character typed, the list asking the host to find it; Space is typed while a prefix is', () => {
+    const [state, effects] = send(started()[0], [], keydown('trigger', 'c', { timeStamp: 100 }))
+    expect(state.own.open).toBe(true)
+    expect(effects).toEqual([
+      { effect: { id: 1, ranks: [0, 5], source: 'fruit', type: 'ask' }, from: ['list'] },
+      { effect: { type: 'preventDefault' }, from: ['list'] },
+      { effect: { at: null, find: 'c', id: 1, next: true, source: 'fruit', type: 'ask' }, from: ['list'] },
+      { effect: { at: 600, type: 'wake' }, from: ['list'] },
+    ])
+    const [loaded] = send(state, ['list'], answer(1, ALL, [0, 5]))
+    const [found] = send(loaded, ['list'], { id: 1, key: 'cherry', type: 'found' })
+    expect(found.own.active).toBe('cherry')
+    const [spaced, typed] = send(found, [], keydown('trigger', ' ', { timeStamp: 200 }))
+    expect([spaced.own.open, typed.at(1)]).toEqual([
+      true,
+      { effect: { at: 'cherry', find: 'c ', id: 2, next: false, source: 'fruit', type: 'ask' }, from: ['list'] },
+    ])
+    const [chosen] = send(spaced, [], keydown('trigger', ' ', { timeStamp: 900 }))
+    expect([chosen.own.open, shown(chosen.own.value)]).toEqual([false, 'cherry'])
   })
 
   test('opens on End, handing the key to the list, which moves once it knows the count', () => {

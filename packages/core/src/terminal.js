@@ -12,7 +12,7 @@
  */
 
 import { host as run } from './host.js'
-import { identity, partName } from './web.js'
+import { identity, itemText, partName } from './web.js'
 import { announcement } from './words.js'
 
 /** @import { Node as Part, Out, Target } from './compose.js' */
@@ -35,7 +35,7 @@ import { announcement } from './words.js'
  */
 
 /**
- * What the host needs, and the terminal; optionally an item's text (by default its key as text), the words
+ * What the host needs, and the terminal; optionally an item's text (by default its text in its source), the words
  * announcements use over the English ones, and parts the app draws itself, by name (`option`)
  * @typedef {HostOptions & Readonly<{
  *   input: TerminalInput,
@@ -177,7 +177,7 @@ function segment(text, key, style) {
 /**
  * The text a part shows inline: its text, its items, and its children's, run together
  * @param {Part} node - The part
- * @param {(key: Key) => string} item - The host's text for an item
+ * @param {(content: Readonly<{ item: Key, source: string }>) => string} item - The host's text for an item
  * @returns {string} The text
  */
 function textOf(node, item) {
@@ -189,7 +189,7 @@ function textOf(node, item) {
           : textOf(content, item)
         : 'text' in content
           ? content.text
-          : item(content.item),
+          : item(content),
     )
     .join('')
 }
@@ -206,7 +206,7 @@ function isTarget(value) {
 /**
  * Lays a tree out as rows, by role
  * @param {Part} tree - The root
- * @param {Readonly<{ focused: string | null, item: (key: Key) => string, parts: Readonly<{ [name: string]: DrawPart }> }>} options
+ * @param {Readonly<{ focused: string | null, item: (content: Readonly<{ item: Key, source: string }>) => string, parts: Readonly<{ [name: string]: DrawPart }> }>} options
  *   - Which part has focus, the host's text for items, and the parts the app draws
  * @returns {Layout} The rows, every part by identity, and each part's parent
  */
@@ -367,7 +367,14 @@ function paint(rows, columns) {
  *   The running widget, input fed as the terminal would, the screen's rows as plain text, and stopping
  */
 function renderTerminal(options) {
-  const item = options.item ?? String
+  const named = options.item ?? String
+  /**
+   * An item's text
+   * @param {Readonly<{ item: Key, source: string }>} content - The item
+   * @returns {string} Its text
+   */
+  const item = (content) =>
+    options.item === undefined ? itemText(content, options.sources) : options.item(content.item)
   const parts = options.parts ?? {}
   /** @type {string | null} */
   let focused = null
@@ -399,7 +406,7 @@ function renderTerminal(options) {
       return
     }
     if (type === 'announce') {
-      said = announcement(out, options.words ?? {}, item)
+      said = announcement(out, options.words ?? {}, named)
       draw()
       return
     }

@@ -246,7 +246,7 @@
             }
           ],
           "customElement": true,
-          "description": "A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset. Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.",
+          "description": "A listbox over a collection the host holds (on a server, say): the WAI-ARIA listbox (https://www.w3.org/WAI/ARIA/apg/patterns/listbox/), single selection, selection not following focus. It draws a window of `rows` options and holds one more key each side of it, so every drawn option's neighbours are known. Keys come from the host by `ask` about its `source`; only the answer to the latest ask is used, and `changed` asks again. The window follows the active option, and, once an option's size is `measured`, the list's `scroll` offset. Characters typed are typeahead: the host finds the option they start (`ask` with `find`), and only the answer to the latest find is used. Shown with nothing selected and nothing active, or focused so, the first option is active. Selection is the value, by the contract's rule: with `selected` in its props (not `null`), a choice shows at once and is pending until the props confirm it or the app refuses it. The list emits `active` whenever the active option it draws changes, so a parent can name it (`aria-activedescendant`) without reading the list's state.",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",
@@ -395,6 +395,14 @@
               "type": {
                 "text": "string"
               }
+            },
+            {
+              "description": "The widget's `source`",
+              "fieldName": "source",
+              "name": "source",
+              "type": {
+                "text": "string"
+              }
             }
           ],
           "cssParts": [
@@ -426,7 +434,7 @@
             }
           ],
           "customElement": true,
-          "description": "A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/), focus moved to each item in turn. Items are few and the app's, so they come in the props with their text, which typeahead reads. Choosing an item emits `activate`; disabled items are moved to but not chosen.",
+          "description": "A menu button: the WAI-ARIA menu button with a menu (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/), focus moved to each item in turn. Items are the keys of a collection the host holds (`source`), asked for whole, since a menu draws every item: a first page, then the rest once the count is known; only the answer to the latest ask is used, and `changed` asks again. The host draws each item. Characters typed are typeahead, which the host finds (`ask` with `find`). Choosing an item emits `activate`; disabled items are moved to but not chosen.",
           "events": [
             {
               "description": "The widget's `activate` effect, as its detail",
@@ -439,9 +447,9 @@
           "kind": "class",
           "members": [
             {
-              "description": "The widget's `items`",
+              "description": "The widget's `disabled`",
               "kind": "field",
-              "name": "items",
+              "name": "disabled",
               "type": {
                 "text": "unknown"
               }
@@ -450,6 +458,14 @@
               "description": "The widget's `label`",
               "kind": "field",
               "name": "label",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "description": "The widget's `source`",
+              "kind": "field",
+              "name": "source",
               "type": {
                 "text": "string"
               }
@@ -508,10 +524,6 @@
             {
               "description": "What the `button` part says, over the widget's text",
               "name": "button"
-            },
-            {
-              "description": "What the `item` part says, over the widget's text",
-              "name": "item"
             }
           ],
           "superclass": {
@@ -847,7 +859,7 @@
             }
           ],
           "customElement": true,
-          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.",
+          "description": "A select: the WAI-ARIA select-only combobox (https://www.w3.org/WAI/ARIA/apg/patterns/combobox/examples/combobox-select-only/), a trigger and a list. Focus stays on the trigger, which names the active option by `aria-activedescendant`, known from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed (`until`).",
           "events": [
             {
               "description": "The bound value changed (on the element inside, for a change of its own): cancelling it refuses the change, as `detail.refuse()` does later",

@@ -8,6 +8,7 @@
  */
 
 import { deliver, isRecord, start } from '@pterror/interact-core/compose'
+import { findIn } from '@pterror/interact-core/host'
 
 /** @import { AnyLeaf, AnyWidget, Out } from '@pterror/interact-core/compose' */
 /** @import { Key, Path } from '@pterror/interact-core/contract' */
@@ -328,12 +329,17 @@ function keyOf(value) {
 }
 
 /**
- * The window a host reads from a collection for an ask, as `arraySource` reads it
+ * The answer a host gives to an ask about a collection, as `arraySource` gives it: a window, or the key found
  * @param {readonly Key[]} keys - The collection
  * @param {Readonly<Record<string, unknown>>} ask - The ask
+ * @param {(key: Key) => string} textOf - Each item's text
  * @returns {Input} The answer
  */
-function answerFor(keys, ask) {
+function answerFor(keys, ask, textOf = String) {
+  if (typeof ask['find'] === 'string') {
+    const at = ask['at'] === null || ask['at'] === undefined ? null : keyOf(ask['at'])
+    return { id: ask['id'], key: findIn(keys, textOf, ask['find'], at, ask['next'] === true), type: 'found' }
+  }
   const ranks = ask['ranks']
   const rows = Number(ask['rows'])
   const from = Array.isArray(ranks)
@@ -434,6 +440,9 @@ function listEnvironment(pick, reorder) {
   const moves = []
   /** @type {Readonly<{ x: number, y: number, item: Key }> | null} */
   let pressed = null
+  /** @type {number[]} */
+  const wakes = []
+  let now = 0
   /**
    * @param {readonly Readonly<Record<string, unknown>>[]} effects - A result's effects
    * @returns {void}
@@ -442,6 +451,8 @@ function listEnvironment(pick, reorder) {
     for (const effect of effects) {
       if (effect['type'] === 'ask') {
         asks.push(effect)
+      } else if (effect['type'] === 'wake') {
+        wakes.push(Number(effect['at']))
       } else if (effect['type'] === 'change') {
         changes.push(Number(effect['id']))
       } else if (effect['type'] === 'move') {
@@ -496,11 +507,17 @@ function listEnvironment(pick, reorder) {
    * @returns {unknown} It
    */
   const choose = () => {
+    now += pick.chance(70) ? pick.int(300) : pick.int(2000)
     const roll = pick.int(100)
     if (asks.length > 0 && roll < 30) {
       const ask = pick.chance(70) ? asks.at(-1) : pick.pick(asks)
       asks = asks.filter((one) => one !== ask)
       return answerFor(keys, ask ?? {})
+    }
+    const wake = wakes.shift()
+    if (wake !== undefined && roll < 36) {
+      now = Math.max(now, wake)
+      return { now, type: 'time' }
     }
     if (roll < 33 && keys.length > 1) {
       const from = pick.int(keys.length)
@@ -524,8 +541,15 @@ function listEnvironment(pick, reorder) {
         ' ',
         'Escape',
         'a',
+        'k',
+        'k',
+        '1',
+        'K',
       ])
-      return keydown('root', key, { altKey: pick.chance(reorder ? 25 : 5), ctrlKey: pick.chance(3) })
+      return keydown('root', key, { altKey: pick.chance(reorder ? 25 : 5), ctrlKey: pick.chance(3), timeStamp: now })
+    }
+    if (roll < 60) {
+      return { item: null, part: 'root', timeStamp: now, type: 'focus' }
     }
     if (roll < 64) {
       return click(
@@ -581,23 +605,37 @@ function listRuns(widget, reorder, seed, runs, length) {
 }
 
 /**
- * The environment of one random run of the menu: its items, the wakes it asked for, and the time
+ * The environment of one random run of the menu: its items and their text, the asks not answered, the wakes it asked
+ * for, and the time
  * @param {Random} pick - Choices
  * @returns {Readonly<{ props: unknown, react: (effects: readonly Readonly<Record<string, unknown>>[]) => void, choose: () => unknown }>}
  *   The first props, what hears the effects, and the next input
  */
 function menuEnvironment(pick) {
+  /** @type {Map<Key, string>} */
+  const texts = new Map()
   /**
-   * Some items of a few words, some disabled
-   * @returns {Readonly<{ disabled: boolean, key: Key, text: string }>[]} The items
+   * Some items, each of a few words
+   * @returns {Key[]} Their keys
    */
   const itemsOf = () =>
-    Array.from({ length: pick.int(7) }, (_, index) => ({
-      disabled: pick.chance(20),
-      key: pick.chance(30) ? index : `i${String(index)}`,
-      text: pick.pick(WORDS),
-    }))
-  let items = itemsOf()
+    Array.from({ length: pick.int(pick.chance(10) ? 80 : 7) }, (_, index) => {
+      const key = pick.chance(30) ? index : `i${String(index)}`
+      texts.set(key, pick.pick(WORDS))
+      return key
+    })
+  let keys = itemsOf()
+  /**
+   * The props: some items disabled
+   * @returns {Readonly<Record<string, unknown>>} The props
+   */
+  const propsOf = () => ({
+    disabled: keys.filter(() => pick.chance(20)),
+    label: 'Menu',
+    source: pick.chance(90) ? 'menu' : 'other',
+  })
+  /** @type {Readonly<Record<string, unknown>>[]} */
+  let asks = []
   /** @type {number[]} */
   const wakes = []
   let now = 0
@@ -609,6 +647,8 @@ function menuEnvironment(pick) {
     for (const effect of effects) {
       if (effect['type'] === 'wake') {
         wakes.push(Number(effect['at']))
+      } else if (effect['type'] === 'ask') {
+        asks.push(effect)
       }
     }
   }
@@ -619,16 +659,21 @@ function menuEnvironment(pick) {
   const choose = () => {
     now += pick.chance(70) ? pick.int(300) : pick.int(2000)
     const roll = pick.int(100)
-    const item = items.length > 0 && pick.chance(85) ? pick.pick(items).key : 'none'
+    const item = keys.length > 0 && pick.chance(85) ? pick.pick(keys) : 'none'
+    if (asks.length > 0 && roll < 25) {
+      const ask = pick.chance(70) ? asks.at(-1) : pick.pick(asks)
+      asks = asks.filter((one) => one !== ask)
+      return answerFor(keys, ask ?? {}, (key) => texts.get(key) ?? '')
+    }
     const wake = wakes.shift()
-    if (wake !== undefined && roll < 15) {
+    if (wake !== undefined && roll < 35) {
       now = Math.max(now, wake)
       return { now, type: 'time' }
     }
-    if (roll < 30) {
+    if (roll < 45) {
       return click(pick.chance(50) ? 'button' : 'item', item)
     }
-    if (roll < 90) {
+    if (roll < 92) {
       const key = pick.pick([
         'ArrowDown',
         'ArrowUp',
@@ -656,10 +701,13 @@ function menuEnvironment(pick) {
       ])
       return keydown(pick.chance(80) ? 'item' : 'button', key, { ctrlKey: pick.chance(5), item, timeStamp: now })
     }
-    items = pick.chance(50) ? itemsOf() : items
-    return { props: { items, label: 'Menu' }, type: 'props' }
+    if (roll < 96) {
+      keys = pick.chance(50) ? itemsOf() : keys.filter(() => pick.chance(80))
+      return { type: 'changed' }
+    }
+    return { props: propsOf(), type: 'props' }
   }
-  return { choose, props: { items, label: 'Menu' }, react }
+  return { choose, props: propsOf(), react }
 }
 
 /**
@@ -712,6 +760,9 @@ function selectRun(widget, at, isDialog, pick, length) {
   let asks = []
   /** @type {{ from: Path, id: number }[]} */
   const changes = []
+  /** @type {{ from: Path, at: number }[]} */
+  const wakes = []
+  let now = 0
   /**
    * @param {readonly Out[]} outs - What reached the host
    * @returns {void}
@@ -721,6 +772,8 @@ function selectRun(widget, at, isDialog, pick, length) {
       const [effect] = asRecords([out.effect])
       if (effect?.['type'] === 'ask') {
         asks.push({ ask: effect, from: out.from })
+      } else if (effect?.['type'] === 'wake') {
+        wakes.push({ at: Number(effect['at']), from: out.from })
       } else if (effect?.['type'] === 'change') {
         changes.push({ from: out.from, id: Number(effect['id']) })
       }
@@ -731,15 +784,21 @@ function selectRun(widget, at, isDialog, pick, length) {
    * @returns {{ path: Path, input: unknown }} It
    */
   const choose = () => {
+    now += pick.chance(70) ? pick.int(300) : pick.int(2000)
     const roll = pick.int(100)
     if (asks.length > 0 && roll < 25) {
       const one = pick.chance(70) ? asks.at(-1) : pick.pick(asks)
       asks = asks.filter((ask) => ask !== one)
       return { input: answerFor(keys, one?.ask ?? {}), path: one?.from ?? [] }
     }
+    const wake = wakes.shift()
+    if (wake !== undefined && roll < 30) {
+      now = Math.max(now, wake.at)
+      return { input: { now, type: 'time' }, path: wake.from }
+    }
     if (roll < 55) {
-      const key = pick.pick(['ArrowDown', 'ArrowUp', 'Enter', ' ', 'Escape', 'Home', 'End', 'Tab', 'a'])
-      return { input: keydown('trigger', key, { altKey: pick.chance(10) }), path: at }
+      const key = pick.pick(['ArrowDown', 'ArrowUp', 'Enter', ' ', 'Escape', 'Home', 'End', 'Tab', 'a', 'k', 'k', '1'])
+      return { input: keydown('trigger', key, { altKey: pick.chance(10), timeStamp: now }), path: at }
     }
     if (roll < 65) {
       return { input: click('trigger'), path: at }

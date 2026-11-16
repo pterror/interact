@@ -6,6 +6,7 @@ type State = ReturnType<Source['init']>[0]
 type Effect = ReturnType<Source['step']>[1][number]
 type Active = Extract<Effect, { type: 'active'; item: unknown }>
 type Announce = Extract<Effect, { type: 'announce'; message: unknown; urgent: unknown; values: unknown }>
+type AskAt = Extract<Effect, { type: 'ask'; at: unknown; find: unknown; id: unknown; next: unknown; source: unknown }>
 type AskLocate = Extract<Effect, { type: 'ask'; id: unknown; locate: unknown; rows: unknown; source: unknown }>
 type AskRanks = Extract<Effect, { type: 'ask'; id: unknown; ranks: unknown; source: unknown }>
 type Change = Extract<Effect, { type: 'change'; id: unknown; value: unknown }>
@@ -14,11 +15,20 @@ type Move = Extract<
   { type: 'move'; after: unknown; id: unknown; item: unknown; source: unknown; target: unknown }
 >
 type PreventDefault = Extract<Effect, { type: 'preventDefault' }>
+type Wake = Extract<Effect, { type: 'wake'; at: unknown }>
 
 /** What reorderList calls for each effect it makes, with where the effect came from */
 export type ReorderListHost = {
   active(from: Path, item: Active['item']): void
   announce(from: Path, message: Announce['message'], urgent: Announce['urgent'], values: Announce['values']): void
+  askAt(
+    from: Path,
+    at: AskAt['at'],
+    find: AskAt['find'],
+    id: AskAt['id'],
+    next: AskAt['next'],
+    source: AskAt['source'],
+  ): void
   askLocate(
     from: Path,
     id: AskLocate['id'],
@@ -43,6 +53,7 @@ export type ReorderListHost = {
     target: Move['target'],
   ): void
   preventDefault(from: Path): void
+  wake(from: Path, at: Wake['at']): void
 }
 
 type Generated<H> = {

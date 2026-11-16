@@ -332,7 +332,7 @@ describe(`the Svelte ${String(MAJOR)} components`, () => {
     press(trigger, 'ArrowDown')
     press(trigger, 'Enter')
     await settled()
-    expect(trigger?.textContent).toBe(bound ? 'Cherry' : 'Banana')
+    expect(trigger?.textContent).toBe('Cherry')
     await Bun.sleep(40)
     expect(trigger?.textContent).toBe(bound ? 'Apple' : 'Choose a fruit')
     made.stop()

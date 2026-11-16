@@ -639,7 +639,7 @@ function start(widget, props) {
  */
 
 /**
- * @typedef {Node | Readonly<{ text: string }> | Readonly<{ item: Key }>} Drawn
+ * @typedef {Node | Readonly<{ text: string }> | Readonly<{ item: Key, source: string }>} Drawn
  */
 
 /**
