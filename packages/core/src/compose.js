@@ -55,6 +55,43 @@
 /** @typedef {AnyLeaf | AnyComposite} AnyWidget */
 
 /**
+ * The host methods a generated widget calls, as data: for each, the type of the effect it stands for and the effect's
+ * fields, in the order the method takes them after where the effect came from
+ * @typedef {Readonly<{ [method: string]: Readonly<{ type: string, fields: readonly string[] }> }>} Methods
+ */
+
+/**
+ * What a generated widget calls for each effect: a method per kind of effect, given where it came from and its fields
+ * @typedef {Readonly<{ [method: string]: (from: Path, ...fields: readonly unknown[]) => void }>} AnyHost
+ */
+
+/**
+ * A widget the code generator made from a source widget: its effects are calls on a host, not data, and its state
+ * is changed in place. A composite's children, props and handlers are given for drawing it
+ * @typedef {Readonly<{
+ *   effects: Methods,
+ *   init(props: unknown, host: AnyHost): unknown,
+ *   deliver(state: unknown, path: Path, at: number, input: unknown, host: AnyHost): unknown,
+ *   view(state: unknown, props: unknown): View,
+ *   children?: Readonly<{ [child: string]: AnyGenerated }>,
+ *   props?: Readonly<{ [child: string]: Readonly<{ props(own: unknown): unknown }>['props'] }>,
+ *   capture?: Readonly<{ [child: string]: Readonly<{ [type: string]: unknown }> }>,
+ *   bubble?: Readonly<{ [child: string]: Readonly<{ [type: string]: unknown }> }>,
+ * }>} AnyGenerated
+ */
+
+/**
+ * What drawing a widget reads of it
+ * @typedef {Readonly<{
+ *   view(state: unknown, props: unknown): View,
+ *   children?: Readonly<{ [child: string]: Drawable }>,
+ *   props?: Readonly<{ [child: string]: Readonly<{ props(own: unknown): unknown }>['props'] }>,
+ *   capture?: Readonly<{ [child: string]: Readonly<{ [type: string]: unknown }> }>,
+ *   bubble?: Readonly<{ [child: string]: Readonly<{ [type: string]: unknown }> }>,
+ * }>} Drawable
+ */
+
+/**
  * A composite's state
  * @template O, C
  * @typedef {Readonly<{ own: O, children: { readonly [K in keyof C]: StateOf<C[K]> } }>} CompositeState
@@ -203,6 +240,44 @@ function same(a, b) {
  */
 function typeOf(value) {
   return isRecord(value) && typeof value['type'] === 'string' ? value['type'] : ''
+}
+
+/**
+ * Whether a widget is one the code generator made
+ * @param {AnyWidget | AnyGenerated} widget - The widget
+ * @returns {widget is AnyGenerated} Whether it is
+ */
+function isGenerated(widget) {
+  return 'effects' in widget && 'deliver' in widget
+}
+
+/**
+ * A host that turns a generated widget's calls back into effects, as the source widget gives them: what the runtime
+ * hands on is the same either way
+ * @param {Methods} methods - The widget's host methods
+ * @returns {Readonly<{ host: AnyHost, outs: Out[] }>} The host, and the effects it has been given so far
+ */
+function recorder(methods) {
+  /** @type {Out[]} */
+  const outs = []
+  /** @type {{ [method: string]: (from: Path, ...fields: readonly unknown[]) => void }} */
+  const host = {}
+  for (const [method, { fields, type }] of Object.entries(methods)) {
+    /**
+     * @param {Path} from - Where the effect came from
+     * @param {readonly unknown[]} values - Its fields, in order
+     * @returns {void}
+     */
+    host[method] = (from, ...values) => {
+      /** @type {{ [field: string]: unknown }} */
+      const effect = { type }
+      fields.forEach((field, at) => {
+        effect[field] = values[at]
+      })
+      outs.push({ effect, from })
+    }
+  }
+  return { host, outs }
 }
 
 /**
@@ -421,7 +496,7 @@ function toChild(widget, at, name, rest, input) {
  * Delivers an input to the widget at a path below `widget`, and gives the new state and the effects that reach
  * `widget`'s parent. The state is handed over, as to a step: it may be changed in place, and only the state returned
  * is used after. No clock, randomness or I/O: the same state and input always give the same result
- * @param {AnyWidget} widget - The outermost widget
+ * @param {AnyWidget | AnyGenerated} widget - The outermost widget
  * @param {unknown} state - Its state, handed over
  * @param {Path} path - The widget the input is for: the owner of the part it happened on, or the one that asked,
  *   woke or changed something
@@ -429,6 +504,11 @@ function toChild(widget, at, name, rest, input) {
  * @returns {Result<unknown, Out>} The new state, and the effects with where each came from
  */
 function deliver(widget, state, path, input) {
+  if (isGenerated(widget)) {
+    const recording = recorder(widget.effects)
+    const next = widget.deliver(state, path, 0, input, recording.host)
+    return [next, recording.outs]
+  }
   if (!isComposite(widget)) {
     if (path.length > 0) {
       throw new TypeError(`A leaf widget has no child ${path.join('/')}`)
@@ -486,11 +566,16 @@ function deliverIn(widget, at, path, input) {
 /**
  * Starts a widget: its first state, and the effects its `init`, and every descendant's, emit, bubbled as any effects
  * are. Children start first, so the composite's own first effects can `send` to them
- * @param {AnyWidget} widget - The widget
+ * @param {AnyWidget | AnyGenerated} widget - The widget
  * @param {unknown} props - Its props
  * @returns {Result<unknown, Out>} The state, and the effects that reach the host
  */
 function start(widget, props) {
+  if (isGenerated(widget)) {
+    const recording = recorder(widget.effects)
+    const state = widget.init(props, recording.host)
+    return [state, recording.outs]
+  }
   const [own, given] = widget.init(props)
   if (!isComposite(widget)) {
     return [own, given.map((effect) => ({ effect, from: [] }))]
@@ -576,7 +661,7 @@ function isRef(value) {
 /**
  * The tree a renderer draws: every part from the outermost widget's root down, each repeated part called only for
  * the keys its parent gives (the window)
- * @param {AnyWidget} widget - The outermost widget
+ * @param {Drawable} widget - The outermost widget
  * @param {unknown} state - Its state
  * @param {unknown} props - Its props
  * @returns {Node} The root part
@@ -587,7 +672,7 @@ function resolve(widget, state, props) {
 
 /**
  * The tree of one widget, inside its ancestors
- * @param {AnyWidget} widget - The widget
+ * @param {Drawable} widget - The widget
  * @param {unknown} state - Its state
  * @param {unknown} props - Its props
  * @param {Path} owner - Its path
@@ -595,8 +680,8 @@ function resolve(widget, state, props) {
  * @returns {Node} Its root part
  */
 function resolveAt(widget, state, props, owner, heard) {
-  const composite = isComposite(widget) ? widget : null
-  const { children, own } = composite === null ? { children: {}, own: state } : split(state)
+  const kids = widget.children
+  const { children, own } = kids === undefined ? { children: {}, own: state } : split(state)
   const view = widget.view(own, props)
 
   /**
@@ -612,20 +697,14 @@ function resolveAt(widget, state, props, owner, heard) {
       return content.keys.map((key) => part(content.each, key))
     }
     if ('child' in content) {
-      if (composite === null) {
-        throw new TypeError('A leaf widget has no children')
-      }
       const name = content.child
-      const heardHere = [...Object.keys(composite.capture[name] ?? {}), ...Object.keys(composite.bubble[name] ?? {})]
-      return [
-        resolveAt(
-          childOf(composite, name),
-          children[name],
-          propsFor(composite, own, name),
-          [...owner, name],
-          [...heard, ...heardHere],
-        ),
-      ]
+      const child = kids?.[name]
+      const given = widget.props?.[name]
+      if (child === undefined || given === undefined) {
+        throw new TypeError(`No child ${name}`)
+      }
+      const heardHere = [...Object.keys(widget.capture?.[name] ?? {}), ...Object.keys(widget.bubble?.[name] ?? {})]
+      return [resolveAt(child, children[name], given(own), [...owner, name], [...heard, ...heardHere])]
     }
     return [content]
   }
@@ -669,4 +748,4 @@ function resolveAt(widget, state, props, owner, heard) {
   return part('root', null)
 }
 
-export { compose, deliver, isRecord, resolve, same, start, typeOf }
+export { compose, deliver, isRecord, recorder, resolve, same, start, typeOf }
