@@ -7,7 +7,9 @@
  * bytes as on UTF-16 for well-formed text (equality, `startsWith`, `endsWith`, `includes`, concatenation, `split`) are
  * taken, and `toLowerCase` and `/^.$/u` by code point, with tables of the generator's Unicode (case.js).
  *
- * Effects are calls on the host, as in the JavaScript.
+ * Effects are calls on the host, as in the JavaScript. An array an effect carries that is written out where it is
+ * made (`ranks`) is a table of the module's own, refilled for the next call there: the host reads it during the call
+ * and copies what it keeps.
  */
 
 import ts from 'typescript'
@@ -16,6 +18,7 @@ import { lowerHelper } from './case.js'
 import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
 import { elementOf, fieldsOf, hasNull, hasUndefined, isNumber, isString, membersOf, tupleOf } from './types.js'
+import { isLengthOf } from './walk.js'
 import { within } from './widths.js'
 
 /** @import { Binding, Constant, Expr, Fn, Pattern, Stmt } from './ir.js' */
@@ -214,6 +217,15 @@ const INT32 = { hi: 2 ** 31 - 1, int: true, lo: -(2 ** 31) }
 const EXACT_BITS = { hi: 2 ** 51, int: true, lo: -(2 ** 51) }
 
 /**
+ * Whether an argument of a host call is an array written out, which a table of the module's own can carry
+ * @param {Expr} arg - The argument
+ * @returns {boolean} Whether it is
+ */
+function reused(arg) {
+  return arg.kind === 'array' && arg.items.length > 0 && arg.items.every((item) => !item.spread)
+}
+
+/**
  * @param {Expr} value - An expression
  * @returns {boolean} Whether it is the literal 0
  */
@@ -284,6 +296,8 @@ function luaModule(planned, checker, imports, others) {
   ])
   /** @type {Set<keyof typeof HELPERS>} */
   const helpers = new Set()
+  /** @type {string[]} */
+  const scratch = []
   /** @type {Set<'lower'>} */
   const tables = new Set()
 
@@ -1419,6 +1433,10 @@ function luaModule(planned, checker, imports, others) {
         }
         helpers.add('slice')
         const list = localName(one.array)
+        if (isLengthOf(one.index, one.array)) {
+          const items = one.items.map((item) => expr(item, pre, indent))
+          return [...pre, ...items.map((item) => `${indent}${list}[#${list} + 1] = ${item}`)]
+        }
         const place = temp('at')
         const index = expr(one.index, pre, indent)
         const items = one.items.map((item) => expr(item, pre, indent))
@@ -1446,7 +1464,25 @@ function luaModule(planned, checker, imports, others) {
       /** @type {string[]} */
       const lines = []
       if (call.kind === 'call') {
-        const given = ['HERE', ...ordered(call.args, lines, indent)].join(', ')
+        const values = call.args.flatMap((arg) =>
+          arg.kind === 'array' && reused(arg) ? arg.items.map((item) => item.value) : [arg],
+        )
+        const flat = ordered(values, lines, indent)
+        let next = 0
+        const texts = call.args.map((arg) => {
+          if (arg.kind !== 'array' || !reused(arg)) {
+            next += 1
+            return flat[next - 1] ?? ''
+          }
+          const table = `${snake(call.method.method)}_${String(scratch.length + 1)}`
+          scratch.push(table)
+          for (let index = 0; index < arg.items.length; index += 1) {
+            lines.push(`${indent}${table}[${String(index + 1)}] = ${flat[next] ?? ''}`)
+            next += 1
+          }
+          return table
+        })
+        const given = ['HERE', ...texts].join(', ')
         const count = effects.counted.has(call.method.type) ? [`${indent}counted = counted + 1`] : []
         return [...lines, ...count, `${indent}${host}${member(call.method.method)}(${given})`]
       }
@@ -1622,6 +1658,13 @@ function luaModule(planned, checker, imports, others) {
     ...(effects.counted.size > 0
       ? ['-- How many of the effects a test reads the widget has made', 'local counted = 0', '']
       : []),
+    ...(scratch.length > 0
+      ? [
+          '-- Tables a host call is given, refilled for each call: the host reads them during the call',
+          `local ${scratch.join(', ')} = ${scratch.map(() => '{}').join(', ')}`,
+          '',
+        ]
+      : []),
     ...(widget.composite === null ? [] : [...SAME, '']),
   ]
   return `${[imports.header, '', ...requires, 'local M = {}', '', ...head, all].join('\n')}\n`
@@ -1720,7 +1763,18 @@ function compositeLua(planned, name, others, factoryLocals) {
     'local deferred = {}',
     'local defer_host = {}',
     `for _, method in ipairs({ ${[...own.map((one) => quote(one.method)), '"send"', '"stopPropagation"'].join(', ')} }) do`,
-    '  defer_host[method] = function(from, ...) deferred[#deferred + 1] = { method, { ... }, select("#", ...) } end',
+    '  defer_host[method] = function(from, ...)',
+    '    local args, n = { ... }, select("#", ...)',
+    '    -- A table a call is given is refilled by the next call there: kept as it is now',
+    '    for i = 1, n do',
+    '      if type(args[i]) == "table" then',
+    '        local copy = {}',
+    '        for k, v in pairs(args[i]) do copy[k] = v end',
+    '        args[i] = copy',
+    '      end',
+    '    end',
+    '    deferred[#deferred + 1] = { method, args, n }',
+    '  end',
     'end',
     '',
   ]

@@ -270,4 +270,16 @@ function completes(stmts) {
   return true
 }
 
-export { bindingsOf, blocksOf, children, completes, eachExpr, eachInStmt, exprsOf, mapChildren }
+/**
+ * Whether an expression is a local's `.length`
+ * @param {Expr} expr - The expression
+ * @param {Binding} binding - The local
+ * @returns {boolean} Whether it is
+ */
+function isLengthOf(expr, binding) {
+  return (
+    expr.kind === 'field' && expr.name === 'length' && expr.object.kind === 'local' && expr.object.binding === binding
+  )
+}
+
+export { bindingsOf, blocksOf, children, completes, eachExpr, eachInStmt, exprsOf, isLengthOf, mapChildren }

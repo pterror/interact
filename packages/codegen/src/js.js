@@ -7,7 +7,7 @@
 
 import { effectsOf, factoryKnown } from './effects.js'
 import { capital } from './normalize.js'
-import { blocksOf, eachInStmt } from './walk.js'
+import { blocksOf, eachInStmt, isLengthOf } from './walk.js'
 
 /** @import { Binding, Constant, Expr, Fn, Item, Pattern, Stmt } from './ir.js' */
 /** @import { Call, Effects } from './effects.js' */
@@ -820,6 +820,9 @@ function makePrinter(nameOf, outer, effects) {
       }
       case 'splice': {
         const items = one.items.map((item) => printExpr(item))
+        if (isLengthOf(one.index, one.array)) {
+          return [`${indent}${localName(one.array)}.push(${items.join(', ')})`]
+        }
         return [`${indent}${localName(one.array)}.splice(${[printExpr(one.index), '0', ...items].join(', ')})`]
       }
       default: {

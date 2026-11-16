@@ -143,7 +143,7 @@ function plan(widget, checker) {
     order,
     (fn) => normalized.get(fn) ?? fn,
     checker,
-    (type) => isRecordType(checker, type),
+    (type) => isRecordType(checker, type) || isArrayType(checker, type),
   )
   /** @type {Map<Fn, Info>} */
   const infos = new Map()
@@ -347,6 +347,19 @@ function isRecordType(checker, type) {
     (member) => (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) === 0,
   )
   return members.length > 0 && members.every((member) => isRecordMember(checker, member))
+}
+
+/**
+ * Whether a type is an array (or `null`)
+ * @param {ts.TypeChecker} checker - The checker
+ * @param {ts.Type} type - The type
+ * @returns {boolean} Whether it is
+ */
+function isArrayType(checker, type) {
+  const members = (type.isUnion() ? type.types : [type]).filter(
+    (member) => (member.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined)) === 0,
+  )
+  return members.length > 0 && members.every((member) => checker.isArrayType(member))
 }
 
 /**
@@ -1648,12 +1661,14 @@ function rewrite(fn, info, tools) {
       case 'lambda': {
         return [[], value]
       }
+      case 'array': {
+        return appended(value, scope, state)
+      }
       case 'literal':
       case 'undefined':
       case 'constant':
       case 'function':
       case 'regex':
-      case 'array':
       case 'builtin':
       case 'unary':
       case 'binary':
@@ -1665,6 +1680,58 @@ function rewrite(fn, info, tools) {
         throw new TypeError('Not an expression')
       }
     }
+  }
+
+  /**
+   * Rewrites an array literal: `[...owned, x]`, the array an owned field holds and no one reads afterwards, is that
+   * array with `x` appended
+   * @param {Expr & { kind: 'array' }} value - The literal
+   * @param {Scope} scope - The statement it is in
+   * @param {{ path: Binding[], changed: boolean }} state - The path so far
+   * @returns {readonly [Stmt[], Expr]} What goes before, and the array
+   */
+  const appended = (value, scope, state) => {
+    const [first, ...rest] = value.items
+    const done = children1(value, scope, state)
+    const [pre, made] = done
+    if (
+      first?.spread !== true ||
+      rest.length === 0 ||
+      rest.some((item) => item.spread) ||
+      made.kind !== 'array' ||
+      first.value.kind !== 'field' ||
+      !isStable(first.value.object)
+    ) {
+      return done
+    }
+    const group = groupOf(first.value)
+    if (group === null || holderOf.get(group) === undefined) {
+      return done
+    }
+    const moved = claim(group, value, scope.stmt, scope.rest, scope.cont, new Set(['length']), null)
+    if (moved === null) {
+      return done
+    }
+    pending.push(...moved)
+    const [held, ...items] = made.items
+    if (held === undefined) {
+      return done
+    }
+    const binding = fresh(nameFor(first.value), first.value.type)
+    join(binding, group, false)
+    defined.add(binding)
+    takenFrom.set(binding, group)
+    const array = local(binding, value.at)
+    /** @type {Expr} */
+    const length = { at: value.at, kind: 'field', name: 'length', object: array, optional: false, type: numberType }
+    return [
+      [
+        ...pre,
+        { at: value.at, kind: 'const', pattern: bindPattern(binding), value: held.value },
+        { array: binding, at: value.at, index: length, items: items.map((item) => item.value), kind: 'splice' },
+      ],
+      { ...array, type: value.type },
+    ]
   }
 
   /**
@@ -1847,8 +1914,12 @@ function rewrite(fn, info, tools) {
     const type = fieldType(holder.type, field)
     /** @type {Expr} */
     const read = { at: holder.at, kind: 'field', name: field, object: holder, optional: false, type }
+    /** @type {Expr} */
+    const copy = isArrayType(checker, type)
+      ? { at: read.at, items: [{ spread: true, value: read }], kind: 'array', type }
+      : copyOf(read)
     if (!type.isUnion() || !type.types.some((one) => (one.flags & ts.TypeFlags.Null) !== 0)) {
-      return copyOf(read)
+      return copy
     }
     /** @type {Expr} */
     const none = { at: holder.at, kind: 'literal', type: checker.getNullType(), value: null }
@@ -1857,7 +1928,7 @@ function rewrite(fn, info, tools) {
       kind: 'conditional',
       test: { at: holder.at, kind: 'binary', left: read, op: '===', right: none, type: booleanType },
       type,
-      whenFalse: copyOf(read),
+      whenFalse: copy,
       whenTrue: none,
     }
   }

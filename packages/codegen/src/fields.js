@@ -118,7 +118,7 @@ function ownedFields(widget, fns, bodyOf, checker, isRecord) {
     if (value.kind === 'local' && madeLocals.has(value.binding)) {
       return true
     }
-    if (value.kind === 'record') {
+    if (value.kind === 'record' || value.kind === 'array' || (value.kind === 'method' && MAKING.has(value.name))) {
       return true
     }
     if (value.kind === 'literal') {
@@ -150,6 +150,8 @@ function ownedFields(widget, fns, bodyOf, checker, isRecord) {
    */
   const isMade = (value) =>
     value.kind === 'record' ||
+    value.kind === 'array' ||
+    (value.kind === 'method' && MAKING.has(value.name)) ||
     (value.kind === 'literal' && value.value === null) ||
     (value.kind === 'conditional' && isMade(value.whenTrue) && isMade(value.whenFalse)) ||
     (value.kind === 'call' && returnsMade(value.fn, new Set(), null))
@@ -236,6 +238,12 @@ function ownedFields(widget, fns, bodyOf, checker, isRecord) {
     const { parent } = up
     if (parent.kind === 'field' || parent.kind === 'has') {
       return true
+    }
+    if (parent.kind === 'index' || (parent.kind === 'method' && parent.object === expr && READING.has(parent.name))) {
+      return true
+    }
+    if (parent.kind === 'array') {
+      return parent.items.some((item) => item.spread && item.value === expr)
     }
     if (parent.kind === 'binary') {
       return parent.op === '===' || parent.op === '!=='
@@ -346,6 +354,28 @@ function ownedFields(widget, fns, bodyOf, checker, isRecord) {
 function fieldNames(record) {
   return record.entries.map((entry) => (entry.kind === 'field' ? entry.name : '*'))
 }
+
+/** Array methods that read an array and keep none of it: their results are made anew */
+const READING = new Set([
+  'at',
+  'every',
+  'filter',
+  'find',
+  'findIndex',
+  'findLast',
+  'findLastIndex',
+  'includes',
+  'indexOf',
+  'join',
+  'lastIndexOf',
+  'map',
+  'reduce',
+  'slice',
+  'some',
+])
+
+/** Array methods that make a new array */
+const MAKING = new Set(['concat', 'filter', 'flatMap', 'map', 'slice'])
 
 /**
  * Whether a record literal is an effect: it has a `type`, which a state never has

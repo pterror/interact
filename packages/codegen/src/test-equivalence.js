@@ -220,7 +220,16 @@ local host = {}
 for method, shape in pairs(widget.effects) do
   host[method] = function(from, ...)
     local effect = { type = shape.type }
-    for i = 1, #shape.fields do effect[shape.fields[i]] = select(i, ...) end
+    for i = 1, #shape.fields do
+      local value = select(i, ...)
+      -- A table the widget refills for its next call: kept as it is now
+      if type(value) == "table" then
+        local copy = {}
+        for k, v in pairs(value) do copy[k] = v end
+        value = copy
+      end
+      effect[shape.fields[i]] = value
+    end
     outs[#outs + 1] = { effect = effect, from = from }
   end
 end
