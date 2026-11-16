@@ -10,6 +10,9 @@ export {
   heldAt,
   heldFrom,
   holding,
+  hostOptions,
+  outsideElement,
+  outsideIds,
   ownValue,
   propsAt,
   route,
@@ -33,7 +36,9 @@ export { announcement, english, say } from './words.js'
 /** @typedef {import('./components.js').Description} Description */
 /** @typedef {import('./components.js').Given} Given */
 /** @typedef {import('./components.js').Held} Held */
+/** @typedef {import('./components.js').HostGiven} HostGiven */
 /** @typedef {import('./components.js').Names} Names */
+/** @typedef {import('./components.js').OutsideGiven} OutsideGiven */
 /** @typedef {import('./components.js').Props} Props */
 /** @typedef {import('./components.js').Routed} Routed */
 /** @typedef {import('./compose.js').AnyWidget} AnyWidget */

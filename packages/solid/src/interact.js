@@ -139,6 +139,7 @@ function Interact(props) {
       words: props.words ?? {},
       ...(sources === undefined ? {} : { sources }),
       ...(translate === undefined ? {} : { translate }),
+      ...(props.outside === undefined ? {} : { outside: props.outside }),
     },
     live,
   )

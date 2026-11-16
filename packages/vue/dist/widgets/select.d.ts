@@ -11,7 +11,8 @@ export type WidgetProps = PropsOf<Widget>;
  * select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with
  * `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.
  * A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed
- * (`until`).
+ * (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click
+ * on it focuses the trigger.
  */
 declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     label: string;
@@ -41,6 +42,9 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null) | undefined;
+    outside?: Readonly<{
+        [name: string]: import("@pterror/interact-core").OutsideGiven;
+    }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
 }>, string[], {}, Omit<Readonly<{
@@ -71,6 +75,9 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null) | undefined;
+    outside?: Readonly<{
+        [name: string]: import("@pterror/interact-core").OutsideGiven;
+    }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
 }> & {

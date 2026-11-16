@@ -7,7 +7,7 @@
  * item is drawn by the default slot and a part the app replaces by the slot named after it. Ids come from `useId`
  * (Vue 3.5), or a count kept per app, which a server and its client keep alike.
  */
-import type { Description, Key, Naming, Props, Source, Words } from '@pterror/interact-core';
+import type { Description, Key, Naming, OutsideGiven, Props, Source, Words } from '@pterror/interact-core';
 import type { Component as VueComponent, VNodeChild } from 'vue';
 export type Change = Readonly<{
     refuse: () => void;
@@ -34,6 +34,9 @@ export type HostProps = Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null) | undefined;
+    outside?: Readonly<{
+        [name: string]: OutsideGiven;
+    }> | undefined;
 }>;
 export type ModelName<V extends string> = V extends 'value' ? 'modelValue' : V;
 export type Bound<V extends string, T> = {

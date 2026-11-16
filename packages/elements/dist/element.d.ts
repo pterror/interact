@@ -25,6 +25,8 @@ declare class InteractElement extends HTMLElement {
     #private;
     /** @type {Info} */
     static info: Info;
+    /** Labelable, its `<label>`s the widget's visible label, and a field of its form */
+    static formAssociated: boolean;
     /**
      * The attributes it hears: its widget's props an attribute can hold, its factory's parameters
      * @returns {string[]} Their names

@@ -9,7 +9,10 @@
 import { isRecord } from './compose.js'
 
 /** @import { AnyGenerated, Out } from './compose.js' */
-/** @import { Data, Path } from './contract.js' */
+/** @import { Data, Key, Path } from './contract.js' */
+/** @import { Source } from './host.js' */
+/** @import { Naming, PageOptions } from './web.js' */
+/** @import { Words } from './words.js' */
 
 /**
  * The value a component binds: the widget's prop, whether the widget takes it as `{ value }` (with `null` for none
@@ -58,6 +61,84 @@ import { isRecord } from './compose.js'
  * The values a component holds for bound values the app doesn't give: its own, and those of the components inside
  * @typedef {Readonly<{ value: unknown, inside: Readonly<{ [prop: string]: Held }> }>} Held
  */
+
+/**
+ * An element outside a component that its widget refers to, as an app gives it: its id (which a server draws), the
+ * element, or what holds it (a React ref's `current`, a Vue ref's `value`, a function giving it)
+ * @typedef {string | Element | Readonly<{ current: Element | null }> | Readonly<{ value: Element | null }>
+ *   | (() => Element | null) | null | undefined} OutsideGiven
+ */
+
+/**
+ * The ids of the elements outside a component given by id, by name, for its naming
+ * @param {Readonly<{ [name: string]: OutsideGiven }> | undefined} given - The elements outside, by name
+ * @returns {Readonly<{ [name: string]: string }> | undefined} Their ids, or none if none is given by id
+ */
+function outsideIds(given) {
+  /** @type {{ [name: string]: string }} */
+  const ids = {}
+  for (const [name, one] of Object.entries(given ?? {})) {
+    if (typeof one === 'string') {
+      ids[name] = one
+    }
+  }
+  return Object.keys(ids).length === 0 ? undefined : ids
+}
+
+/**
+ * An element outside a component given as an element, or by what holds it, as it is now
+ * @param {Readonly<{ [name: string]: unknown }> | undefined} given - The elements outside, by name
+ * @param {string} name - Which
+ * @returns {Element | null} The element, or `null` for one given by id or not at all
+ */
+function outsideElement(given, name) {
+  const one = given?.[name]
+  /** @type {unknown} */
+  const held =
+    typeof one === 'function'
+      ? Reflect.apply(one, undefined, [])
+      : isRecord(one) && !(one instanceof Element)
+        ? (one['current'] ?? one['value'])
+        : one
+  return held instanceof Element ? held : null
+}
+
+/**
+ * What a component takes beside its widget's props, in every framework: how an item is named in announcements, how
+ * ids are made, the sources the widget asks about, the words announcements use, key rebinding, and the elements
+ * outside it the widget refers to, by the names it gives them
+ * @typedef {Readonly<{
+ *   name?: ((key: Key) => string) | undefined,
+ *   naming?: Naming | undefined,
+ *   sources?: Readonly<{ [name: string]: Source }> | undefined,
+ *   translate?: ((input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null) | undefined,
+ *   words?: Words | undefined,
+ *   outside?: Readonly<{ [name: string]: OutsideGiven }> | undefined,
+ * }>} HostGiven
+ */
+
+/**
+ * The page's options from a component's host props: its naming (the app's, or the framework's) with the ids of the
+ * elements outside given by id, the elements outside given otherwise as they are when the page looks, and the rest as
+ * given
+ * @param {HostGiven} props - The component's props
+ * @param {Naming} framework - The naming the framework makes, from its ids
+ * @param {() => HostGiven} latest - The component's props as they are now
+ * @returns {Omit<PageOptions, 'widget' | 'props' | 'effect'> & Readonly<{ naming: Naming }>} The options
+ */
+function hostOptions(props, framework, latest) {
+  const { name, sources, translate, words } = props
+  const naming = props.naming ?? framework
+  const ids = outsideIds(props.outside)
+  return {
+    naming: ids === undefined ? naming : { ...naming, outside: { ...naming.outside, ...ids } },
+    outside: (named) => outsideElement(latest().outside, named),
+    ...(name === undefined ? {} : { name }),
+    ...(sources === undefined ? {} : { sources }),
+    ...(translate === undefined ? {} : { translate }),
+    ...(words === undefined ? {} : { words }),
+  }
+}
 
 /**
  * The props given to the component inside a prop
@@ -235,4 +316,17 @@ function describedAt(description, inside) {
   return at
 }
 
-export { describedAt, givenFrom, heldAt, heldFrom, holding, ownValue, propsAt, route, widgetProps }
+export {
+  describedAt,
+  givenFrom,
+  heldAt,
+  heldFrom,
+  holding,
+  hostOptions,
+  outsideElement,
+  outsideIds,
+  ownValue,
+  propsAt,
+  route,
+  widgetProps,
+}

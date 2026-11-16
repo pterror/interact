@@ -11,6 +11,7 @@ import {
   heldAt,
   heldFrom,
   holding,
+  hostOptions,
   ownValue,
   page,
   propsAt,
@@ -19,7 +20,7 @@ import {
   widgetProps,
 } from '@pterror/interact-core'
 
-/** @import { Description, Key, Names, Naming, Node as Part, Out, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
 
 /**
  * What a change's callback is given beside the value: `refuse` undoes the change, now or later
@@ -28,13 +29,15 @@ import {
 
 /**
  * What every component takes beside its widget's props and its bound value: how an item is named in announcements, the
- * sources the widget asks about, the words announcements use, how ids are made, and key rebinding
+ * sources the widget asks about, the words announcements use, how ids are made, key rebinding, and the elements
+ * outside it the widget refers to (its visible `label`), each by id, as an element, or by a function giving it
  * @typedef {Readonly<{
  *   name?: ((key: Key) => string) | undefined,
  *   sources?: Readonly<{ [name: string]: Source }> | undefined,
  *   words?: Words | undefined,
  *   naming?: Naming | undefined,
  *   translate?: ((input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null) | undefined,
+ *   outside?: Readonly<{ [name: string]: OutsideGiven }> | undefined,
  * }>} HostProps
  */
 
@@ -153,17 +156,12 @@ function start(description, props, bound, id, live, told) {
     ])
   }
 
-  const { name, naming, sources, translate, words } = props
   const made = page(
     {
+      ...hostOptions(props, { id, keyId: String }, () => raw),
       effect,
-      naming: naming ?? { id, keyId: String },
       props: widgetProps(description, givenFrom(description, latest, held, NAMES)),
       widget: description.widget,
-      ...(name === undefined ? {} : { name }),
-      ...(sources === undefined ? {} : { sources }),
-      ...(translate === undefined ? {} : { translate }),
-      ...(words === undefined ? {} : { words }),
     },
     live,
   )

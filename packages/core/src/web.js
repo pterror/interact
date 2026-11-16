@@ -20,8 +20,9 @@ import { announcement } from './words.js'
 /** @import { Words } from './words.js' */
 
 /**
- * How a host names things in the DOM: the prefix of every id, and a key as text for ids
- * @typedef {Readonly<{ id: string, keyId: (key: Key) => string }>} Naming
+ * How a host names things in the DOM: the prefix of every id, a key as text for ids, and optionally the ids of the
+ * elements outside the widget it refers to, by the names it gives them
+ * @typedef {Readonly<{ id: string, keyId: (key: Key) => string, outside?: Readonly<{ [name: string]: string }> }>} Naming
  */
 
 /**
@@ -95,6 +96,9 @@ function ariaText(value, naming) {
   }
   if (typeof value === 'number' || typeof value === 'boolean') {
     return String(value)
+  }
+  if ('outside' in value) {
+    return naming.outside?.[value.outside] ?? null
   }
   if (isTarget(value)) {
     return idOf(value, naming)
@@ -274,11 +278,14 @@ function siblingsOf(element) {
 /**
  * What the page needs from the app: what the host needs, and optionally how ids are made (by default a prefix of its
  * own and each key as text), the words announcements use over the English ones, an item's name in them (by default
- * the key as text)
+ * the key as text), and the elements outside the widget it refers to that have no id in its naming, by name, as they
+ * are now (referred to by ARIA's element properties, which reach out of a shadow root). A click on an outside element
+ * that labels a focusable part focuses that part, as a `<label>` does its field
  * @typedef {HostOptions & Readonly<{
  *   naming?: Naming,
  *   words?: Words,
  *   name?: (key: Key) => string,
+ *   outside?: (name: string) => Element | null,
  * }>} PageOptions
  */
 
@@ -378,6 +385,17 @@ function placePopup(element, node, anchor) {
   }
 }
 
+/** ARIA's element properties, by the attribute they reflect, for the references to several elements */
+const ELEMENTS_PROPERTY = new Map([
+  ['controls', 'ariaControlsElements'],
+  ['describedby', 'ariaDescribedByElements'],
+  ['details', 'ariaDetailsElements'],
+  ['errormessage', 'ariaErrorMessageElements'],
+  ['flowto', 'ariaFlowToElements'],
+  ['labelledby', 'ariaLabelledByElements'],
+  ['owns', 'ariaOwnsElements'],
+])
+
 let made = 0
 
 /**
@@ -440,6 +458,11 @@ function page(options, live) {
   const shownPopups = []
   /** @type {Set<string>} */
   const outsideTypes = new Set()
+  /**
+   * The parts each outside element that labels them focuses when clicked
+   * @type {WeakMap<Element, Element>}
+   */
+  const labelling = new WeakMap()
 
   /** Whether the renderer draws a change after the host has told it (it calls `drawn` once it has) */
   let drawsLater = false
@@ -653,6 +676,53 @@ function page(options, live) {
       showing(key, node)
       popup(key, element, node)
     }
+    refer(element, node)
+  }
+
+  /**
+   * Points a part's ARIA references to elements outside the widget at them: by the id the naming gives (an attribute
+   * drawn with the rest), or by ARIA's element properties for an element without one; and makes a click on its label
+   * focus a focusable part
+   * @param {Element} element - The part's element
+   * @param {Node} node - The part
+   * @returns {void}
+   */
+  const refer = (element, node) => {
+    for (const [name, value] of Object.entries(node.aria)) {
+      const named = typeof value === 'object' && value !== null && 'outside' in value ? value.outside : null
+      const id = named === null ? undefined : naming.outside?.[named]
+      const rooted = element.getRootNode()
+      const root = findsById(rooted) ? rooted : element.ownerDocument
+      // oxlint-disable-next-line unicorn/prefer-query-selector -- an app's id need not be a CSS identifier
+      const byId = id === undefined ? null : root.getElementById(id)
+      const outsideElement =
+        named === null ? null : (byId ?? (id === undefined ? (options.outside?.(named) ?? null) : null))
+      const property = ELEMENTS_PROPERTY.get(name)
+      if (named !== null && id === undefined && property !== undefined && property in element) {
+        Reflect.set(element, property, outsideElement === null ? null : [outsideElement])
+      }
+      if (name === 'labelledby' && outsideElement !== null && node.tabindex !== null) {
+        label(outsideElement, element)
+      }
+    }
+  }
+
+  /**
+   * Makes a click on an element outside focus the part it labels
+   * @param {Element} outsideElement - The label
+   * @param {Element} element - The part's element
+   * @returns {void}
+   */
+  const label = (outsideElement, element) => {
+    if (!labelling.has(outsideElement)) {
+      outsideElement.addEventListener('click', () => {
+        const labelled = labelling.get(outsideElement)
+        if (!stopped && labelled instanceof HTMLElement) {
+          labelled.focus()
+        }
+      })
+    }
+    labelling.set(outsideElement, element)
   }
 
   /**

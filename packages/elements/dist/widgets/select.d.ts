@@ -6,7 +6,8 @@
  * select's value as its own, so it only reports what was chosen. The value follows the contract's rule: with
  * `value` in its props, a choice shows at once and is pending until the props confirm it or the app refuses it.
  * A character typed opens it and is the list's typeahead; Space is typed too while a prefix is being typed
- * (`until`).
+ * (`until`). Given a visible label outside it (`label`), the trigger and the list are named by it, and a click
+ * on it focuses the trigger.
  */
 declare const SelectElement: typeof import("../element.js").InteractElement;
 export { SelectElement };

@@ -166,7 +166,7 @@ describe('the DOM renderer', () => {
       expect(element.getAttribute('role') ?? (element.tagName === 'BUTTON' ? 'button' : null)).toBe(part.role)
       for (const [name, value] of Object.entries(part.aria)) {
         const wanted =
-          value === null
+          value === null || (typeof value === 'object' && 'outside' in value)
             ? null
             : typeof value === 'object'
               ? ('owner' in value ? [value] : value).map((target) => idOf(target, NAMING)).join(' ')
@@ -278,6 +278,29 @@ describe('the DOM renderer', () => {
     expect(document.querySelector('[role=dialog]')?.hasAttribute('hidden')).toBe(true)
     modal.host.setProps(props)
     expect([opener.hasAttribute('inert'), document.activeElement]).toEqual([false, opener])
+  })
+
+  test('a label outside the select names its trigger and list by id, and a click on it focuses the trigger', () => {
+    const label = document.createElement('span')
+    label.id = 'fruit-label'
+    label.textContent = 'Fruit'
+    document.body.append(label)
+    const container = document.createElement('div')
+    document.body.append(container)
+    const drawn = renderDom({
+      container,
+      naming: { ...NAMING, outside: { label: 'fruit-label' } },
+      props: SELECT,
+      sources: { fruit: arraySource(FRUIT) },
+      widget: select,
+    })
+    cleanup.push(drawn.stop)
+    const trigger = container.querySelector('[role=combobox]')
+    expect(trigger?.getAttribute('aria-labelledby')).toBe('fruit-label')
+    expect(container.querySelector('[role=listbox]')?.getAttribute('aria-labelledby')).toBe('fruit-label')
+    label.click()
+    expect(document.activeElement).toBe(trigger)
+    label.remove()
   })
 
   test('the dialog: a press released outside it closes it, unless it ignores outside; it locks scrolling', () => {

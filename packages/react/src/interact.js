@@ -14,6 +14,7 @@ import {
   heldAt,
   heldFrom,
   holding,
+  hostOptions,
   identity,
   itemText,
   ownValue,
@@ -26,7 +27,7 @@ import {
 } from '@pterror/interact-core'
 import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useReducer, useRef, useState } from 'react'
 
-/** @import { Description, Held, Key, Names, Naming, Node as Part, Out, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Held, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
 /** @import { FunctionComponent, ReactElement, ReactNode } from 'react' */
 
 /**
@@ -48,7 +49,8 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
 /**
  * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and named in
  * announcements, the parts the app draws itself, the sources the widget asks about, the words announcements use, how
- * ids are made (by default from `useId`), and key rebinding
+ * ids are made (by default from `useId`), key rebinding, and the elements outside it the widget refers to (its visible
+ * `label`), each by id, as an element, or by a ref
  * @template {string} Parts
  * @typedef {Readonly<{
  *   item?: (key: Key) => ReactNode,
@@ -58,6 +60,7 @@ import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useRe
  *   words?: Words,
  *   naming?: Naming,
  *   translate?: (input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null,
+ *   outside?: Readonly<{ [name: string]: OutsideGiven }>,
  * }>} HostProps
  */
 
@@ -241,24 +244,20 @@ const PartElement = memo(DrawPart, (before, after) => before.drawing === after.d
  * Starts a widget for a component
  * @param {Description} description - The component's widget
  * @param {Given} props - Its props
+ * @param {() => Given} latest - Its props as they are now
  * @param {Held} held - What it holds
  * @param {Naming} naming - How ids are made
  * @param {(out: Out) => void} effect - What hears the app's effects
  * @param {() => Element | null} live - Its live region
  * @returns {Page} The running widget
  */
-function start(description, props, held, naming, effect, live) {
-  const { name, sources, translate, words } = props
+function start(description, props, latest, held, naming, effect, live) {
   return page(
     {
+      ...hostOptions(props, naming, latest),
       effect,
-      naming,
       props: widgetProps(description, givenFrom(description, props, held, NAMES)),
       widget: description.widget,
-      ...(name === undefined ? {} : { name }),
-      ...(sources === undefined ? {} : { sources }),
-      ...(translate === undefined ? {} : { translate }),
-      ...(words === undefined ? {} : { words }),
     },
     live,
   )
@@ -313,7 +312,8 @@ function component(description, displayName) {
     const live = useRef(noElement())
     const root = useRef(noPage())
     const [, redraw] = useReducer((count) => count + 1, 0)
-    const naming = props.naming ?? { id, keyId: String }
+    const framework = { id, keyId: String }
+    const { naming } = hostOptions(props, framework, () => latest.current)
 
     /**
      * Hears an effect the widget gives the app
@@ -353,13 +353,30 @@ function component(description, displayName) {
       }
     }
 
-    root.current ??= start(description, props, held, naming, effect, () => live.current)
+    root.current ??= start(
+      description,
+      props,
+      () => latest.current,
+      held,
+      framework,
+      effect,
+      () => live.current,
+    )
     const tree = root.current.host.tree()
     const synced = useRef(widgetProps(description, givenFrom(description, props, held, NAMES)))
 
     useEffect(() => {
       const made =
-        root.current ?? start(description, latest.current, heldNow.current, naming, effect, () => live.current)
+        root.current ??
+        start(
+          description,
+          latest.current,
+          () => latest.current,
+          heldNow.current,
+          framework,
+          effect,
+          () => live.current,
+        )
       root.current = made
       const unwatch = made.host.watch(redraw)
       if (live.current !== null) {

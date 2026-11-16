@@ -4,7 +4,8 @@
  * from the list's `active` effects; the list is the windowed `list`, given the select's value as its own, so it only
  * reports what was chosen. The value follows the contract's rule: with `value` in its props, a choice shows at once
  * and is pending until the props confirm it or the app refuses it. A character typed opens it and is the list's
- * typeahead; Space is typed too while a prefix is being typed (`until`).
+ * typeahead; Space is typed too while a prefix is being typed (`until`). Given a visible label outside it (`label`),
+ * the trigger and the list are named by it, and a click on it focuses the trigger.
  */
 
 import { compose } from './compose.js'
@@ -209,6 +210,7 @@ const select = compose({
           expanded: own.open,
           haspopup: 'listbox',
           label: own.label,
+          labelledby: { outside: 'label' },
         },
         content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
         listens: ['click', 'keydown', 'blur'],

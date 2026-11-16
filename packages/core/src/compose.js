@@ -10,7 +10,7 @@
  * seen only through its view (placed with `{ child }`) and its effects, and given inputs with `send`.
  */
 
-/** @import { Content, HostEvent, Key, Path, Ref, Result, View } from './contract.js' */
+/** @import { Content, HostEvent, Key, Outside, Path, Ref, Result, View } from './contract.js' */
 
 /**
  * Hands a child an input, as the composite's own effect; the child's effects bubble back as any of its effects do
@@ -620,7 +620,7 @@ function start(widget, props) {
 
 /**
  * An ARIA attribute's value with its references resolved to targets
- * @typedef {string | number | boolean | Target | readonly Target[] | null} ResolvedAria
+ * @typedef {string | number | boolean | Target | readonly Target[] | Outside | null} ResolvedAria
  */
 
 /**

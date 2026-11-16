@@ -49,9 +49,16 @@
  */
 
 /**
+ * An element outside the widget, by a name the widget gives it (`label`, the visible label of a field): the host is
+ * told which element has that name, or none
+ * @typedef {Readonly<{ outside: string }>} Outside
+ */
+
+/**
  * An ARIA attribute's value, by the attribute's name without `aria-`: a token, number or text; `true`/`false`; a
- * reference to one part (`activedescendant`, `controls`, `labelledby`) or to several; `null` leaves it out
- * @typedef {string | number | boolean | Ref | readonly Ref[] | null} AriaValue
+ * reference to one part (`activedescendant`, `controls`, `labelledby`) or to several, or to an element outside the
+ * widget; `null` leaves it out, as does an element outside that the host was given none for
+ * @typedef {string | number | boolean | Ref | readonly Ref[] | Outside | null} AriaValue
  */
 
 /**

@@ -11,17 +11,18 @@ import {
   heldAt,
   heldFrom,
   holding,
+  hostOptions,
   ownValue,
   propsAt,
   route,
   same,
   widgetProps,
 } from '@pterror/interact-core'
-import { createComponent, createMemo, createSignal, untrack } from 'solid-js'
+import { createComponent, createMemo, createSignal, createUniqueId, untrack } from 'solid-js'
 
 import { Interact } from './interact.js'
 
-/** @import { Description, Host, Key, Names, Naming, Out, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Host, Key, Names, Naming, Out, OutsideGiven, Props, Source, Words } from '@pterror/interact-core' */
 /** @import { Component as SolidComponent, JSX } from 'solid-js' */
 /** @import { PartProps } from './interact.js' */
 
@@ -31,9 +32,10 @@ import { Interact } from './interact.js'
  */
 
 /**
- * What every component takes beside its widget's props: how an item is drawn (by default its key as text) and named in
- * announcements, the parts the app draws itself, the sources the widget asks about, the words announcements use, how
- * ids are made (by default from `createUniqueId`), and key rebinding
+ * What every component takes beside its widget's props: how an item is drawn (by default its text in its source) and
+ * named in announcements, the parts the app draws itself, the sources the widget asks about, the words announcements
+ * use, how ids are made (by default from `createUniqueId`), key rebinding, and the elements outside it the widget
+ * refers to (its visible `label`), each by id, as an element, or by a function giving it
  * @template {string} Parts
  * @typedef {Readonly<{
  *   item?: (key: Key) => JSX.Element,
@@ -43,6 +45,7 @@ import { Interact } from './interact.js'
  *   words?: Words,
  *   naming?: Naming,
  *   translate?: (input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null,
+ *   outside?: Readonly<{ [name: string]: OutsideGiven }>,
  * }>} HostProps
  */
 
@@ -185,8 +188,9 @@ function component(description) {
       }
     }
 
-    const { name, naming, sources, translate, words } = props
+    const options = hostOptions(props, { id: createUniqueId(), keyId: String }, () => props)
     return createComponent(Interact, {
+      ...options,
       effect,
       get item() {
         return props.item
@@ -198,11 +202,6 @@ function component(description) {
         return widget()
       },
       widget: description.widget,
-      ...(name === undefined ? {} : { name }),
-      ...(naming === undefined ? {} : { naming }),
-      ...(sources === undefined ? {} : { sources }),
-      ...(translate === undefined ? {} : { translate }),
-      ...(words === undefined ? {} : { words }),
     })
   }
   return Object.assign(Generated, { description })

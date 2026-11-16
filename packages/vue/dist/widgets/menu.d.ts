@@ -32,6 +32,9 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null) | undefined;
+    outside?: Readonly<{
+        [name: string]: import("@pterror/interact-core").OutsideGiven;
+    }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
 }>, string[], {}, Omit<Readonly<{
@@ -55,6 +58,9 @@ declare const Menu: import("vue").DefineSetupFnComponent<Omit<Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null) | undefined;
+    outside?: Readonly<{
+        [name: string]: import("@pterror/interact-core").OutsideGiven;
+    }> | undefined;
 }> & Readonly<{
     [prop: string]: unknown;
 }> & {

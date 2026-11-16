@@ -103,11 +103,13 @@ describe('the React components', () => {
       ignoreOutside: false,
       content: { ...SELECT, defaultValue: 'Banana' },
       defaultOpen: true,
+      outside: { label: 'fruit-label' },
       sources,
       title: 'Pick a fruit',
     })
     const html = renderToString(element)
     expect(html).toContain('role="dialog"')
+    expect(html).toContain('aria-labelledby="fruit-label"')
     expect(html).toContain('>Banana</div>')
     const container = containerIn()
     container.innerHTML = html

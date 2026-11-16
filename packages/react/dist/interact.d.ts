@@ -5,7 +5,7 @@
  * convention (`value`, `defaultValue`, `onChange`; for a value of another name, `open`, `defaultOpen`, `onOpenChange`),
  * each of the widget's own effects is an `on` prop, and ids come from `useId`.
  */
-import type { Description, Key, Naming, Props, Source, Words } from '@pterror/interact-core';
+import type { Description, Key, Naming, OutsideGiven, Props, Source, Words } from '@pterror/interact-core';
 import type { FunctionComponent, ReactNode } from 'react';
 export type Change = Readonly<{
     refuse: () => void;
@@ -34,6 +34,9 @@ export type HostProps<Parts extends string> = Readonly<{
     }>) => Readonly<{
         [field: string]: unknown;
     }> | null;
+    outside?: Readonly<{
+        [name: string]: OutsideGiven;
+    }>;
 }>;
 export type Bound<V extends string, T> = {
     readonly [K in V]?: T;

@@ -9,7 +9,7 @@
  * the widget it is around, and that element's props and value as the inner widget's.
  */
 
-import { describedAt, isRecord, renderDom, route, statesOf, widgetProps } from '@pterror/interact-core'
+import { describedAt, isRecord, outsideElement, renderDom, route, statesOf, widgetProps } from '@pterror/interact-core'
 
 /** @import { Description, Host, Key, Naming, Node as Part, Out, Source } from '@pterror/interact-core' */
 
@@ -30,7 +30,7 @@ import { describedAt, isRecord, renderDom, route, statesOf, widgetProps } from '
  */
 
 /** The properties every element takes beside its widget's props */
-const HOST = ['item', 'name', 'naming', 'sources', 'translate', 'words']
+const HOST = ['item', 'name', 'naming', 'outside', 'sources', 'translate', 'words']
 
 let count = 0
 
@@ -82,6 +82,9 @@ function noRenderer() {
 class InteractElement extends HTMLElement {
   /** @type {Info} */
   static info = { description: null, factory: null, kinds: {}, params: [] }
+
+  /** Labelable, its `<label>`s the widget's visible label, and a field of its form */
+  static formAssociated = true
 
   /** @type {{ [prop: string]: unknown }} */
   #props = {}
@@ -247,7 +250,7 @@ class InteractElement extends HTMLElement {
     if (described === null) {
       return
     }
-    const root = this.shadowRoot ?? this.attachShadow({ mode: 'open' })
+    const root = this.shadowRoot ?? this.attachShadow({ delegatesFocus: true, mode: 'open' })
     count += 1
     const naming = this.read('naming')
     const sources = this.read('sources')
@@ -262,6 +265,7 @@ class InteractElement extends HTMLElement {
       exposeParts: true,
       slotText: true,
       naming: isNaming(naming) ? naming : { id: `${this.localName}-${String(count)}`, keyId: String },
+      outside: (name) => this.#outside(name),
       props: widgetProps(described, this.given()),
       widget: described.widget,
       ...(isSources(sources) ? { sources } : {}),
@@ -274,6 +278,24 @@ class InteractElement extends HTMLElement {
     running.host.watch(() => {
       this.#states(running.host.tree())
     })
+  }
+
+  /**
+   * An element outside it its widget refers to: one its `outside` property gives (by id, in the document it is in), or
+   * for its `label`, its first `<label>`
+   * @param {string} name - The name the widget gives it
+   * @returns {Element | null} The element
+   */
+  #outside(name) {
+    const given = this.read('outside')
+    const one = isRecord(given) ? given[name] : undefined
+    const root = this.getRootNode()
+    if (typeof one === 'string') {
+      // oxlint-disable-next-line unicorn/prefer-query-selector -- an app's id need not be a CSS identifier
+      return root instanceof Document || root instanceof ShadowRoot ? root.getElementById(one) : null
+    }
+    const label = name === 'label' ? this.#internals?.labels[0] : undefined
+    return outsideElement(isRecord(given) ? given : {}, name) ?? (label instanceof Element ? label : null)
   }
 
   /**

@@ -16,6 +16,7 @@ import {
   heldAt,
   heldFrom,
   holding,
+  hostOptions,
   identity,
   itemText,
   ownValue,
@@ -29,7 +30,7 @@ import {
 // oxlint-disable-next-line import/no-namespace -- useId is Vue 3.5's; a named import of it fails to link on 3.3 and 3.4
 import * as vue from 'vue'
 
-/** @import { Description, Key, Names, Naming, Node as Part, Out, Page, Props, Source, Words } from '@pterror/interact-core' */
+/** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words } from '@pterror/interact-core' */
 /** @import { Component as VueComponent, VNode, VNodeChild } from 'vue' */
 
 const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef, watch } = vue
@@ -51,13 +52,15 @@ const { getCurrentInstance, h, onBeforeUnmount, onMounted, onUpdated, shallowRef
 
 /**
  * What every component takes beside its widget's props: how an item is named in announcements, the sources the widget
- * asks about, the words announcements use, how ids are made, and key rebinding
+ * asks about, the words announcements use, how ids are made, key rebinding, and the elements outside it the widget
+ * refers to (its visible `label`), each by id, as an element, or by a ref
  * @typedef {Readonly<{
  *   name?: ((key: Key) => string) | undefined,
  *   sources?: Readonly<{ [name: string]: Source }> | undefined,
  *   words?: Words | undefined,
  *   naming?: Naming | undefined,
  *   translate?: ((input: Readonly<{ [field: string]: unknown }>) => Readonly<{ [field: string]: unknown }> | null) | undefined,
+ *   outside?: Readonly<{ [name: string]: OutsideGiven }> | undefined,
  * }>} HostProps
  */
 
@@ -163,7 +166,7 @@ function modelName(prop) {
 /** @type {Names} */
 const NAMES = { initial: (prop) => `default${capital(prop)}`, value: modelName }
 
-const HOST_PROPS = ['name', 'naming', 'sources', 'translate', 'words']
+const HOST_PROPS = ['name', 'naming', 'outside', 'sources', 'translate', 'words']
 
 /** @type {WeakMap<object, number>} */
 const counted = new WeakMap()
@@ -339,23 +342,11 @@ function run(description, props, context) {
     }
   }
 
-  const naming = props.naming ?? { id: prefix, keyId: String }
+  const options = hostOptions(props, { id: prefix, keyId: String }, () => props)
+  const { naming } = options
   const current = () => widgetProps(description, givenFrom(description, props, held.value, NAMES))
-  const { name: nameOf, sources, translate, words } = props
   /** @type {Page} */
-  const running = page(
-    {
-      effect,
-      naming,
-      props: current(),
-      widget: description.widget,
-      ...(nameOf === undefined ? {} : { name: nameOf }),
-      ...(sources === undefined ? {} : { sources }),
-      ...(translate === undefined ? {} : { translate }),
-      ...(words === undefined ? {} : { words }),
-    },
-    () => live.value,
-  )
+  const running = page({ ...options, effect, props: current(), widget: description.widget }, () => live.value)
   const unwatch = running.host.watch(() => {
     version.value += 1
   })
