@@ -10,17 +10,18 @@ export type Entry = Readonly<{
 }>;
 export type CheatsheetRowOptions<E extends Entry> = Readonly<{
     entryOf: (id: string) => E | undefined;
+    decorate?: (entry: E, element: Element) => void;
     parts: (entry: E) => readonly (readonly string[])[];
     watch: (listener: () => void) => () => void;
 }>;
 /**
- * Fills rows
+ * Fills rows, then calls decorate(entry, element) when supplied so the app can set classes or attributes
  * @template {Entry} E
  * @param {CheatsheetRowOptions<E>} options - An id's entry; its bindings as display parts; and hearing either change
  * @returns {Readonly<{ apply: (key: string | Header, element: Element) => void,
  *   watch: (listener: () => void) => () => void }>} The facet
  */
-declare function cheatsheetRow<E extends Entry>({ entryOf, parts, watch }: CheatsheetRowOptions<E>): Readonly<{
+declare function cheatsheetRow<E extends Entry>({ decorate, entryOf, parts, watch }: CheatsheetRowOptions<E>): Readonly<{
     apply: (key: string | Header, element: Element) => void;
     watch: (listener: () => void) => () => void;
 }>;

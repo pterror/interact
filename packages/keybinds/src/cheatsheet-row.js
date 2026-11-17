@@ -16,6 +16,7 @@
  * @template {Entry} E
  * @typedef {Readonly<{
  *   entryOf: (id: string) => E | undefined,
+ *   decorate?: (entry: E, element: Element) => void,
  *   parts: (entry: E) => readonly (readonly string[])[],
  *   watch: (listener: () => void) => () => void,
  * }>} CheatsheetRowOptions
@@ -34,13 +35,13 @@ function made(tag, text) {
 }
 
 /**
- * Fills rows
+ * Fills rows, then calls decorate(entry, element) when supplied so the app can set classes or attributes
  * @template {Entry} E
  * @param {CheatsheetRowOptions<E>} options - An id's entry; its bindings as display parts; and hearing either change
  * @returns {Readonly<{ apply: (key: string | Header, element: Element) => void,
  *   watch: (listener: () => void) => () => void }>} The facet
  */
-function cheatsheetRow({ entryOf, parts, watch }) {
+function cheatsheetRow({ decorate, entryOf, parts, watch }) {
   return {
     apply(key, element) {
       const entry = typeof key === 'string' ? entryOf(key) : undefined
@@ -56,6 +57,7 @@ function cheatsheetRow({ entryOf, parts, watch }) {
         }),
       )
       element.replaceChildren(made('span', entry.label), bindings)
+      decorate?.(entry, element)
     },
     watch: (listener) =>
       watch(() => {
