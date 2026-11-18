@@ -17,7 +17,7 @@ import { adapter, CONDITIONS, dialog, flush, hydrate, insert, merge, omit, Selec
 /** @import { SolidElement } from './adapter.js' */
 
 const PickDialog = dialog(Select, ['content', 'trigger'])
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
 /** @type {readonly ('select' | 'dialog')[]} */
 const KINDS = ['select', 'dialog']
 /** @type {readonly ('app' | 'own')[]} */
@@ -177,7 +177,9 @@ describe('the Solid components', () => {
     expect(document.activeElement?.id).toBe(id)
     press(trigger, 'ArrowDown')
     await settled()
-    expect(trigger?.getAttribute('aria-activedescendant')).toBe(id.replace(/trigger$/u, 'list-option-Banana'))
+    expect(trigger?.getAttribute('aria-activedescendant')).toBe(
+      [...container.querySelectorAll('[role=option]')].find((option) => option.textContent === 'Banana')?.id,
+    )
     expect(await violations(container)).toEqual([])
     stop()
   })

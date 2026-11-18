@@ -20,6 +20,7 @@ import {
   route,
   same,
   widgetProps,
+  prefixedIds,
 } from '@pterror/interact-core'
 
 /** @import { Description, Key, Names, Naming, Node as Part, Out, OutsideGiven, Page, Props, Source, Words, Sourced } from '@pterror/interact-core' */
@@ -187,7 +188,7 @@ function start(description, props, bound, id, live, told) {
    * @returns {import('@pterror/interact-core').Given} The props
    */
   const given = () => givenFrom(description, items.read(description, latest).props, held, NAMES)
-  const options = hostOptions(props, { id, keyId: String }, () => raw, items.read(description, latest).sources)
+  const options = hostOptions(props, prefixedIds(id), () => raw, items.read(description, latest).sources)
   const made = page({ ...options, effect, props: widgetProps(description, given()), widget: description.widget }, live)
   let synced = widgetProps(description, given())
 

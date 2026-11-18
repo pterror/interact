@@ -30,6 +30,7 @@ import {
   route,
   same,
   widgetProps,
+  prefixedIds,
 } from '@pterror/interact-core'
 // oxlint-disable-next-line import/no-namespace -- useId is Vue 3.5's; a named import of it fails to link on 3.3 and 3.4
 import * as vue from 'vue'
@@ -276,7 +277,7 @@ function drawPart(node, naming, slots, sources) {
     })
   const name = partName(node.target)
   const replaced = slotOf(slots, name)
-  const key = identity(node.target, naming)
+  const key = identity(node.target)
   if (replaced !== undefined) {
     const attrs = vueAttributes(attributesOf(node, naming, null))
     const content = { render: children }
@@ -379,7 +380,7 @@ function run(description, props, context) {
   }
 
   const items = itemSources()
-  const options = hostOptions(props, { id: prefix, keyId: String }, () => props, items.read(description, props).sources)
+  const options = hostOptions(props, prefixedIds(prefix), () => props, items.read(description, props).sources)
   const { naming } = options
   const given = () => givenFrom(description, items.read(description, props).props, held.value, NAMES)
   const current = () => widgetProps(description, given())

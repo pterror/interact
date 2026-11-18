@@ -14,7 +14,8 @@
  */
 
 import { host as run } from './host.js'
-import { identity, itemText, partName } from './web.js'
+import { identity } from './target.js'
+import { itemText, partName } from './web.js'
 import { announcement } from './words.js'
 
 /** @import { Node as Part, Out, Target } from './compose.js' */
@@ -258,7 +259,6 @@ function placeOf(rows, key) {
  * @returns {Layout} The rows, every part by identity, and each part's parent
  */
 function layout(tree, { focused, height = Infinity, item, parts }) {
-  const naming = { id: '', keyId: String }
   /** @type {Map<string, Part>} */
   const nodes = new Map()
   /** @type {Map<string, string>} */
@@ -271,7 +271,7 @@ function layout(tree, { focused, height = Infinity, item, parts }) {
    * @returns {void}
    */
   const index = (node, parent) => {
-    const key = identity(node.target, naming)
+    const key = identity(node.target)
     nodes.set(key, node)
     if (parent !== null) {
       parents.set(key, parent)
@@ -285,7 +285,7 @@ function layout(tree, { focused, height = Infinity, item, parts }) {
   index(tree, null)
   const focusedNode = focused === null ? undefined : nodes.get(focused)
   const named = focusedNode?.aria['activedescendant']
-  const active = isTarget(named) ? identity(named, naming) : null
+  const active = isTarget(named) ? identity(named) : null
   /** @type {{ anchor: string, rows: Segment[][] }[]} */
   const popups = []
 
@@ -301,10 +301,10 @@ function layout(tree, { focused, height = Infinity, item, parts }) {
     }
     const anchor = node.popup?.anchor ?? null
     if (anchor !== null) {
-      popups.push({ anchor: identity(anchor, naming), rows: rows({ ...node, popup: null }, '') })
+      popups.push({ anchor: identity(anchor), rows: rows({ ...node, popup: null }, '') })
       return []
     }
-    const key = identity(node.target, naming)
+    const key = identity(node.target)
     const lit = key === focused || key === active
     const text = textOf(node, item)
     /** @type {Segment['style']} */
@@ -359,10 +359,10 @@ function layout(tree, { focused, height = Infinity, item, parts }) {
       }
       case 'dialog': {
         const labelledby = node.aria['labelledby']
-        const titleKey = isTarget(labelledby) ? identity(labelledby, naming) : null
+        const titleKey = isTarget(labelledby) ? identity(labelledby) : null
         const title = titleKey === null ? undefined : nodes.get(titleKey)
         const inside = node.content.flatMap((content) =>
-          'target' in content && identity(content.target, naming) !== titleKey ? rows(content, `${indent}│ `) : [],
+          'target' in content && identity(content.target) !== titleKey ? rows(content, `${indent}│ `) : [],
         )
         return [
           [segment(`${indent}┌─ ${title === undefined ? '' : textOf(title, item)} ─`, key, 'bold')],
@@ -466,7 +466,7 @@ function renderTerminal(options) {
       const path = made.part.map(String)
       const key = 'item' in made && (typeof made.item === 'string' || typeof made.item === 'number') ? made.item : null
       const part = path.at(-1) ?? ''
-      setFocus(identity({ item: key, owner: [...out.from, ...path.slice(0, -1)], part }, { id: '', keyId: String }))
+      setFocus(identity({ item: key, owner: [...out.from, ...path.slice(0, -1)], part }))
       return
     }
     if (type === 'announce') {

@@ -23,7 +23,7 @@ import { select } from './select.js'
 
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
 const NAMING = { id: 'w', keyId: String }
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
 const DIALOG = { closeLabel: 'Close', ignoreOutside: false, title: 'Pick a fruit' }
 
 /**

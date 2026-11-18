@@ -15,7 +15,14 @@ const html = renderToString(() =>
   createComponent(PickDialog, {
     closeLabel: 'Close',
     ignoreOutside: false,
-    content: { defaultValue: 'Banana', label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' },
+    content: {
+      disabled: false,
+      defaultValue: 'Banana',
+      label: 'Fruit',
+      placeholder: 'Choose a fruit',
+      rows: 4,
+      source: 'fruit',
+    },
     defaultOpen: true,
     sources: { fruit: arraySource(FRUIT) },
     title: 'Pick a fruit',

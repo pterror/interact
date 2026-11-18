@@ -1,0 +1,427 @@
+/**
+ * The contract every widget keeps. A widget is three pure functions over plain data: `init(props)` gives the first
+ * state, `step(state, input)` gives the next state and the effects the host carries out, and `view(state, props)`
+ * gives the parts and what each means, in ARIA's words. None of them does I/O, reads a clock or randomness, or touches
+ * anything global; a widget never calls the host.
+ *
+ * Inputs are the web's UI Events by name and value (`click`, `keydown` with standard `key` values, pointer and focus
+ * events), each naming the part it happened on, plus what the host tells a widget: `answer`, `found`, `props`, `time`,
+ * `changed`, `confirmed`, `refused`, and geometry only as `scroll` and `measured`. Effects are data the host carries
+ * out.
+ *
+ * A value a widget changes follows one rule: what it shows is the app's value plus its own changes not yet settled.
+ * A change shows at once, is emitted with an id, and stays pending until the app's value confirms it (the app's
+ * props, or `confirmed` for a collection) or the app refuses it (`refused`), which undoes it. With no value from the
+ * app, the widget's value is its own.
+ */
+export type Data = null | boolean | number | string | readonly Data[] | Readonly<{
+    [field: string]: Data;
+}>;
+export type i32 = number;
+export type u32 = number;
+export type i53 = number;
+export type Key = string | number;
+export type SourceName = string;
+export type Path = readonly string[];
+export type Ref = Readonly<{
+    part: readonly string[];
+    item: Key | null;
+}>;
+export type Outside = Readonly<{
+    outside: string;
+}>;
+export type AriaValue = string | number | boolean | Ref | readonly Ref[] | Outside | null;
+export type Content = Readonly<{
+    part: string;
+}> | Readonly<{
+    each: string;
+    keys: readonly Key[];
+}> | Readonly<{
+    child: string;
+}> | Readonly<{
+    text: string;
+}> | Readonly<{
+    item: Key;
+    source: string;
+}>;
+export type Popup = Readonly<{
+    anchor: Ref | null;
+}>;
+export type Part = Readonly<{
+    role: string | null;
+    aria: Readonly<{
+        [name: string]: AriaValue;
+    }>;
+    data: Readonly<{
+        [name: string]: string | boolean | null;
+    }>;
+    tabindex: number | null;
+    hidden: boolean;
+    popup: Popup | null;
+    listens: readonly string[];
+    content: readonly Content[];
+}>;
+export type View = Readonly<{
+    [name: string]: Part | ((item: Key) => Part);
+}>;
+export type On = Readonly<{
+    part: string;
+    item: Key | null;
+    timeStamp: number;
+}>;
+export type Modifiers = Readonly<{
+    altKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+    shiftKey: boolean;
+}>;
+export type KeyDown = On & Modifiers & Readonly<{
+    type: 'keydown';
+    key: string;
+}>;
+export type Click = On & Modifiers & Readonly<{
+    type: 'click';
+}>;
+export type Pointer = On & Readonly<{
+    type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel';
+    pointerId: number;
+    pointerType: string;
+    button: number;
+    clientX: number;
+    clientY: number;
+}>;
+export type MouseDown = On & Readonly<{
+    type: 'mousedown';
+    button: number;
+}>;
+export type Focused = On & Readonly<{
+    type: 'focus';
+}>;
+export type Blur = On & Readonly<{
+    type: 'blur';
+}>;
+export type Scroll = On & Readonly<{
+    type: 'scroll';
+    offset: number;
+}>;
+export type Measured = On & Readonly<{
+    type: 'measured';
+    size: number;
+}>;
+export type HostEvent = KeyDown | Click | Pointer | MouseDown | Focused | Blur | Scroll | Measured;
+export type Changed = Readonly<{
+    type: 'changed';
+}>;
+export type Confirmed = Readonly<{
+    type: 'confirmed';
+    id: i53;
+}>;
+export type Refused = Readonly<{
+    type: 'refused';
+    id: i53;
+}>;
+export type PropsInput<P> = Readonly<{
+    type: 'props';
+    props: P;
+}>;
+export type Time = Readonly<{
+    type: 'time';
+    now: number;
+}>;
+export type Answer = Readonly<{
+    type: 'answer';
+    id: i53;
+    from: i32;
+    keys: readonly Key[];
+    count: i32;
+}>;
+export type Found = Readonly<{
+    type: 'found';
+    id: i53;
+    key: Key | null;
+}>;
+export type Ask = Readonly<{
+    type: 'ask';
+    id: i53;
+    source: string;
+    ranks: readonly [i32, i32];
+}> | Readonly<{
+    type: 'ask';
+    id: i53;
+    source: string;
+    locate: Key;
+    rows: i32;
+}> | Readonly<{
+    type: 'ask';
+    id: i53;
+    source: string;
+    find: string;
+    at: Key | null;
+    next: boolean;
+}>;
+export type Focus = Readonly<{
+    type: 'focus';
+}> & Ref;
+export type Wake = Readonly<{
+    type: 'wake';
+    at: number;
+}>;
+export type Change<T> = Readonly<{
+    type: 'change';
+    value: T;
+    id: i53;
+}>;
+export type Announce = Readonly<{
+    type: 'announce';
+    message: string;
+    values: Readonly<{
+        [field: string]: Data;
+    }>;
+    urgent: boolean;
+}>;
+export type PreventDefault = Readonly<{
+    type: 'preventDefault';
+}>;
+export type Result<S, E> = readonly [S, readonly E[]];
+export type Widget<P, S, I, E> = Readonly<{
+    init: (props: P) => Result<S, E>;
+    step: (state: S, input: I) => Result<S, E>;
+    view: (state: S, props: P) => View;
+}>;
+/**
+ * Plain data: what state, props, inputs and effects are made of. `null`, never `undefined`
+ * @typedef {null | boolean | number | string | readonly Data[] | Readonly<{ [field: string]: Data }>} Data
+ */
+/**
+ * Integers of a width. A number declared `i32` is an integer from -2^31 to 2^31 - 1; `u32` from 0 to 2^32 - 1; `i53`
+ * one a double holds exactly, below 2^53 either way. To JavaScript each is a number. The code generator checks that
+ * every value stored where one is declared is such an integer: where a value might leave the range, the source writes
+ * the wrap (`(x) | 0` to i32, `x >>> 0` to u32) or the clamp itself
+ * @typedef {number} i32
+ */
+/** @typedef {number} u32 */
+/** @typedef {number} i53 */
+/**
+ * An item's identity. Opaque: the core compares keys with `===` and never reads into them
+ * @typedef {string | number} Key
+ */
+/**
+ * The name of a collection the host holds, which a widget asks about (`ask`) by it: a prop of this type names one, so
+ * a component can take the collection's items in its place
+ * @typedef {string} SourceName
+ */
+/**
+ * Where a widget sits among its ancestors: the child names from the outermost widget down; `[]` is the outermost
+ * @typedef {readonly string[]} Path
+ */
+/**
+ * A part named from the widget whose view or effect names it: its child names down to it, then the part's name, and
+ * the item it is drawn for (`null` for a part drawn once). `{ part: ['trigger'], item: null }` is the widget's own
+ * trigger; `{ part: ['list', 'option'], item: k }` is the option drawn for `k` by its child `list`
+ * @typedef {Readonly<{ part: readonly string[], item: Key | null }>} Ref
+ */
+/**
+ * An element outside the widget, by a name the widget gives it (`label`, the visible label of a field): the host is
+ * told which element has that name, or none
+ * @typedef {Readonly<{ outside: string }>} Outside
+ */
+/**
+ * An ARIA attribute's value, by the attribute's name without `aria-`: a token, number or text; `true`/`false`; a
+ * reference to one part (`activedescendant`, `controls`, `labelledby`) or to several, or to an element outside the
+ * widget; `null` leaves it out, as does an element outside that the host was given none for
+ * @typedef {string | number | boolean | Ref | readonly Ref[] | Outside | null} AriaValue
+ */
+/**
+ * What goes inside a part, in order: one of the widget's own parts (`part`), one drawn per key (`each`, called only for
+ * the keys given, which are the window), a child widget's root (`child`), text the widget has (`text`, from its
+ * props), or the host's content for an item of the collection `source` (`item`: the host draws what the item is, by
+ * default its text in that source; the core never holds it)
+ * @typedef {Readonly<{ part: string }>
+ *   | Readonly<{ each: string, keys: readonly Key[] }>
+ *   | Readonly<{ child: string }>
+ *   | Readonly<{ text: string }>
+ *   | Readonly<{ item: Key, source: string }>} Content
+ */
+/**
+ * A part shown over everything else while it is shown, as a popup: placed against the part `anchor` names (below it,
+ * or wherever else it fits), or, with no anchor, in the middle of the view. A press outside the popup shown last, of
+ * a type it listens for, is heard by it as a press on it
+ * @typedef {Readonly<{ anchor: Ref | null }>} Popup
+ */
+/**
+ * A part and what it means. `role` and `aria` are WAI-ARIA's, word for word. `listens` names the inputs the part takes.
+ * Beyond ARIA: `tabindex` and `hidden` are HTML's attributes of those names (focusability and whether it is shown,
+ * which ARIA has no word for), `popup` says the part is shown over everything else (`null`: in its place), and `data`
+ * holds states ARIA has no word for (an active option under `aria-activedescendant`, a dragged item), which the DOM
+ * shows as `data-*`
+ * @typedef {Readonly<{
+ *   role: string | null,
+ *   aria: Readonly<{ [name: string]: AriaValue }>,
+ *   data: Readonly<{ [name: string]: string | boolean | null }>,
+ *   tabindex: number | null,
+ *   hidden: boolean,
+ *   popup: Popup | null,
+ *   listens: readonly string[],
+ *   content: readonly Content[],
+ * }>} Part
+ */
+/**
+ * A widget's view: its parts by name, each a Part or, for a part drawn once per key, a function of the key. `root` is
+ * the part that holds the rest
+ * @typedef {Readonly<{ [name: string]: Part | ((item: Key) => Part) }>} View
+ */
+/**
+ * What every input from the host carries: the part it happened on (`part`, the part's own name, and `item`, the key
+ * it is drawn for, or `null`), and the event's `timeStamp` (ms, the clock `time` inputs use)
+ * @typedef {Readonly<{ part: string, item: Key | null, timeStamp: number }>} On
+ */
+/**
+ * The modifier keys held, as UI Events name them
+ * @typedef {Readonly<{ altKey: boolean, ctrlKey: boolean, metaKey: boolean, shiftKey: boolean }>} Modifiers
+ */
+/**
+ * A key pressed. `key` is the UI Events key value (`ArrowDown`, `Enter`, `a`, ` `)
+ * @typedef {On & Modifiers & Readonly<{ type: 'keydown', key: string }>} KeyDown
+ */
+/**
+ * A click (a press and release on one part, or Enter or Space on a button)
+ * @typedef {On & Modifiers & Readonly<{ type: 'click' }>} Click
+ */
+/**
+ * A pointer event, with the UI Events fields a widget reads. `clientX`/`clientY` are in the target's own units (CSS
+ * pixels in a browser, cells in a terminal); a widget's thresholds are props, in the same units. `pointerType` is
+ * Pointer Events' (`mouse`, `pen`, `touch`)
+ * @typedef {On & Readonly<{
+ *   type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+ *   pointerId: number,
+ *   pointerType: string,
+ *   button: number,
+ *   clientX: number,
+ *   clientY: number,
+ * }>} Pointer
+ */
+/**
+ * A mouse button pressed (heard only to keep focus where it is, by preventing its default)
+ * @typedef {On & Readonly<{ type: 'mousedown', button: number }>} MouseDown
+ */
+/**
+ * Focus arriving at a part
+ * @typedef {On & Readonly<{ type: 'focus' }>} Focused
+ */
+/**
+ * Focus leaving a part
+ * @typedef {On & Readonly<{ type: 'blur' }>} Blur
+ */
+/**
+ * A part scrolled: `offset` is how far its content is scrolled, in the target's units (UI Events' `scroll` carries no
+ * value; this is its element's `scrollTop`)
+ * @typedef {On & Readonly<{ type: 'scroll', offset: number }>} Scroll
+ */
+/**
+ * A part's size, measured by the host, in the target's units
+ * @typedef {On & Readonly<{ type: 'measured', size: number }>} Measured
+ */
+/**
+ * An input from the host's events: any of these can happen on any part
+ * @typedef {KeyDown | Click | Pointer | MouseDown | Focused | Blur | Scroll | Measured} HostEvent
+ */
+/**
+ * The collection a widget asked about changed: what it holds may be stale
+ * @typedef {Readonly<{ type: 'changed' }>} Changed
+ */
+/**
+ * The app took a change the widget emitted (`id`): the collection now has it
+ * @typedef {Readonly<{ type: 'confirmed', id: i53 }>} Confirmed
+ */
+/**
+ * The app refused a change the widget emitted (`id`): the widget undoes it
+ * @typedef {Readonly<{ type: 'refused', id: i53 }>} Refused
+ */
+/**
+ * The props now: the parent's or the app's, whenever they change
+ * @template P
+ * @typedef {Readonly<{ type: 'props', props: P }>} PropsInput
+ */
+/**
+ * The time, delivered for a `wake` the widget asked for
+ * @typedef {Readonly<{ type: 'time', now: number }>} Time
+ */
+/**
+ * The answer to an `ask` for keys: `keys` are the keys at ranks `from`, `from + 1`, ...; `count` is how many items there
+ * are. `id` is the ask's
+ * @typedef {Readonly<{ type: 'answer', id: i53, from: i32, keys: readonly Key[], count: i32 }>} Answer
+ */
+/**
+ * The answer to an `ask` to find a key: the key found, or `null` for none. `id` is the ask's
+ * @typedef {Readonly<{ type: 'found', id: i53, key: Key | null }>} Found
+ */
+/**
+ * A question for the host about a collection, named by `source`: the keys at ranks `[from, to)`, or (`locate`) a
+ * window of `rows` keys that holds a key, answered by `answer` with the same `id`; or (`find`) the first key whose text
+ * starts with `find`, ignoring case, from the key `at` on (after it when `next`; from the first key when `at` is
+ * `null`), wrapping round, answered by `found` with the same `id`. Either answer comes back to the widget that asked
+ * @typedef {Readonly<{ type: 'ask', id: i53, source: string, ranks: readonly [i32, i32] }>
+ *   | Readonly<{ type: 'ask', id: i53, source: string, locate: Key, rows: i32 }>
+ *   | Readonly<{ type: 'ask', id: i53, source: string, find: string, at: Key | null, next: boolean }>} Ask
+ */
+/**
+ * Moves focus to a part
+ * @typedef {Readonly<{ type: 'focus' }> & Ref} Focus
+ */
+/**
+ * Asks the host to send a `time` input at `at` (the clock inputs' `timeStamp` uses)
+ * @typedef {Readonly<{ type: 'wake', at: number }>} Wake
+ */
+/**
+ * Tells the app a value changed. `id` names the change, for `refused`
+ * @template T
+ * @typedef {Readonly<{ type: 'change', value: T, id: i53 }>} Change
+ */
+/**
+ * Something for screen readers to say: which message (`message`, an id the host words in its language) and what it
+ * is about (`values`, keys among them, which the host names)
+ * @typedef {Readonly<{
+ *   type: 'announce',
+ *   message: string,
+ *   values: Readonly<{ [field: string]: Data }>,
+ *   urgent: boolean,
+ * }>} Announce
+ */
+/**
+ * Prevents the default action of the event being handled (a key scrolling the page, a press moving focus). The host
+ * applies it while the event is still being dispatched, which it can because `step` is synchronous
+ * @typedef {Readonly<{ type: 'preventDefault' }>} PreventDefault
+ */
+/**
+ * The result of a step: the next state and the effects, in order
+ * @template S, E
+ * @typedef {readonly [S, readonly E[]]} Result
+ */
+/**
+ * A widget: three pure functions. `init` gives the first state and what to do at once (a list asks for its first
+ * window). A state handed to `step` is the step's: it may change it in place and return it, so whoever calls `step`
+ * (the host, a composite's runtime) never reads a state again once it has handed it over, and keeps only the state
+ * returned. A result is the widget's until it is called again (it may give the same arrays again): whoever calls
+ * reads it, and copies what it keeps, before calling the widget again
+ * @template P, S, I, E
+ * @typedef {Readonly<{
+ *   init: (props: P) => Result<S, E>,
+ *   step: (state: S, input: I) => Result<S, E>,
+ *   view: (state: S, props: P) => View,
+ * }>} Widget
+ */
+/**
+ * A part, with nothing it doesn't name: no role, no ARIA, no states, not focusable, shown in its place, listening to
+ * nothing, empty
+ * @param {Partial<Part>} given - What the part has
+ * @returns {Part} The part
+ */
+declare function part(given: Partial<Part>): Part;
+/**
+ * A reference to a part, from the widget naming it
+ * @param {readonly string[]} path - Child names down to the part, then the part's name
+ * @param {Key | null} item - The item it is drawn for, or `null`
+ * @returns {Ref} The reference
+ */
+declare function ref(path: readonly string[], item: Key | null): Ref;
+export { part, ref };

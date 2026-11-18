@@ -17,7 +17,7 @@ import { dialog, Select } from './index.js'
 /** @import { Mounting } from '@pterror/interact-core/test-components' */
 
 const PickDialog = dialog(Select, ['content', 'trigger'])
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
 /** @type {readonly ('select' | 'dialog')[]} */
 const KINDS = ['select', 'dialog']
 /** @type {readonly ('app' | 'own')[]} */
@@ -147,7 +147,9 @@ describe('the Vue components', () => {
     expect(document.activeElement?.id).toBe(id)
     press(trigger, 'ArrowDown')
     await settled()
-    expect(trigger?.getAttribute('aria-activedescendant')).toBe(id.replace(/trigger$/u, 'list-option-Banana'))
+    expect(trigger?.getAttribute('aria-activedescendant')).toBe(
+      [...container.querySelectorAll('[role=option]')].find((option) => option.textContent === 'Banana')?.id,
+    )
     expect(await violations(container)).toEqual([])
     app.unmount()
   })

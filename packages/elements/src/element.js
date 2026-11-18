@@ -21,6 +21,7 @@ import {
   route,
   statesOf,
   widgetProps,
+  prefixedIds,
 } from '@pterror/interact-core'
 
 /** @import { Description, Host, Item, Key, Naming, Node as Part, Out, Source, Words } from '@pterror/interact-core' */
@@ -349,7 +350,7 @@ class InteractElement extends HTMLElement {
       },
       exposeParts: true,
       slotText: true,
-      naming: isNaming(naming) ? naming : { id: `${this.localName}-${String(count)}`, keyId: String },
+      naming: isNaming(naming) ? naming : prefixedIds(`${this.localName}-${String(count)}`),
       outside: (name) => this.#outside(name),
       props: widgetProps(described, made.props),
       sources: all,
@@ -482,10 +483,13 @@ function isInfo(value) {
 /**
  * Whether a value is a naming
  * @param {unknown} value - The value
- * @returns {value is Naming} Whether it has an id prefix and a key's id
+ * @returns {value is Naming} Whether it supplies a resolver or prefix-and-key naming
  */
 function isNaming(value) {
-  return isRecord(value) && typeof value['id'] === 'string' && typeof value['keyId'] === 'function'
+  return (
+    isRecord(value) &&
+    (typeof value['idOf'] === 'function' || (typeof value['id'] === 'string' && typeof value['keyId'] === 'function'))
+  )
 }
 
 /**

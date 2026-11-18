@@ -20,6 +20,7 @@ import {
   route,
   same,
   widgetProps,
+  prefixedIds,
 } from '@pterror/interact-core'
 import { createComponent, createUniqueId, untrack } from 'solid-js'
 
@@ -227,7 +228,7 @@ function componentWith(solid) {
 
       const options = hostOptions(
         props,
-        { id: createUniqueId(), keyId: String },
+        prefixedIds(createUniqueId()),
         () => props,
         untrack(() => items.read(description, props).sources),
       )

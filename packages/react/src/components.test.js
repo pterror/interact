@@ -22,7 +22,7 @@ const PickDialog = dialog(Select, ['content', 'trigger'])
 const KINDS = ['select', 'dialog']
 /** @type {readonly ('app' | 'own')[]} */
 const MODES = ['app', 'own']
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -126,7 +126,7 @@ describe('the React components', () => {
     container.innerHTML = html
     const trigger = container.querySelector('[role=combobox]')
     const id = trigger?.id ?? ''
-    expect(trigger?.getAttribute('aria-controls')).toBe(id.replace(/trigger$/u, 'list-root'))
+    expect(trigger?.getAttribute('aria-controls')).toBe(container.querySelector('[role=listbox]')?.id)
     /** @type {unknown[]} */
     const errors = []
     const root = hydrateRoot(container, element, {
@@ -140,7 +140,9 @@ describe('the React components', () => {
     expect(document.activeElement?.id).toBe(id)
     press(trigger, 'ArrowDown')
     await settled()
-    expect(trigger?.getAttribute('aria-activedescendant')).toBe(id.replace(/trigger$/u, 'list-option-Banana'))
+    expect(trigger?.getAttribute('aria-activedescendant')).toBe(
+      [...container.querySelectorAll('[role=option]')].find((option) => option.textContent === 'Banana')?.id,
+    )
     expect(await violations(container)).toEqual([])
     root.unmount()
   })

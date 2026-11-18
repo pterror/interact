@@ -9,4 +9,4 @@
   export let sources
 </script>
 
-<Select label="Fruit" placeholder="Choose a fruit" rows={4} source="fruit" {sources} item={Item} parts={{ list: List, option: Option }} on:change />
+<Select disabled={false} label="Fruit" placeholder="Choose a fruit" rows={4} source="fruit" {sources} item={Item} parts={{ list: List, option: Option }} on:change />

@@ -30,7 +30,7 @@ const takesItems = true
 const parts = true
 
 /** @type {DialogProps['content']} */
-const content = { items: ['Apple', 'Banana'], label: 'Fruit', placeholder: 'Choose', rows: 4 }
+const content = { disabled: false, items: ['Apple', 'Banana'], label: 'Fruit', placeholder: 'Choose', rows: 4 }
 
 test("type the dialog's content by the select inside, and its parts by both", () => {
   expect([labelled, noOtherProp, takesItems, parts, content.label]).toEqual([true, true, true, true, 'Fruit'])

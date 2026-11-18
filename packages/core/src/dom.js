@@ -4,7 +4,8 @@
  * change.
  */
 
-import { elementFor, identity, itemText, page, partName, statesOf } from './web.js'
+import { identity } from './target.js'
+import { elementFor, itemText, page, partName, statesOf } from './web.js'
 
 /** @import { Node as Part, Target } from './compose.js' */
 /** @import { Key } from './contract.js' */
@@ -97,7 +98,6 @@ function renderDom(options) {
     },
     () => live,
   )
-  const { naming } = running
 
   /**
    * Makes the element for a part
@@ -123,7 +123,7 @@ function renderDom(options) {
    * @returns {Element} Its element
    */
   const draw = (node, seen) => {
-    const key = identity(node.target, naming)
+    const key = identity(node.target)
     seen.add(key)
     const drawn = made.get(key) ?? create(node)
     made.set(key, drawn)

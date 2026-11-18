@@ -133,7 +133,7 @@ const MENU_RUNS = [
   },
 ]
 
-const SELECT = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
 
 /** @type {readonly CompositeRun[]} */
 const SELECT_RUNS = [

@@ -83,7 +83,14 @@ describe('Interact', () => {
               },
             },
             get props() {
-              return { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: { value: value() } }
+              return {
+                disabled: false,
+                label: 'Fruit',
+                placeholder: 'Choose',
+                rows: 4,
+                source: 'fruit',
+                value: { value: value() },
+              }
             },
             sources: { fruit: arraySource(FRUIT) },
             widget: select,
@@ -102,8 +109,7 @@ describe('Interact', () => {
     const options = [...container.querySelectorAll('[role=option]')]
     expect(options.map((option) => option.textContent)).toEqual(['Apple', 'Banana', 'Cherry', 'Date'])
     expect(made).toBe(4)
-    const id = trigger?.id ?? ''
-    expect(trigger?.getAttribute('aria-activedescendant')).toBe(id.replace(/-trigger$/u, '-list-option-Banana'))
+    expect(trigger?.getAttribute('aria-activedescendant')).toBe(options[1]?.id)
     press(trigger, 'Enter')
     flush()
     expect(heard.map((out) => out.effect)).toEqual([{ id: 1, type: 'change', value: 'Banana' }])

@@ -20,13 +20,20 @@ const SelectElement = define({
   description: {
     events: [],
     inside: {},
-    props: ['label', 'placeholder', 'rows', 'source'],
+    props: ['disabled', 'label', 'placeholder', 'rows', 'source'],
     sources: ['source'],
     value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
     widget,
   },
   factory: null,
-  kinds: { label: 'string', placeholder: 'string', rows: 'number', source: 'string', value: 'string' },
+  kinds: {
+    disabled: 'boolean',
+    label: 'string',
+    placeholder: 'string',
+    rows: 'number',
+    source: 'string',
+    value: 'string',
+  },
   params: [],
 })
 

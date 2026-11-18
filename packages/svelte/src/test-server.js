@@ -12,7 +12,14 @@ const server = await load(await compiled('server'))
 const props = {
   closeLabel: 'Close',
   ignoreOutside: false,
-  content: { defaultValue: 'Banana', label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' },
+  content: {
+    disabled: false,
+    defaultValue: 'Banana',
+    label: 'Fruit',
+    placeholder: 'Choose a fruit',
+    rows: 4,
+    source: 'fruit',
+  },
   of: { content: server['select'], initialFocus: ['content', 'trigger'] },
   open: true,
   sources: { fruit: arraySource(FRUIT) },

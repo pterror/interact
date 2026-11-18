@@ -13,7 +13,7 @@ import { answer, click, keydown, pointer } from './test-inputs.js'
 const ALL = ['apple', 'banana', 'cherry', 'date', 'elderberry', 'fig', 'grape']
 
 /** @type {SelectProps} */
-const PROPS = { label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
+const PROPS = { disabled: false, label: 'Fruit', placeholder: 'Choose', rows: 4, source: 'fruit', value: null }
 
 /**
  * Whether a value is a select's state
@@ -70,6 +70,34 @@ function opened(props = PROPS) {
 }
 
 describe('select', () => {
+  test('disabled selects cannot open by keyboard, pointer or click and are not tab stops', () => {
+    const [first] = started({ ...PROPS, disabled: true })
+    for (const input of [
+      click('trigger'),
+      keydown('trigger', 'ArrowDown'),
+      pointer('pointerdown', 'trigger', null, [0, 0]),
+    ]) {
+      const [state, effects] = send(first, [], input)
+      expect(state.own.open).toBe(false)
+      expect(effects).toEqual([])
+    }
+    const [trigger] = resolve(select, first, { ...PROPS, disabled: true }).content
+    expect(trigger !== undefined && 'aria' in trigger ? trigger.aria['disabled'] : null).toBe(true)
+    expect(trigger !== undefined && 'tabindex' in trigger ? trigger.tabindex : null).toBe(-1)
+  })
+
+  test('disabling an open select closes it without choosing; enabling restores interaction', () => {
+    const before = opened()
+    const [disabled, effects] = send(before, [], { type: 'props', props: { ...PROPS, disabled: true } })
+    expect(disabled.own.open).toBe(false)
+    expect(
+      effects.some(
+        (effect) => typeof effect === 'object' && effect !== null && 'type' in effect && effect.type === 'change',
+      ),
+    ).toBe(false)
+    const [enabled] = send(disabled, [], { type: 'props', props: PROPS })
+    expect(send(enabled, [], click('trigger'))[0].own.open).toBe(true)
+  })
   test('starts closed, asking for nothing until it opens; opening asks its list, which answers back to the list', () => {
     const [first, outs] = started()
     expect(outs).toEqual([])

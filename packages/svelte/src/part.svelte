@@ -29,7 +29,7 @@
 </script>
 
 {#snippet contents()}
-  {#each node.content as content, index ('target' in content ? identity(content.target, naming) : `content ${String(index)}`)}
+  {#each node.content as content, index ('target' in content ? identity(content.target) : `content ${String(index)}`)}
     {#if 'target' in content}
       <Part {item} {naming} node={content} {parts} {sources} />
     {:else if 'text' in content}

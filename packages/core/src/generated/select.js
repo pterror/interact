@@ -35,6 +35,7 @@ function pendingPending(controlled, value) {
 function init(props, host) {
   return {
     active: null,
+    disabled: props.disabled,
     label: props.label,
     open: false,
     placeholder: props.placeholder,
@@ -126,6 +127,9 @@ function pendingChange(held, value) {
  * @param key - The key, or `null` to close choosing nothing
  */
 function choose(own, key, host) {
+  if (own.disabled) {
+    return own
+  }
   own.open = false
   if (key === null || key === pendingShown(own.value)) {
     return own
@@ -187,29 +191,38 @@ function keydown(own, input, host) {
  * @param input - The input
  */
 function step(own, input, host) {
+  if (own.disabled && input.type !== 'props' && input.type !== 'refused') {
+    return own
+  }
   switch (input.type) {
     case 'props': {
       const { props } = input
       const controlled = props.value !== null
-      const value = props.label
-      const value2 = props.placeholder
-      const value3 = props.rows
-      const value4 = props.source
-      const value5 = own.value
-      own.label = value
-      own.placeholder = value2
-      own.rows = value3
-      own.source = value4
+      const value = props.disabled
+      const value2 = props.disabled ? false : own.open
+      const value3 = props.disabled ? false : own.pressed
+      const value4 = props.label
+      const value5 = props.placeholder
+      const value6 = props.rows
+      const value7 = props.source
+      const value8 = own.value
+      own.disabled = value
+      own.open = value2
+      own.pressed = value3
+      own.label = value4
+      own.placeholder = value5
+      own.rows = value6
+      own.source = value7
       own.value = pendingFromApp(
-        { ...value5, changes: [...value5.changes] },
+        { ...value8, changes: [...value8.changes] },
         controlled,
         props.value === null ? own.value.app : props.value.value,
       )
       return own
     }
     case 'refused': {
-      const value6 = own.value
-      own.value = pendingRefuse({ ...value6, changes: [...value6.changes] }, input.id)
+      const value9 = own.value
+      own.value = pendingRefuse({ ...value9, changes: [...value9.changes] }, input.id)
       return own
     }
     case 'click': {

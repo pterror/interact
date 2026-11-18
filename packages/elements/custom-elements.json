@@ -908,6 +908,14 @@
         {
           "attributes": [
             {
+              "description": "The widget's `disabled`",
+              "fieldName": "disabled",
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              }
+            },
+            {
               "description": "The widget's `label`",
               "fieldName": "label",
               "name": "label",
@@ -983,6 +991,10 @@
               "name": "active"
             },
             {
+              "description": "A part drawn once shows `disabled`",
+              "name": "disabled"
+            },
+            {
               "description": "A part drawn once shows `expanded`",
               "name": "expanded"
             },
@@ -1004,6 +1016,14 @@
           ],
           "kind": "class",
           "members": [
+            {
+              "description": "The widget's `disabled`",
+              "kind": "field",
+              "name": "disabled",
+              "type": {
+                "text": "boolean"
+              }
+            },
             {
               "description": "The widget's `label`",
               "kind": "field",

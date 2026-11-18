@@ -22,6 +22,7 @@ import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
 
 /**
  * @typedef {Readonly<{
+ *   disabled: boolean,
  *   label: string,
  *   placeholder: string,
  *   rows: i32,
@@ -35,6 +36,7 @@ import { isTyped, TYPEAHEAD_MS, typing } from './typeahead.js'
  *   open: boolean,
  *   value: Pending<Key | null>,
  *   active: Key | null,
+ *   disabled: boolean,
  *   label: string,
  *   placeholder: string,
  *   rows: i32,
@@ -61,6 +63,9 @@ const STOP = [{ type: 'stopPropagation' }]
  * @returns {Result<SelectOwn, SelectEffect>} The select, and `change` if the value is another
  */
 function choose(own, key) {
+  if (own.disabled) {
+    return [own, NONE]
+  }
   const closed = { ...own, open: false }
   if (key === null || key === shown(own.value)) {
     return [closed, NONE]
@@ -109,6 +114,9 @@ function keydown(own, input) {
  * @returns {Result<SelectOwn, SelectEffect>} The select, and its effects
  */
 function step(own, input) {
+  if (own.disabled && input.type !== 'props' && input.type !== 'refused') {
+    return [own, NONE]
+  }
   switch (input.type) {
     case 'props': {
       const { props } = input
@@ -116,6 +124,9 @@ function step(own, input) {
       return [
         {
           ...own,
+          disabled: props.disabled,
+          open: props.disabled ? false : own.open,
+          pressed: props.disabled ? false : own.pressed,
           label: props.label,
           placeholder: props.placeholder,
           rows: props.rows,
@@ -162,6 +173,7 @@ function init(props) {
   return [
     {
       active: null,
+      disabled: props.disabled,
       label: props.label,
       open: false,
       placeholder: props.placeholder,
@@ -193,6 +205,7 @@ function view(own) {
       aria: {
         activedescendant: own.active === null ? null : ref(['list', 'option'], own.active),
         controls: ref(['list', 'root'], null),
+        disabled: own.disabled,
         expanded: own.open,
         haspopup: 'listbox',
         label: own.label,
@@ -201,7 +214,7 @@ function view(own) {
       content: value === null ? [{ text: own.placeholder }] : [{ item: value, source: own.source }],
       listens: ['click', 'keydown', 'blur', 'pointerdown', 'pointermove', 'pointerup'],
       role: 'combobox',
-      tabindex: 0,
+      tabindex: own.disabled ? -1 : 0,
     }),
   }
 }

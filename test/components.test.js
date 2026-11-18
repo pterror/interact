@@ -186,7 +186,12 @@ describe.each(BROWSERS)('the components, in %s', (engine) => {
       ])
       await page.locator('#label').click()
       const labelled = await seen(page)
-      expect(labelled.focused).toMatch(/-trigger$/u)
+      expect(labelled.focused).toBe(
+        await page
+          .locator('interact-select')
+          .getByRole('combobox')
+          .evaluate((control) => control.id),
+      )
       await page.keyboard.press('ArrowDown')
       now = await element()
       expect([now.expanded, now.color]).toEqual([true, 'rgb(4, 5, 6)'])

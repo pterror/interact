@@ -68,7 +68,7 @@ function changeOf(detail) {
     value,
   }
 }
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit' }
 const OF = { content: client['select'], initialFocus: ['content', 'trigger'] }
 /** @type {readonly ('select' | 'dialog')[]} */
 const KINDS = ['select', 'dialog']
@@ -273,7 +273,7 @@ describe(`the Svelte ${String(MAJOR)} components`, () => {
     press(trigger, 'ArrowDown')
     await settled()
     expect(trigger?.getAttribute('aria-activedescendant')).toBe(
-      (trigger?.id ?? '').replace(/trigger$/u, 'list-option-Banana'),
+      [...container.querySelectorAll('[role=option]')].find((option) => option.textContent === 'Banana')?.id,
     )
     expect(await violations(container)).toEqual([])
     made.stop()

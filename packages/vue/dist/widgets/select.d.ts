@@ -17,6 +17,7 @@ export type WidgetProps = PropsOf<Widget>;
  * (`pressed`). The option under the pointer is active.
  */
 declare const Select: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
+    disabled: boolean;
     label: string;
     placeholder: string;
     rows: import("@pterror/interact-core/contract").i32;
@@ -55,6 +56,7 @@ declare const Select: import("vue").DefineSetupFnComponent<Omit<Omit<Readonly<{
 }> & Readonly<{
     [prop: string]: unknown;
 }>, string[], {}, Omit<Omit<Readonly<{
+    disabled: boolean;
     label: string;
     placeholder: string;
     rows: import("@pterror/interact-core/contract").i32;

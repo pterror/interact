@@ -25,6 +25,7 @@ export {
 export { compose, deliver, isRecord, resolve, same, start } from './compose.js'
 export { part, ref } from './contract.js'
 export { dialog } from './dialog.js'
+export { prefixedIds } from './dom-ids.js'
 export { renderDom } from './dom.js'
 export { arraySource, host } from './host.js'
 export { list } from './list.js'
@@ -32,8 +33,9 @@ export { menu } from './menu.js'
 export { change, fromApp, pending, refuse, shown } from './pending.js'
 export { reorderList } from './reorder.js'
 export { select } from './select.js'
+export { identity } from './target.js'
 export { layout, parseInput, renderTerminal } from './terminal.js'
-export { ARIA_STATES, attributesOf, elementFor, identity, idOf, itemText, page, partName, statesOf } from './web.js'
+export { ARIA_STATES, attributesOf, elementFor, idOf, itemText, page, partName, statesOf } from './web.js'
 export { announcement, english, say } from './words.js'
 
 /** @typedef {import('./contract.js').Key} Key */

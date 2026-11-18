@@ -27,6 +27,7 @@ import {
   route,
   same,
   widgetProps,
+  prefixedIds,
 } from '@pterror/interact-core'
 import { createElement, Fragment, memo, useEffect, useId, useLayoutEffect, useReducer, useRef, useState } from 'react'
 
@@ -241,7 +242,7 @@ function reactProps(attributes) {
 function DrawPart({ drawing, node }) {
   const children = node.content.map((content, index) => {
     if ('target' in content) {
-      return createElement(PartElement, { drawing, key: identity(content.target, drawing.naming), node: content })
+      return createElement(PartElement, { drawing, key: identity(content.target), node: content })
     }
     if ('text' in content) {
       return content.text
@@ -336,7 +337,7 @@ function component(description, displayName) {
     const live = useRef(noElement())
     const root = useRef(noPage())
     const [, redraw] = useReducer((count) => count + 1, 0)
-    const framework = { id, keyId: String }
+    const framework = prefixedIds(id)
     const items = useRef(noItems())
     items.current ??= itemSources()
     const read = items.current.read(description, props)

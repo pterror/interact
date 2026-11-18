@@ -49,11 +49,13 @@ async function filesIn(dir) {
  */
 async function build(dir, out) {
   await Bun.$`rm -rf ${out}`
+  const config = `${ROOT}${dir}tsconfig.build.json`
+  const tsconfig = (await Bun.file(config).exists()) ? config : `${ROOT}${dir}tsconfig.json`
   const built = Bun.spawn(
     [
       `${ROOT}node_modules/.bin/tsgo`,
       '-p',
-      `${ROOT}${dir}tsconfig.json`,
+      tsconfig,
       '--noEmit',
       'false',
       '--declaration',
@@ -73,9 +75,7 @@ async function build(dir, out) {
   const tests = files.filter((file) => TEST_ONLY.test(file))
   await Promise.all(tests.map(async (file) => Bun.file(`${out}/${file}`).delete()))
   const sources = await filesIn(`${ROOT}${dir}src`)
-  const declared = sources.filter(
-    (file) => file.endsWith('.d.ts') && !TEST_ONLY.test(file) && !sources.includes(file.replace(/\.d\.ts$/u, '.js')),
-  )
+  const declared = sources.filter((file) => file.endsWith('.d.ts') && !TEST_ONLY.test(file) && !files.includes(file))
   await Promise.all(declared.map(async (file) => Bun.write(`${out}/${file}`, Bun.file(`${ROOT}${dir}src/${file}`))))
 }
 
@@ -110,7 +110,7 @@ async function differences(one, other) {
 
 /**
  * Builds one package's declarations aside, then compares them with its `dist` or puts them there. Built aside either
- * way: the packages build at once, each against the others' `dist`, which must stay whole meanwhile
+ * way: each package is staged aside before its declarations are replaced
  * @param {string} dir - The package, from the repo root
  * @param {boolean} checking - Whether to compare rather than write
  * @returns {Promise<string[]>} The files in `dist` that are out of date, when comparing
@@ -132,10 +132,56 @@ const checking = Bun.argv.includes('--check')
 const packages = await typedPackages()
 /** @type {[string, string][]} */
 const builtAside = []
-const results = await Promise.all(packages.map(async (dir) => buildOrCheck(dir, checking)))
-for (const [aside, dist] of builtAside) {
-  // oxlint-disable-next-line no-await-in-loop -- each dist is replaced once every package has built
-  await Bun.$`rm -rf ${dist} && mv ${aside} ${dist}`
+/**
+ * The workspace dependencies whose declarations a package consumes
+ * @param {string} dir - The package directory
+ * @returns {Promise<Readonly<{ dir: string, name: string, dependencies: readonly string[] }>>} Its name and dependencies
+ */
+async function dependencyInfo(dir) {
+  /** @type {unknown} */
+  const manifest = await Bun.file(`${ROOT}${dir}package.json`).json()
+  if (typeof manifest !== 'object' || manifest === null || !('name' in manifest) || typeof manifest.name !== 'string') {
+    throw new Error(`No package name in ${dir}package.json`)
+  }
+  /** @type {string[]} */
+  const dependencies = []
+  for (const field of ['dependencies', 'peerDependencies', 'devDependencies']) {
+    /** @type {unknown} */
+    const value = Reflect.get(manifest, field)
+    if (typeof value === 'object' && value !== null) {
+      dependencies.push(...Object.keys(value))
+    }
+  }
+  return { dir, name: manifest.name, dependencies }
+}
+const manifests = await Promise.all(packages.map(async (dir) => dependencyInfo(dir)))
+/** @type {Map<string, Readonly<{ dir: string, dependencies: readonly string[] }>>} */
+const pending = new Map()
+for (const { dir, name, dependencies } of manifests) {
+  pending.set(name, { dir, dependencies })
+}
+/** @type {string[][]} */
+const results = []
+while (pending.size > 0) {
+  /** @type {(readonly [string, Readonly<{ dir: string, dependencies: readonly string[] }>])[]} */
+  const ready = []
+  for (const [name, info] of pending) {
+    if (!info.dependencies.some((dependency) => pending.has(dependency))) {
+      ready.push([name, info])
+    }
+  }
+  if (ready.length === 0) {
+    throw new Error('The typed packages have a dependency cycle')
+  }
+  // oxlint-disable-next-line no-await-in-loop -- a dependency's declarations must exist before its consumers build
+  results.push(...(await Promise.all(ready.map(async ([, { dir }]) => buildOrCheck(dir, checking)))))
+  for (const [aside, dist] of builtAside.splice(0)) {
+    // oxlint-disable-next-line no-await-in-loop -- replace a completed dependency before building its consumers
+    await Bun.$`rm -rf ${dist} && mv ${aside} ${dist}`
+  }
+  for (const [name] of ready) {
+    pending.delete(name)
+  }
 }
 const stale = results.flat()
 if (stale.length > 0) {

@@ -749,6 +749,7 @@ function selectRun(widget, at, isDialog, pick, length) {
    */
   const selectProps = (controlled) => ({
     label: 'Fruit',
+    disabled: false,
     placeholder: 'Choose',
     rows: 2 + pick.int(5),
     source: 'fruit',

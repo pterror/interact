@@ -11,7 +11,9 @@
  * shown last (on the page around it, inert or not) is heard by it, if it listens for it.
  */
 
+import { prefixedIds } from './dom-ids.js'
 import { host as run } from './host.js'
+import { identity } from './target.js'
 import { announcement } from './words.js'
 
 /** @import { Node, Out, Target } from './compose.js' */
@@ -22,19 +24,13 @@ import { announcement } from './words.js'
 /**
  * How a host names things in the DOM: the prefix of every id, a key as text for ids, and optionally the ids of the
  * elements outside the widget it refers to, by the names it gives them
- * @typedef {Readonly<{ id: string, keyId: (key: Key) => string, outside?: Readonly<{ [name: string]: string }> }>} Naming
+ * The app can supply the complete resolver, or use the prefix-and-key convenience form. Part attributes, ARIA
+ * references and DOM lookups all use this same naming. Neither form determines a part's internal identity.
+ * @typedef {Readonly<{ outside?: Readonly<{ [name: string]: string }> }> & (
+ *   Readonly<{ idOf: (target: Target) => string }>
+ *   | Readonly<{ id: string, keyId: (key: Key) => string }>
+ * )} Naming
  */
-
-/**
- * A part's identity among every part drawn
- * @param {Target} target - The part
- * @param {Naming} naming - How the host names keys
- * @returns {string} Its identity
- */
-function identity(target, naming) {
-  const name = [...target.owner, target.part].join('-')
-  return target.item === null ? name : `${name}-${naming.keyId(target.item)}`
-}
 
 /**
  * A part's id in the document
@@ -43,7 +39,12 @@ function identity(target, naming) {
  * @returns {string} The id
  */
 function idOf(target, naming) {
-  return `${naming.id}-${identity(target, naming)}`
+  if ('idOf' in naming) {
+    return naming.idOf(target)
+  }
+  const name = [...target.owner, target.part].join('-')
+  const part = target.item === null ? name : `${name}-${naming.keyId(target.item)}`
+  return `${naming.id}-${part}`
 }
 
 /**
@@ -411,7 +412,7 @@ let made = 0
  */
 function ownNaming() {
   made += 1
-  return { id: `interact${String(made)}`, keyId: String }
+  return prefixedIds(`interact${String(made)}`)
 }
 
 /**
@@ -485,7 +486,7 @@ function page(options, live) {
    */
   const onPart = (out) => {
     const target = effectTarget(out)
-    const element = target === null ? undefined : elements.get(identity(target, naming))
+    const element = target === null ? undefined : elements.get(identity(target))
     if (element instanceof HTMLElement && effectType(out) === 'focus') {
       element.focus()
     } else if (element !== undefined) {
@@ -807,7 +808,7 @@ function page(options, live) {
       /** @type {Node[]} */
       const parts = [tree]
       for (let node = parts.pop(); node !== undefined; node = parts.pop()) {
-        const key = identity(node.target, naming)
+        const key = identity(node.target)
         const id = idOf(node.target, naming)
         // oxlint-disable-next-line unicorn/prefer-query-selector -- an id from a key need not be a CSS identifier
         const element = findsById(root) ? root.getElementById(id) : null
@@ -851,4 +852,5 @@ function page(options, live) {
   }
 }
 
-export { ARIA_STATES, attributesOf, elementFor, identity, idOf, itemText, page, partName, statesOf }
+export { identity } from './target.js'
+export { ARIA_STATES, attributesOf, elementFor, idOf, itemText, page, partName, statesOf }

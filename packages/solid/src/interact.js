@@ -7,10 +7,10 @@
  * (`createUniqueId`), so they match between server and client, unless the app names them.
  */
 
-import { attributesOf, elementFor, identity, itemText, page, partName, same } from '@pterror/interact-core'
+import { attributesOf, elementFor, identity, itemText, page, partName, same, prefixedIds } from '@pterror/interact-core'
 import { createMemo, createUniqueId, onCleanup, untrack } from 'solid-js'
 
-/** @import { Key, Naming, Node as Part, PageOptions } from '@pterror/interact-core' */
+/** @import { Key, Node as Part, PageOptions } from '@pterror/interact-core' */
 /** @import { Component } from 'solid-js' */
 /** @import { Adapter, PartOf as Of, PartProps as Given, SolidElement } from './adapter.js' */
 
@@ -46,19 +46,18 @@ import { createMemo, createUniqueId, onCleanup, untrack } from 'solid-js'
 /**
  * Every part of a tree, flat, by identity
  * @param {Part} node - The root
- * @param {Naming} naming - The host's naming
  * @param {Map<string, Flat>} into - Where each part goes
  * @returns {string} The root's identity
  */
-function flatten(node, naming, into) {
-  const key = identity(node.target, naming)
+function flatten(node, into) {
+  const key = identity(node.target)
   /** @type {string[]} */
   const content = []
   /** @type {Flat['values'][number][]} */
   const values = []
   for (const [index, child] of node.content.entries()) {
     if ('target' in child) {
-      content.push(`part ${flatten(child, naming, into)}`)
+      content.push(`part ${flatten(child, into)}`)
       values.push(null)
     } else {
       content.push(`${'text' in child ? 'text' : 'item'} ${String(index)}`)
@@ -120,7 +119,7 @@ function interactWith(solid) {
           props.effect?.(out, host)
         },
         name: props.name ?? String,
-        naming: props.naming ?? { id: createUniqueId(), keyId: String },
+        naming: props.naming ?? prefixedIds(createUniqueId()),
         props: untrack(() => props.props),
         widget: props.widget,
         words: props.words ?? {},
@@ -166,7 +165,7 @@ function interactWith(solid) {
       version()
       /** @type {Map<string, Flat>} */
       const all = new Map()
-      flatten(running.host.tree(), naming, all)
+      flatten(running.host.tree(), all)
       return all
     })
 
@@ -223,7 +222,7 @@ function interactWith(solid) {
       return solid.element(tag, attributes, rest, tag === 'button' ? { type: 'button' } : {})
     }
 
-    const root = draw(identity(untrack(() => running.host.tree()).target, naming))
+    const root = draw(identity(untrack(() => running.host.tree()).target))
     solid.settled(() => {
       drawn()
       running.host.begin()

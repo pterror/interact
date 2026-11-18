@@ -11,7 +11,7 @@ import { select } from '@pterror/interact-core/generated/select'
 import { register } from '@pterror/interact-elements'
 
 const FRUIT = ['Apple', 'Banana', 'Cherry', 'Date', 'Elderberry', 'Fig']
-const SELECT = { label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit', value: null }
+const SELECT = { disabled: false, label: 'Fruit', placeholder: 'Choose a fruit', rows: 4, source: 'fruit', value: null }
 
 /**
  * A box as plain numbers

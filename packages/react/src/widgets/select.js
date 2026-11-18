@@ -31,7 +31,7 @@ const Select = component(
   {
     events: [],
     inside: {},
-    props: ['label', 'placeholder', 'rows', 'source'],
+    props: ['disabled', 'label', 'placeholder', 'rows', 'source'],
     sources: ['source'],
     value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
     widget,

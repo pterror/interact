@@ -13,6 +13,6 @@
   <li {...attrs} data-key={part.item}>{@render children()}</li>
 {/snippet}
 
-<Select label="Fruit" placeholder="Choose a fruit" rows={4} source="fruit" {sources} {onchange} parts={{ list, option }}>
+<Select disabled={false} label="Fruit" placeholder="Choose a fruit" rows={4} source="fruit" {sources} {onchange} parts={{ list, option }}>
   {#snippet children(/** @type {string} */ key)}<b>{key}</b>{/snippet}
 </Select>

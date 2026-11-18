@@ -22,7 +22,7 @@ import { select as widget } from '@pterror/interact-core/generated/select'
 const select = {
   events: [],
   inside: {},
-  props: ['label', 'placeholder', 'rows', 'source'],
+  props: ['disabled', 'label', 'placeholder', 'rows', 'source'],
   sources: ['source'],
   value: { empty: null, kind: 'string', prop: 'value', wrapped: true },
   widget,
